@@ -95,12 +95,13 @@ Todas as opções ficam em `src/config.php` e podem ser definidas por **variáve
 
 | Onde | Como | Classe / seletor |
 |------|------|------------------|
-| Imagens e desenhos (logo, moedas, ícones do HUD, selos, PIX) | Filtro SVG `#scc-plastic`: a luminância vira relevo e recebe iluminação especular (`feSpecularLighting`), por isso cada área de cor ganha brilho próprio | `class="plastic"` |
+| Imagens e desenhos (moedas, ícones do HUD, selos, PIX) | Filtro SVG `#scc-plastic`: a luminância vira relevo e recebe iluminação especular (`feSpecularLighting`), por isso cada área de cor ganha brilho próprio | `class="plastic"` |
 | Ilustrações grandes (skyline, grama do rodapé, moldura do vídeo) | Filtro `#scc-plastic-soft`, mais suave | `class="plastic-soft"`, `.skyline`, `.footer-grass` |
 | Componentes (botões, painéis de pedra, cards, placas, abas, badges) | Camada de verniz em `::after` (faixa de reflexo com "horizonte" nítido, ponto especular e base escurecida) sob o texto (`isolation: isolate` + `z-index: -1`), sombras de plástico e cores mais saturadas | variáveis `--gloss-strong`, `--gloss-soft`, `--plastic-shadow` |
 | Botões redondos | Esferas com gradiente radial e dois reflexos | `.round-btn` |
 
 Os filtros ficam no início do `<body>` (`src/partials/head.php`). Regras de uso:
+- **A logo nunca recebe o efeito:** ela aparece sempre como a arte original do MKT (`logo_img()` não aplica `plastic`; não acrescente essa classe).
 - **Não** aplique `plastic` em imagens com texto pequeno (como o card T1): o relevo distorce as letras. Nesses casos, use o verniz do contêiner (ver `.hud-showcase`).
 - O verniz some com `prefers-contrast: more`.
 - Novos componentes recebem o acabamento quando são incluídos nas listas de seletores do bloco **PLÁSTICO BRILHANTE** do `style.css`.

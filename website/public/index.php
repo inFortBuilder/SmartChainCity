@@ -17,7 +17,7 @@ partial('header');
   <div class="clouds" aria-hidden="true"><span></span><span></span><span></span></div>
   <div class="container hero-grid">
     <div class="hero-left">
-      <?= logo_img('hero-logo plastic', '(max-width: 600px) 90vw, 460px', 460) ?>
+      <?= logo_img('hero-logo', '(max-width: 600px) 90vw, 460px', 460) ?>
       <p class="eyebrow">Bem-vindo à</p>
       <h1>Smart Chain City</h1>
       <p class="lead">Muito mais que construir cidades: um jogo NFT 3D com economia sustentável, profissões, lotes e imóveis virtuais — e recompensas baseadas na sua estratégia.</p>

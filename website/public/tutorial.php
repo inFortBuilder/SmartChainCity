@@ -14,7 +14,7 @@ partial('header');
 <section class="hero sky hero--tutorial">
   <div class="clouds" aria-hidden="true"><span></span><span></span><span></span></div>
   <div class="container center">
-    <?= logo_img('hero-logo hero-logo--big plastic', '(max-width: 600px) 90vw, 520px', 520) ?>
+    <?= logo_img('hero-logo hero-logo--big', '(max-width: 600px) 90vw, 520px', 520) ?>
     <h1 class="headline">Na cidade que nunca dorme, todos são bem-vindos.</h1>
     <p class="headline-sub">E ainda podem sair ganhando.</p>
 

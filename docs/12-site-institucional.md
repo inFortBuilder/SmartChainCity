@@ -61,7 +61,7 @@ Home (/)
 
 **Logo:** a arte 3D oficial da pasta `MKT` (laranja "SMART", faixa verde "CHAIN" com folhas, "CITY" escuro e moedas), usada no menu, no hero, no tutorial e no rodapé. A versão vetorial plana do kit não é mais usada no site.
 
-**Acabamento plástico brilhante:** imagens e desenhos recebem um filtro SVG de iluminação especular. Botões, painéis e cards ganham uma camada de verniz, com faixa de reflexo de borda nítida, ponto especular e sombra de contato, e os botões redondos viram esferas. O visual lembra brinquedo de plástico injetado, como o render "Glossy Plastic" de referência. Detalhes técnicos e regras de uso estão no [README do website](../website/README.md#logo-e-acabamento-plástico).
+**Acabamento plástico brilhante:** a logo fica fora dele e aparece sempre como a arte original. Já as demais imagens e desenhos recebem um filtro SVG de iluminação especular. Botões, painéis e cards ganham uma camada de verniz, com faixa de reflexo de borda nítida, ponto especular e sombra de contato, e os botões redondos viram esferas. O visual lembra brinquedo de plástico injetado, como o render "Glossy Plastic" de referência. Detalhes técnicos e regras de uso estão no [README do website](../website/README.md#logo-e-acabamento-plástico).
 
 Tipografia: **Londrina Solid Black** em títulos, menu e botões; **Baloo 2** no texto. Os arquivos vêm do kit de marca e são licenciados sob OFL.
 Raridades nos cards: Comum (verde), Raro (azul), Épico (roxo) e Lendário (dourado), as mesmas do jogo e das telas.

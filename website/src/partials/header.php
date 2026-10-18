@@ -13,7 +13,7 @@ $menu = [
 <header class="site-header">
   <nav class="stone-bar" aria-label="Principal">
     <a class="brand" href="<?= e(url('index.php')) ?>">
-      <?= logo_img('plastic', '130px', 130) ?>
+      <?= logo_img('brand-logo', '130px', 130) ?>
     </a>
     <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="menu-principal" aria-label="Abrir menu">
       <?= icon('menu') ?>

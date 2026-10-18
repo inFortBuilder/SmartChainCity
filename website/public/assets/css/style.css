@@ -508,7 +508,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--blue); outline: 
 .plastic { filter: url(#scc-plastic) drop-shadow(0 8px 8px rgba(0, 0, 0, .22)); }
 .plastic-soft { filter: url(#scc-plastic-soft) drop-shadow(0 12px 10px rgba(0, 0, 0, .25)); }
 .skyline, .footer-grass { filter: url(#scc-plastic-soft); }
-.brand img.plastic, .coin-pill img.plastic { filter: url(#scc-plastic) drop-shadow(0 3px 2px rgba(0, 0, 0, .35)); }
+.coin-pill img.plastic { filter: url(#scc-plastic) drop-shadow(0 3px 2px rgba(0, 0, 0, .35)); }
 .partner-row img { filter: grayscale(1) brightness(0) invert(1) drop-shadow(0 4px 4px rgba(0,0,0,.3)); }
 
 /* 2) Componentes com verniz */
