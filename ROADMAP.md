@@ -29,6 +29,8 @@ S1–S4            S5–S8              S9–S14              S15–S22         
 | 4 — Lançamento | S23–S26 | `M4-lancamento` | TGE do SCITY, venda de lotes da A1, evento no Spatial |
 | 5 — Live Ops | S27+ | `M5-liveops-*` | Expansões só quando a razão sinks/faucets ficar ≥ 0,9 por 8 semanas |
 
+> **Proposta em avaliação — Cidade realista e construtores** ([doc 13](docs/13-cidade-realista-construtores.md)): cidade em formato real, prédios de jogadores enviados pelo SCC Builder (Convert3D sem vínculo com o EventosWeb) e unidades vendáveis. Se aprovada, entram os épicos E0.9 (spike do cliente web nativo), E0.10 (fork SCC Builder), E1.8 (lote poligonal), E2.10–E2.11 (validação e prédios na testnet) e E3.11–E3.12 (unidades, UnitMarket e moderação).
+
 ---
 
 ## Etapa 0 — Fundação (S1–S4)

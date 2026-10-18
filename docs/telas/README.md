@@ -1,5 +1,7 @@
 # Telas do Jogo — modelos
 
+> **Nova direção proposta:** cidade em formato real, com visual realista e prédios de jogadores. Ver o [doc 13](../13-cidade-realista-construtores.md) e o [protótipo 3D](../proposta-cidade-realista/index.html). Estes wireframes continuam valendo para o HUD, os cards e os fluxos de economia.
+
 Wireframes de alta fidelidade das principais telas do cliente Unity WebGL, em **SVG 1920 × 1080**. Eles seguem os layouts do kit de marca e do build legado:
 
 - **LayoutHUD.png** (`_ENTRADA _ ANOTAÇÕES/Barra e ícones`): diagramação do HUD, com menu lateral (Mundos, Mapa, Email), Eventos, menus radiais Patrimônio e Avatar (aberto e fechado), saldo com Exchange e regra "HUD genérica, sem elementos do ambiente";

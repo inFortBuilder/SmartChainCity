@@ -20,6 +20,7 @@ Esta pasta consolida o material legado do projeto (estudos da **FGV Jr.**, backe
 | 10 | [Segurança, Riscos e Compliance](10-seguranca-compliance.md) | Achados no material legado, regulação, antifraude |
 | 11 | [Decisões Pendentes](11-decisoes-pendentes.md) | Inconsistências das fontes e o que precisa ser decidido |
 | 12 | [Site Institucional](12-site-institucional.md) | Mapa do site, seções do briefing, identidade visual, integração |
+| 13 | [Cidade Realista e Construtores](13-cidade-realista-construtores.md) | **Proposta:** cidade em formato real, prédios de jogadores via SCC Builder (Convert3D sem EW), unidades à venda; [protótipo 3D](proposta-cidade-realista/index.html) |
 | — | [Telas do jogo (modelos)](telas/README.md) | 8 wireframes SVG: login, Lucky Box, cidade com HUD, inventário, mapa de lotes, turno, marketplace, exchange |
 | — | [Roadmap detalhado](../ROADMAP.md) | Etapas, épicos, critérios de saída e caminho crítico |
 | — | [Guia de Desenvolvimento](desenvolvimento/README.md) | Ambiente, fluxo de Git, padrões, testes e o caminho de cada trilha |

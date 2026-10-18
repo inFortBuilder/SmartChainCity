@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cidade Realista — Protótipo</title>
+<meta name="description" content="Protótipo da nova direção visual da Smart Chain City: cidade em formato real, lotes reais e construtores enviando edifícios (Convert3D) para vender unidades.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="style.css?v=3">
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<canvas id="scene" aria-label="Cidade 3D"></canvas>
+
+<!-- Barra superior -->
+<header class="topbar glass">
+  <img class="logo" src="../../website/public/assets/img/brand/logo-3d-260.webp" alt="Smart Chain City" width="120" height="62">
+  <nav class="modes" role="tablist" aria-label="Modo">
+    <button role="tab" aria-selected="true" data-mode="explore">Explorar</button>
+    <button role="tab" aria-selected="false" data-mode="lots">Mapa de lotes</button>
+    <button role="tab" aria-selected="false" data-mode="builder">Construtor</button>
+  </nav>
+  <div class="wallet">
+    <span class="chip"><i class="dot dot--green"></i> Região A1 · Centro</span>
+    <span class="chip chip--coin"><b>SCITY</b> 48.250</span>
+    <span class="avatar" title="Construtora Horizonte (você)">CH</span>
+  </div>
+</header>
+
+<!-- Legenda do mapa de lotes -->
+<aside class="legend glass" data-legend hidden>
+  <h3>Mapa de lotes</h3>
+  <ul>
+    <li><i style="background:#22d3ee"></i>Seu lote</li>
+    <li><i style="background:#f59e0b"></i>À venda (Prefeitura)</li>
+    <li><i style="background:#a78bfa"></i>À venda (jogadores)</li>
+    <li><i style="background:#3b82f6"></i>Ocupado</li>
+    <li><i style="background:#94a3b8"></i>Vazio</li>
+    <li><i style="background:#22c55e"></i>Parque / público</li>
+  </ul>
+</aside>
+
+<!-- Painel do construtor (fluxo Convert3D → lote → unidades → venda) -->
+<aside class="builder glass" data-builder hidden>
+  <header>
+    <p class="eyebrow">Construtor</p>
+    <h2>Subir edifício no seu lote</h2>
+  </header>
+  <ol class="steps">
+    <li class="step" data-step="1">
+      <div class="step-head"><span class="num">1</span><h3>Lote</h3><span class="ok" data-ok="1"></span></div>
+      <p data-lot-summary>—</p>
+    </li>
+    <li class="step" data-step="2">
+      <div class="step-head"><span class="num">2</span><h3>Modelo 3D</h3><span class="ok" data-ok="2"></span></div>
+      <p class="muted">GLB/GLTF exportado pelo <b>SCC Builder</b> (Convert3D, preset “Smart Chain City”).</p>
+      <div class="row">
+        <label class="btn btn--ghost file">Enviar .glb<input type="file" accept=".glb,.gltf" data-upload hidden></label>
+        <button class="btn btn--ghost" type="button" data-sample>Usar torre exemplo</button>
+      </div>
+      <label class="field">Unidade do arquivo
+        <select data-units>
+          <option value="1">metros</option><option value="0.01">centímetros</option><option value="0.001">milímetros</option>
+        </select>
+      </label>
+      <label class="field">Girar <input type="range" min="0" max="355" step="5" value="0" data-rotate></label>
+      <p class="model-info" data-model-info></p>
+    </li>
+    <li class="step" data-step="3">
+      <div class="step-head"><span class="num">3</span><h3>Validação</h3><span class="ok" data-ok="3"></span></div>
+      <ul class="checks" data-checks><li class="muted">Envie um modelo para validar.</li></ul>
+    </li>
+    <li class="step" data-step="4">
+      <div class="step-head"><span class="num">4</span><h3>Unidades à venda</h3><span class="ok" data-ok="4"></span></div>
+      <div class="grid2">
+        <label class="field">Pé-direito (m) <input type="number" min="2.6" max="6" step="0.1" value="3.2" data-floor-h></label>
+        <label class="field">Unid. por andar <input type="number" min="1" max="12" value="6" data-per-floor></label>
+        <label class="field">Térreo comercial <select data-ground><option value="1">Sim</option><option value="0">Não</option></select></label>
+        <label class="field">SCITY por m² <input type="number" min="1" value="18" data-price></label>
+      </div>
+      <div class="kpis" data-kpis></div>
+    </li>
+    <li class="step" data-step="5">
+      <div class="step-head"><span class="num">5</span><h3>Publicar</h3><span class="ok" data-ok="5"></span></div>
+      <p class="muted">Gera o NFT do edifício e um NFT por unidade; as unidades entram no marketplace.</p>
+      <button class="btn btn--primary" type="button" data-publish disabled>Publicar e colocar à venda</button>
+    </li>
+  </ol>
+</aside>
+
+<!-- Painel de informações do lote / edifício / unidade -->
+<aside class="inspector glass" data-inspector hidden>
+  <button class="close" type="button" data-close aria-label="Fechar">×</button>
+  <div data-inspector-body></div>
+</aside>
+
+<!-- Dica e controle de horário -->
+<footer class="bottombar glass">
+  <span class="hint" data-hint>Arraste para girar · Clique direito para mover · Role para zoom · Clique num lote</span>
+  <label class="time">☀ <input type="range" min="5" max="19" step="0.25" value="15.5" data-time> <output data-time-out>15:30</output></label>
+</footer>
+
+<div class="toast glass" data-toast hidden></div>
+<div class="loading" data-loading><div class="spinner"></div><p>Montando a cidade…</p></div>
+
+<script type="module" src="main.js?v=8"></script>
+</body>
+</html>

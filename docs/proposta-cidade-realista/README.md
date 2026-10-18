@@ -1,0 +1,19 @@
+# Protótipo — Cidade realista e construtores
+
+Demonstração da proposta do [doc 13](../13-cidade-realista-construtores.md), feita em Three.js r170 (carregado do jsDelivr) e sem build.
+
+```bash
+php -S localhost:8081 -t .
+```
+
+Rode na raiz do repositório e abra http://localhost:8081/docs/proposta-cidade-realista/index.html.
+
+| Modo | O que mostra |
+|------|--------------|
+| **Explorar** | Cidade com ruas inclinadas, quadras irregulares, 206 lotes poligonais, parques, árvores, carros, sombras e sol pela hora do dia (controle na barra inferior) |
+| **Mapa de lotes** | Situação de cada lote: seu, à venda pela Prefeitura, à venda por jogadores, ocupado, vazio, parque |
+| **Construtor** | Lote do jogador → modelo (torre exemplo ou um `.glb`/`.gltf` real, inclusive com Draco ou meshopt) → validação (recuo, gabarito, coeficiente com outorga, polígonos, escala) → unidades (pé-direito, unidades por andar, térreo comercial, preço por m², VGV) → publicar → clicar num andar para ver e comprar as unidades |
+
+O clique num lote abre o painel com área, zona, gabarito, coeficiente e dono.
+
+Limitações (é um protótipo): nada é salvo nem enviado à rede. A cidade é gerada por semente, e não a partir do OpenStreetMap. Mint, alvará e compras são simulados. `window.__scc` expõe funções para testes automatizados.
