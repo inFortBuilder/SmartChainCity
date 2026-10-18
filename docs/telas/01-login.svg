@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="1920" height="1080" font-family="'Londrina Solid','Baloo 2','Arial Black',sans-serif">
+  <title>Tela 01 — Login (ShowcaseLogin)</title>
+  <defs>
+    <style>
+      @font-face { font-family: "Londrina Solid"; src: url("../../website/public/assets/fonts/LondrinaSolid-Black.ttf"); font-weight: 900; }
+      @font-face { font-family: "Baloo 2"; src: url("../../website/public/assets/fonts/Baloo2-VariableFont_wght.ttf"); font-weight: 400 800; }
+    </style>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6ec3f2"/><stop offset="1" stop-color="#e3f5ff"/></linearGradient>
+    <linearGradient id="stone" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#bcbcbc"/><stop offset="1" stop-color="#909090"/></linearGradient>
+    <linearGradient id="green" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9be81d"/><stop offset="1" stop-color="#55b51b"/></linearGradient>
+    <linearGradient id="blue" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3d8cf0"/><stop offset="1" stop-color="#1442a8"/></linearGradient>
+    <linearGradient id="orange" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffc35a"/><stop offset="1" stop-color="#f07b12"/></linearGradient>
+    <filter id="sh" x="-10%" y="-10%" width="120%" height="130%"><feDropShadow dx="0" dy="10" stdDeviation="0" flood-color="#000" flood-opacity=".18"/></filter>
+  </defs>
+  <rect width="1920" height="1080" fill="url(#sky)"/>
+  <!-- nuvens -->
+  <g fill="#fff" opacity=".95">
+    <ellipse cx="260" cy="190" rx="130" ry="40"/><circle cx="230" cy="160" r="50"/><circle cx="300" cy="170" r="38"/>
+    <ellipse cx="1620" cy="140" rx="150" ry="44"/><circle cx="1590" cy="105" r="56"/><circle cx="1670" cy="118" r="42"/>
+  </g>
+  <!-- skyline -->
+  <g fill="#c96a6a" opacity=".9">
+    <rect x="0" y="760" width="140" height="320"/><rect x="150" y="700" width="110" height="380" fill="#d98a7a"/>
+    <rect x="270" y="820" width="170" height="260"/><rect x="450" y="660" width="120" height="420" fill="#e09a86"/>
+    <rect x="1380" y="690" width="140" height="390" fill="#d98a7a"/><rect x="1530" y="760" width="160" height="320"/>
+    <rect x="1700" y="640" width="120" height="440" fill="#e09a86"/><rect x="1830" y="780" width="90" height="300"/>
+  </g>
+  <g fill="#ffd9c8" opacity=".7">
+    <rect x="175" y="730" width="16" height="22"/><rect x="205" y="730" width="16" height="22"/><rect x="175" y="770" width="16" height="22"/><rect x="205" y="770" width="16" height="22"/>
+    <rect x="1730" y="670" width="16" height="22"/><rect x="1760" y="670" width="16" height="22"/><rect x="1730" y="710" width="16" height="22"/><rect x="1760" y="710" width="16" height="22"/>
+  </g>
+  <rect y="1000" width="1920" height="80" fill="#5db82e"/>
+
+  <!-- logo -->
+  <g text-anchor="middle" filter="url(#sh)">
+    <text x="960" y="220" font-size="150" font-weight="900" fill="#f6a43a" stroke="#c4580f" stroke-width="5">SMART</text>
+    <rect x="740" y="236" width="440" height="110" rx="34" fill="#2fb14b" stroke="#16702a" stroke-width="6"/>
+    <text x="960" y="322" font-size="96" font-weight="900" fill="#fff">CHAIN</text>
+    <text x="960" y="420" font-size="86" font-weight="900" fill="#8d8d8d" stroke="#5a5a5a" stroke-width="3">CITY</text>
+  </g>
+
+  <!-- painel de login de pedra -->
+  <g filter="url(#sh)">
+    <path d="M640 470 h640 l20 20 v400 l-24 20 h-610 l-30 -26 v-390 z" fill="url(#stone)"/>
+  </g>
+  <text x="960" y="540" text-anchor="middle" font-size="54" fill="#2d2d2d">Entrar na cidade</text>
+  <g filter="url(#sh)">
+    <rect x="700" y="575" width="520" height="92" rx="20" fill="url(#orange)"/>
+    <circle cx="760" cy="621" r="28" fill="#fff" opacity=".9"/>
+    <path d="M745 608 l15 8 l15 -8 l-4 22 l-11 6 l-11 -6 z" fill="#f07b12"/>
+    <text x="990" y="638" text-anchor="middle" font-size="40" fill="#fff">CONECTAR METAMASK</text>
+  </g>
+  <g filter="url(#sh)">
+    <rect x="700" y="690" width="520" height="80" rx="20" fill="url(#blue)"/>
+    <text x="960" y="744" text-anchor="middle" font-size="36" fill="#fff">ENTRAR COM E-MAIL</text>
+  </g>
+  <text x="960" y="822" text-anchor="middle" font-family="'Baloo 2',Arial,sans-serif" font-size="26" fill="#333">Primeira vez? Você recebe uma carteira automaticamente.</text>
+  <text x="960" y="860" text-anchor="middle" font-family="'Baloo 2',Arial,sans-serif" font-size="22" fill="#555">Rede: BNB Smart Chain · Termos de uso · Privacidade</text>
+
+  <!-- rodapé de versão -->
+  <rect x="40" y="1020" width="250" height="40" rx="12" fill="#063654" opacity=".8"/>
+  <text x="165" y="1048" text-anchor="middle" font-family="'Baloo 2',Arial,sans-serif" font-size="22" fill="#fff">v0.1 · Beta testnet</text>
+  <g filter="url(#sh)"><circle cx="1840" cy="1040" r="30" fill="url(#green)"/><text x="1840" y="1052" text-anchor="middle" font-size="34" fill="#123d06">?</text></g>
+</svg>

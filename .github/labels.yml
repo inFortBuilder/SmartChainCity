@@ -17,5 +17,6 @@
 - { name: "track:econ",      color: "1d76db" }
 - { name: "track:infra",     color: "1d76db" }
 - { name: "track:art",       color: "1d76db" }
+- { name: "track:site",      color: "1d76db" }
 - { name: "track:legal",     color: "1d76db" }
 # Milestones: M0-fundacao, M1-vertical-slice, M2-alpha, M3-beta, M4-lancamento, M5-liveops-1

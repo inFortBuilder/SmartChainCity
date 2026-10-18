@@ -113,7 +113,7 @@ S1–S4            S5–S8              S9–S14              S15–S22         
 | E4.2 TGE do SCITY | contracts · econ | Vesting configurado, LP travado ≥ 12 meses, endereços publicados |
 | E4.3 Venda de lotes da A1 | backend · client | Venda primária com fila e limites por carteira |
 | E4.4 Espaços Spatial | metaverse | Stand de Vendas, Prefeitura Virtual e Showroom ([doc 08 §5](docs/08-metaverso-webgl.md#5-espaços-spatial-a-partir-de-spatial-virtualcamp)) |
-| E4.5 Landing e comunidade | client · art | Site estático, Discord, documentação pública e FAQ |
+| E4.5 Landing e comunidade | site · art | Site em PHP/JS já criado em [`website/`](website/README.md) (ver [trilha-site](docs/desenvolvimento/trilha-site.md)); publicar com dados reais, Discord, documentação pública e FAQ |
 | E4.6 Plano de incidentes | infra · legal | Runbooks, contatos, comunicação pronta |
 
 ---

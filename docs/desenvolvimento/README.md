@@ -21,6 +21,7 @@ Como trabalhar neste repositório: ambiente, fluxo de Git, padrões e o **caminh
 | Metaverso (Spatial) | [`metaverse-spatial/`](../../metaverse-spatial/README.md) | [trilha-metaverso.md](trilha-metaverso.md) | E4.4, onda 5.5 |
 | Ferramentas (economia e cidade real) | [`tools/`](../../tools/README.md) | [trilha-ferramentas.md](trilha-ferramentas.md) | E0.5, E0.7, E2.8 |
 | Infraestrutura | [`infra/`](../../infra/README.md) | [trilha-infra.md](trilha-infra.md) | E0.1, E0.2, E1.7, E3.9, E4.1 |
+| Site institucional | [`website/`](../../website/README.md) | [trilha-site.md](trilha-site.md) | E4.5 |
 | Arte | [`art/`](../../art/README.md) | — (ver [doc 08](../08-metaverso-webgl.md)) | E0.3, E1.6, E2.2 |
 
 ## Como as trilhas se encontram

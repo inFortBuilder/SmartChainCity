@@ -187,6 +187,7 @@ Autenticação: `Authorization: Bearer <JWT>`. Toda mutação aceita `Idempotenc
 | POST | `/v1/lots/:x/:y/quote` | Cotação de compra primária (valida regras de bairro e cerco) |
 | POST | `/v1/lots/:x/:y/regularize` | `{as: "residential"|"commercial"}` |
 | POST | `/v1/lots/:x/:y/utilities` | Contratar água/energia |
+| GET | `/v1/properties` | Imóveis da conta (inventário — tela 04) |
 | POST | `/v1/properties` | Construir `{typeCode, anchor:{x,y}}` |
 | POST | `/v1/properties/:id/upgrade` | Subir nível |
 | POST | `/v1/properties/:id/repair` | Reparador |
@@ -201,6 +202,11 @@ Autenticação: `Authorization: Bearer <JWT>`. Toda mutação aceita `Idempotenc
 | GET | `/v1/economy/fx` | Câmbio vigente e spread |
 | POST | `/v1/economy/withdrawals` | Pede voucher de saque (aplica limites) |
 | GET | `/v1/market/listings` | Marketplace off-chain |
+
+### Público (sem autenticação, com cache)
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| GET | `/v1/public/stats` | `{avatars, lands, taxes, work_accidents}` — painel da home do site ([doc 12](12-site-institucional.md)) |
 
 ### Metadados NFT (público)
 | GET | `/meta/avatar/:tokenId` · `/meta/lot/:tokenId` · `/meta/property/:tokenId` |

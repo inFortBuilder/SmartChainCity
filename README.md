@@ -10,6 +10,8 @@ Cidade virtual persistente jogável no navegador (**Unity WebGL**) e em espaços
 | Ver o plano e as etapas | [ROADMAP.md](ROADMAP.md) |
 | Começar a desenvolver | [docs/desenvolvimento/](docs/desenvolvimento/README.md) — ambiente, Git, padrões, trilhas |
 | Ver as decisões tomadas | [docs/adr/](docs/adr/README.md) |
+| Ver os modelos das telas do jogo | [docs/telas/](docs/telas/README.md) |
+| Rodar o site institucional | [website/](website/README.md) |
 | Contribuir | [CONTRIBUTING.md](CONTRIBUTING.md) |
 | Reportar uma vulnerabilidade | [SECURITY.md](SECURITY.md) |
 
@@ -25,6 +27,7 @@ Cidade virtual persistente jogável no navegador (**Unity WebGL**) e em espaços
 ├─ cms-strapi/             ← backoffice de catálogo (Strapi 5)
 ├─ contracts/              ← smart contracts (Foundry, BNB Smart Chain)
 ├─ tools/                  ← simulador econômico e pipeline de cidade real (OSM)
+├─ website/                ← site institucional em PHP + JavaScript (substitui o WordPress)
 ├─ infra/                  ← IaC, Docker Compose, runbooks
 ├─ art/                    ← arte-fonte (Git LFS)
 └─ .github/                ← CI, modelos de issue e PR

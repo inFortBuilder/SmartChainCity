@@ -14,6 +14,7 @@ jobs:
     outputs:
       node: ${{ steps.filter.outputs.node }}
       contracts: ${{ steps.filter.outputs.contracts }}
+      website: ${{ steps.filter.outputs.website }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -28,6 +29,8 @@ jobs:
               - 'pnpm-lock.yaml'
             contracts:
               - 'contracts/**'
+            website:
+              - 'website/**'
 
   secrets-scan:
     runs-on: ubuntu-latest
@@ -62,6 +65,27 @@ jobs:
         run: pnpm -r lint
       - if: steps.ws.outputs.present == 'true'
         run: pnpm -r test
+
+  website:
+    needs: changes
+    if: needs.changes.outputs.website == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring
+      - name: Verificar sintaxe PHP
+        run: find website -name '*.php' -print0 | xargs -0 -n1 php -l
+      - name: Smoke test das páginas e APIs
+        run: |
+          php -S 127.0.0.1:8080 -t website/public website/public/router.php > /tmp/php.log 2>&1 &
+          sleep 1
+          for p in / /tutorial /marketplace /private-sale /account /api/stats.php "/api/listings.php?category=land"; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:8080$p"); echo "$p -> $code"; test "$code" = 200
+          done
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/nao-existe)" = 404
 
   contracts:
     needs: changes
