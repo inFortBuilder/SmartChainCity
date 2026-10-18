@@ -1,0 +1,21 @@
+# Rótulos do projeto (criar no GitHub em Issues > Labels, ou com uma action de sincronização de labels)
+- { name: epic,      color: "5319e7", description: "Épico do roadmap" }
+- { name: task,      color: "0e8a16", description: "Tarefa" }
+- { name: bug,       color: "d73a4a", description: "Defeito" }
+- { name: spike,     color: "fbca04", description: "Investigação com prazo" }
+- { name: security,  color: "b60205", description: "Segurança" }
+- { name: needs-adr, color: "c5def5", description: "Precisa de decisão registrada" }
+- { name: "prio:P0", color: "b60205" }
+- { name: "prio:P1", color: "d93f0b" }
+- { name: "prio:P2", color: "fbca04" }
+- { name: "prio:P3", color: "c2e0c6" }
+- { name: "track:client",    color: "1d76db" }
+- { name: "track:backend",   color: "1d76db" }
+- { name: "track:contracts", color: "1d76db" }
+- { name: "track:cms",       color: "1d76db" }
+- { name: "track:metaverse", color: "1d76db" }
+- { name: "track:econ",      color: "1d76db" }
+- { name: "track:infra",     color: "1d76db" }
+- { name: "track:art",       color: "1d76db" }
+- { name: "track:legal",     color: "1d76db" }
+# Milestones: M0-fundacao, M1-vertical-slice, M2-alpha, M3-beta, M4-lancamento, M5-liveops-1

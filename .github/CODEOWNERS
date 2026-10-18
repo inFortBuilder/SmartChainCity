@@ -1,0 +1,6 @@
+# Ajuste os responsáveis quando a equipe estiver definida.
+*                                @inFortBuilder
+/contracts/                      @inFortBuilder
+/services/economy/               @inFortBuilder
+/tools/econ-sim/                 @inFortBuilder
+/docs/04-economia-tokenomics.md  @inFortBuilder

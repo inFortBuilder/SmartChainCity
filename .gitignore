@@ -1,0 +1,68 @@
+# ---- Segredos (nunca versionar) ----
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+**/chaves/
+**/acessos*.txt
+*backup_code*
+secrets/
+
+# ---- Node ----
+node_modules/
+dist/
+build/
+.turbo/
+coverage/
+*.log
+.pnpm-store/
+
+# ---- Strapi ----
+cms-strapi/.tmp/
+cms-strapi/.cache/
+cms-strapi/public/uploads/*
+!cms-strapi/public/uploads/.gitkeep
+
+# ---- Unity (client-unity e metaverse-spatial) ----
+**/[Ll]ibrary/
+**/[Tt]emp/
+**/[Oo]bj/
+**/[Bb]uild/
+**/[Bb]uilds/
+**/[Ll]ogs/
+**/[Uu]ser[Ss]ettings/
+**/[Mm]emoryCaptures/
+**/[Rr]ecordings/
+**/Assets/AssetStoreTools*
+**/*.csproj
+**/*.sln
+**/*.suo
+**/*.user
+**/*.pidb
+**/*.booproj
+**/*.unityproj
+**/sysinfo.txt
+**/*.apk
+**/*.aab
+**/ServerData/
+**/StreamingAssets/aa/
+
+# ---- Foundry ----
+contracts/cache/
+contracts/broadcast/*/31337/
+contracts/out/
+!contracts/out/abi/
+
+# ---- Python ----
+__pycache__/
+.venv/
+
+# ---- SO / IDE ----
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json

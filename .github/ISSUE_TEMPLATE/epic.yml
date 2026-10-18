@@ -1,0 +1,63 @@
+name: Épico
+description: Épico do roadmap (E0.1, E1.4...)
+title: "[E?.?] "
+labels: ["epic"]
+body:
+  - type: input
+    id: code
+    attributes:
+      label: Código do épico
+      placeholder: "E1.4"
+    validations:
+      required: true
+  - type: dropdown
+    id: stage
+    attributes:
+      label: Etapa
+      options:
+        - "0 — Fundação"
+        - "1 — Vertical Slice"
+        - "2 — Alpha"
+        - "3 — Beta"
+        - "4 — Lançamento"
+        - "5 — Live Ops"
+    validations:
+      required: true
+  - type: checkboxes
+    id: tracks
+    attributes:
+      label: Trilhas
+      options:
+        - label: client
+        - label: backend
+        - label: contracts
+        - label: cms
+        - label: metaverse
+        - label: econ
+        - label: infra
+        - label: art
+        - label: legal
+  - type: textarea
+    id: goal
+    attributes:
+      label: Objetivo e entregas
+      description: Copie do ROADMAP.md
+    validations:
+      required: true
+  - type: textarea
+    id: done
+    attributes:
+      label: Pronto quando
+      description: Critério de aceite verificável
+    validations:
+      required: true
+  - type: textarea
+    id: tasks
+    attributes:
+      label: Tarefas
+      description: "Lista de issues (- [ ] #123)"
+  - type: textarea
+    id: refs
+    attributes:
+      label: Especificação
+      description: Links para docs/ e ADRs

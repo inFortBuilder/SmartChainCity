@@ -1,0 +1,35 @@
+name: Tarefa
+description: Trabalho dentro de um épico
+labels: ["task"]
+body:
+  - type: input
+    id: epic
+    attributes:
+      label: Épico
+      placeholder: "#12 (E1.4)"
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: O que fazer
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Critérios de aceite
+      value: |
+        - [ ]
+        - [ ] Testes no CI
+        - [ ] Docs atualizadas se a regra mudou
+    validations:
+      required: true
+  - type: checkboxes
+    id: impact
+    attributes:
+      label: Impactos
+      options:
+        - label: Altera regras de economia (anexar relatório do econ-sim)
+        - label: Altera contratos ou ABIs
+        - label: Altera a API (atualizar openapi.yaml)

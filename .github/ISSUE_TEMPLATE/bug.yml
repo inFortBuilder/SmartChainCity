@@ -1,0 +1,33 @@
+name: Bug
+description: Algo não funciona como o esperado
+labels: ["bug"]
+body:
+  - type: dropdown
+    id: env
+    attributes:
+      label: Ambiente
+      options: ["local", "dev", "staging", "prod"]
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Passos para reproduzir
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Esperado × obtido
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: Logs, prints, navegador, ID do avatar ou tx hash
+  - type: checkboxes
+    id: money
+    attributes:
+      label: Envolve saldo, NFT ou transação?
+      options:
+        - label: Sim — tratar como prioridade P0

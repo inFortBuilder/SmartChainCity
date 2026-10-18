@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      node: ${{ steps.filter.outputs.node }}
+      contracts: ${{ steps.filter.outputs.contracts }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            node:
+              - 'services/**'
+              - 'cms-strapi/**'
+              - 'tools/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+            contracts:
+              - 'contracts/**'
+
+  secrets-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  node:
+    needs: changes
+    if: needs.changes.outputs.node == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Detectar workspace Node
+        id: ws
+        run: |
+          if [ -f package.json ]; then echo "present=true" >> "$GITHUB_OUTPUT"; else echo "present=false" >> "$GITHUB_OUTPUT"; fi
+      - uses: pnpm/action-setup@v4
+        if: steps.ws.outputs.present == 'true'
+      - uses: actions/setup-node@v4
+        if: steps.ws.outputs.present == 'true'
+        with:
+          node-version: lts/*
+          cache: pnpm
+      - if: steps.ws.outputs.present == 'true'
+        run: pnpm install --frozen-lockfile
+      - if: steps.ws.outputs.present == 'true'
+        run: pnpm -r lint
+      - if: steps.ws.outputs.present == 'true'
+        run: pnpm -r test
+
+  contracts:
+    needs: changes
+    if: needs.changes.outputs.contracts == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: contracts
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Detectar projeto Foundry
+        id: fp
+        run: |
+          if [ -f foundry.toml ]; then echo "present=true" >> "$GITHUB_OUTPUT"; else echo "present=false" >> "$GITHUB_OUTPUT"; fi
+      - uses: foundry-rs/foundry-toolchain@v1
+        if: steps.fp.outputs.present == 'true'
+      - if: steps.fp.outputs.present == 'true'
+        run: forge fmt --check
+      - if: steps.fp.outputs.present == 'true'
+        run: forge build --sizes
+      - if: steps.fp.outputs.present == 'true'
+        run: forge test -vvv
