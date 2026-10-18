@@ -17,7 +17,7 @@ partial('header');
   <div class="clouds" aria-hidden="true"><span></span><span></span><span></span></div>
   <div class="container hero-grid">
     <div class="hero-left">
-      <img class="hero-logo" src="<?= e(asset('img/brand/logo-color.svg')) ?>" alt="<?= e(cfg('app.name')) ?>" width="420" height="221">
+      <?= logo_img('hero-logo plastic', '(max-width: 600px) 90vw, 460px', 460) ?>
       <p class="eyebrow">Bem-vindo à</p>
       <h1>Smart Chain City</h1>
       <p class="lead">Muito mais que construir cidades: um jogo NFT 3D com economia sustentável, profissões, lotes e imóveis virtuais — e recompensas baseadas na sua estratégia.</p>
@@ -29,9 +29,9 @@ partial('header');
         <?php endforeach; ?>
       </ul>
       <div class="platforms" aria-label="Plataformas">
-        <span class="platform is-active" title="Disponível no PC (navegador)"><img src="<?= e(asset('img/legacy/btn-app-win.svg')) ?>" alt="PC — disponível" width="150" height="50"></span>
-        <span class="platform" title="Em breve"><img src="<?= e(asset('img/legacy/btn-app-android.svg')) ?>" alt="Android — em breve" width="142" height="50"></span>
-        <span class="platform" title="Em breve"><img src="<?= e(asset('img/legacy/btn-app-apple.svg')) ?>" alt="iOS — em breve" width="146" height="50"></span>
+        <span class="platform is-active" title="Disponível no PC (navegador)"><img class="plastic" src="<?= e(asset('img/legacy/btn-app-win.svg')) ?>" alt="PC — disponível" width="150" height="50"></span>
+        <span class="platform" title="Em breve"><img class="plastic" src="<?= e(asset('img/legacy/btn-app-android.svg')) ?>" alt="Android — em breve" width="142" height="50"></span>
+        <span class="platform" title="Em breve"><img class="plastic" src="<?= e(asset('img/legacy/btn-app-apple.svg')) ?>" alt="iOS — em breve" width="146" height="50"></span>
       </div>
     </div>
 
@@ -111,11 +111,11 @@ partial('header');
     <div class="wood-frame">
       <?php if (cfg('links.trailer')): ?>
         <button class="video-cover" type="button" data-video="<?= e(cfg('links.trailer')) ?>" aria-label="Assistir ao trailer">
-          <img src="<?= e(asset('img/legacy/video-frame.webp')) ?>" alt="" loading="lazy">
+          <img class="plastic-soft" src="<?= e(asset('img/legacy/video-frame.webp')) ?>" alt="" loading="lazy">
         </button>
       <?php else: ?>
         <div class="video-cover is-placeholder">
-          <img src="<?= e(asset('img/legacy/video-frame.webp')) ?>" alt="Cena da cidade" loading="lazy">
+          <img class="plastic-soft" src="<?= e(asset('img/legacy/video-frame.webp')) ?>" alt="Cena da cidade" loading="lazy">
 
           <span class="soon">Trailer em breve</span>
         </div>
@@ -130,22 +130,22 @@ partial('header');
     <h2 class="section-title">Viva a cidade</h2>
     <div class="feature-grid">
       <article class="feature" data-reveal>
-        <img src="<?= e(asset('img/hud/profissao.png')) ?>" alt="" width="72" height="72" loading="lazy">
+        <img class="plastic" src="<?= e(asset('img/hud/profissao.png')) ?>" alt="" width="72" height="72" loading="lazy">
         <h3>Smartcityanos</h3>
         <p>Abra uma Lucky Box, receba seu avatar NFT e escolha entre 44 profissões em quatro raridades.</p>
       </article>
       <article class="feature" data-reveal>
-        <img src="<?= e(asset('img/hud/casa.png')) ?>" alt="" width="72" height="72" loading="lazy">
+        <img class="plastic" src="<?= e(asset('img/hud/casa.png')) ?>" alt="" width="72" height="72" loading="lazy">
         <h3>Lotes e imóveis</h3>
         <p>Compre lotes na região central A1, construa casas T1–T3 e edifícios, alugue e colete renda.</p>
       </article>
       <article class="feature" data-reveal>
-        <img src="<?= e(asset('img/hud/almentacao.png')) ?>" alt="" width="72" height="72" loading="lazy">
+        <img class="plastic" src="<?= e(asset('img/hud/almentacao.png')) ?>" alt="" width="72" height="72" loading="lazy">
         <h3>Vida real simulada</h3>
         <p>Energia, saúde, felicidade e alimentação definem quanto seu avatar rende em cada turno.</p>
       </article>
       <article class="feature" data-reveal>
-        <img src="<?= e(asset('img/hud/arvore.png')) ?>" alt="" width="72" height="72" loading="lazy">
+        <img class="plastic" src="<?= e(asset('img/hud/arvore.png')) ?>" alt="" width="72" height="72" loading="lazy">
         <h3>Fazendas e negócios</h3>
         <p>Plante, crie animais, abra mercados, oficinas e hotéis numa economia entre jogadores.</p>
       </article>

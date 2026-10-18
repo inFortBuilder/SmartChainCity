@@ -62,7 +62,7 @@ partial('header');
   <form method="dialog" class="modal-body stone-panel">
     <h2 data-buy-title>Comprar</h2>
     <p data-buy-desc></p>
-    <p class="modal-price"><img src="<?= e(asset('img/brand/coin-3d.png')) ?>" alt="" width="32" height="32"> <strong data-buy-price></strong> SCITY</p>
+    <p class="modal-price"><img src="<?= e(asset('img/brand/coin-96.webp')) ?>" alt="" width="32" height="32" class="plastic"> <strong data-buy-price></strong> SCITY</p>
     <p class="form-status" data-buy-status></p>
     <div class="modal-actions">
       <button class="btn btn--ghost" value="cancel">Cancelar</button>

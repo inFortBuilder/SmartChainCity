@@ -14,18 +14,18 @@ partial('header');
 <section class="hero sky hero--tutorial">
   <div class="clouds" aria-hidden="true"><span></span><span></span><span></span></div>
   <div class="container center">
-    <img class="hero-logo hero-logo--big" src="<?= e(asset('img/brand/logo-color.svg')) ?>" alt="<?= e(cfg('app.name')) ?>" width="460" height="242">
+    <?= logo_img('hero-logo hero-logo--big plastic', '(max-width: 600px) 90vw, 520px', 520) ?>
     <h1 class="headline">Na cidade que nunca dorme, todos são bem-vindos.</h1>
     <p class="headline-sub">E ainda podem sair ganhando.</p>
 
     <div class="wood-frame wood-frame--vines">
       <?php if (cfg('links.trailer')): ?>
         <button class="video-cover" type="button" data-video="<?= e(cfg('links.trailer')) ?>" aria-label="Assistir ao vídeo tutorial">
-          <img src="<?= e(asset('img/legacy/video-frame.webp')) ?>" alt="" loading="lazy">
+          <img class="plastic-soft" src="<?= e(asset('img/legacy/video-frame.webp')) ?>" alt="" loading="lazy">
         </button>
       <?php else: ?>
         <div class="video-cover is-placeholder">
-          <img src="<?= e(asset('img/legacy/video-frame.webp')) ?>" alt="Cena da cidade" loading="lazy">
+          <img class="plastic-soft" src="<?= e(asset('img/legacy/video-frame.webp')) ?>" alt="Cena da cidade" loading="lazy">
 
           <span class="soon">Vídeo tutorial em breve</span>
         </div>
@@ -54,7 +54,7 @@ partial('header');
 
     <div class="pix-cta">
       <h2>Compre também com PIX</h2>
-      <a class="btn btn--wood" href="<?= e(url('index.php#contato-form')) ?>"><img src="<?= e(asset('img/legacy/pix.svg')) ?>" alt="PIX" width="110" height="44"></a>
+      <a class="btn btn--wood" href="<?= e(url('index.php#contato-form')) ?>"><img class="plastic" src="<?= e(asset('img/legacy/pix.svg')) ?>" alt="PIX" width="110" height="44"></a>
     </div>
   </div>
 </section>

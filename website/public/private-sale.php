@@ -16,7 +16,7 @@ partial('header');
 <section class="section sale sky sky--short">
   <div class="container narrow">
     <div class="stone-panel sale-panel">
-      <img class="sale-coin" src="<?= e(asset('img/brand/coin-3d.png')) ?>" alt="" width="120" height="120">
+      <img class="sale-coin plastic" src="<?= e(asset('img/brand/coin-240.webp')) ?>" alt="" width="120" height="120">
       <h1>Venda privada <?= e(cfg('chain.token_symbol')) ?></h1>
       <p class="sale-state <?= $sale['open'] ? 'is-open' : 'is-closed' ?>"><?= $sale['open'] ? 'Venda aberta' : 'Venda ainda não aberta' ?></p>
 

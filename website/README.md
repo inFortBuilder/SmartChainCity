@@ -38,7 +38,7 @@ website/
 │  │  ├─ css/style.css     ← todo o visual (tokens em :root)
 │  │  ├─ js/               ← main.js (comum), wallet.js (EIP-1193), account.js, marketplace.js, sale.js
 │  │  ├─ fonts/            ← Londrina Solid e Baloo 2 (kit de marca, licença OFL)
-│  │  └─ img/              ← brand/ (logo, moeda), hud/ (ícones do jogo), legacy/ (SVGs do site antigo), partners/, icons/
+│  │  └─ img/              ← brand/ (logo 3D oficial e moeda em WebP), hud/ (ícones do jogo), legacy/ (SVGs do site antigo), partners/, icons/
 │  ├─ .htaccess            ← Apache: URLs sem .php, cache, segurança
 │  └─ router.php           ← roteador do servidor embutido do PHP (dev)
 ├─ src/                    ← fora do document root
@@ -86,6 +86,24 @@ Todas as opções ficam em `src/config.php` e podem ser definidas por **variáve
 | `SCC_GAME_API_URL` | vazio | Base da API do jogo (gateway) para estatísticas e anúncios |
 
 > O endereço de contrato citado no briefing antigo (`0xee8F…dead`) tem só 31 dígitos hexadecimais, ou seja, está incompleto. Por isso o site não o usa: preencha `SCC_TOKEN_ADDRESS` com o endereço real após o deploy.
+
+## Logo e acabamento plástico
+
+**Logo oficial:** é a arte 3D de `C:\SmartChainCity\MKT\logo-novo.jpg`. Ela foi gerada a partir do original em alta resolução com transparência (*Logotipo 3D*, 7311 × 3886, do kit de marca), recortada e reduzida para `img/brand/logo-3d-{260,520,1000}.webp`, com um PNG de 1000 px para o Open Graph. No PHP, use sempre `logo_img($classe, $sizes, $largura)`, que monta o `srcset`.
+
+**Plástico brilhante** (referência: render "Glossy Plastic" do Blender), em duas camadas:
+
+| Onde | Como | Classe / seletor |
+|------|------|------------------|
+| Imagens e desenhos (logo, moedas, ícones do HUD, selos, PIX) | Filtro SVG `#scc-plastic`: a luminância vira relevo e recebe iluminação especular (`feSpecularLighting`), por isso cada área de cor ganha brilho próprio | `class="plastic"` |
+| Ilustrações grandes (skyline, grama do rodapé, moldura do vídeo) | Filtro `#scc-plastic-soft`, mais suave | `class="plastic-soft"`, `.skyline`, `.footer-grass` |
+| Componentes (botões, painéis de pedra, cards, placas, abas, badges) | Camada de verniz em `::after` (faixa de reflexo com "horizonte" nítido, ponto especular e base escurecida) sob o texto (`isolation: isolate` + `z-index: -1`), sombras de plástico e cores mais saturadas | variáveis `--gloss-strong`, `--gloss-soft`, `--plastic-shadow` |
+| Botões redondos | Esferas com gradiente radial e dois reflexos | `.round-btn` |
+
+Os filtros ficam no início do `<body>` (`src/partials/head.php`). Regras de uso:
+- **Não** aplique `plastic` em imagens com texto pequeno (como o card T1): o relevo distorce as letras. Nesses casos, use o verniz do contêiner (ver `.hud-showcase`).
+- O verniz some com `prefers-contrast: more`.
+- Novos componentes recebem o acabamento quando são incluídos nas listas de seletores do bloco **PLÁSTICO BRILHANTE** do `style.css`.
 
 ## Editar conteúdo
 

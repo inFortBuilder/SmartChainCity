@@ -13,7 +13,7 @@ $menu = [
 <header class="site-header">
   <nav class="stone-bar" aria-label="Principal">
     <a class="brand" href="<?= e(url('index.php')) ?>">
-      <img src="<?= e(asset('img/brand/logo-white.png')) ?>" alt="<?= e(cfg('app.name')) ?>" width="120" height="70">
+      <?= logo_img('plastic', '130px', 130) ?>
     </a>
     <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="menu-principal" aria-label="Abrir menu">
       <?= icon('menu') ?>
@@ -26,7 +26,7 @@ $menu = [
       <?php endforeach; ?>
     </ul>
     <a class="coin-pill" href="<?= e(url('account.php')) ?>" title="Sua carteira">
-      <img src="<?= e(asset('img/brand/coin-3d.png')) ?>" alt="" width="44" height="44">
+      <img class="plastic" src="<?= e(asset('img/brand/coin-96.webp')) ?>" alt="" width="44" height="44">
       <span data-wallet-balance>Conectar</span>
     </a>
   </nav>

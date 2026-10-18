@@ -28,6 +28,23 @@ function asset(string $path): string
     return cfg('app.base_url') . '/assets/' . ltrim($path, '/') . '?v=' . $version;
 }
 
+/**
+ * Logo oficial (arte 3D da pasta MKT, com fundo transparente) em WebP responsivo.
+ * $sizes segue o atributo HTML sizes (largura exibida). A proporção da arte é 1000 × 513.
+ */
+function logo_img(string $class, string $sizes, int $width, bool $lazy = false): string
+{
+    $srcset = implode(', ', array_map(
+        static fn (int $w): string => asset("img/brand/logo-3d-{$w}.webp") . " {$w}w",
+        [260, 520, 1000]
+    ));
+    return sprintf(
+        '<img class="%s" src="%s" srcset="%s" sizes="%s" width="%d" height="%d" alt="%s"%s decoding="async">',
+        e($class), e(asset('img/brand/logo-3d-520.webp')), e($srcset), e($sizes),
+        $width, (int) round($width * 513 / 1000), e(cfg('app.name')), $lazy ? ' loading="lazy"' : ''
+    );
+}
+
 /** URL interna do site. */
 function url(string $path = ''): string
 {

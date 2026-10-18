@@ -3,7 +3,7 @@
   <div class="footer-grass" aria-hidden="true"></div>
   <div class="footer-inner">
     <div class="footer-brand">
-      <img src="<?= e(asset('img/brand/logo-white.png')) ?>" alt="<?= e(cfg('app.name')) ?>" width="150" height="88" loading="lazy">
+      <?= logo_img('plastic', '180px', 180, true) ?>
       <ul class="footer-links">
         <li><a href="<?= e(url('index.php')) ?>">Home</a></li>
         <li><a href="<?= e(cfg('links.whitepaper')) ?>" target="_blank" rel="noopener">Whitepaper</a></li>
