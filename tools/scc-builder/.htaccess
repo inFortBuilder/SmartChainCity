@@ -1,0 +1,229 @@
+# ═══════════════════════════════════════════════════════════════════════
+#  SCC Builder — configuração Apache de produção
+#
+#  Objetivos:
+#   1. servir o build de /dist na raiz do projeto (/scc-builder/);
+#   2. manter /api acessível sem interferência do roteamento;
+#   3. impedir acesso a código-fonte, config e storage;
+#   4. entregar GLB e WASM com o MIME correto;
+#   5. comprimir e cachear os assets versionados.
+#
+#  Requer: mod_rewrite. Os demais módulos são opcionais (blocos IfModule).
+#  No WAMP: ícone da bandeja → Apache → Apache modules → rewrite_module
+# ═══════════════════════════════════════════════════════════════════════
+
+Options -Indexes -MultiViews
+
+# O index.html da RAIZ é o de desenvolvimento (referencia src/main.js, que
+# só funciona sob o Vite dev server). Ele não pode ser servido pelo Apache:
+# tirando-o do DirectoryIndex, a requisição da raiz cai nas regras de
+# rewrite abaixo, que entregam o build de dist/.
+DirectoryIndex disabled
+
+# ───────────────────────────────────────────────────────────────────────
+#  1. Bloqueio de arquivos e pastas sensíveis
+# ───────────────────────────────────────────────────────────────────────
+
+# Arquivos de configuração, controle de versão e metadados do projeto
+<FilesMatch "^(\.env.*|\.gitignore|\.editorconfig|\.prettierrc.*|package(-lock)?\.json|composer\.(json|lock)|vite\.config\.js|vitest\.config\.js|playwright\.config\.js|eslint\.config\.js|.*\.bat|.*\.md)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# Qualquer arquivo iniciado por ponto
+<FilesMatch "^\.">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Sem RewriteBase de propósito: em contexto de diretório o Apache já
+    # resolve as substituições relativas contra a pasta deste .htaccess.
+    # Isso faz a configuração funcionar igual em /scc-builder/ ou na raiz —
+    # fixar "RewriteBase /" quebraria a instalação em subdiretório.
+
+    # Diretórios que nunca devem ser servidos diretamente.
+    # storage/ só é acessado pelo PHP; src/ e bin/ são código-fonte.
+    RewriteRule ^(src|bin|tests|node_modules|storage|deploy|docs|sdk|_teste|\.git)(/|$) - [F,L]
+
+    # ───────────────────────────────────────────────────────────────────
+    #  2. Roteamento: tudo que não for /api vai para o build em /dist
+    # ───────────────────────────────────────────────────────────────────
+
+    # A API responde por si mesma
+    # (cada endpoint chama Security::guard(), que exige o JWT do gateway SCC)
+    RewriteRule ^api/ - [L]
+
+    # ── Uma só entrada para o HTML ──────────────────────────────────────
+    # O HTML da aplicação NUNCA é servido direto pelo Apache. Toda entrada
+    # passa por app.php, que entrega o build com os headers de cache certos.
+    # Servido direto, o dist/index.html poderia ficar em cache com versão velha.
+    RewriteRule ^dist/index\.html$ - [F,L]
+
+    # Assets do build seguem sendo servidos pelo Apache (JS/CSS com hash,
+    # sem dado de usuário). O acesso útil depende da API, que é protegida.
+    RewriteRule ^dist/ - [L]
+
+    # ── A raiz entrega a aplicação pelo app.php ─────────────────────────
+    # Precisa vir ANTES da regra de "arquivo existente": a raiz do projeto
+    # é um diretório, então sem isto o Apache resolveria o DirectoryIndex.
+    RewriteRule ^$ app.php [L]
+
+    # O index.html de desenvolvimento nunca é servido diretamente
+    RewriteRule ^index\.html$ app.php [L]
+
+    # Arquivo existente na raiz (favicon, robots.txt) é servido como está
+    RewriteCond %{REQUEST_FILENAME} -f
+    RewriteRule ^ - [L]
+
+    # Assets do build
+    RewriteCond %{DOCUMENT_ROOT}%{REQUEST_URI} !-f
+    RewriteRule ^assets/(.*)$ dist/assets/$1 [L]
+
+    # Qualquer outra rota entrega a aplicação — sempre pelo app.php
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^(.*)$ app.php [L]
+</IfModule>
+
+# ───────────────────────────────────────────────────────────────────────
+#  3. MIME types
+#
+#  O Apache não conhece os formatos 3D por padrão. Sem isso o browser
+#  recebe application/octet-stream e o KTX2Loader/WASM falha ao instanciar.
+# ───────────────────────────────────────────────────────────────────────
+<IfModule mod_mime.c>
+    AddType model/gltf-binary       .glb
+    AddType model/gltf+json         .gltf
+    AddType model/stl               .stl
+    AddType model/obj               .obj
+    AddType application/octet-stream .ply .bin .drc .ktx2 .basis
+    AddType application/wasm        .wasm
+    AddType application/javascript  .mjs
+    AddType image/webp              .webp
+    AddType font/woff2              .woff2
+</IfModule>
+
+# ───────────────────────────────────────────────────────────────────────
+#  4. Compressão
+#
+#  three-core tem 664 KB e cai para 180 KB com gzip. Vale muito a pena.
+#  GLB e WebP já são comprimidos — recomprimir só gasta CPU.
+# ───────────────────────────────────────────────────────────────────────
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/css text/xml
+    AddOutputFilterByType DEFLATE application/javascript application/x-javascript
+    AddOutputFilterByType DEFLATE application/json model/gltf+json
+    AddOutputFilterByType DEFLATE image/svg+xml application/wasm
+
+    # Formatos já comprimidos
+    SetEnvIfNoCase Request_URI \.(glb|drc|ktx2|basis|zip|gz|png|jpe?g|webp|woff2)$ no-gzip dont-vary
+</IfModule>
+
+<IfModule mod_brotli.c>
+    AddOutputFilterByType BROTLI_COMPRESS text/html text/css text/plain
+    AddOutputFilterByType BROTLI_COMPRESS application/javascript application/json
+    AddOutputFilterByType BROTLI_COMPRESS application/wasm image/svg+xml
+</IfModule>
+
+# ───────────────────────────────────────────────────────────────────────
+#  5. Cache
+#
+#  O Vite gera nomes com hash (index-BSS4sThA.js), então os assets podem
+#  ser imutáveis por um ano. O index.html nunca é cacheado, senão o
+#  usuário fica preso numa versão antiga.
+# ───────────────────────────────────────────────────────────────────────
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresDefault "access plus 1 hour"
+
+    ExpiresByType text/css                  "access plus 1 year"
+    ExpiresByType application/javascript    "access plus 1 year"
+    ExpiresByType application/wasm          "access plus 1 year"
+    ExpiresByType image/webp                "access plus 1 month"
+    ExpiresByType image/png                 "access plus 1 month"
+    ExpiresByType font/woff2                "access plus 1 year"
+    ExpiresByType text/html                 "access plus 0 seconds"
+</IfModule>
+
+<IfModule mod_headers.c>
+    # Assets com hash no nome: imutáveis
+    <FilesMatch "-[A-Za-z0-9_-]{8,}\.(js|css|woff2)$">
+        Header set Cache-Control "public, max-age=31536000, immutable"
+    </FilesMatch>
+
+    # O HTML precisa ser sempre revalidado
+    <FilesMatch "\.html$">
+        Header set Cache-Control "no-cache, must-revalidate"
+    </FilesMatch>
+
+    # ───────────────────────────────────────────────────────────────────
+    #  6. Headers de segurança
+    # ───────────────────────────────────────────────────────────────────
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    Header always set Permissions-Policy "geolocation=(), microphone=(), camera=()"
+    Header always unset X-Powered-By
+    Header always unset Server
+
+    # CSP: 'wasm-unsafe-eval' é necessário para os decodificadores Draco e
+    # Meshopt. Os CDNs listados servem apenas os transcoders WASM — se você
+    # hospedar os decodificadores localmente, remova-os daqui.
+    Header always set Content-Security-Policy "default-src 'self'; \
+script-src 'self' 'wasm-unsafe-eval' https://www.gstatic.com https://unpkg.com; \
+worker-src 'self' blob:; \
+style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; \
+font-src 'self' data: https://fonts.gstatic.com; \
+img-src 'self' data: blob:; \
+connect-src 'self' blob: https://www.gstatic.com https://unpkg.com; \
+object-src 'none'; \
+base-uri 'self'; \
+frame-ancestors 'self'"
+</IfModule>
+
+# ───────────────────────────────────────────────────────────────────────
+#  7. Limites de upload
+#
+#  Só funciona se o PHP rodar como módulo do Apache (padrão no WAMP).
+#  Com PHP-FPM, ajuste no php.ini.
+# ───────────────────────────────────────────────────────────────────────
+<IfModule mod_php.c>
+    php_value upload_max_filesize 512M
+    php_value post_max_size 512M
+    php_value max_execution_time 300
+    php_value max_input_time 300
+    php_value memory_limit 512M
+</IfModule>
+<IfModule mod_php7.c>
+    php_value upload_max_filesize 512M
+    php_value post_max_size 512M
+    php_value max_execution_time 300
+    php_value memory_limit 512M
+</IfModule>
+<IfModule mod_php8.c>
+    php_value upload_max_filesize 512M
+    php_value post_max_size 512M
+    php_value max_execution_time 300
+    php_value max_input_time 300
+    php_value memory_limit 512M
+</IfModule>
+
+# ───────────────────────────────────────────────────────────────────────
+#  8. Páginas de erro em JSON para a API
+# ───────────────────────────────────────────────────────────────────────
+<IfModule mod_alias.c>
+    ErrorDocument 403 "{\"status\":\"error\",\"error\":{\"code\":\"forbidden\",\"message\":\"Acesso negado.\"}}"
+</IfModule>
