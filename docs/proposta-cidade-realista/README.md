@@ -16,7 +16,8 @@ Rode na raiz do repositório e abra http://localhost:8081/docs/proposta-cidade-r
 
 No modo Construtor:
 - **Megaempreendimento (superquadra):** remembra 4 quadras numa superquadra-marco (gabarito de 320 m), para prédios grandes como o do [estudo de caso do doc 13](../13-cidade-realista-construtores.md#13-estudo-de-caso-edifício-grande-edificioglb).
-- **Envio de LODs:** selecione os três arquivos `-lod0`, `-lod1` e `-lod2` gerados pelo [tools/scc-optimize](../../tools/scc-optimize/README.md) para montar um `THREE.LOD`. Arquivos acima de 40 MB são recusados.
+- **Vindo do SCC Builder:** o botão **Exportar para o mapa** do [SCC Builder](../../tools/scc-builder/README.md#exportar-para-o-mapa) abre esta página e entrega os três LODs já ajustados aos limites da plataforma; o modelo cai direto no seu lote, no modo Construtor. Só origens listadas em `BUILDER_ORIGINS` (no `main.js`) são aceitas.
+- **Envio de LODs:** selecione os três arquivos `-lod0`, `-lod1` e `-lod2` gerados pelo [tools/scc-optimize](../../tools/scc-optimize/README.md) para montar um `THREE.LOD`. Arquivos acima de 40 MB (ou envio somando mais de 40 MB) são recusados. O orçamento de 300 mil triângulos é conferido no LOD0.
 
 O clique num lote abre o painel com área, zona, gabarito, coeficiente e dono.
 

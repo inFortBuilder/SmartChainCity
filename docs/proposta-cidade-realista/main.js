@@ -856,14 +856,14 @@ $('[data-rotate]').addEventListener('input', applyTransform);
 ['[data-floor-h]', '[data-per-floor]', '[data-ground]', '[data-price]'].forEach((s) => $(s).addEventListener('input', () => { validate(); }));
 // Aceita 1 arquivo, ou os 3 LODs do SCC Builder (nome-lod0.glb, -lod1, -lod2) de uma vez → THREE.LOD
 const MAX_UPLOAD_MB = 40; // acima disso o modelo precisa passar pelo SCC Builder antes
-$('[data-upload]').addEventListener('change', async (e) => {
-  const files = [...e.target.files].sort((a, b) => a.name.localeCompare(b.name));
-  if (!files.length) return;
-  const big = files.find((f) => f.size > MAX_UPLOAD_MB * 1048576);
-  if (big) {
+// [{ name, size, buffer }] em ordem LOD0, LOD1, LOD2 → modelo no lote do jogador
+async function loadModelBuffers(entries, label) {
+  const big = entries.find((f) => f.size > MAX_UPLOAD_MB * 1048576);
+  const total = entries.reduce((s, f) => s + f.size, 0);
+  if (big || total > MAX_UPLOAD_MB * 1048576) {
     setStep(2, 'error');
-    toast(`${big.name} tem ${(big.size / 1048576).toFixed(0)} MB. O limite no jogo é ${MAX_UPLOAD_MB} MB: otimize no SCC Builder (remova paisagismo, gere LODs).`, 6000);
-    return;
+    toast(`${big ? big.name : 'O envio'} tem ${((big ? big.size : total) / 1048576).toFixed(0)} MB. O limite no jogo é ${MAX_UPLOAD_MB} MB: otimize no SCC Builder (remova paisagismo, gere LODs).`, 6000);
+    throw new Error(`acima de ${MAX_UPLOAD_MB} MB`);
   }
   const loader = new GLTFLoader();
   const draco = new DRACOLoader();
@@ -871,20 +871,55 @@ $('[data-upload]').addEventListener('change', async (e) => {
   loader.setDRACOLoader(draco);
   loader.setMeshoptDecoder(MeshoptDecoder);
   try {
-    const scenes = await Promise.all(files.map(async (f) => (await loader.parseAsync(await f.arrayBuffer(), '')).scene));
+    const scenes = await Promise.all(entries.map(async (f) => (await loader.parseAsync(f.buffer, '')).scene));
     let group = scenes[0];
     if (scenes.length > 1) {
       group = new THREE.LOD();
       const dist = [0, 450, 1100];
       scenes.slice(0, 3).forEach((s, i) => group.addLevel(s, dist[i]));
     }
-    const mb = files.reduce((s, f) => s + f.size, 0) / 1048576;
+    // o orçamento de 300 mil vale para o LOD0; somar os três níveis reprovaria um prédio dentro do limite
     placeModel({
-      group, lods: Math.min(3, scenes.length), triangles: countTris(group),
-      name: files[0].name.replace(/(-lod\d)?\.(glb|gltf)$/i, ''),
-      source: `${files.length} arquivo(s), ${mb.toFixed(1)} MB${scenes.length > 1 ? ` · LOD1 ${fmt.format(countTris(scenes[1]))} · LOD2 ${fmt.format(countTris(scenes[2] || scenes[1]))} triângulos` : ''}`,
+      group, lods: Math.min(3, scenes.length), triangles: countTris(scenes[0]),
+      name: entries[0].name.replace(/(-lod\d)?\.(glb|gltf)$/i, ''),
+      source: `${label}, ${(total / 1048576).toFixed(1)} MB${scenes.length > 1 ? ` · LOD1 ${fmt.format(countTris(scenes[1]))} · LOD2 ${fmt.format(countTris(scenes[2] || scenes[1]))} triângulos` : ''}`,
     });
-  } catch (err) { setStep(2, 'error'); toast('Não foi possível ler o GLB: ' + (err?.message || err)); }
+  } catch (err) { setStep(2, 'error'); toast('Não foi possível ler o GLB: ' + (err?.message || err)); throw err; }
+}
+$('[data-upload]').addEventListener('change', async (e) => {
+  const files = [...e.target.files].sort((a, b) => a.name.localeCompare(b.name));
+  if (!files.length) return;
+  const entries = await Promise.all(files.map(async (f) => ({ name: f.name, size: f.size, buffer: await f.arrayBuffer() })));
+  loadModelBuffers(entries, `${files.length} arquivo(s)`).catch(() => {});
+});
+
+// ---------- Recebe o prédio do SCC Builder (botão "Exportar para o mapa") ----------
+// O editor abre esta página e entrega os LODs por postMessage (protocolo em
+// tools/scc-builder/src/utils/mapLink.js). Só origens do SCC Builder são aceitas:
+// acrescente aqui o domínio de produção do builder quando houver.
+const BUILDER_ORIGINS = [location.origin, 'http://localhost:5173', 'http://127.0.0.1:5173'];
+addEventListener('message', async (event) => {
+  if (!BUILDER_ORIGINS.includes(event.origin) || !event.source) return;
+  const data = event.data || {};
+  const reply = (msg) => event.source.postMessage(msg, event.origin);
+  if (data.type === 'scc-builder:ping') { reply({ type: 'scc-map:ready', version: 1 }); return; }
+  if (data.type !== 'scc-builder:model') return;
+  if (data.version !== 1 || !Array.isArray(data.files) || !data.files.length || data.files.length > 3
+    || !data.files.every((f) => f && f.bytes instanceof ArrayBuffer)) {
+    reply({ type: 'scc-map:received', ok: false, error: 'invalid_message', message: 'mensagem fora do formato' });
+    return;
+  }
+  try {
+    if (mode !== 'builder') setMode('builder');
+    $('[data-units]').value = '1'; // o SCC Builder já entrega em metros, Y para cima
+    const files = [...data.files].sort((a, b) => a.level - b.level);
+    const base = String(data.name || 'modelo').replace(/[^\w.-]+/g, '_').slice(0, 60);
+    await loadModelBuffers(files.map((f) => ({ name: `${base}-lod${f.level}.glb`, size: f.bytes.byteLength, buffer: f.bytes })), 'do SCC Builder');
+    toast(`${base} chegou do SCC Builder e foi colocado no seu lote ${myLot.id}.`, 5200);
+    reply({ type: 'scc-map:received', ok: true, name: base, lot: myLot.id, triangles: model.triangles, valid: Boolean(model.metrics?.valid) });
+  } catch (err) {
+    reply({ type: 'scc-map:received', ok: false, error: 'load_failed', message: String(err?.message || err) });
+  }
 });
 $('[data-publish]').addEventListener('click', () => {
   if (!model?.metrics?.valid) return;
