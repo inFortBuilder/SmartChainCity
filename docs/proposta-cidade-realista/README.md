@@ -14,6 +14,10 @@ Rode na raiz do repositório e abra http://localhost:8081/docs/proposta-cidade-r
 | **Mapa de lotes** | Situação de cada lote: seu, à venda pela Prefeitura, à venda por jogadores, ocupado, vazio, parque |
 | **Construtor** | Lote do jogador → modelo (torre exemplo ou um `.glb`/`.gltf` real, inclusive com Draco ou meshopt) → validação (recuo, gabarito, coeficiente com outorga, polígonos, escala) → unidades (pé-direito, unidades por andar, térreo comercial, preço por m², VGV) → publicar → clicar num andar para ver e comprar as unidades |
 
+No modo Construtor:
+- **Megaempreendimento (superquadra):** remembra 4 quadras numa superquadra-marco (gabarito de 320 m), para prédios grandes como o do [estudo de caso do doc 13](../13-cidade-realista-construtores.md#13-estudo-de-caso-edifício-grande-edificioglb).
+- **Envio de LODs:** selecione os três arquivos `-lod0`, `-lod1` e `-lod2` gerados pelo [tools/scc-optimize](../../tools/scc-optimize/README.md) para montar um `THREE.LOD`. Arquivos acima de 40 MB são recusados.
+
 O clique num lote abre o painel com área, zona, gabarito, coeficiente e dono.
 
 Limitações (é um protótipo): nada é salvo nem enviado à rede. A cidade é gerada por semente, e não a partir do OpenStreetMap. Mint, alvará e compras são simulados. `window.__scc` expõe funções para testes automatizados.

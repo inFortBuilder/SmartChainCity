@@ -239,3 +239,50 @@ O protótipo usa **Three.js** (o mesmo motor do editor do Convert3D) e já carre
 | 1 | **E1.8 Lote poligonal** (modelo de dados, pipeline OSM gerando polígonos) |
 | 2 | **E2.10 Validação de lote no SCC Builder** + **E2.11 Edifícios de jogadores na testnet** (BuildingNFT, alvará manual) |
 | 3 | **E3.11 Unidades e UnitMarket** (venda primária, revenda, aluguel, royalty) + **E3.12 Moderação de UGC** |
+
+## 13. Estudo de caso: edifício grande (`edificio.glb`)
+
+Um construtor enviou uma cena arquitetônica completa: torre, terreno e paisagismo, exportada pelo `THREE.GLTFExporter`.
+
+### 13.1 Como chegou
+
+| Medida | Valor | Limite do jogo |
+|---|---:|---:|
+| Arquivo | **413 MB** | 40 MB por envio |
+| Triângulos | **4,66 milhões** | 300 mil (LOD0) |
+| Vértices | 14 milhões, sem índice (cada triângulo com 3 vértices próprios) | — |
+| Memória de GPU (posição + normal) | ~320 MB | ~1 GB para a cidade inteira |
+| Unidade | centímetros (pé-direito medido: 307,5 = 3,07 m) | metros |
+| Malhas idênticas sem instância | 70 de 186 (3 milhões de triângulos repetidos) | — |
+| Paisagismo (árvores, arbustos, fontes, mobiliário) | **4,27 milhões de triângulos (92%)** | o jogo tem árvores próprias |
+| Arquitetura | 390 mil triângulos | — |
+| Tamanho real | 86 × 89 m de base, 275 m de altura (mais 7,7 m de fundação) e 2 torres com pódio | lote comum: até ~2.600 m², gabarito de 160 m |
+
+**Sem tratamento, é inviável:** sozinho, ele pesaria mais que toda a cidade, travaria o celular por memória e levaria minutos para baixar.
+
+### 13.2 Depois do preset SCC ([tools/scc-optimize](../tools/scc-optimize/README.md))
+
+| | Original | LOD0 | LOD1 | LOD2 |
+|---|---:|---:|---:|---:|
+| Arquivo | 413 MB | **3,3 MB** | 0,44 MB | 0,20 MB |
+| Triângulos | 4,66 mi | 304 mil | 77 mil | 12 mil |
+
+Processamento: cerca de 6 segundos. O que funcionou: remover o paisagismo pelo material, centímetros para metros, `dedup` + `instance` (52 instâncias), `weld`, `join`, simplificação (sem UVs no LOD0; sem normais e UVs nos LODs 1 e 2) e meshopt.
+
+Medido no protótipo (Chrome, desktop): **60 FPS com e sem a torre**. A torre acrescenta ~95 mil triângulos visíveis no quadro e ~120 chamadas de desenho; de longe entram os LODs 1 e 2. Área construída calculada por corte de cada andar: **113 mil m²**, com andar típico de ~1.160 m², 88 andares e cerca de 690 unidades de ~119 m² com 8 por andar.
+
+### 13.3 Regras novas para prédios grandes (já no protótipo)
+
+| Regra | Valor |
+|---|---|
+| Tamanho máximo por envio ao jogo | 40 MB (acima disso, otimize antes no SCC Builder) |
+| Mais de 150 mil triângulos | Exige os 3 LODs (envie `-lod0`, `-lod1` e `-lod2` juntos) |
+| Orçamento do LOD0 | 300 mil (comum) / **450 mil para torre-marco** |
+| **Megaempreendimento (superquadra-marco)** | Remembramento de 4 quadras; ruas internas viram praça; gabarito de 320 m, coeficiente 4, recuo de 8 m; exige comprar todos os lotes da superquadra (no protótipo, 24 lotes = 174 mil SCITY), leilão da Prefeitura e alvará especial; **no máximo 1 por região** |
+| Área construída | Calculada por corte real de cada andar; o excedente ao coeficiente paga outorga onerosa |
+
+Com essas regras, o `edificio.glb` otimizado **passa em todas as checagens** na superquadra e é publicável: 690 unidades, sem outorga.
+
+### 13.4 Atenção: direitos sobre o modelo
+
+Os nomes internos (`Archexterior10_04_*`, materiais `archmodels58_*`) indicam uma cena da biblioteca comercial **Evermotion Archexteriors vol. 10**. Licenças desse tipo costumam permitir uso em renderizações, mas **proibir a redistribuição dos modelos em jogos, apps e NFTs**. Este modelo serve para teste interno, mas não deve ser publicado no jogo nem versionado no repositório sem uma licença que permita. O alvará (moderação, §4) precisa checar a origem dos modelos enviados.

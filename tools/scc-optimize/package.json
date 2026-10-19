@@ -1,0 +1,16 @@
+{
+  "name": "@scc/optimize",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Preset SCC de otimização de edifícios GLB (protótipo do pipeline do SCC Builder).",
+  "scripts": { "optimize": "node --max-old-space-size=12000 scc-optimize.mjs" },
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "@gltf-transform/core": "^4.1.0",
+    "@gltf-transform/extensions": "^4.1.0",
+    "@gltf-transform/functions": "^4.1.0",
+    "meshoptimizer": "^0.22.0",
+    "sharp": "^0.33.5"
+  }
+}

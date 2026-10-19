@@ -169,9 +169,11 @@ function zoneOf(c) {
   return d < 170 ? 'comercial' : d < 300 ? 'misto' : 'residencial';
 }
 const ZONES = {
-  comercial:   { label: 'Comercial central', maxH: 160, far: 6, base: 62 },
-  misto:       { label: 'Uso misto',         maxH: 60,  far: 3.5, base: 34 },
-  residencial: { label: 'Residencial',       maxH: 15,  far: 1.4, base: 16 },
+  comercial:   { label: 'Comercial central', maxH: 160, far: 6, base: 62, setback: 3 },
+  misto:       { label: 'Uso misto',         maxH: 60,  far: 3.5, base: 34, setback: 3 },
+  residencial: { label: 'Residencial',       maxH: 15,  far: 1.4, base: 16, setback: 4 },
+  // Megaempreendimento: superquadra remembrada (4 quadras + ruas internas viram praça), 1 por região
+  especial:    { label: 'Superquadra-marco', maxH: 320, far: 4, base: 0, setback: 8 },
 };
 
 function buildLayout() {
@@ -506,8 +508,65 @@ const setStep = (n, state) => { stepEl(n).classList.toggle('is-done', state === 
 
 function renderLotStep() {
   const z = ZONES[myLot.zone];
-  $('[data-lot-summary]').innerHTML = `<b>${myLot.id}</b> · ${fmt.format(Math.round(myLot.area))} m² · ${z.label}<br>Gabarito ${z.maxH} m · recuo 3 m · coef. ${z.far} (até ${fmt.format(Math.round(myLot.area * z.far))} m² construídos)`;
+  $('[data-lot-summary]').innerHTML = `<b>${myLot.id}</b> · ${fmt.format(Math.round(myLot.area))} m² · ${z.label}<br>Gabarito ${z.maxH} m · recuo ${z.setback} m · coef. ${z.far} (até ${fmt.format(Math.round(myLot.area * z.far))} m² construídos)`
+    + (myLot.mega ? `<br><span class="muted">Exige comprar os ${myLot.mega.lots} lotes da superquadra (${fmt.format(myLot.mega.cost)} SCITY), leilão da Prefeitura e alvará especial. Máx. 1 por região.</span>` : '');
+  $('[data-mega]').textContent = myLot.mega ? 'Voltar ao lote simples' : 'Megaempreendimento (superquadra)';
   setStep(1, 'done');
+}
+
+// ---------- Megaempreendimento: remembramento de 4 quadras numa superquadra-marco ----------
+let simpleLot = null;
+const megaHidden = [];
+function toggleMega() {
+  if (!myLot.mega) {
+    simpleLot = myLot;
+    const b = simpleLot.block;
+    const quad = [[b.i, b.j], [b.i + 1, b.j], [b.i + 1, b.j + 1], [b.i, b.j + 1]]
+      .map(([i, j]) => blocks.find((k) => k.i === i && k.j === j)).filter(Boolean);
+    const tl = quad[0], tr = quad[1] || quad[0], br = quad[2] || tr, bl = quad[3] || tl;
+    const corners = [tl.corners[0], tr.corners[1], br.corners[2], bl.corners[3]];
+    // lotes e prédios dentro da superquadra saem; as ruas internas viram praça
+    let cost = 0, n = 0;
+    lots.forEach((l) => {
+      if (!pointInPoly(l.centroid, corners) || l.status === 'park') return;
+      n++; if (l !== simpleLot) cost += l.price;
+      if (l.building?.group) { scene.remove(l.building.group); megaHidden.push(l); }
+      l.mesh.visible = false;
+    });
+    const plaza = new THREE.Mesh(extrude(corners, 0.32, 0.2), M.sidewalk);
+    plaza.receiveShadow = true; scene.add(plaza);
+    const c = centroid(corners);
+    const mega = { id: `A1-SQ${b.i}${b.j}`, corners, centroid: c, area: polyArea(corners), zone: 'especial', status: 'mine', price: 0, block: b, owner: 'Construtora Horizonte (você)', mega: { lots: n, cost, plaza } };
+    const mat = new THREE.MeshBasicMaterial({ color: 0x22d3ee, transparent: true, opacity: 0.4, depthWrite: false });
+    mega.mesh = new THREE.Mesh(extrude(shrink(corners, 0.6), 0.05, 0.6), mat);
+    mega.mesh.userData.lot = mega;
+    scene.add(mega.mesh); pickables.push(mega.mesh); lots.push(mega);
+    myLot = mega;
+    flyTo(new THREE.Vector3(c.x, 60, c.y), 520, 420);
+  } else {
+    const mega = myLot;
+    scene.remove(mega.mesh, mega.mega.plaza);
+    lots.splice(lots.indexOf(mega), 1); pickables.splice(pickables.indexOf(mega.mesh), 1);
+    megaHidden.splice(0).forEach((l) => scene.add(l.building.group));
+    lots.forEach((l) => { l.mesh.visible = true; });
+    myLot = simpleLot;
+    flyTo(new THREE.Vector3(myLot.centroid.x, 35, myLot.centroid.y), 230, 230);
+  }
+  if (model) { model.group.traverse((o) => { if (o.isMesh) o.userData.lot = myLot; }); applyTransform(); }
+  renderLotStep();
+  paintLots();
+}
+
+// triângulos e pontos da base contando instâncias (EXT_mesh_gpu_instancing) e só o LOD0
+const lodRoot = (root) => (root.isLOD ? root.levels[0].object : root);
+function countTris(root) {
+  let t = 0;
+  lodRoot(root).traverse((o) => {
+    if (!o.isMesh) return;
+    const g = o.geometry; const n = (g.index ? g.index.count : g.attributes.position.count) / 3;
+    t += n * (o.isInstancedMesh ? o.count : 1);
+  });
+  return Math.round(t);
 }
 
 // Torre exemplo: o que sairia do SCC Builder (Convert3D) para este lote
@@ -561,7 +620,7 @@ function applyTransform() {
   g.scale.setScalar(s);
   g.position.set(0, 0, 0);
   model.holder.updateMatrixWorld(true);
-  const box = new THREE.Box3().setFromObject(g);
+  const box = new THREE.Box3().setFromObject(lodRoot(g)); // só o LOD0 define o tamanho
   const center = box.getCenter(new THREE.Vector3());
   g.position.set(-center.x, -box.min.y, -center.z);  // centraliza e apoia no chão
   model.localBox = box.clone().translate(new THREE.Vector3(-center.x, -box.min.y, -center.z));
@@ -578,32 +637,40 @@ function validate() {
   const lb = model.localBox;
   const height = lb.max.y - lb.min.y;
   // projeção real do modelo no chão: todos os vértices (amostrados) em XZ, no mundo.
-  // Cabe no lote se todos estão dentro do polígono com recuo de 3 m; a área vem do contorno convexo.
+  // Cabe no lote se todos estão dentro do polígono com recuo da zona; a área vem do contorno convexo.
   const pts = footprintPoints(model.group);
-  const allowed = shrink(myLot.corners, 3);
+  const allowed = shrink(myLot.corners, z.setback);
   const outside = pts.filter((p) => !pointInPoly(p, allowed)).length;
   const fits = outside === 0;
   const footprint = polyArea(convexHull(pts));
   const floorH = Number($('[data-floor-h]').value);
   const floors = Math.max(1, Math.floor(height / floorH));
-  const gfa = footprint * 0.85 * floors;
+  // o corte é caro (centenas de milhares de triângulos × andares): guarda por pé-direito e escala
+  const areaKey = `${floorH}|${$('[data-units]').value}`;
+  model.areaCache ??= {};
+  const areas = (model.areaCache[areaKey] ??= floorAreas(model.group, floorH, model.holder.position.y));
+  const gfa = areas.reduce((s, a) => s + a, 0) * 0.85; // 85% da área bruta de cada andar é privativa/útil
+  const typicalFloor = areas.length ? [...areas].sort((a, b) => a - b)[Math.floor(areas.length / 2)] : footprint; // mediana
   const maxGfa = myLot.area * z.far;
   const outorga = Math.max(0, Math.round((gfa - maxGfa) * 2.5)); // taxa por m² acima do coeficiente
+  const budget = myLot.zone === 'especial' ? 450000 : 300000;
   const checks = [
     { ok: height > 2 && height < 400, txt: `Escala plausível (altura ${fmt1.format(height)} m)`, hint: 'Ajuste a unidade do arquivo.' },
-    { ok: fits, txt: 'Cabe no lote respeitando o recuo de 3 m', hint: 'Gire ou reduza o modelo.' },
+    { ok: fits, txt: `Cabe no lote respeitando o recuo de ${z.setback} m`, hint: 'Gire ou reduza o modelo.' },
     { ok: height <= z.maxH, txt: `Altura dentro do gabarito (${z.maxH} m)` },
     gfa <= maxGfa
       ? { ok: true, txt: `Área construída ${fmt.format(Math.round(gfa))} m² dentro do coeficiente ${z.far} (${fmt.format(Math.round(maxGfa))} m²)` }
       : { ok: false, warn: true, txt: `Área construída ${fmt.format(Math.round(gfa))} m² passa do coeficiente ${z.far} (${fmt.format(Math.round(maxGfa))} m²): exige outorga onerosa de ${fmt.format(outorga)} SCITY à Prefeitura` },
     ...(fits ? [] : [{ ok: false, txt: `${fmt.format(outside)} de ${fmt.format(pts.length)} pontos da base fora da área edificável`, hint: 'Gire ou reduza o modelo.' }]),
-    { ok: model.triangles <= 300000, txt: `Orçamento de polígonos (${fmt.format(model.triangles)} de 300.000)` },
+    // torre-marco tem orçamento maior, mas exige os 3 LODs (a cidade só desenha o LOD0 de perto)
+    { ok: model.triangles <= budget, txt: `Orçamento de polígonos do LOD0 (${fmt.format(model.triangles)} de ${fmt.format(budget)}${myLot.zone === 'especial' ? ', torre-marco' : ''})`, hint: 'Simplifique no SCC Builder.' },
+    { ok: model.triangles <= 150000 || (model.lods || 1) >= 3, txt: `LODs: ${model.lods || 1} nível(is)${model.triangles > 150000 ? ' (acima de 150 mil triângulos exige LOD0, LOD1 e LOD2)' : ''}`, hint: 'Envie os arquivos -lod0, -lod1 e -lod2 juntos.' },
     { ok: true, txt: 'Formato GLB, Y para cima, metros (preset SCC)' },
   ];
   $('[data-checks]').innerHTML = checks.map((c) => `<li class="${c.ok ? 'pass' : c.warn ? 'warn' : 'fail'}">${c.txt}${!c.ok && c.hint ? ` — ${c.hint}` : ''}</li>`).join('');
   const valid = checks.every((c) => c.ok || c.warn);
   setStep(3, valid ? 'done' : 'error');
-  model.metrics = { height, footprint, floors, gfa, valid, outorga };
+  model.metrics = { height, footprint: typicalFloor, floors, gfa, valid, outorga };
   computeUnits();
   return valid;
 }
@@ -612,18 +679,90 @@ function validate() {
 function footprintPoints(root) {
   const out = [];
   const v = new THREE.Vector3();
+  const im = new THREE.Matrix4(), wm = new THREE.Matrix4();
   root.updateMatrixWorld(true);
-  root.traverse((o) => {
+  lodRoot(root).traverse((o) => {
     if (!o.isMesh) return;
     const pos = o.geometry.attributes.position;
-    const stride = Math.max(1, Math.floor(pos.count / 1500));
-    for (let i = 0; i < pos.count; i += stride) {
-      v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld);
-      out.push(new THREE.Vector2(v.x, v.z));
+    const copies = o.isInstancedMesh ? o.count : 1;
+    const stride = Math.max(1, Math.floor((pos.count * copies) / 1500));
+    for (let k = 0; k < copies; k++) {
+      if (o.isInstancedMesh) { o.getMatrixAt(k, im); wm.multiplyMatrices(o.matrixWorld, im); } else wm.copy(o.matrixWorld);
+      for (let i = k % stride; i < pos.count; i += stride) {
+        v.fromBufferAttribute(pos, i).applyMatrix4(wm);
+        out.push(new THREE.Vector2(v.x, v.z));
+      }
     }
   });
   return out.length > 6000 ? out.filter((_, i) => i % Math.ceil(out.length / 6000) === 0) : out;
 }
+// Área de cada andar por corte: fatia os triângulos na metade do andar, desenha o contorno numa
+// grade de 1 m e remove o que é alcançável por fora (flood fill). Sobra a planta ocupada do andar,
+// mesmo com várias torres, pódio largo e malhas unidas por material.
+function worldTriangles(root) {
+  const out = [];
+  const im = new THREE.Matrix4(), wm = new THREE.Matrix4();
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+  root.updateMatrixWorld(true);
+  lodRoot(root).traverse((o) => {
+    if (!o.isMesh) return;
+    const pos = o.geometry.attributes.position, idx = o.geometry.index;
+    const nTri = (idx ? idx.count : pos.count) / 3;
+    const copies = o.isInstancedMesh ? o.count : 1;
+    for (let k = 0; k < copies; k++) {
+      if (o.isInstancedMesh) { o.getMatrixAt(k, im); wm.multiplyMatrices(o.matrixWorld, im); } else wm.copy(o.matrixWorld);
+      for (let t = 0; t < nTri; t++) {
+        const i0 = idx ? idx.getX(3 * t) : 3 * t, i1 = idx ? idx.getX(3 * t + 1) : 3 * t + 1, i2 = idx ? idx.getX(3 * t + 2) : 3 * t + 2;
+        a.fromBufferAttribute(pos, i0).applyMatrix4(wm); b.fromBufferAttribute(pos, i1).applyMatrix4(wm); c.fromBufferAttribute(pos, i2).applyMatrix4(wm);
+        out.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z);
+      }
+    }
+  });
+  return new Float32Array(out);
+}
+function floorAreas(root, floorH, groundY = 0) {
+  const T = worldTriangles(root);
+  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity, top = -Infinity;
+  for (let i = 0; i < T.length; i += 3) { minX = Math.min(minX, T[i]); maxX = Math.max(maxX, T[i]); top = Math.max(top, T[i + 1]); minZ = Math.min(minZ, T[i + 2]); maxZ = Math.max(maxZ, T[i + 2]); }
+  const cell = 1, W = Math.ceil((maxX - minX) / cell) + 3, D = Math.ceil((maxZ - minZ) / cell) + 3;
+  const ox = minX - cell, oz = minZ - cell;
+  const areas = [];
+  for (let y0 = groundY; y0 + floorH * 0.5 < top; y0 += floorH) {
+    const yc = y0 + floorH / 2;
+    const wall = new Uint8Array(W * D);
+    const mark = (x, z) => { const i = Math.floor((x - ox) / cell), j = Math.floor((z - oz) / cell); if (i >= 0 && j >= 0 && i < W && j < D) wall[j * W + i] = 1; };
+    for (let t = 0; t < T.length; t += 9) {
+      const ys = [T[t + 1], T[t + 4], T[t + 7]];
+      if (Math.min(...ys) > yc || Math.max(...ys) < yc) continue;
+      const hits = [];
+      for (const [p, q] of [[0, 3], [3, 6], [6, 0]]) {
+        const ya = T[t + p + 1], yb = T[t + q + 1];
+        if ((ya - yc) * (yb - yc) > 0 || ya === yb) continue;
+        const s = (yc - ya) / (yb - ya);
+        hits.push([T[t + p] + s * (T[t + q] - T[t + p]), T[t + p + 2] + s * (T[t + q + 2] - T[t + p + 2])]);
+      }
+      if (hits.length < 2) continue;
+      const [[x1, z1], [x2, z2]] = hits;
+      const steps = Math.max(1, Math.ceil(Math.hypot(x2 - x1, z2 - z1) / (cell * 0.5)));
+      for (let s = 0; s <= steps; s++) mark(x1 + ((x2 - x1) * s) / steps, z1 + ((z2 - z1) * s) / steps);
+    }
+    // flood fill a partir da borda: o que não for parede nem exterior é planta do andar
+    const out = new Uint8Array(W * D), stack = [0];
+    out[0] = 1;
+    while (stack.length) {
+      const k = stack.pop(), i = k % W, j = (k - i) / W;
+      for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const ni = i + di, nj = j + dj; if (ni < 0 || nj < 0 || ni >= W || nj >= D) continue;
+        const n = nj * W + ni; if (out[n] || wall[n]) continue;
+        out[n] = 1; stack.push(n);
+      }
+    }
+    let inside = 0; for (let k = 0; k < W * D; k++) if (!out[k]) inside++;
+    areas.push(inside * cell * cell);
+  }
+  return areas;
+}
+
 // contorno convexo (monotone chain)
 function convexHull(points) {
   const p = points.map((q) => [q.x, q.y]).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
@@ -715,22 +854,37 @@ $('[data-sample]').addEventListener('click', () => placeModel(sampleTower()));
 $('[data-units]').addEventListener('change', applyTransform);
 $('[data-rotate]').addEventListener('input', applyTransform);
 ['[data-floor-h]', '[data-per-floor]', '[data-ground]', '[data-price]'].forEach((s) => $(s).addEventListener('input', () => { validate(); }));
+// Aceita 1 arquivo, ou os 3 LODs do SCC Builder (nome-lod0.glb, -lod1, -lod2) de uma vez → THREE.LOD
+const MAX_UPLOAD_MB = 40; // acima disso o modelo precisa passar pelo SCC Builder antes
 $('[data-upload]').addEventListener('change', async (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
+  const files = [...e.target.files].sort((a, b) => a.name.localeCompare(b.name));
+  if (!files.length) return;
+  const big = files.find((f) => f.size > MAX_UPLOAD_MB * 1048576);
+  if (big) {
+    setStep(2, 'error');
+    toast(`${big.name} tem ${(big.size / 1048576).toFixed(0)} MB. O limite no jogo é ${MAX_UPLOAD_MB} MB: otimize no SCC Builder (remova paisagismo, gere LODs).`, 6000);
+    return;
+  }
   const loader = new GLTFLoader();
   const draco = new DRACOLoader();
   draco.setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/libs/draco/gltf/');
   loader.setDRACOLoader(draco);
   loader.setMeshoptDecoder(MeshoptDecoder);
   try {
-    const buf = await file.arrayBuffer();
-    loader.parse(buf, '', (gltf) => {
-      let tri = 0;
-      gltf.scene.traverse((o) => { if (o.isMesh) tri += o.geometry.index ? o.geometry.index.count / 3 : o.geometry.attributes.position.count / 3; });
-      placeModel({ group: gltf.scene, triangles: Math.round(tri), name: file.name.replace(/\.(glb|gltf)$/i, ''), source: `arquivo ${(file.size / 1048576).toFixed(1)} MB` });
-    }, (err) => { setStep(2, 'error'); toast('Não foi possível ler o GLB: ' + (err?.message || err)); });
-  } catch (err) { setStep(2, 'error'); toast('Falha ao abrir o arquivo.'); }
+    const scenes = await Promise.all(files.map(async (f) => (await loader.parseAsync(await f.arrayBuffer(), '')).scene));
+    let group = scenes[0];
+    if (scenes.length > 1) {
+      group = new THREE.LOD();
+      const dist = [0, 450, 1100];
+      scenes.slice(0, 3).forEach((s, i) => group.addLevel(s, dist[i]));
+    }
+    const mb = files.reduce((s, f) => s + f.size, 0) / 1048576;
+    placeModel({
+      group, lods: Math.min(3, scenes.length), triangles: countTris(group),
+      name: files[0].name.replace(/(-lod\d)?\.(glb|gltf)$/i, ''),
+      source: `${files.length} arquivo(s), ${mb.toFixed(1)} MB${scenes.length > 1 ? ` · LOD1 ${fmt.format(countTris(scenes[1]))} · LOD2 ${fmt.format(countTris(scenes[2] || scenes[1]))} triângulos` : ''}`,
+    });
+  } catch (err) { setStep(2, 'error'); toast('Não foi possível ler o GLB: ' + (err?.message || err)); }
 });
 $('[data-publish]').addEventListener('click', () => {
   if (!model?.metrics?.valid) return;
@@ -792,3 +946,4 @@ window.__scc = {
   lots, setMode, placeModel, sampleTower, openFloor, floorBoxes, scene, renderer, camera, controls, setTimeOfDay,
   step(n = 60) { for (let k = 0; k < n; k++) { updateFly(1 / 30); updateCars(1 / 30); controls.update(); } renderer.render(scene, camera); $('[data-loading]').classList.add('is-hidden'); },
 };
+$('[data-mega]').addEventListener('click', toggleMega);

@@ -56,12 +56,13 @@
     <li class="step" data-step="1">
       <div class="step-head"><span class="num">1</span><h3>Lote</h3><span class="ok" data-ok="1"></span></div>
       <p data-lot-summary>—</p>
+      <div class="row"><button class="btn btn--ghost" type="button" data-mega>Megaempreendimento (superquadra)</button></div>
     </li>
     <li class="step" data-step="2">
       <div class="step-head"><span class="num">2</span><h3>Modelo 3D</h3><span class="ok" data-ok="2"></span></div>
       <p class="muted">GLB/GLTF exportado pelo <b>SCC Builder</b> (Convert3D, preset “Smart Chain City”).</p>
       <div class="row">
-        <label class="btn btn--ghost file">Enviar .glb<input type="file" accept=".glb,.gltf" data-upload hidden></label>
+        <label class="btn btn--ghost file" title="Um arquivo, ou os três LODs (-lod0, -lod1, -lod2) juntos">Enviar .glb (ou LODs)<input type="file" accept=".glb,.gltf" multiple data-upload hidden></label>
         <button class="btn btn--ghost" type="button" data-sample>Usar torre exemplo</button>
       </div>
       <label class="field">Unidade do arquivo
@@ -109,6 +110,6 @@
 <div class="toast glass" data-toast hidden></div>
 <div class="loading" data-loading><div class="spinner"></div><p>Montando a cidade…</p></div>
 
-<script type="module" src="main.js?v=8"></script>
+<script type="module" src="main.js?v=12"></script>
 </body>
 </html>
