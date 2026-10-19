@@ -1,0 +1,47 @@
+# Dependências
+node_modules/
+vendor/
+
+# Build
+dist/
+*.local
+
+# Armazenamento em runtime (nunca versionar)
+# Modelo enviado é projeto de cliente, e o repositório não é backup.
+storage/
+uploads/
+converted/
+logs/
+*.sqlite
+*.sqlite3
+*.db
+
+# Configuração local com segredos
+# O jwt_secret e as API keys abrem a conversão e os modelos dos jogadores.
+api/config.local.php
+.env
+.env.*
+!.env.example
+
+# Editores / SO
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Testes / cobertura
+coverage/
+.nyc_output/
+
+# Logs
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Arquivos de diagnostico (nao versionar)
+_teste/
+
+api/config.local.php.bak-*
+.env.bak-*

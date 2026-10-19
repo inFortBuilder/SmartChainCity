@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!--
+    Texto de tela em pt, es e en: cada texto fica em português e diz a chave
+    num atributo data-t* — src/i18n/index.js (aplicarNoDom) troca pelo idioma
+    de quem abriu. Texto novo aqui entra também em src/i18n/en.js e es.js.
+  -->
+  <title data-t="SCC Builder — conversor de projetos 3D arquitetônicos e estúdio GLB">SCC Builder — conversor de projetos 3D arquitetônicos e estúdio GLB</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20512%20512%22%20width%3D%22512%22%20height%3D%22512%22%20role%3D%22img%22%20aria-label%3D%22SCC%20Builder%22%3E%0A%20%20%3Ctitle%3ESCC%20Builder%3C%2Ftitle%3E%0A%20%20%3Cdefs%3E%0A%20%20%20%20%3ClinearGradient%20id%3D%22sccm-a%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%220%22%20stop-color%3D%22%235CC6EB%22%2F%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%221%22%20stop-color%3D%22%234B7FC7%22%2F%3E%0A%20%20%20%20%3C%2FlinearGradient%3E%0A%20%20%20%20%3ClinearGradient%20id%3D%22sccm-b%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%220%22%20stop-color%3D%22%2349A6E0%22%2F%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%221%22%20stop-color%3D%22%235D57A8%22%2F%3E%0A%20%20%20%20%3C%2FlinearGradient%3E%0A%20%20%3C%2Fdefs%3E%0A%20%20%3Crect%20x%3D%228%22%20y%3D%228%22%20width%3D%22496%22%20height%3D%22496%22%20rx%3D%2288%22%20fill%3D%22%23ffffff%22%20stroke%3D%22%233FA3DF%22%20stroke-width%3D%2216%22%2F%3E%0A%20%20%3Crect%20x%3D%22120%22%20y%3D%22224%22%20width%3D%2272%22%20height%3D%22168%22%20rx%3D%228%22%20fill%3D%22url(%23sccm-b)%22%2F%3E%0A%20%20%3Crect%20x%3D%22220%22%20y%3D%22128%22%20width%3D%2272%22%20height%3D%22264%22%20rx%3D%228%22%20fill%3D%22url(%23sccm-a)%22%2F%3E%0A%20%20%3Crect%20x%3D%22320%22%20y%3D%22184%22%20width%3D%2272%22%20height%3D%22208%22%20rx%3D%228%22%20fill%3D%22url(%23sccm-b)%22%2F%3E%0A%20%20%3Crect%20x%3D%22100%22%20y%3D%22400%22%20width%3D%22312%22%20height%3D%2216%22%20rx%3D%228%22%20fill%3D%22%233FA3DF%22%2F%3E%0A%3C%2Fsvg%3E%0A">
+  <link rel="stylesheet" href="./src/style.css">
+  <!-- Lucide Icons -->
+</head>
+<body>
+  <div id="app">
+    <!-- Header -->
+    <header class="glass">
+      <div class="logo-container">
+        <div class="logo-icon">
+          <img src="./assets/logo-scc-builder.svg" alt="SCC Builder" width="34" height="34">
+        </div>
+        <div>
+          <div class="logo-title">SCC BUILDER</div>
+          <div style="font-size: 0.65rem; color: var(--text-muted);" data-t="Da arquitetura ao GLB para games">Da arquitetura ao GLB para games</div>
+        </div>
+      </div>
+
+      <div class="format-badges">
+        <span class="badge">3DS MAX</span>
+        <span class="badge">REVIT</span>
+        <span class="badge">SKETCHUP</span>
+        <span class="badge">LUMION</span>
+        <i data-lucide="arrow-right" style="width: 14px; color: var(--accent-cyan);"></i>
+        <span class="badge highlight">.GLB / .GLTF</span>
+      </div>
+
+      <div class="header-actions">
+        <!-- Sample Models Selector -->
+        <select id="sample-model-select" style="width: auto; font-weight: 600;">
+          <option value="" disabled selected data-t="📦 Carregar modelo de exemplo...">📦 Carregar modelo de exemplo...</option>
+          <option value="villa" data-t="Casa arquitetônica moderna">Casa arquitetônica moderna</option>
+          <option value="skyscraper" data-t="Arranha-céu">Arranha-céu</option>
+          <option value="gear" data-t="Engrenagem mecânica">Engrenagem mecânica</option>
+          <option value="knot" data-t="Nó toroidal">Nó toroidal</option>
+        </select>
+
+        <button id="btn-api-modal" class="btn">
+          <i data-lucide="server"></i> <span data-t="API PHP e SDK">API PHP e SDK</span>
+        </button>
+
+        <button id="btn-docs-modal" class="btn">
+          <i data-lucide="book-open"></i> <span data-t="Guia de exportação">Guia de exportação</span>
+        </button>
+
+        <button id="btn-undo" class="btn" disabled aria-label="Desfazer" title="Desfazer (Ctrl+Z)" data-t-aria="Desfazer" data-t-title="Desfazer (Ctrl+Z)">
+          <i data-lucide="undo-2"></i>
+        </button>
+
+        <button id="btn-redo" class="btn" disabled aria-label="Refazer" title="Refazer (Ctrl+Y)" data-t-aria="Refazer" data-t-title="Refazer (Ctrl+Y)">
+          <i data-lucide="redo-2"></i>
+        </button>
+
+        <button id="btn-shortcuts" class="btn" aria-label="Atalhos de teclado" title="Atalhos (?)" data-t-aria="Atalhos de teclado" data-t-title="Atalhos (?)">
+          <i data-lucide="keyboard"></i>
+        </button>
+
+        <button id="btn-export-main" class="btn btn-primary">
+          <i data-lucide="download"></i> <span data-t="Exportar GLB">Exportar GLB</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Workspace Layout -->
+    <div class="workspace">
+      <!-- Left Sidebar: Upload & Quick Convert -->
+      <aside class="sidebar sidebar-left glass">
+        <!-- Import 3D Model Panel -->
+        <div class="panel-section" style="padding-bottom: 0;">
+          <div class="section-title">
+            <span data-t="Importar projeto 3D">Importar projeto 3D</span>
+            <i data-lucide="upload-cloud" style="width: 16px;"></i>
+          </div>
+
+          <!-- Software Source Cards -->
+          <div class="software-grid">
+            <!-- 3ds Max -->
+            <div class="software-card" data-software="3dsmax" title="Arraste um arquivo FBX ou OBJ exportado do 3ds Max" data-t-title="Arraste um arquivo FBX ou OBJ exportado do 3ds Max">
+              <div class="sw-logo sw-3dsmax">3DS</div>
+              <div class="sw-info">
+                <div class="sw-name">3ds Max</div>
+                <div class="sw-formats">.FBX · .OBJ</div>
+              </div>
+              <div class="sw-arrow">→ GLB</div>
+            </div>
+
+            <!-- Revit -->
+            <div class="software-card" data-software="revit" title="Arraste um arquivo FBX ou DAE exportado do Revit" data-t-title="Arraste um arquivo FBX ou DAE exportado do Revit">
+              <div class="sw-logo sw-revit">RVT</div>
+              <div class="sw-info">
+                <div class="sw-name">Autodesk Revit</div>
+                <div class="sw-formats">.FBX · .DAE</div>
+              </div>
+              <div class="sw-arrow">→ GLB</div>
+            </div>
+
+            <!-- SketchUp -->
+            <div class="software-card" data-software="sketchup" title="Arraste um arquivo DAE ou OBJ exportado do SketchUp" data-t-title="Arraste um arquivo DAE ou OBJ exportado do SketchUp">
+              <div class="sw-logo sw-sketchup">SKP</div>
+              <div class="sw-info">
+                <div class="sw-name">SketchUp</div>
+                <div class="sw-formats">.DAE · .OBJ</div>
+              </div>
+              <div class="sw-arrow">→ GLB</div>
+            </div>
+
+            <!-- Lumion -->
+            <div class="software-card" data-software="lumion" title="Arraste um arquivo FBX ou DAE exportado do Lumion" data-t-title="Arraste um arquivo FBX ou DAE exportado do Lumion">
+              <div class="sw-logo sw-lumion">LMN</div>
+              <div class="sw-info">
+                <div class="sw-name">Lumion</div>
+                <div class="sw-formats">.FBX · .DAE</div>
+              </div>
+              <div class="sw-arrow">→ GLB</div>
+            </div>
+          </div>
+
+          <!-- Also supports / Outros formatos -->
+          <div class="other-formats-bar">
+            <span style="color: var(--text-dim); font-size: 0.7rem;" data-t="Também suporta:">Também suporta:</span>
+            <span class="fmt-chip">.STL</span>
+            <span class="fmt-chip">.PLY</span>
+            <span class="fmt-chip">.GLTF</span>
+            <span class="fmt-chip">.GLB</span>
+            <span class="fmt-chip">.OBJ</span>
+          </div>
+
+          <!-- Dropzone Area -->
+          <div id="dropzone" class="dropzone dropzone-v2">
+            <div class="dropzone-inner">
+              <div class="dropzone-upload-icon">
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path d="M4 16.5v2a1.5 1.5 0 001.5 1.5h13a1.5 1.5 0 001.5-1.5v-2"/>
+                  <polyline points="8 12 12 8 16 12"/>
+                  <line x1="12" y1="8" x2="12" y2="18"/>
+                </svg>
+              </div>
+              <div class="dropzone-main-text" data-t="Arraste o arquivo aqui">Arraste o arquivo aqui</div>
+              <div class="dropzone-sub-text" data-t="ou clique para selecionar">ou clique para selecionar</div>
+              <div class="dropzone-hint">
+                <i data-lucide="info" style="width:11px; vertical-align:middle;"></i>
+                <span data-t-html="Exporte do software como &lt;strong&gt;FBX, DAE ou OBJ&lt;/strong&gt; antes de importar">Exporte do software como <strong>FBX, DAE ou OBJ</strong> antes de importar</span>
+              </div>
+            </div>
+            <input type="file" id="file-input"
+              accept=".glb,.gltf,.obj,.stl,.ply,.fbx,.dae,.mtl,.bin,.jpg,.jpeg,.png,.webp"
+              style="display: none;" multiple>
+          </div>
+
+          <!-- Quick software hint bar -->
+          <div id="sw-hint-bar" class="sw-hint-bar" style="display:none;">
+            <span id="sw-hint-text"></span>
+            <button id="btn-docs-hint" class="btn" style="padding: 3px 8px; font-size: 0.7rem;">
+              <i data-lucide="book-open" style="width:11px;"></i> <span data-t="Ver guia de exportação">Ver guia de exportação</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Loaded Models List -->
+        <div class="panel-section">
+          <div class="section-title">
+            <span data-t="Modelos carregados">Modelos carregados</span>
+            <i data-lucide="layers" style="width: 16px;"></i>
+          </div>
+          <div id="model-list" style="display: flex; flex-direction: column; gap: 6px; max-height: 140px; overflow-y: auto;">
+            <div style="font-size: 0.8rem; color: var(--text-dim); text-align: center; padding: 10px;" data-t="Nenhum modelo carregado.">
+              Nenhum modelo carregado.
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick Convert & Download Panel -->
+        <div class="panel-section">
+          <div class="section-title">
+            <span data-t="Exportação rápida">Exportação rápida</span>
+            <i data-lucide="file-check" style="width: 16px;"></i>
+          </div>
+
+          <div class="control-group">
+            <label class="control-label" data-t="Formato de destino">Formato de destino</label>
+            <select id="export-format-select">
+              <option value="glb" selected data-t="GLB (glTF binário — recomendado para games)">GLB (glTF binário — recomendado para games)</option>
+              <option value="gltf" data-t="glTF (JSON + assets)">glTF (JSON + assets)</option>
+              <option value="stl" data-t="STL (binário para impressão 3D)">STL (binário para impressão 3D)</option>
+              <option value="obj">OBJ (Wavefront 3D)</option>
+              <option value="ply">PLY (Polygon File Format)</option>
+            </select>
+          </div>
+
+          <div class="control-group">
+            <label class="control-label" data-t="Orientação dos eixos">Orientação dos eixos</label>
+            <select id="axis-flip-select">
+              <option value="none" selected data-t="Manter a orientação original">Manter a orientação original</option>
+              <option value="Z-to-Y" data-t="Converter Z-up para Y-up (CAD / Revit para game)">Converter Z-up para Y-up (CAD / Revit para game)</option>
+              <option value="Y-to-Z" data-t="Converter Y-up para Z-up">Converter Y-up para Z-up</option>
+            </select>
+          </div>
+
+          <button id="btn-quick-download" class="btn btn-emerald" style="width: 100%; justify-content: center; margin-top: 8px;">
+            <i data-lucide="download"></i> <span data-t="Baixar arquivo convertido">Baixar arquivo convertido</span>
+          </button>
+
+          <button id="btn-export-map" class="btn btn-primary" style="width: 100%; justify-content: center; margin-top: 8px;" data-t-title="Ajusta o modelo aos limites da Smart Chain City (até 300 mil triângulos, 3 LODs, texturas até 2048 px, até 40 MB) e o coloca no seu lote no mapa" title="Ajusta o modelo aos limites da Smart Chain City (até 300 mil triângulos, 3 LODs, texturas até 2048 px, até 40 MB) e o coloca no seu lote no mapa">
+            <i data-lucide="map"></i> <span data-t="Exportar para o mapa">Exportar para o mapa</span>
+          </button>
+
+          <button id="btn-batch-zip" class="btn" style="width: 100%; justify-content: center; margin-top: 8px; font-size: 0.8rem;">
+            <i data-lucide="archive"></i> <span data-t="Exportar todos em ZIP">Exportar todos em ZIP</span>
+          </button>
+        </div>
+
+        <!-- Otimização de malha -->
+        <div class="panel-section">
+          <div class="section-title">
+            <span data-t="Otimização">Otimização</span>
+            <i data-lucide="zap" style="width: 16px;"></i>
+          </div>
+
+          <label for="optimize-level-select" class="control-label" data-t="Nível">Nível</label>
+          <select id="optimize-level-select" style="width: 100%; margin-bottom: 8px;">
+            <option value="none" data-t="Nenhuma">Nenhuma</option>
+            <option value="balanced" selected data-t="Balanceada — soldar vértices">Balanceada — soldar vértices</option>
+            <option value="aggressive" data-t="Agressiva — 50% dos triângulos">Agressiva — 50% dos triângulos</option>
+            <option value="extreme" data-t="Extrema — 25% dos triângulos">Extrema — 25% dos triângulos</option>
+          </select>
+
+          <div style="display: flex; gap: 6px;">
+            <button id="btn-optimize-preview" class="btn" style="flex: 1; justify-content: center; font-size: 0.78rem;">
+              <i data-lucide="eye"></i> <span data-t="Prever">Prever</span>
+            </button>
+            <button id="btn-optimize-apply" class="btn btn-emerald" style="flex: 1; justify-content: center; font-size: 0.78rem;">
+              <i data-lucide="check"></i> <span data-t="Aplicar">Aplicar</span>
+            </button>
+          </div>
+
+          <button id="btn-build-lod" class="btn" style="width: 100%; justify-content: center; margin-top: 6px; font-size: 0.78rem;">
+            <i data-lucide="layers-3"></i> <span data-t="Gerar LOD (3 níveis)">Gerar LOD (3 níveis)</span>
+          </button>
+        </div>
+
+        <!-- Preset de exportação por engine -->
+        <div class="panel-section">
+          <div class="section-title">
+            <span data-t="Destino (engine)">Destino (engine)</span>
+            <i data-lucide="gamepad-2" style="width: 16px;"></i>
+          </div>
+
+          <label for="engine-preset-select" class="control-label" data-t="Motor de destino">Motor de destino</label>
+          <select id="engine-preset-select" style="width: 100%; margin-bottom: 8px;"></select>
+
+          <label for="source-unit-select" class="control-label" data-t="Unidade do arquivo de origem">Unidade do arquivo de origem</label>
+          <select id="source-unit-select" style="width: 100%; margin-bottom: 8px;"></select>
+
+          <label for="source-up-select" class="control-label" data-t="Eixo vertical da origem">Eixo vertical da origem</label>
+          <select id="source-up-select" style="width: 100%; margin-bottom: 8px;">
+            <option value="y" selected>Y-up (glTF, Maya, Unity)</option>
+            <option value="z">Z-up (Revit, 3ds Max, AutoCAD)</option>
+          </select>
+
+          <div id="engine-preset-hint"></div>
+
+          <button id="btn-export-preset" class="btn btn-primary" style="width: 100%; justify-content: center; margin-top: 8px; font-size: 0.8rem;">
+            <i data-lucide="package"></i> <span data-t="Exportar com preset">Exportar com preset</span>
+          </button>
+        </div>
+      </aside>
+
+      <!-- Center WebGL Viewport -->
+      <main class="viewport-container">
+        <!-- 3D Canvas -->
+        <div id="canvas-container"></div>
+
+        <!-- Viewport Overlay Toolbar -->
+        <div class="viewport-toolbar glass">
+          <button id="gizmo-select" class="tool-btn active" title="Selecionar (Q)" aria-label="Selecionar" data-t-title="Selecionar (Q)" data-t-aria="Selecionar">
+            <i data-lucide="mouse-pointer"></i>
+          </button>
+          <button id="gizmo-move" class="tool-btn" title="Mover (W)" aria-label="Mover" data-t-title="Mover (W)" data-t-aria="Mover">
+            <i data-lucide="move"></i>
+          </button>
+          <button id="gizmo-rotate" class="tool-btn" title="Rotacionar (E)" aria-label="Rotacionar" data-t-title="Rotacionar (E)" data-t-aria="Rotacionar">
+            <i data-lucide="rotate-cw"></i>
+          </button>
+          <button id="gizmo-scale" class="tool-btn" title="Escalar (R)" aria-label="Escalar" data-t-title="Escalar (R)" data-t-aria="Escalar">
+            <i data-lucide="maximize-2"></i>
+          </button>
+
+          <div style="width: 1px; height: 24px; background: var(--border-color); margin: 0 4px;"></div>
+
+          <button id="view-iso" class="tool-btn" title="Vista isométrica (1)" aria-label="Vista isométrica" data-t-title="Vista isométrica (1)" data-t-aria="Vista isométrica">
+            <i data-lucide="box" aria-hidden="true"></i>
+          </button>
+          <button id="view-top" class="tool-btn" title="Vista de topo — planta (2)" aria-label="Vista de topo" data-t-title="Vista de topo — planta (2)" data-t-aria="Vista de topo">
+            <i data-lucide="panel-top" aria-hidden="true"></i>
+          </button>
+          <button id="view-front" class="tool-btn" title="Vista frontal — elevação (3)" aria-label="Vista frontal" data-t-title="Vista frontal — elevação (3)" data-t-aria="Vista frontal">
+            <i data-lucide="square" aria-hidden="true"></i>
+          </button>
+          <button id="view-side" class="tool-btn" title="Vista lateral (4)" aria-label="Vista lateral" data-t-title="Vista lateral (4)" data-t-aria="Vista lateral">
+            <i data-lucide="panel-left" aria-hidden="true"></i>
+          </button>
+
+          <div style="width: 1px; height: 24px; background: var(--border-color); margin: 0 4px;"></div>
+
+          <button id="zoom-out" class="tool-btn" title="Afastar (tecla −)" aria-label="Afastar" data-t-title="Afastar (tecla −)" data-t-aria="Afastar">
+            <i data-lucide="zoom-out" aria-hidden="true"></i>
+          </button>
+          <button id="zoom-in" class="tool-btn" title="Aproximar (tecla +)" aria-label="Aproximar" data-t-title="Aproximar (tecla +)" data-t-aria="Aproximar">
+            <i data-lucide="zoom-in" aria-hidden="true"></i>
+          </button>
+          <button id="zoom-fit" class="tool-btn" title="Enquadrar todo o ambiente (F)" aria-label="Enquadrar o ambiente" data-t-title="Enquadrar todo o ambiente (F)" data-t-aria="Enquadrar o ambiente">
+            <i data-lucide="expand" aria-hidden="true"></i>
+          </button>
+          <button id="zoom-selection" class="tool-btn" title="Enquadrar a seleção (Shift+F)" aria-label="Enquadrar a seleção" data-t-title="Enquadrar a seleção (Shift+F)" data-t-aria="Enquadrar a seleção">
+            <i data-lucide="crosshair" aria-hidden="true"></i>
+          </button>
+          <button id="zoom-area" class="tool-btn" title="Zoom por área — arraste um retângulo na cena (tecla A)" aria-label="Zoom por área" aria-pressed="false" data-t-title="Zoom por área — arraste um retângulo na cena (tecla A)" data-t-aria="Zoom por área">
+            <i data-lucide="scan-search" aria-hidden="true"></i>
+          </button>
+
+          <div style="width: 1px; height: 24px; background: var(--border-color); margin: 0 4px;"></div>
+
+          <button id="toggle-wireframe" class="tool-btn" title="Wireframe (Z)" aria-label="Alternar wireframe" data-t-aria="Alternar wireframe">
+            <i data-lucide="grid"></i>
+          </button>
+          <button id="toggle-slicer" class="tool-btn" title="Corte transversal" aria-label="Alternar corte transversal" data-t-title="Corte transversal" data-t-aria="Alternar corte transversal">
+            <i data-lucide="scissors"></i>
+          </button>
+        </div>
+
+        <!-- Stats HUD -->
+        <div class="hud-stats glass">
+          <div><span data-t="VÉRTICES:">VÉRTICES:</span> <span id="stat-verts" class="hud-stat-value">0</span></div>
+          <div><span data-t="TRIÂNGULOS:">TRIÂNGULOS:</span> <span id="stat-tris" class="hud-stat-value">0</span></div>
+          <div><span data-t="DIMENSÕES:">DIMENSÕES:</span> <span id="stat-bounds" class="hud-stat-value">0 × 0 × 0</span></div>
+          <div><span data-t="VOLUME:">VOLUME:</span> <span id="stat-vol" class="hud-stat-value">0 cm³</span></div>
+          <div>ZOOM: <span id="stat-zoom" class="hud-stat-value">100%</span></div>
+        </div>
+      </main>
+
+      <!-- Right Inspector Sidebar -->
+      <aside class="sidebar sidebar-right glass">
+        <!-- Scene Hierarchy Node Tree -->
+        <div class="panel-section">
+          <div class="section-title">
+            <span data-t="Hierarquia da cena">Hierarquia da cena</span>
+            <i data-lucide="folder-tree" style="width: 16px;"></i>
+          </div>
+          <div id="hierarchy-tree" style="height: 200px; overflow-y: auto; font-size: 0.8rem; color: var(--text-muted);"></div>
+
+          <div style="font-size:0.68rem; color: var(--text-dim); margin-top:6px; line-height:1.5;"
+               data-t-html="Clique no &lt;span style=&quot;color:var(--accent-cyan)&quot;&gt;◉&lt;/span&gt; para ocultar um bloco. Ctrl+clique seleciona vários.">
+            Clique no <span style="color:var(--accent-cyan)">◉</span> para ocultar um bloco.
+            Ctrl+clique seleciona vários.
+          </div>
+        </div>
+
+        <!-- Editor de blocos -->
+        <div class="panel-section">
+          <div class="section-title">
+            <span data-t="Blocos da cena">Blocos da cena</span>
+            <i data-lucide="boxes" style="width: 16px;"></i>
+          </div>
+
+          <div id="blocos-info" style="margin-bottom:8px; padding:6px 8px; border-radius:6px;
+               background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.07);" data-t="Nenhum modelo carregado.">
+            Nenhum modelo carregado.
+          </div>
+
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+            <button id="btn-ocultar-selecao" class="btn" style="justify-content:center; font-size:0.75rem;"
+                    title="Ocultar os blocos selecionados (tecla H)" data-t-title="Ocultar os blocos selecionados (tecla H)">
+              <i data-lucide="eye-off"></i> <span data-t="Ocultar">Ocultar</span>
+            </button>
+            <button id="btn-mostrar-selecao" class="btn" style="justify-content:center; font-size:0.75rem;"
+                    title="Mostrar os blocos selecionados" data-t-title="Mostrar os blocos selecionados">
+              <i data-lucide="eye"></i> <span data-t="Mostrar">Mostrar</span>
+            </button>
+            <button id="btn-isolar" class="btn" style="justify-content:center; font-size:0.75rem;"
+                    title="Mostrar apenas a seleção (tecla I)" data-t-title="Mostrar apenas a seleção (tecla I)">
+              <i data-lucide="focus"></i> <span data-t="Isolar">Isolar</span>
+            </button>
+            <button id="btn-mostrar-tudo" class="btn" style="justify-content:center; font-size:0.75rem;"
+                    title="Restaurar a visibilidade de tudo (Shift+H)" data-t-title="Restaurar a visibilidade de tudo (Shift+H)">
+              <i data-lucide="scan-eye"></i> <span data-t="Mostrar tudo">Mostrar tudo</span>
+            </button>
+          </div>
+
+          <button id="btn-excluir-selecao" class="btn" style="width:100%; justify-content:center;
+                  margin-top:6px; font-size:0.75rem; border-color:rgba(244,63,94,0.4); color:#fda4af;"
+                  title="Excluir os blocos selecionados (tecla Delete) — reversível com Ctrl+Z"
+                  data-t-title="Excluir os blocos selecionados (tecla Delete) — reversível com Ctrl+Z">
+            <i data-lucide="trash-2"></i> <span data-t="Excluir selecionados">Excluir selecionados</span>
+          </button>
+
+          <div class="control-label" style="margin-top:10px;" data-t="Ocultar por material">Ocultar por material</div>
+          <div id="blocos-materiais" style="max-height:150px; overflow-y:auto;
+               border:1px solid rgba(255,255,255,0.07); border-radius:6px; padding:4px;"></div>
+        </div>
+
+        <!-- Game Colliders & Mesh Tools -->
+        <div class="panel-section">
+          <div class="section-title">
+            <span data-t="Ferramentas para game engine">Ferramentas para game engine</span>
+            <i data-lucide="gamepad-2" style="width: 16px;"></i>
+          </div>
+
+          <button id="btn-forcar-opaco" class="btn" style="width: 100%; justify-content: center; margin-bottom: 10px; font-size: 0.78rem;">
+            <i data-lucide="eye"></i> <span data-t="Forçar materiais opacos">Forçar materiais opacos</span>
+          </button>
+
+          <label for="collider-type-select" class="control-label" data-t="Tipo de colisor">Tipo de colisor</label>
+          <select id="collider-type-select" style="width: 100%; margin-bottom: 6px;">
+            <option value="box" selected data-t="Box — mais barato em runtime">Box — mais barato em runtime</option>
+            <option value="sphere" data-t="Sphere — ideal para objetos redondos">Sphere — ideal para objetos redondos</option>
+            <option value="convex" data-t="Convex Hull — preciso, para corpos dinâmicos">Convex Hull — preciso, para corpos dinâmicos</option>
+          </select>
+
+          <label style="display: flex; align-items: center; gap: 6px; font-size: 0.75rem; margin-bottom: 6px; color: var(--text-muted);">
+            <input type="checkbox" id="collider-per-mesh" checked>
+            <span data-t="Um colisor por malha">Um colisor por malha</span>
+          </label>
+
+          <button id="btn-gen-collider" class="btn" style="width: 100%; justify-content: center; margin-bottom: 6px;">
+            <i data-lucide="shield"></i> <span data-t="Gerar colisores">Gerar colisores</span>
+          </button>
+          <button id="btn-export-colliders" class="btn" style="width: 100%; justify-content: center; margin-bottom: 6px; font-size: 0.78rem;">
+            <i data-lucide="file-json"></i> <span data-t="Exportar colisores (JSON)">Exportar colisores (JSON)</span>
+          </button>
+          <button id="btn-recalc-normals" class="btn" style="width: 100%; justify-content: center; margin-bottom: 6px;">
+            <i data-lucide="refresh-cw"></i> <span data-t="Recalcular normais de vértice">Recalcular normais de vértice</span>
+          </button>
+          <button id="btn-center-pivot" class="btn" style="width: 100%; justify-content: center;">
+            <i data-lucide="align-center"></i> <span data-t="Centralizar pivot e alinhar ao chão">Centralizar pivot e alinhar ao chão</span>
+          </button>
+        </div>
+
+        <!-- Camadas e divisão -->
+        <div class="panel-section">
+          <div class="section-title">
+            <span data-t="Camadas e blocos">Camadas e blocos</span>
+            <i data-lucide="layers-2" style="width: 16px;"></i>
+          </div>
+
+          <div id="layers-sugestao" style="font-size:0.72rem; line-height:1.5; margin-bottom:8px;
+               padding:6px 8px; border-radius:6px; background:rgba(255,255,255,0.04);
+               border:1px solid rgba(255,255,255,0.07); color:var(--text-dim);" data-t="Carregue um modelo para detectar camadas.">
+            Carregue um modelo para detectar camadas.
+          </div>
+
+          <label for="layer-mode-select" class="control-label" data-t="Agrupar camadas por">Agrupar camadas por</label>
+          <select id="layer-mode-select" style="width: 100%; margin-bottom: 6px;">
+            <option value="nome" data-t="Nome do objeto (prefixo)">Nome do objeto (prefixo)</option>
+            <option value="material" data-t="Material">Material</option>
+            <option value="hierarquia" data-t="Hierarquia do arquivo">Hierarquia do arquivo</option>
+          </select>
+
+          <button id="btn-organizar-layers" class="btn btn-emerald" style="width:100%; justify-content:center; font-size:0.78rem; margin-bottom:6px;">
+            <i data-lucide="layers-2"></i> <span data-t="Organizar em camadas">Organizar em camadas</span>
+          </button>
+
+          <div id="layers-lista" style="max-height:160px; overflow-y:auto; margin-bottom:10px;
+               border:1px solid rgba(255,255,255,0.07); border-radius:6px; padding:4px;"></div>
+
+          <div class="control-label" style="margin-top:4px;" data-t="Dividir bloco selecionado">Dividir bloco selecionado</div>
+
+          <select id="split-mode-select" style="width: 100%; margin-bottom: 6px;">
+            <option value="conectividade" selected data-t="Peças soltas (componentes conectados)">Peças soltas (componentes conectados)</option>
+            <option value="material" data-t="Grupos de material">Grupos de material</option>
+            <option value="fatias" data-t="Fatias por eixo">Fatias por eixo</option>
+          </select>
+
+          <div id="split-fatias-config" style="display:none; gap:6px; margin-bottom:6px;">
+            <select id="split-eixo" style="flex:1;">
+              <option value="y" selected data-t="Eixo Y (altura)">Eixo Y (altura)</option>
+              <option value="x" data-t="Eixo X">Eixo X</option>
+              <option value="z" data-t="Eixo Z">Eixo Z</option>
+            </select>
+            <input type="number" id="split-qtd" min="2" max="32" value="4" style="width:64px;">
+          </div>
+
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+            <button id="btn-prever-divisao" class="btn" style="justify-content:center; font-size:0.75rem;">
+              <i data-lucide="eye"></i> <span data-t="Prever">Prever</span>
+            </button>
+            <button id="btn-dividir-bloco" class="btn btn-emerald" style="justify-content:center; font-size:0.75rem;">
+              <i data-lucide="split"></i> <span data-t="Dividir">Dividir</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Texturização -->
+        <div class="panel-section">
+          <div class="section-title">
+            <span data-t="Texturas">Texturas</span>
+            <i data-lucide="paintbrush" style="width: 16px;"></i>
+          </div>
+
+          <div id="uv-status" style="font-size:0.72rem; line-height:1.5; margin-bottom:8px;
+               padding:6px 8px; border-radius:6px; background:rgba(255,255,255,0.04);
+               border:1px solid rgba(255,255,255,0.07); color:var(--text-dim);" data-t="Carregue um modelo para ver o estado das UVs.">
+            Carregue um modelo para ver o estado das UVs.
+          </div>
+
+          <label for="material-preset-select" class="control-label" data-t="Biblioteca de materiais">Biblioteca de materiais</label>
+          <select id="material-preset-select" style="width: 100%; margin-bottom: 6px;"></select>
+
+          <button id="btn-aplicar-preset" class="btn btn-emerald" style="width:100%; justify-content:center; font-size:0.78rem; margin-bottom:10px;">
+            <i data-lucide="paintbrush"></i> <span data-t="Aplicar ao selecionado">Aplicar ao selecionado</span>
+          </button>
+
+          <label for="textura-input" class="control-label" data-t="Imagem de textura">Imagem de textura</label>
+          <div id="textura-drop" style="border:1.5px dashed rgba(0,240,255,0.35); border-radius:8px;
+               padding:14px 10px; text-align:center; cursor:pointer; margin-bottom:8px;
+               font-size:0.74rem; color:var(--text-muted);">
+            <i data-lucide="image-plus" style="width:20px;"></i>
+            <div style="margin-top:4px;" data-t="Arraste ou clique para enviar">Arraste ou clique para enviar</div>
+            <div style="font-size:0.66rem; color:var(--text-dim);">JPG, PNG, WEBP</div>
+          </div>
+          <input type="file" id="textura-input" accept="image/*" style="display:none;">
+
+          <label for="projecao-select" class="control-label" data-t="Projeção">Projeção</label>
+          <select id="projecao-select" style="width: 100%; margin-bottom: 6px;">
+            <option value="triplanar" selected data-t="Triplanar — dispensa UV (recomendado)">Triplanar — dispensa UV (recomendado)</option>
+            <option value="uv" data-t="UV do arquivo — exige mapeamento">UV do arquivo — exige mapeamento</option>
+            <option value="box" data-t="Gerar UV cúbica">Gerar UV cúbica</option>
+            <option value="planar" data-t="Gerar UV planar (planta)">Gerar UV planar (planta)</option>
+            <option value="cylindrical" data-t="Gerar UV cilíndrica">Gerar UV cilíndrica</option>
+            <option value="spherical" data-t="Gerar UV esférica">Gerar UV esférica</option>
+          </select>
+
+          <label for="escala-textura" class="control-label">
+            <span data-t="Escala da textura:">Escala da textura:</span> <span id="val-escala-textura">1,00</span> m
+          </label>
+          <input type="range" id="escala-textura" min="0.05" max="10" step="0.05" value="1"
+                 style="width:100%; margin-bottom:8px;">
+
+          <button id="btn-remover-textura" class="btn" style="width:100%; justify-content:center; font-size:0.76rem;">
+            <i data-lucide="eraser"></i> <span data-t="Remover textura do selecionado">Remover textura do selecionado</span>
+          </button>
+        </div>
+
+        <!-- PBR Material Inspector -->
+        <div class="panel-section">
+          <div class="section-title">
+            <span data-t="Editor de material PBR">Editor de material PBR</span>
+            <i data-lucide="palette" style="width: 16px;"></i>
+          </div>
+
+          <div class="control-group">
+            <label class="control-label" data-t="Cor base (albedo)">Cor base (albedo)</label>
+            <input type="color" id="mat-color-picker" value="#ffffff" style="height: 36px; padding: 2px; cursor: pointer;">
+          </div>
+
+          <div class="control-group">
+            <label class="control-label"><span data-t="Rugosidade:">Rugosidade:</span> <span id="val-roughness">0.4</span></label>
+            <input type="range" id="mat-roughness" min="0" max="1" step="0.05" value="0.4">
+          </div>
+
+          <div class="control-group">
+            <label class="control-label"><span data-t="Metálico:">Metálico:</span> <span id="val-metallic">0.1</span></label>
+            <input type="range" id="mat-metallic" min="0" max="1" step="0.05" value="0.1">
+          </div>
+
+          <div class="control-group">
+            <label class="control-label" data-t="Opacidade / transparência">Opacidade / transparência</label>
+            <input type="range" id="mat-opacity" min="0.1" max="1" step="0.05" value="1.0">
+          </div>
+        </div>
+
+        <!-- 3D Print & Material Weight Estimator -->
+        <div class="panel-section">
+          <div class="section-title">
+            <span data-t="Estimativa de massa">Estimativa de massa</span>
+            <i data-lucide="scale" style="width: 16px;"></i>
+          </div>
+
+          <div class="control-group">
+            <label class="control-label" data-t="Densidade do material">Densidade do material</label>
+            <select id="density-preset">
+              <option value="1.24" data-t="Filamento PLA (1,24 g/cm³)">Filamento PLA (1,24 g/cm³)</option>
+              <option value="1.04" data-t="Filamento ABS (1,04 g/cm³)">Filamento ABS (1,04 g/cm³)</option>
+              <option value="1.12" data-t="Resina (1,12 g/cm³)">Resina (1,12 g/cm³)</option>
+              <option value="2.70" data-t="Alumínio (2,70 g/cm³)">Alumínio (2,70 g/cm³)</option>
+              <option value="7.85" data-t="Aço estrutural (7,85 g/cm³)">Aço estrutural (7,85 g/cm³)</option>
+              <option value="19.32" data-t="Ouro (19,32 g/cm³)">Ouro (19,32 g/cm³)</option>
+            </select>
+          </div>
+
+          <div style="font-size: 0.85rem; background: rgba(0, 0, 0, 0.4); padding: 10px; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+            <div><span data-t="Massa estimada:">Massa estimada:</span> <strong id="est-weight" style="color: var(--accent-cyan);">0,00 g</strong></div>
+          </div>
+        </div>
+
+        <!-- Slicer / Cross-Section Controls -->
+        <div id="slicer-panel" class="panel-section" style="display: none;">
+          <div class="section-title">
+            <span data-t="Corte transversal">Corte transversal</span>
+            <i data-lucide="scissors" style="width: 16px;"></i>
+          </div>
+
+          <div class="control-group">
+            <label class="control-label" data-t="Corte no eixo X">Corte no eixo X</label>
+            <input type="range" id="slice-x" min="-30" max="30" value="30">
+          </div>
+          <div class="control-group">
+            <label class="control-label" data-t="Corte no eixo Y">Corte no eixo Y</label>
+            <input type="range" id="slice-y" min="-30" max="30" value="30">
+          </div>
+          <div class="control-group">
+            <label class="control-label" data-t="Corte no eixo Z">Corte no eixo Z</label>
+            <input type="range" id="slice-z" min="-30" max="30" value="30">
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <!-- PHP API Modal -->
+    <div id="modal-api" class="modal-overlay" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="modal-api-title">
+      <div class="modal-card glass">
+        <div class="modal-header">
+          <div style="font-family: var(--font-heading); font-weight: 700; font-size: 1.1rem; color: var(--accent-cyan);">
+            <i data-lucide="server" style="vertical-align: middle; margin-right: 6px;" aria-hidden="true"></i>
+            <span id="modal-api-title" data-t="API REST em PHP e SDK cliente">API REST em PHP e SDK cliente</span>
+          </div>
+          <button class="btn modal-close" aria-label="Fechar" data-t-aria="Fechar"><i data-lucide="x" aria-hidden="true"></i></button>
+        </div>
+        <div class="modal-body">
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 14px;"
+             data-t-html="O SCC Builder tem uma API REST em PHP e um SDK orientado a objetos (&lt;code&gt;sdk/SccBuilder.php&lt;/code&gt;) para automatizar conversões direto nas suas aplicações PHP.">
+            O SCC Builder tem uma API REST em PHP e um SDK orientado a objetos (<code>sdk/SccBuilder.php</code>) para automatizar conversões direto nas suas aplicações PHP.
+          </p>
+
+          <div style="margin-bottom: 16px;">
+            <div style="font-weight: 600; font-size: 0.9rem; color: var(--accent-cyan); margin-bottom: 6px;" data-t="Testar o envio na API PHP (/api/convert.php)">Testar o envio na API PHP (/api/convert.php)</div>
+            <div style="display: flex; gap: 8px;">
+              <input type="file" id="api-upload-file" accept=".fbx,.obj,.dae,.stl,.ply,.glb">
+              <button id="btn-trigger-api-upload" class="btn btn-primary" data-t="Enviar e converter">Enviar e converter</button>
+            </div>
+            <div id="api-response-output" style="margin-top: 10px; font-family: monospace; font-size: 0.75rem; background: rgba(0,0,0,0.5); padding: 10px; border-radius: 6px; max-height: 140px; overflow-y: auto; display: none;"></div>
+          </div>
+
+          <div style="font-weight: 600; font-size: 0.9rem; color: var(--accent-cyan); margin-bottom: 6px;" data-t="Exemplo de integração com o SDK PHP">Exemplo de integração com o SDK PHP</div>
+          <pre style="font-family: monospace; font-size: 0.75rem; background: rgba(0,0,0,0.6); padding: 12px; border-radius: 6px; overflow-x: auto; color: #a3e635;">
+require_once 'sdk/SccBuilder.php';
+
+use SccBuilder\SccBuilderClient;
+
+$client = new SccBuilderClient('http://localhost/scc-builder/api');
+$result = $client->convertFile('path/to/project.fbx', 'glb', true);
+
+echo "Converted GLB URL: " . $result['output_url'];
+          </pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- Export Documentation Modal -->
+    <div id="modal-docs" class="modal-overlay" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="modal-docs-title">
+      <div class="modal-card glass">
+        <div class="modal-header">
+          <div style="font-family: var(--font-heading); font-weight: 700; font-size: 1.1rem; color: var(--accent-cyan);">
+            <i data-lucide="book-open" style="vertical-align: middle; margin-right: 6px;" aria-hidden="true"></i>
+            <span id="modal-docs-title" data-t="Como exportar do software de arquitetura">Como exportar do software de arquitetura</span>
+          </div>
+          <button class="btn modal-close" aria-label="Fechar" data-t-aria="Fechar"><i data-lucide="x" aria-hidden="true"></i></button>
+        </div>
+        <div class="modal-body" style="font-size: 0.85rem; line-height: 1.6; color: var(--text-main);">
+          <h4 style="color: var(--accent-cyan); margin-top: 8px;">3ds Max → GLB</h4>
+          <p data-t-html="Exporte o projeto como &lt;strong&gt;FBX (.fbx)&lt;/strong&gt; ou &lt;strong&gt;OBJ (.obj)&lt;/strong&gt; com &quot;Embed Media&quot; marcado, ou instale o plugin oficial Babylon.js / glTF Exporter para exportar .glb direto.">Exporte o projeto como <strong>FBX (.fbx)</strong> ou <strong>OBJ (.obj)</strong> com "Embed Media" marcado, ou instale o plugin oficial Babylon.js / glTF Exporter para exportar .glb direto.</p>
+
+          <h4 style="color: var(--accent-cyan); margin-top: 12px;">Revit → GLB</h4>
+          <p data-t-html="Vá em &lt;em&gt;File → Export → CAD Formats → FBX&lt;/em&gt;. O SCC Builder transforma o FBX em um GLB leve, pronto para game. IFC não é lido: exporte FBX em vez dele.">Vá em <em>File → Export → CAD Formats → FBX</em>. O SCC Builder transforma o FBX em um GLB leve, pronto para game. IFC não é lido: exporte FBX em vez dele.</p>
+
+          <h4 style="color: var(--accent-cyan); margin-top: 12px;">SketchUp → GLB</h4>
+          <p data-t-html="File → Export → 3D Model → escolha &lt;strong&gt;Collada (.dae)&lt;/strong&gt; ou &lt;strong&gt;OBJ (.obj)&lt;/strong&gt;. Marque &quot;Export Texture Maps&quot;.">File → Export → 3D Model → escolha <strong>Collada (.dae)</strong> ou <strong>OBJ (.obj)</strong>. Marque "Export Texture Maps".</p>
+
+          <h4 style="color: var(--accent-cyan); margin-top: 12px;">Lumion → GLB</h4>
+          <p data-t-html="O Lumion não exporta geometria: exporte o modelo de origem como &lt;strong&gt;FBX (.fbx)&lt;/strong&gt; ou &lt;strong&gt;DAE (.dae)&lt;/strong&gt; antes de importar no SCC Builder.">O Lumion não exporta geometria: exporte o modelo de origem como <strong>FBX (.fbx)</strong> ou <strong>DAE (.dae)</strong> antes de importar no SCC Builder.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

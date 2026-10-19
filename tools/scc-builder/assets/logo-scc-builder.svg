@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="SCC Builder">
+  <title>SCC Builder</title>
+  <defs>
+    <linearGradient id="scc-a" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5CC6EB"/>
+      <stop offset="1" stop-color="#4B7FC7"/>
+    </linearGradient>
+    <linearGradient id="scc-b" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#49A6E0"/>
+      <stop offset="1" stop-color="#5D57A8"/>
+    </linearGradient>
+  </defs>
+  <rect x="96" y="208" width="88" height="208" rx="10" fill="url(#scc-b)"/>
+  <rect x="212" y="96" width="88" height="320" rx="10" fill="url(#scc-a)"/>
+  <rect x="328" y="160" width="88" height="256" rx="10" fill="url(#scc-b)"/>
+  <rect x="72" y="424" width="368" height="20" rx="10" fill="#3FA3DF"/>
+</svg>
