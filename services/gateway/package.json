@@ -1,0 +1,22 @@
+{
+  "name": "@scc/gateway",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --env-file=.env src/main.ts",
+    "start": "tsx src/main.ts",
+    "login:dev": "tsx scripts/login-dev.ts",
+    "lint": "tsc --noEmit -p .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@fastify/cors": "^11.3.1",
+    "@fastify/rate-limit": "^11.2.1",
+    "@scc/shared": "workspace:*",
+    "fastify": "^5.12.7",
+    "jose": "^6.2.14",
+    "viem": "^2.57.13",
+    "zod": "^4.6.7"
+  }
+}
