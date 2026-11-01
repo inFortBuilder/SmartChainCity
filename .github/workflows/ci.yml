@@ -15,6 +15,7 @@ jobs:
       node: ${{ steps.filter.outputs.node }}
       contracts: ${{ steps.filter.outputs.contracts }}
       website: ${{ steps.filter.outputs.website }}
+      econ_sim: ${{ steps.filter.outputs.econ_sim }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -31,6 +32,8 @@ jobs:
               - 'contracts/**'
             website:
               - 'website/**'
+            econ_sim:
+              - 'tools/econ-sim/**'
 
   secrets-scan:
     runs-on: ubuntu-latest
@@ -65,6 +68,21 @@ jobs:
         run: pnpm -r lint
       - if: steps.ws.outputs.present == 'true'
         run: pnpm -r test
+
+  econ-sim:
+    needs: changes
+    if: needs.changes.outputs.econ_sim == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tools/econ-sim
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+      - run: npm test
+      - run: npm run gate
 
   website:
     needs: changes

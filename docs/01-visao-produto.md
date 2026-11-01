@@ -18,7 +18,7 @@ A cidade é organizada como uma cidade real: Prefeitura no centro, zoneamento, i
 |----------|-----------|
 | Replicar uma cidade navegável e viva no navegador | Cidade carregando em < 20 s em banda de 20 Mbps; 30+ FPS em notebook médio |
 | Mercado de imóveis virtuais com posse verificável | 100% dos lotes/imóveis como NFTs com histórico on-chain |
-| Economia sustentável (evitar o colapso típico de P2E) | Razão sinks/faucets ≥ 0,9 medida semanalmente; payback-alvo controlado |
+| Economia sustentável (evitar o colapso típico de P2E) | Cobertura em dólar ≥ 1 medida semanalmente; payback-alvo controlado |
 | Ambiente social / metaverso | Presença multiplayer por célula, eventos ao vivo, espaços no Spatial |
 | Abertura para marcas reais | Lojas e eventos patrocinados dentro da cidade (GDD §3.30) |
 

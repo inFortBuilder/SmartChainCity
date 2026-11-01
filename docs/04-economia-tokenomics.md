@@ -82,6 +82,10 @@ O conversor **flutua** para manter o payback em dólares estável. Regras propos
 - **Spread de saída**: converter THALER → SCITY usa taxa pior que SCITY → THALER (lição FarmPoly); proposto 5–10%.
 - **Limite diário de saque** por conta e **carência** de 7 dias para contas novas.
 - A taxa de saída é queimada ou volta ao pool P2E.
+- **Freio do pool:** a partir de 70% do volume liberado já usado, o limite de saque cai e o spread sobe (até +10 pontos), de forma gradual, para o pool não esgotar. O saldo fica retido em THALER.
+- **Dreno-alvo de 55% da renda**, por consumo, manutenção e impostos proporcionais; custos fixos sozinhos quebram os avatares comuns.
+
+Valores validados no [simulador](../tools/econ-sim/README.md), com as ressalvas de lá.
 
 ## 6. Payback-alvo
 
@@ -121,7 +125,8 @@ Preço do combo (avatar + itens iniciais): Comum US$ 150 · Raro 200 · Épico 2
 | | Lucky Boxes, venda primária de lotes, GamePass/VIP |
 
 **Painel de saúde econômica** (obrigatório antes do lançamento):
-- THALER emitido vs. drenado por dia; razão alvo ≥ 0,9.
+- THALER emitido vs. drenado por dia (indicador, sem meta: ver [ADR-0010](adr/0010-criterio-economia-cobertura.md)).
+- Cobertura em dólar: entradas ÷ saques; alvo ≥ 1.
 - Estoque de THALER per capita; velocidade de circulação.
 - Conversões THALER → SCITY por dia vs. compras de SCITY.
 - Payback efetivo por coorte de raridade.

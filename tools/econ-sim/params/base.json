@@ -1,0 +1,208 @@
+{
+  "_sobre": "Parâmetros do simulador. 'fonte' indica a origem de cada bloco: doc = especificado nos docs; premissa = proposta deste simulador (doc 11 §2 manda definir aqui). Premissa não é decisão de produto.",
+  "days": 365,
+  "seed": 20261031,
+  "currency": {
+    "fonte": "doc 04 §5: 20 THALER/SCITY a US$ 1; o conversor flutua para manter o payback em dólar. Spread: meio da faixa de 5–10%. Limite de saque: premissa",
+    "thalerPerScityAtOneUsd": 20,
+    "exitSpread": 0.075,
+    "dailyWithdrawLimitThaler": 2000,
+    "newAccountLockDays": 7,
+    "minWithdrawThaler": 500
+  },
+  "p2ePool": {
+    "fonte": "doc 04 §3",
+    "yearlyReleaseScity": [
+      123000000,
+      102500000,
+      82000000,
+      61500000,
+      41000000
+    ]
+  },
+  "rarities": {
+    "fonte": "doc 02 §2.2 e doc 04 §6",
+    "common": {
+      "label": "Comum",
+      "share": 0.4,
+      "comboUsd": 150,
+      "baseMin": 100,
+      "baseMax": 125
+    },
+    "rare": {
+      "label": "Raro",
+      "share": 0.3,
+      "comboUsd": 200,
+      "baseMin": 140,
+      "baseMax": 165
+    },
+    "epic": {
+      "label": "Épico",
+      "share": 0.2,
+      "comboUsd": 250,
+      "baseMin": 180,
+      "baseMax": 205
+    },
+    "legendary": {
+      "label": "Lendário",
+      "share": 0.1,
+      "comboUsd": 300,
+      "baseMin": 225,
+      "baseMax": 250
+    }
+  },
+  "multipliers": {
+    "fonte": "doc 02 §2.4; índice = nível 0..10 (nível 0 tratado como 1)",
+    "health": [
+      0.5,
+      0.5,
+      0.55,
+      0.6,
+      0.7,
+      0.8,
+      0.9,
+      1,
+      1.2,
+      1.4,
+      1.5
+    ],
+    "happiness": [
+      1,
+      1,
+      1.2,
+      1.3,
+      1.4,
+      1.5,
+      1.6,
+      1.7,
+      1.8,
+      1.9,
+      2
+    ],
+    "expPet": 1,
+    "expPetCap": 2.5,
+    "expPetNota": "planilha: (Exp. + Pet) anulados pelos sinks (doc 04 §4); teto de doc 11 §1.3"
+  },
+  "profiles": {
+    "fonte": "premissa",
+    "casual": {
+      "label": "Casual",
+      "share": 0.5,
+      "health": 6,
+      "happiness": 5,
+      "attendance": 0.7,
+      "ownerShare": 0.1,
+      "withdrawChance": 0.03,
+      "dailyChurn": 0.008,
+      "buyChance": 0.002,
+      "freshMoneyShare": 0.2
+    },
+    "strategic": {
+      "label": "Estratégico",
+      "share": 0.35,
+      "health": 8,
+      "happiness": 7,
+      "attendance": 0.92,
+      "ownerShare": 0.4,
+      "withdrawChance": 0.1,
+      "dailyChurn": 0.003,
+      "buyChance": 0.01,
+      "freshMoneyShare": 0.2
+    },
+    "investor": {
+      "label": "Investidor",
+      "share": 0.15,
+      "health": 7,
+      "happiness": 6,
+      "attendance": 0.85,
+      "ownerShare": 0.8,
+      "withdrawChance": 0.3,
+      "dailyChurn": 0.004,
+      "buyChance": 0.02,
+      "freshMoneyShare": 0.6
+    }
+  },
+  "work": {
+    "fonte": "premissa, exceto regularização (doc 03 §3)",
+    "regularizedShare": 0.9,
+    "unregularizedFactor": 0.5,
+    "weeklyEventBonus": 0.15,
+    "damageChance": 0.05,
+    "damageFraction": 0.3
+  },
+  "sinks": {
+    "fonte": "premissa; custos fixos próximos dos ~31 THALER/dia que os paybacks da planilha implicam (doc 04 §6). THALER/dia, salvo indicação. incomeRate: fração da renda drenada, resultado do simulador",
+    "food": 12,
+    "energyPlan": 5,
+    "transport": 6,
+    "rentRenter": 15,
+    "rentNpcShare": 0.4,
+    "ownerYield": 10,
+    "repairs": 3,
+    "insurance": 2,
+    "iptuSemiannual": 180,
+    "hospitalFee": 30,
+    "hospitalChance": 0.01,
+    "rentCapPerOwner": 40,
+    "incomeRate": 0.55
+  },
+  "scenarios": {
+    "fonte": "preço: trilha-ferramentas §A; crescimento: premissa sobre a base de 40 mil e a capacidade de 100 mil (doc 04 §3)",
+    "priceUsd": {
+      "p100": 1,
+      "p050": 0.5,
+      "p020": 0.2
+    },
+    "growth": {
+      "baixo": {
+        "start": 5000,
+        "end": 15000
+      },
+      "base": {
+        "start": 10000,
+        "end": 40000
+      },
+      "alto": {
+        "start": 20000,
+        "end": 100000
+      }
+    }
+  },
+  "gate": {
+    "fonte": "ADR-0010",
+    "paybackMinDays": 40,
+    "paybackMaxDays": 78,
+    "minDollarCoverage": 1
+  },
+  "land": {
+    "fonte": "estoque: doc 03 §5 (A1 + 4 regiões); preço: premissa a partir do doc 13 (SCITY/m² × 100 m²), fixado no valor em dólar a US$ 1 por SCITY; casa, reserva, revenda: premissa. Sem isto, ownerShare dá imóvel de graça",
+    "enabled": true,
+    "tiers": [
+      {
+        "label": "A1",
+        "lots": 2916,
+        "priceScity": 950
+      },
+      {
+        "label": "A2 (4 regiões)",
+        "lots": 11664,
+        "priceScity": 400
+      },
+      {
+        "label": "A2 (expansão)",
+        "lots": 11664,
+        "priceScity": 260
+      }
+    ],
+    "houseThaler": 4000,
+    "reserveThaler": 1000,
+    "assetResale": 0.8,
+    "priceInUsd": true
+  },
+  "poolBrake": {
+    "fonte": "premissa: regra proposta pelo simulador para o pool não esgotar",
+    "enabled": true,
+    "startUtilization": 0.7,
+    "maxExtraSpread": 0.1
+  }
+}

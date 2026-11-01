@@ -27,7 +27,7 @@ S1–S4            S5–S8              S9–S14              S15–S22         
 | 2 — Alpha fechado | S9–S14 | `M2-alpha` | Região A1 jogável na testnet com 200–500 jogadores, 7 dias sem perder saldo |
 | 3 — Beta + Mainnet | S15–S22 | `M3-beta` | Auditoria sem achados críticos, sistemas da fase 2 do MVP e marketplace |
 | 4 — Lançamento | S23–S26 | `M4-lancamento` | TGE do SCITY, venda de lotes da A1, evento no Spatial |
-| 5 — Live Ops | S27+ | `M5-liveops-*` | Expansões só quando a razão sinks/faucets ficar ≥ 0,9 por 8 semanas |
+| 5 — Live Ops | S27+ | `M5-liveops-*` | Expansões só quando a cobertura em dólar ficar ≥ 1 por 8 semanas |
 
 > **Proposta em avaliação — Cidade realista e construtores** ([doc 13](docs/13-cidade-realista-construtores.md)): cidade em formato real, prédios de jogadores enviados pelo SCC Builder (Convert3D sem vínculo com o EventosWeb) e unidades vendáveis. Se aprovada, entram os épicos E0.9 (spike do cliente web nativo), E0.10 (fork SCC Builder), E1.8 (lote poligonal), E2.10–E2.11 (validação e prédios na testnet) e E3.11–E3.12 (unidades, UnitMarket e moderação).
 
@@ -43,7 +43,7 @@ S1–S4            S5–S8              S9–S14              S15–S22         
 | E0.2 Segurança do legado | infra · legal | Trocar todas as credenciais de `C:\SmartChainCity\chaves` e afins; cofre de segredos; remoção das cópias locais | Checklist do [doc 10 §1](docs/10-seguranca-compliance.md) concluído |
 | E0.3 Recuperar ativos | client · art | Projeto-fonte Unity do build 0.0.23 localizado e importado; arte catalogada em `art/` (via LFS) | Projeto abre no Unity 6 sem erros bloqueantes |
 | E0.4 Decisões pendentes | econ · produto | Os 9 conflitos e 8 lacunas do [doc 11](docs/11-decisoes-pendentes.md) resolvidos e registrados em ADRs | Todos os itens com ADR `Aceito` |
-| E0.5 Simulador econômico | econ | `tools/econ-sim`: agentes por raridade, faucets/sinks, 365 dias, 3 cenários de preço | Payback entre 40 e 78 dias e sinks/faucets ≥ 0,9 nos 3 cenários |
+| E0.5 Simulador econômico | econ | `tools/econ-sim`: agentes por raridade, faucets/sinks, 365 dias, 3 cenários de preço | Payback entre 40 e 78 dias, cobertura em dólar ≥ 1 e pool P2E sem esgotar nos cenários ([ADR-0010](docs/adr/0010-criterio-economia-cobertura.md)) |
 | E0.6 Protótipo técnico WebGL | client | 1 região com streaming de células via Addressables | Download inicial ≤ 25 MB e 60 FPS em notebook médio |
 | E0.7 Pipeline de cidade real (PoC) | tools | `tools/osm-to-grid` gera JSON de células a partir de um recorte do OSM | 1 região gerada e carregada no protótipo |
 | E0.8 Parecer jurídico | legal | Parecer sobre token, Lucky Box, contratos de investidores e LGPD | Documento recebido e riscos classificados |

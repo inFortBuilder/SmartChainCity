@@ -13,5 +13,6 @@ Cada decisão técnica ou de produto relevante é registrada como um arquivo `NN
 | [0007](0007-cidade-real-nivel2.md) | Réplica de cidade pelo traçado do OpenStreetMap | Proposto |
 | [0008](0008-tempo-real.md) | Um dia de jogo = 24 horas reais | Proposto |
 | [0009](0009-cliente-web-nativo.md) | Cliente web nativo (Three.js) para a cidade e os prédios de jogadores | Proposto |
+| [0010](0010-criterio-economia-cobertura.md) | Economia aprovada por payback e cobertura em dólar | Aceito |
 
 Pendentes de ADR (ver [doc 11](../11-decisoes-pendentes.md)): faixa de Educação, ORM e framework do backend, IaC (Terraform ou CDK), regra de bairro no mercado secundário, moeda da Lucky Box, período grátis.

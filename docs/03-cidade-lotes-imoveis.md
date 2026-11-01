@@ -90,7 +90,7 @@ Após comprar o imóvel, o lote deve ser **regularizado** na Prefeitura (residen
 |-------|---------------|
 | Máx. **1 bairro por jogador por região** | Validação no servidor e no contrato de venda primária: contagem de lotes do dono por região ≤ 324 e todos no mesmo bairro |
 | Proibido **cercar** o lote de um terceiro | Na compra, verificar os 8 vizinhos de cada lote de terceiros adjacente; rejeitar se o comprador passaria a deter todos |
-| Venda primária a **preço fixo por região** (mais caro no centro) | Tabela `region_price`; preço decrescente por anel |
+| Venda primária a **preço fixo por região** (mais caro no centro), **referenciado em dólar** | Tabela `region_price`; preço decrescente por anel; o valor em SCITY acompanha a cotação, para o lote não baratear quando o token cai ([simulador](../tools/econ-sim/README.md)) |
 | Venda secundária livre | Marketplace (doc 07) |
 | **PT — Property Tax** | Lote vazio: imposto crescente a cada mês sem uso. Lote com imóvel: taxa menor e fixa. Inadimplência → multa → leilão após N ciclos (proposto: 3 meses) |
 | Imóvel sobre lote de terceiros é proibido | Vender o imóvel antes do lote, ou vender em **combo** (lote + imóvel) |
