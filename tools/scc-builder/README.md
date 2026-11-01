@@ -425,6 +425,18 @@ o protótipo em `http://localhost:8081/docs/proposta-cidade-realista/index.html`
 O mapa só aceita mensagens das origens listadas em `BUILDER_ORIGINS`, no
 `main.js` dele — acrescente lá o domínio de produção do SCC Builder.
 
+### Cidade inteira em OBJ
+
+`bin/city-import.js` converte uma cidade gerada do OpenStreetMap (um objeto por etiqueta) em poucas camadas para o mapa:
+
+```bash
+node --max-old-space-size=8000 bin/city-import.js Pittsburg.obj ../../.local/cidades/pittsburg
+```
+
+Gera `cidade.glb` (Meshopt, cor por vértice) e `predios.json` (uma ficha por prédio, por componente conexa). Recorta o que sai da base e descarta rotas, relações e linhas de energia. Medido com um modelo de 151 MB: 5,3 MB, 75.495 prédios, 10 s.
+
+Deixe a saída em `.local/`, fora do repositório, até confirmar a licença do modelo. Dados do OpenStreetMap exigem a atribuição "© OpenStreetMap contributors".
+
 ### Editor e o JWT
 
 O jogo abre o editor com `https://<host>/#token=<jwt>`. O fragmento não vai
