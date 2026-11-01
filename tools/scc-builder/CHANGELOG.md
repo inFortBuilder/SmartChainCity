@@ -24,6 +24,7 @@ Chain City (doc 13 §5), sem vínculo com a aplicação de origem.
   `modelo.meta.json` com contorno da base, caixa/colisor, altura e
   triângulos. No editor, aviso acima de 300 mil triângulos.
 - **`bin/city-import.js`:** converte uma cidade em OBJ gerado do OpenStreetMap em camadas e uma tabela de prédios.
+- **Lotes poligonais** (`bin/lib/lots.js`, E1.8): a importação da cidade gera lotes ocupados e vazios, com zona, gabarito, recuo e coeficiente.
 - **Exportar para o mapa** (botão abaixo de "Baixar arquivo convertido"):
   ajusta o modelo aos limites da plataforma (`src/utils/sccPlatform.js`:
   300 mil triângulos, LODs de 25% e 5%, texturas até 2048 px, Meshopt, até

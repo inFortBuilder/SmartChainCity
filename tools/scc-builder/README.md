@@ -433,9 +433,17 @@ O mapa só aceita mensagens das origens listadas em `BUILDER_ORIGINS`, no
 node --max-old-space-size=8000 bin/city-import.js Pittsburg.obj ../../.local/cidades/pittsburg
 ```
 
-Gera `cidade.glb` (Meshopt, cor por vértice) e `predios.json` (uma ficha por prédio, por componente conexa). Recorta o que sai da base e descarta rotas, relações e linhas de energia. Medido com um modelo de 151 MB: 5,3 MB, 75.495 prédios, 10 s.
+Gera `cidade.glb` (Meshopt, cor por vértice), `predios.json` (uma ficha por prédio, por componente conexa) e os lotes poligonais (`lotes.bin` e `lotes.json`). Recorta o que sai da base e descarta rotas, relações e linhas de energia. Medido com um modelo de 151 MB: 5,3 MB, 75.495 prédios, 10 s.
 
 Deixe a saída em `.local/`, fora do repositório, até confirmar a licença do modelo. Dados do OpenStreetMap exigem a atribuição "© OpenStreetMap contributors".
+
+#### Lotes poligonais
+
+Cada prédio vira um lote ocupado, e as áreas livres perto de rua viram lotes vazios à venda. O polígono tem 16 pontos: raios saem do centro e param na rua, na água, no parque ou na fronteira com o vizinho, onde o prédio maior pesa mais. Polígono, recuo, gabarito e coeficiente são os mesmos campos do `validate-lot`.
+
+Medido em Pittsburg: 100.152 lotes (24.717 vazios), área mediana de 1.259 m², 15 s. Em 400 mil pontos sorteados, 21 caem em dois lotes (0,005%).
+
+A zona vem do porte do prédio, porque o OBJ não traz o uso; lote vazio é residencial. É um ponto de partida, não um zoneamento: 23.571 prédios existentes passam do gabarito da própria zona. Conjuntos colados contam como um prédio e geram lotes grandes, até 34 hectares.
 
 ### Editor e o JWT
 
