@@ -49,7 +49,7 @@ O Compose sobe: PostgreSQL (5432), Redis (6379), MySQL ou Postgres do Strapi e u
 | Strapi | `pnpm --filter @scc/cms dev` → http://localhost:1337/admin |
 | Contratos (testes) | `cd contracts && forge test` |
 | Nó local + deploy | `anvil` e `forge script script/DeployLocal.s.sol --broadcast --rpc-url http://localhost:8545` |
-| Simulador econômico | `pnpm --filter @scc/econ-sim start -- --days 365 --scenario base` |
+| Simulador econômico | `cd tools/econ-sim && npm start -- --days 365 --scenario p100 --growth base` |
 | Cliente Unity | Abrir `client-unity/` no Unity Hub → cena `Boot` → Play |
 | Build WebGL local | Menu `SCC > Build > WebGL (Dev)` → servir `client-unity/Builds/WebGL` com `npx http-server -p 8080 --brotli` |
 

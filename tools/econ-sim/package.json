@@ -1,0 +1,14 @@
+{
+  "name": "@scc/econ-sim",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Simulador econômico da Smart Chain City: faucets, sinks, câmbio e payback antes de qualquer contrato.",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "start": "node src/cli.js",
+    "gate": "node src/cli.js --all --gate",
+    "sweep": "node src/cli.js --sweep",
+    "test": "node --test"
+  }
+}

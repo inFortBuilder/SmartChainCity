@@ -13,7 +13,7 @@ Especificação: [doc 04](../04-economia-tokenomics.md). É o **primeiro código
 | 3 | Faucets e sinks do [doc 04 §7](../04-economia-tokenomics.md#7-faucets-e-sinks), câmbio e limites de saque | Ledger simulado fecha em 0 |
 | 4 | Cenários de preço do SCITY (US$ 1,00 / 0,50 / 0,20) e de crescimento de jogadores | 3 × 3 cenários rodando |
 | 5 | Relatório: payback por raridade, razão sinks/faucets, estoque de THALER per capita, pressão de venda de SCITY | HTML/CSV anexável ao PR |
-| 6 | Critério de aprovação automático | Falha se payback sair de 40–78 dias ou se sinks/faucets < 0,9 |
+| 6 | Critério de aprovação automático | Falha se payback sair de 40–78 dias, se a cobertura em dólar ficar < 1 ou se o pool P2E esgotar ([ADR-0010](../adr/0010-criterio-economia-cobertura.md)) |
 
 ## B. Pipeline de cidade real — `tools/osm-to-grid`
 
