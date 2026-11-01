@@ -12,7 +12,7 @@ O doc 05 §4 deixa o gateway entre NestJS e Fastify, e a trilha de backend pede 
 2. Fastify: pequeno, rápido e com rate limit oficial; a estrutura fica por conta das camadas `api/`, `domain/` e `infra/`.
 
 ## Decisão
-Fastify 5 com TypeScript estrito, validação com Zod e pnpm workspace. O domínio acessa a persistência por portas, como `AuthStore`.
+Fastify 5 com TypeScript estrito, validação com Zod e pnpm workspace. O domínio acessa a persistência por portas, como `AuthStore`. Banco com Drizzle ORM e migrações em SQL versionadas: é leve, tipado e deixa as transações explícitas, o que o ledger exige. Prisma pesa mais, e Knex não tem tipos do esquema.
 
 ## Consequências
-O domínio é testável sem banco e sem HTTP. A estrutura de cada serviço depende de disciplina, não do framework. O ORM continua pendente: a escolha entre Prisma, Drizzle e Knex entra com o adaptador Postgres, e até lá o gateway só roda com armazenamento em memória e recusa subir em produção.
+O domínio é testável sem banco e sem HTTP. A estrutura de cada serviço depende de disciplina, não do framework. O mesmo teste de contrato roda nos adaptadores de memória e Postgres. Sem `DATABASE_URL` o gateway usa memória e recusa subir em produção.

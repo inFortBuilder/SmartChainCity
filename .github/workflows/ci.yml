@@ -49,6 +49,22 @@ jobs:
     needs: changes
     if: needs.changes.outputs.node == 'true'
     runs-on: ubuntu-latest
+    env:
+      TEST_DATABASE_URL: postgresql://scc:scc_dev@127.0.0.1:5433/scc
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: scc
+          POSTGRES_PASSWORD: scc_dev
+          POSTGRES_DB: scc
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U scc -d scc"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
       - name: Detectar workspace Node
@@ -64,6 +80,8 @@ jobs:
           cache: pnpm
       - if: steps.ws.outputs.present == 'true'
         run: pnpm install --frozen-lockfile
+      - if: steps.ws.outputs.present == 'true'
+        run: pnpm db:migrate
       - if: steps.ws.outputs.present == 'true'
         run: pnpm -r lint
       - if: steps.ws.outputs.present == 'true'

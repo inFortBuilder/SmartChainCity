@@ -9,8 +9,10 @@ Entrada da API: login por carteira (SIWE, EIP-4361), JWT e rate limit. Contrato 
 ```bash
 pnpm install
 cp services/gateway/.env.example services/gateway/.env   # preencha JWT_SECRET
+pnpm db:up        # em outro terminal, ou o Docker Compose
+pnpm db:migrate
 pnpm dev
-pnpm --filter @scc/gateway test
+TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc pnpm --filter @scc/gateway test
 pnpm --filter @scc/gateway login:dev   # entra com uma carteira descartável e imprime o JWT
 ```
 
@@ -22,7 +24,7 @@ pnpm --filter @scc/gateway login:dev   # entra com uma carteira descartável e i
 | `GET /v1/me` (conta e carteiras) | ✅ avatares e saldos entram com game-core e economy |
 | JWT HS256 aceito pelo SCC Builder | ✅ testado com a API PHP real |
 | Rate limit, CORS por lista, logs sem token nem assinatura | ✅ |
-| Armazenamento persistente | ❌ só memória; `NODE_ENV=production` recusa subir |
+| Armazenamento em Postgres (Drizzle) | ✅ sem `DATABASE_URL` usa memória, e em produção recusa subir |
 | Login por e-mail, vínculo de segunda carteira, 2FA | ❌ |
 | Carteiras de contrato (ERC-1271) | ❌ só carteiras comuns |
 | ESLint, Dockerfile | ❌ `lint` hoje é a checagem de tipos |

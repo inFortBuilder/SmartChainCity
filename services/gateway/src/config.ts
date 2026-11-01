@@ -10,6 +10,7 @@ const schema = z.object({
   NODE_ENV: z.string().default('development'),
   PORT: z.coerce.number().int().positive().default(8000),
   HOST: z.string().default('127.0.0.1'),
+  DATABASE_URL: z.string().optional(),
   JWT_SECRET: z.string().min(32, 'JWT_SECRET precisa de pelo menos 32 caracteres'),
   JWT_ISSUER: z.string().default('scc-gateway'),
   JWT_TTL_SECONDS: z.coerce.number().int().positive().default(3600),

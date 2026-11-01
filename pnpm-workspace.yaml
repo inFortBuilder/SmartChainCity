@@ -7,3 +7,4 @@ packages:
 # Binário do tsx/vitest; sem isto a instalação no CI acusa build ignorado.
 allowBuilds:
   esbuild: true
+  "@embedded-postgres/windows-x64": true

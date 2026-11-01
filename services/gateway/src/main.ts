@@ -1,13 +1,29 @@
+import { Pool } from 'pg';
+
 import { buildApp } from './app.js';
 import { loadConfig } from './config.js';
+import { PostgresAuthStore } from './infra/db/postgres-store.js';
 import { MemoryAuthStore } from './infra/memory-store.js';
 
 const config = loadConfig();
 
-// Accounts would vanish on every restart, and nonces would not be shared between instances.
-if (config.NODE_ENV === 'production') {
-  throw new Error('O gateway ainda não tem armazenamento persistente: não suba em produção.');
+// In memory, accounts vanish on restart and nonces are not shared between instances.
+if (config.NODE_ENV === 'production' && !config.DATABASE_URL) {
+  throw new Error('Defina DATABASE_URL: em produção o gateway não roda em memória.');
 }
 
-const app = await buildApp(config, new MemoryAuthStore());
+const pool = config.DATABASE_URL ? new Pool({ connectionString: config.DATABASE_URL }) : null;
+const store = pool ? new PostgresAuthStore(pool) : new MemoryAuthStore();
+
+const app = await buildApp(config, store);
+app.log.info(`armazenamento: ${pool ? 'postgres' : 'memória'}`);
+
+const shutdown = async () => {
+  await app.close();
+  await pool?.end();
+  process.exit(0);
+};
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
+
 await app.listen({ port: config.PORT, host: config.HOST });

@@ -14,6 +14,6 @@ Cada decisão técnica ou de produto relevante é registrada como um arquivo `NN
 | [0008](0008-tempo-real.md) | Um dia de jogo = 24 horas reais | Proposto |
 | [0009](0009-cliente-web-nativo.md) | Cliente web nativo (Three.js) para a cidade e os prédios de jogadores | Proposto |
 | [0010](0010-criterio-economia-cobertura.md) | Economia aprovada por payback e cobertura em dólar | Aceito |
-| [0011](0011-framework-backend-fastify.md) | Fastify como framework do backend | Proposto |
+| [0011](0011-framework-backend-fastify.md) | Fastify e Drizzle no backend | Proposto |
 
-Pendentes de ADR (ver [doc 11](../11-decisoes-pendentes.md)): faixa de Educação, ORM do backend, IaC (Terraform ou CDK), regra de bairro no mercado secundário, moeda da Lucky Box, período grátis.
+Pendentes de ADR (ver [doc 11](../11-decisoes-pendentes.md)): faixa de Educação, IaC (Terraform ou CDK), regra de bairro no mercado secundário, moeda da Lucky Box, período grátis.
