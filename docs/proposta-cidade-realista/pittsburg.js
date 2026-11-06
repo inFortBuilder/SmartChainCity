@@ -381,6 +381,7 @@ try {
   gestao = createGestao({
     THREE, scene, camera, controls, fmt,
     getLots: () => lots, lotRing, lotAt, showLot, currentLot: () => shownLot,
+    loadGlb: (buffer) => new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).parseAsync(buffer, ''),
   });
   window.__pittsburg = { scene, camera, controls, renderer, buildings, pick, showBuilding, pickLot, showLot, getLots: () => lots, gestao };
 } catch (error) {

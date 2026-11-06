@@ -414,16 +414,18 @@ modelo do editor direto para o lote do jogador no mapa da Smart Chain City:
    | Materiais          | 8 por prédio           | avisa                                                                                                 |
 
 3. abre o mapa e entrega os três LODs por `postMessage` (o arquivo vai de
-   uma aba para a outra, sem rede). O mapa entra no modo **Construtor**, põe o
-   prédio no lote e roda a validação; a resposta volta para o editor.
+   uma aba para a outra, sem rede). O mapa de Pittsburg confere se o prédio
+   cabe no seu lote (gabarito, recuo e coeficiente) e, com a sua confirmação
+   na ficha, troca a construção que estiver lá pelo prédio; a resposta volta
+   para o editor.
 
 Medido no browser: plano de 400 mil triângulos com textura de 4096 px, 11 MB →
 LOD0 240 mil, LOD1 60 mil, LOD2 12 mil, textura de 2048 px, **1,4 MB** em 3,7 s.
 
 O endereço do mapa vem de `VITE_SCC_MAP_URL`; em desenvolvimento, sem ela, é
-o protótipo em `http://localhost:8081/docs/proposta-cidade-realista/index.html`.
-O mapa só aceita mensagens das origens listadas em `BUILDER_ORIGINS`, no
-`main.js` dele — acrescente lá o domínio de produção do SCC Builder.
+o mapa de Pittsburg em `http://localhost:8081/docs/proposta-cidade-realista/pittsburg.html`
+(a cidade de exemplo, `index.html`, também recebe). O mapa só aceita mensagens
+das origens listadas em `BUILDER_ORIGINS`, no `gestao.js` (Pittsburg) e no `main.js` (exemplo) — acrescente lá o domínio de produção do SCC Builder.
 
 ### Cidade inteira em OBJ
 

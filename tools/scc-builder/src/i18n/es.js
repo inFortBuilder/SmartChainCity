@@ -653,6 +653,8 @@ export default {
   'Atenção: ^1 materiais; o limite por prédio é ^2.':
     'Atención: ^1 materiales; el límite por edificio es ^2.',
   'Modelo enviado ao mapa da Smart Chain City.': 'Modelo enviado al mapa de Smart Chain City.',
+  'O prédio não cabe no lote escolhido: veja o motivo na ficha do lote, no mapa.':
+    'El edificio no cabe en el lote elegido: vea el motivo en la ficha del lote, en el mapa.',
   'Mesmo simplificado, o modelo passa dos limites do mapa (300 mil triângulos, 40 MB). Oculte blocos que não fazem parte do prédio (paisagismo, terreno) e tente de novo.':
     'Incluso simplificado, el modelo supera los límites del mapa (300 mil triángulos, 40 MB). Oculte los bloques que no forman parte del edificio (paisajismo, terreno) e inténtelo de nuevo.',
   'A janela do mapa foi fechada antes de receber o modelo.':

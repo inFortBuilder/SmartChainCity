@@ -23,8 +23,11 @@ export const MAP_MESSAGES = Object.freeze({
 /** Versão do formato da mensagem; o mapa recusa versão que não conhece. */
 export const MAP_PROTOCOL_VERSION = 1;
 
-/** O protótipo da cidade, servido pela raiz do monorepo (launch "scc-telas"). */
-export const DEV_MAP_URL = 'http://localhost:8081/docs/proposta-cidade-realista/index.html';
+/**
+ * O mapa de Pittsburg, servido pela raiz do monorepo (launch "scc-telas"). O
+ * prédio vai para o lote do jogador e substitui a construção que estiver lá.
+ */
+export const DEV_MAP_URL = 'http://localhost:8081/docs/proposta-cidade-realista/pittsburg.html';
 
 /**
  * Endereço do mapa: VITE_SCC_MAP_URL, ou o protótipo local em desenvolvimento.

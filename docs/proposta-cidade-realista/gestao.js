@@ -1,6 +1,7 @@
 // Área de gestão do jogador no mapa: carteira, compra de lote, abertura de
 // negócio, obra, lucro e coleta. Tudo simulado no navegador e salvo no
 // localStorage; no jogo, quem decide saldo e posse é o servidor (ADR-0002).
+import { fitBuilding } from './encaixe.js';
 import { BUSINESSES, DAY_MS, businessState, byKey, eligibility, netPerDay, paybackDays } from './negocios.js';
 
 const STORAGE_KEY = 'scc-gestao-pittsburg-v1';
@@ -19,7 +20,40 @@ const fresh = () => ({
   speed: 1440,
   lots: [],
   businesses: {},
+  // Prédios vindos do SCC Builder, por lote: só o resumo; os GLB ficam no IndexedDB.
+  models: {},
 });
+
+// ─ Prédios do SCC Builder: os arquivos são grandes demais para o localStorage ─
+const MODEL_DB = 'scc-gestao-modelos';
+function modelStore(mode, run) {
+  return new Promise((resolve, reject) => {
+    let open;
+    try {
+      open = indexedDB.open(MODEL_DB, 1);
+    } catch (err) {
+      reject(err);
+      return;
+    }
+    open.onupgradeneeded = () => open.result.createObjectStore('lotes');
+    open.onerror = () => reject(open.error);
+    open.onsuccess = () => {
+      const db = open.result;
+      const tx = db.transaction('lotes', mode);
+      const req = run(tx.objectStore('lotes'));
+      tx.oncomplete = () => {
+        db.close();
+        resolve(req?.result);
+      };
+      tx.onerror = () => reject(tx.error);
+    };
+  });
+}
+
+/** O SCC Builder entrega por aqui (protocolo em tools/scc-builder/src/utils/mapLink.js). */
+const BUILDER_ORIGINS = [location.origin, 'http://localhost:5173', 'http://127.0.0.1:5173'];
+/** Distância da câmera em que cada LOD entra. */
+const LOD_DISTANCES = [0, 250, 700];
 
 function load() {
   try {
@@ -65,11 +99,15 @@ export function createGestao(api) {
   const group = new THREE.Group();
   scene.add(group);
   const meshes = new Map();
+  /** Lote → prédio do SCC Builder já carregado (THREE.Group com o LOD dentro). */
+  const customs = new Map();
+  /** Prédio que chegou do SCC Builder e ainda não foi colocado em lote. */
+  let pending = null;
 
   function draw(i) {
     const old = meshes.get(i);
     if (old) {
-      group.remove(old.lot, old.box);
+      group.remove(old.lot, old.box, old.custom);
       old.lot.geometry.dispose();
       old.box?.geometry.dispose();
     }
@@ -85,7 +123,14 @@ export function createGestao(api) {
 
     let box = null;
     const business = state.businesses[i];
-    if (business) {
+    const custom = customs.get(i);
+    const info = state.models[i];
+    if (custom && info) {
+      // O prédio do jogador substitui o bloco padrão do negócio.
+      custom.position.set(info.center[0], 3.6, info.center[1]);
+      custom.rotation.y = -info.angle;
+      group.add(custom);
+    } else if (business) {
       const biz = byKey(business.key);
       const xs = ring.map((p) => p[0]);
       const zs = ring.map((p) => p[1]);
@@ -99,14 +144,19 @@ export function createGestao(api) {
       box.position.set(cx, 3.6, cz);
       group.add(box);
     }
-    meshes.set(i, { lot: lotMesh, box });
+    meshes.set(i, { lot: lotMesh, box, custom: custom && info ? custom : null });
     paint(i);
   }
 
   // Em obra o bloco sobe e fica cinza translúcido; aberto, ganha a cor do negócio.
+  // O prédio do jogador também sobe com a obra, mas mantém as próprias cores.
   function paint(i) {
     const m = meshes.get(i);
     const business = state.businesses[i];
+    if (m?.custom) {
+      m.custom.scale.y = business ? Math.max(0.05, businessState(business, state.gameMs).progress) : 1;
+      return;
+    }
     if (!m?.box || !business) return;
     const s = businessState(business, state.gameMs);
     m.box.scale.y = Math.max(0.05, s.progress);
@@ -143,9 +193,12 @@ export function createGestao(api) {
     if (!confirm('Apagar lotes, negócios e saldo desta demonstração?')) return;
     for (const i of state.lots) {
       const m = meshes.get(i);
-      if (m) group.remove(m.lot, m.box);
+      if (m) group.remove(m.lot, m.box, m.custom);
     }
     meshes.clear();
+    customs.clear();
+    pending = null;
+    modelStore('readwrite', (store) => store.clear()).catch(() => {});
     state = fresh();
     save(state);
     api.showLot(null);
@@ -257,6 +310,170 @@ export function createGestao(api) {
       .join('');
   }
 
+  // ─ Prédio do SCC Builder no lote ─
+  const meters = (n) => fmt.format(Math.round(n * 10) / 10);
+  const sizeText = (m) => `${meters(m.w)} × ${meters(m.d)} m, ${meters(m.h)} m de altura`;
+
+  function fitOf(i, size) {
+    return fitBuilding(api.lotRing(i), size, zoneOf(i), lotsData().areas[i]);
+  }
+
+  /** Lê os LODs, junta num THREE.LOD e põe a base no chão, centrada. */
+  async function parseModel(name, files) {
+    const lod = new THREE.LOD();
+    const sorted = [...files].sort((a, b) => a.level - b.level);
+    for (const [k, f] of sorted.entries()) {
+      const gltf = await api.loadGlb(f.bytes.slice(0));
+      lod.addLevel(gltf.scene, LOD_DISTANCES[k] ?? LOD_DISTANCES.at(-1) * k);
+    }
+    const box = new THREE.Box3().setFromObject(lod.levels[0].object);
+    if (box.isEmpty()) throw new Error('modelo sem geometria');
+    const c = box.getCenter(new THREE.Vector3());
+    for (const level of lod.levels) level.object.position.set(-c.x, -box.min.y, -c.z);
+    const holder = new THREE.Group();
+    holder.add(lod);
+    holder.traverse((o) => {
+      if (o.isMesh) o.castShadow = o.receiveShadow = true;
+    });
+    const size = box.getSize(new THREE.Vector3());
+    return {
+      name,
+      files: sorted,
+      object: holder,
+      triangles: sorted[0]?.triangles ?? 0,
+      w: size.x,
+      d: size.z,
+      h: size.y,
+    };
+  }
+
+  function modelSection(i) {
+    const info = state.models[i];
+    let html = '';
+    if (pending) {
+      const fit = fitOf(i, pending);
+      const replaces = info ? esc(info.name) : state.businesses[i] ? 'o bloco padrão' : null;
+      html += `<div class="modelo">
+        <h3>📦 ${esc(pending.name)} · do SCC Builder</h3>
+        <p class="muted">${sizeText(pending)} · ${fit.floors} andar(es) · ${fmt.format(fit.built)} de ${fmt.format(fit.maxBuilt)} m² construíveis${pending.triangles ? ` · ${fmt.format(pending.triangles)} triângulos` : ''}</p>
+        ${fit.ok ? '' : `<p class="motivo">Não cabe: ${esc(fit.reasons.join('; '))}.</p>`}
+        <button class="btn btn--primary" type="button" data-gestao="model" ${fit.ok ? '' : 'disabled'}>
+          ${replaces ? `Substituir ${replaces}` : 'Construir neste lote'}</button>
+      </div>`;
+    }
+    if (info) {
+      html += `<div class="modelo">
+        <h3>🏗️ ${esc(info.name)}</h3>
+        <p class="muted">Seu prédio, vindo do SCC Builder · ${sizeText(info)}</p>
+        <button class="btn btn--ghost" type="button" data-gestao="unmodel">Tirar e voltar ao bloco padrão</button>
+      </div>`;
+    }
+    return html;
+  }
+
+  function placeModel(i) {
+    if (!pending || !owns(i)) return;
+    const fit = fitOf(i, pending);
+    if (!fit.ok) return;
+    const old = state.models[i]?.name;
+    const { name, files, object, triangles, w, d, h } = pending;
+    customs.set(i, object);
+    state.models[i] = { name, triangles, w, d, h, center: fit.center, angle: fit.angle };
+    pending = null;
+    save(state);
+    modelStore('readwrite', (store) => store.put({ name, files }, i)).catch(() =>
+      toast('O prédio está no mapa, mas o navegador não deixou guardar: some ao recarregar.'),
+    );
+    draw(i);
+    api.showLot(i);
+    renderPanel();
+    toast(old ? `${lotId(i)}: ${name} entrou no lugar de ${old}.` : `${lotId(i)}: ${name} está no seu lote.`);
+  }
+
+  function removeModel(i) {
+    const name = state.models[i]?.name;
+    const m = meshes.get(i);
+    if (m?.custom) group.remove(m.custom);
+    customs.delete(i);
+    delete state.models[i];
+    save(state);
+    modelStore('readwrite', (store) => store.delete(i)).catch(() => {});
+    draw(i);
+    api.showLot(i);
+    renderPanel();
+    if (name) toast(`${name} saiu de ${lotId(i)}.`);
+  }
+
+  // Recebe o prédio do botão "Exportar para o mapa" do SCC Builder.
+  addEventListener('message', async (event) => {
+    if (!BUILDER_ORIGINS.includes(event.origin) || !event.source) return;
+    const data = event.data || {};
+    const reply = (msg) => event.source.postMessage(msg, event.origin);
+    if (data.type === 'scc-builder:ping') {
+      reply({ type: 'scc-map:ready', version: 1 });
+      return;
+    }
+    if (data.type !== 'scc-builder:model') return;
+    if (
+      data.version !== 1 ||
+      !Array.isArray(data.files) ||
+      !data.files.length ||
+      data.files.length > 3 ||
+      !data.files.every((f) => f && f.bytes instanceof ArrayBuffer)
+    ) {
+      reply({ type: 'scc-map:received', ok: false, error: 'invalid_message', message: 'mensagem fora do formato' });
+      return;
+    }
+    try {
+      const name = String(data.name || 'Prédio').replace(/[^\p{L}\p{N} ._-]+/gu, '_').slice(0, 60);
+      pending = await parseModel(
+        name,
+        data.files.map((f) => ({ level: Number(f.level) || 0, triangles: Number(f.triangles) || 0, bytes: f.bytes })),
+      );
+      // Vai para o seu lote: o que está aberto na ficha, ou o único que você tem.
+      const shown = api.currentLot();
+      const target = shown !== null && owns(shown) ? shown : state.lots.length === 1 ? state.lots[0] : null;
+      let fit = null;
+      if (target !== null) {
+        fit = fitOf(target, pending);
+        goTo(target);
+        toast(fit.ok ? `${name} chegou. Confira e confirme na ficha do lote.` : `${name} chegou, mas não cabe em ${lotId(target)}: veja o motivo na ficha.`);
+      } else if (state.lots.length) {
+        togglePanel(true);
+        toast(`${name} chegou. Use "Ir até" no lote em que quer construir.`);
+      } else {
+        toast(`${name} chegou. Compre um lote verde para construir nele.`);
+      }
+      reply({
+        type: 'scc-map:received',
+        ok: true,
+        name,
+        lot: target === null ? null : lotId(target),
+        triangles: pending.triangles,
+        valid: fit ? fit.ok : null,
+      });
+    } catch (err) {
+      reply({ type: 'scc-map:received', ok: false, error: 'load_failed', message: String(err?.message || err) });
+    }
+  });
+
+  // Recarrega os prédios guardados no IndexedDB.
+  async function restoreModels() {
+    for (const key of Object.keys(state.models)) {
+      const i = Number(key);
+      try {
+        const saved = await modelStore('readonly', (store) => store.get(i));
+        if (!saved) throw new Error('sem arquivo');
+        const m = await parseModel(saved.name, saved.files);
+        customs.set(i, m.object);
+        draw(i);
+      } catch {
+        delete state.models[i];
+        save(state);
+      }
+    }
+  }
+
   function decorateLot(i, ficha) {
     const lots = lotsData();
     const mine = owns(i);
@@ -285,11 +502,13 @@ export function createGestao(api) {
       } else {
         html = `<h3>Abrir negócio</h3><p class="muted">Pago em THALER. A zona do lote define o que cabe nele.</p>${businessRows(i)}`;
       }
+      html = modelSection(i) + html;
     } else if (lots.vacant[i] && lots.isOpen(i)) {
       const price = priceOf(i);
       html = `<button class="btn btn--primary" type="button" data-gestao="buy" ${state.scity >= price ? '' : 'disabled'}>
         Comprar por ${fmt.format(price)} SCITY</button>
-        ${state.scity >= price ? '' : `<p class="muted">Seu saldo: ${fmt.format(Math.floor(state.scity))} SCITY.</p>`}`;
+        ${state.scity >= price ? '' : `<p class="muted">Seu saldo: ${fmt.format(Math.floor(state.scity))} SCITY.</p>`}
+        ${pending ? `<p class="muted">Compre o lote para colocar nele o ${esc(pending.name)}, que veio do SCC Builder.</p>` : ''}`;
     }
 
     if (bairro && lots.isOpen(i)) {
@@ -306,6 +525,8 @@ export function createGestao(api) {
       const action = button.dataset.gestao;
       if (action === 'buy') buyLot(i);
       else if (action === 'build') build(i, button.dataset.key);
+      else if (action === 'model') placeModel(i);
+      else if (action === 'unmodel') removeModel(i);
       else if (action === 'claim') {
         const got = claim(i);
         if (got) toast(`+${fmt.format(got)} THALER coletados.`);
@@ -357,6 +578,7 @@ export function createGestao(api) {
         return `<li>
           <div class="linha"><strong>${lotId(i)}</strong><span class="muted">Bairro ${bairroOf(i) + 1} · ${esc(zone.label)}</span></div>
           <div>${detail}</div>
+          ${state.models[i] ? `<div>🏗️ ${esc(state.models[i].name)} <span class="muted">· do SCC Builder</span></div>` : ''}
           <div class="linha">${action}<button class="btn btn--ghost" type="button" data-p="go" data-i="${i}">Ir até</button></div>
         </li>`;
       })
@@ -422,6 +644,11 @@ export function createGestao(api) {
 
   for (const i of state.lots) draw(i);
   renderHud();
+  restoreModels();
 
-  return { decorateLot, tick, buyLot, build, claim, goTo, getState: () => state };
+  return {
+    decorateLot, tick, buyLot, build, claim, goTo, placeModel, removeModel,
+    getState: () => state,
+    getPending: () => pending,
+  };
 }
