@@ -6,6 +6,8 @@ import { Sky } from 'three/addons/objects/Sky.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 
+import { createGestao } from './gestao.js';
+
 const BASE = '../../.local/cidades/pittsburg';
 const $ = (s) => document.querySelector(s);
 const fmt = new Intl.NumberFormat('pt-BR');
@@ -121,6 +123,9 @@ const LOCKED_COLOR = 0xaab2bd;
 const LOT_CELL = 150;
 let lots = null;
 let lotToggle = null;
+let lotsPromise = null;
+let gestao = null;
+let shownLot = null;
 
 function lotPoint(i, k) {
   const at = (i * lots.n + k) * 2;
@@ -240,8 +245,15 @@ function pickLot(event) {
   return (lots.grid.get(key) ?? []).find((i) => insidePolygon(x, z, lotRing(i))) ?? null;
 }
 
+function lotAt(x, z) {
+  if (!lots) return null;
+  const key = `${Math.floor(x / LOT_CELL)},${Math.floor(z / LOT_CELL)}`;
+  return (lots.grid.get(key) ?? []).find((i) => insidePolygon(x, z, lotRing(i))) ?? null;
+}
+
 function showLot(i) {
   const ficha = $('[data-ficha]');
+  shownLot = i;
   if (i === null) {
     ficha.hidden = true;
     lotOutline.visible = false;
@@ -264,7 +276,8 @@ function showLot(i) {
     order === null
       ? ''
       : `<dt>Bairro</dt><dd>${order + 1} de ${total}</dd>` +
-        (open ? '' : `<dt>Abre em</dt><dd>${order + 1 - lots.openCount}ª fase</dd>`);  ficha.hidden = false;
+        (open ? '' : `<dt>Abre em</dt><dd>${order + 1 - lots.openCount}ª fase</dd>`);
+  ficha.hidden = false;
   ficha.innerHTML = `<h2>Lote PIT-${String(i + 1).padStart(6, '0')}</h2><dl>
     <dt>Situação</dt><dd>${status}</dd>${bairro}
     <dt>Zona</dt><dd>${zone.label}</dd>
@@ -275,6 +288,7 @@ function showLot(i) {
     <dt>Área construível</dt><dd>${fmt.format(Math.round(area * zone.far))} m²</dd>
     <dt>Preço</dt><dd>${fmt.format(Math.round(area * zone.price))} SCITY</dd></dl>
     ${free && !open ? `<p class="muted" style="font-size:12px;margin:10px 0 0">Cada bairro abre quando os já abertos passam de ${limiar}% vendidos, do centro para fora.</p>` : ''}`;
+  gestao?.decorateLot(i, ficha);
 }
 
 function setupLotToggle() {
@@ -283,19 +297,27 @@ function setupLotToggle() {
   lotToggle = label.querySelector('input');
   label.querySelector('input').addEventListener('change', async (e) => {
     const on = e.target.checked;
-    if (on && !lots) {
-      label.style.opacity = 0.5;
-      await loadLots();
-      label.style.opacity = 1;
+    if (on) await ensureLots(label);
+    lotLayer.visible = on;
+    if (!on) showLot(null);
+  });
+  $('[data-layers]').append(label);
+}
+
+// Uma carga só, compartilhada pela camada e pela gestão.
+function ensureLots(label) {
+  lotsPromise ??= (async () => {
+    if (label) label.style.opacity = 0.5;
+    await loadLots();
+    if (label) label.style.opacity = 1;
+    {
       const abertos = Math.min(lots.openCount, lots.bairros.length || 1);
       $('[data-resumo]').textContent += lots.bairros.length
         ? ` · ${fmt.format(lots.resumo.total)} lotes em ${lots.bairros.length} bairros · ${abertos} aberto, ${fmt.format(lots.forSale)} à venda`
         : ` · ${fmt.format(lots.resumo.total)} lotes, ${fmt.format(lots.resumo.vazios)} à venda`;
     }
-    lotLayer.visible = on;
-    if (!on) showLot(null);
-  });
-  $('[data-layers]').append(label);
+  })();
+  return lotsPromise;
 }
 
 const LABELS = { buildings: 'Prédios', roads: 'Ruas', water: 'Água', land: 'Uso do solo', rail: 'Ferrovias', ground: 'Terreno' };
@@ -354,7 +376,13 @@ try {
   }
   $('[data-resumo]').textContent = `${data.resumo.sem_predios ? 'Cidade sem prédios' : `${fmt.format(data.resumo.predios)} prédios`} · ${fmt.format(data.resumo.base_m / 1000)} km de base · ${fmt.format(data.resumo.glb_mb)} MB`;
   $('[data-aviso]').remove();
-  window.__pittsburg = { scene, camera, controls, renderer, buildings, pick, showBuilding, pickLot, showLot, getLots: () => lots };
+  // A gestão precisa dos lotes, com ou sem a camada ligada.
+  await ensureLots(lotToggle.parentElement);
+  gestao = createGestao({
+    THREE, scene, camera, controls, fmt,
+    getLots: () => lots, lotRing, lotAt, showLot, currentLot: () => shownLot,
+  });
+  window.__pittsburg = { scene, camera, controls, renderer, buildings, pick, showBuilding, pickLot, showLot, getLots: () => lots, gestao };
 } catch (error) {
   console.error(error);
   $('[data-aviso]').innerHTML = `<div class="glass">Cidade não encontrada. Gere com:<br><code>node tools/scc-builder/bin/city-import.js Pittsburg.obj .local/cidades/pittsburg</code></div>`;
@@ -366,6 +394,7 @@ addEventListener('resize', () => {
   renderer.setSize(innerWidth, innerHeight);
 });
 renderer.setAnimationLoop(() => {
+  gestao?.tick();
   controls.update();
   renderer.render(scene, camera);
 });
