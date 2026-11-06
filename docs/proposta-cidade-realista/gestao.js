@@ -22,6 +22,8 @@ const fresh = () => ({
   businesses: {},
   // Prédios vindos do SCC Builder, por lote: só o resumo; os GLB ficam no IndexedDB.
   models: {},
+  // Terreno de teste dado ao padeiro na primeira visita (e de novo após o ↺).
+  testLot: null,
 });
 
 // ─ Prédios do SCC Builder: os arquivos são grandes demais para o localStorage ─
@@ -200,6 +202,7 @@ export function createGestao(api) {
     pending = null;
     modelStore('readwrite', (store) => store.clear()).catch(() => {});
     state = fresh();
+    seedTestLot();
     save(state);
     api.showLot(null);
     renderPanel();
@@ -576,7 +579,7 @@ export function createGestao(api) {
           }
         }
         return `<li>
-          <div class="linha"><strong>${lotId(i)}</strong><span class="muted">Bairro ${bairroOf(i) + 1} · ${esc(zone.label)}</span></div>
+          <div class="linha"><strong>${lotId(i)}</strong>${i === state.testLot ? ' <span class="tag tag--mine">teste</span>' : ''}<span class="muted">Bairro ${bairroOf(i) + 1} · ${esc(zone.label)}</span></div>
           <div>${detail}</div>
           ${state.models[i] ? `<div>🏗️ ${esc(state.models[i].name)} <span class="muted">· do SCC Builder</span></div>` : ''}
           <div class="linha">${action}<button class="btn btn--ghost" type="button" data-p="go" data-i="${i}">Ir até</button></div>
@@ -642,7 +645,32 @@ export function createGestao(api) {
     save(state);
   }
 
-  for (const i of state.lots) draw(i);
+  /**
+   * Dá ao padeiro um terreno de uso misto no bairro aberto, sem cobrar, para
+   * testar o envio de prédio do SCC Builder sem precisar comprar antes. Escolhe
+   * o maior entre 1.500 e 5.000 m²: cabe hotel e o gabarito misto é de 60 m.
+   */
+  function seedTestLot() {
+    if (state.testLot !== null) return;
+    const lots = lotsData();
+    let best = null;
+    for (let i = 0; i < lots.areas.length; i++) {
+      if (!lots.vacant[i] || !lots.isOpen(i) || zoneOf(i).key !== 'mixed') continue;
+      const a = lots.areas[i];
+      if (a < 1500 || a > 5000 || state.lots.includes(i)) continue;
+      if (best === null || a > lots.areas[best]) best = i;
+    }
+    if (best === null) return;
+    state.testLot = best;
+    state.lots.push(best);
+    save(state);
+    draw(best);
+    renderHud();
+    toast(`Terreno de teste ${lotId(best)} (${fmt.format(Math.round(lots.areas[best]))} m², uso misto) adicionado à sua conta.`);
+  }
+
+  seedTestLot();
+  for (const i of state.lots) if (!meshes.has(i)) draw(i);
   renderHud();
   restoreModels();
 
