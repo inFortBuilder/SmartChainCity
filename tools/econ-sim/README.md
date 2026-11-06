@@ -31,9 +31,23 @@ Relatórios (CSV, HTML, JSON) saem em `out/`. Cada linha traz payback por rarida
 
 **Fora do modelo:** marketplace, corridas, fazenda, staking e revenda de lotes. O preço do SCITY é dado pelo cenário e não reage à venda dos jogadores, o que **esconde** a queda que a pressão de venda causaria. A entrada de dinheiro novo é a premissa mais sensível: `freshMoneyShare` não tem base em dados.
 
+## Venda por bairro (05/11/2026)
+
+A cidade passou a ser só traçado, sem prédios: os 100.152 terrenos de Pittsburg ficam à venda, divididos em 198 bairros de ~1 km. A venda abre um bairro por vez, do centro para fora, e o próximo abre quando o aberto passa de 70% vendido (`land.releaseThreshold` e `land.initialDistricts`; doc 03 §5).
+
+| Cenário | Lotes vendidos no ano | Bairros abertos | Ocupação do que está aberto | Cobertura |
+|---|---:|---:|---:|---:|
+| Crescimento baixo | 1.311 | 3 de 198 | 53% | 1,05 |
+| Base | 3.593 | 8 de 198 | 67% | 1,09 |
+| Alto | 8.437 | 25 de 198 | 65% | 1,11 |
+
+As fases não mudam a economia: vendas e cobertura são as mesmas com tudo aberto. O que mudam é a cidade que o jogador vê. Com tudo à venda, 3,5% do mapa ocupado se espalharia pelos 34 km; com fases, os bairros abertos ficam dois terços ocupados. Nenhum comprador fica sem lote: o bairro seguinte abre antes de o atual acabar.
+
+O estoque agora é a cidade inteira: lote mediano de ~1.090 SCITY, 9 de 9 cenários aprovados no preço adotado. Na base, os bairros abrem nos dias 80, 147, 201, 236, 290 e 338.
+
 ## Preço dos lotes (05/11/2026)
 
-Os lotes reais de Pittsburg (mapa, E1.8) custavam ~3.500 SCITY no preço por m² do doc 13, enquanto a economia tinha sido aprovada com lotes de 260–950 SCITY. Agora o simulador vende o estoque real: os 24.717 lotes vazios, em faixas de área exportadas por `scripts/lotes-para-params.mjs` para `params/lotes-pittsburg.json`, só contagens. A demanda reage ao preço: `elasticity` 1 significa que lote 2× mais caro vende metade.
+Os lotes reais de Pittsburg (mapa, E1.8) custavam ~3.500 SCITY no preço por m² do doc 13, enquanto a economia tinha sido aprovada com lotes de 260–950 SCITY. Nesta etapa o simulador passou a vender o estoque real, que eram os 24.717 lotes vazios da cidade ainda com prédios, em faixas de área exportadas por `scripts/lotes-para-params.mjs` para `params/lotes-pittsburg.json`, só contagens. A demanda reage ao preço: `elasticity` 1 significa que lote 2× mais caro vende metade.
 
 Varredura do preço por m² (`priceScale` × doc 13), 9 cenários:
 

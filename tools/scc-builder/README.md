@@ -439,6 +439,10 @@ Deixe a saída em `.local/`, fora do repositório, até confirmar a licença do 
 
 #### Lotes poligonais
 
+Com `--sem-predios`, a cidade sai só com o traçado (ruas, água, áreas verdes) e todo terreno vira lote à venda, com a zona herdada do prédio que havia ali. Em Pittsburg são 100.152 lotes à venda, somando 137 M de SCITY.
+
+Os lotes são agrupados em bairros de 1 km, numerados do centro para fora (quadrado com menos de 200 lotes entra no vizinho): 198 em Pittsburg. O bairro de cada lote vai no fim de `lotes.bin`, e a regra de liberação (`limiar` 70%, 1 aberto no início) vai em `lotes.json`.
+
 Cada prédio vira um lote ocupado, e as áreas livres perto de rua viram lotes vazios à venda. O polígono tem 16 pontos: raios saem do centro e param na rua, na água, no parque ou na fronteira com o vizinho, onde o prédio maior pesa mais. Polígono, recuo, gabarito e coeficiente são os mesmos campos do `validate-lot`.
 
 Medido em Pittsburg: 100.152 lotes (24.717 vazios), área mediana de 1.259 m², 15 s. Em 400 mil pontos sorteados, 21 caem em dois lotes (0,005%).

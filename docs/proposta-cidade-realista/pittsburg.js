@@ -116,8 +116,11 @@ canvas.addEventListener('pointerup', (e) => {
 // Polígonos fixos de N pontos num binário: 100 mil lotes em JSON pesariam 40 MB.
 const ZONE_COLORS = [0x60a5fa, 0xf59e0b, 0xf472b6];
 const VACANT_COLOR = 0x8ddc0e;
+// Lote de bairro que ainda não abriu: existe no mapa, mas não está à venda.
+const LOCKED_COLOR = 0xaab2bd;
 const LOT_CELL = 150;
 let lots = null;
+let lotToggle = null;
 
 function lotPoint(i, k) {
   const at = (i * lots.n + k) * 2;
@@ -149,7 +152,17 @@ async function loadLots() {
   const areas = new Float32Array(buffer, polygons.byteLength, count);
   const zones = new Uint8Array(buffer, polygons.byteLength + areas.byteLength, count);
   const vacant = new Uint8Array(buffer, polygons.byteLength + areas.byteLength + count, count);
-  lots = { n, count, polygons, areas, zones, vacant, zonas: meta.zonas, resumo: meta.resumo, grid: new Map() };
+  const districtOffset = polygons.byteLength + areas.byteLength + 2 * count;
+  const district = buffer.byteLength >= districtOffset + 2 * count ? new Uint16Array(buffer, districtOffset, count) : null;
+  // Venda por bairro (doc 03 §5): só os primeiros abrem; o resto espera a vez.
+  const openCount = meta.liberacao?.abertos_no_inicio ?? Infinity;
+  const isOpen = (i) => !district || district[i] < openCount;
+  lots = {
+    n, count, polygons, areas, zones, vacant, district, isOpen,
+    openCount, bairros: meta.bairros ?? [], liberacao: meta.liberacao,
+    zonas: meta.zonas, resumo: meta.resumo, grid: new Map(),
+  };
+  let forSale = 0;
 
   const vertices = new Float32Array(count * n * 3);
   const colors = new Float32Array(count * n * 3);
@@ -157,7 +170,9 @@ async function loadLots() {
   const fill = [];
   const color = new THREE.Color();
   for (let i = 0; i < count; i++) {
-    color.set(vacant[i] ? VACANT_COLOR : ZONE_COLORS[zones[i]]);
+    const open = isOpen(i);
+    if (vacant[i] && open) forSale++;
+    color.set(vacant[i] ? (open ? VACANT_COLOR : LOCKED_COLOR) : ZONE_COLORS[zones[i]]);
     const ring = lotRing(i);
     let cx = 0;
     let cz = 0;
@@ -169,7 +184,7 @@ async function loadLots() {
       index[v * 2 + 1] = i * n + ((k + 1) % n);
       cx += x / n;
       cz += z / n;
-      if (vacant[i] && k >= 2) fill.push(i * n, v - 1, v);
+      if (vacant[i] && open && k >= 2) fill.push(i * n, v - 1, v);
     });
     for (let a = -1; a <= 1; a++) {
       for (let b = -1; b <= 1; b++) {
@@ -197,6 +212,7 @@ async function loadLots() {
   areasMesh.frustumCulled = false;
 
   lotLayer.add(lines, areasMesh);
+  lots.forSale = forSale;
 }
 
 const lotLayer = new THREE.Group();
@@ -239,28 +255,42 @@ function showLot(i) {
   const zone = lots.zonas[lots.zones[i]];
   const area = lots.areas[i];
   const free = lots.vacant[i] === 1;
-  ficha.hidden = false;
+  const open = lots.isOpen(i);
+  const order = lots.district ? lots.district[i] : null;
+  const total = lots.bairros.length;
+  const status = !free ? 'Ocupado' : open ? 'À venda' : 'Bairro ainda fechado';
+  const limiar = Math.round((lots.liberacao?.limiar ?? 0.7) * 100);
+  const bairro =
+    order === null
+      ? ''
+      : `<dt>Bairro</dt><dd>${order + 1} de ${total}</dd>` +
+        (open ? '' : `<dt>Abre em</dt><dd>${order + 1 - lots.openCount}ª fase</dd>`);  ficha.hidden = false;
   ficha.innerHTML = `<h2>Lote PIT-${String(i + 1).padStart(6, '0')}</h2><dl>
-    <dt>Situação</dt><dd>${free ? 'À venda' : 'Ocupado'}</dd>
+    <dt>Situação</dt><dd>${status}</dd>${bairro}
     <dt>Zona</dt><dd>${zone.label}</dd>
     <dt>Área</dt><dd>${fmt.format(Math.round(area))} m²</dd>
     <dt>Gabarito</dt><dd>${zone.max_height_m} m</dd>
     <dt>Coeficiente</dt><dd>${fmt.format(zone.far)}</dd>
     <dt>Recuo</dt><dd>${zone.setback_m} m</dd>
     <dt>Área construível</dt><dd>${fmt.format(Math.round(area * zone.far))} m²</dd>
-    <dt>Preço</dt><dd>${fmt.format(Math.round(area * zone.price))} SCITY</dd></dl>`;
+    <dt>Preço</dt><dd>${fmt.format(Math.round(area * zone.price))} SCITY</dd></dl>
+    ${free && !open ? `<p class="muted" style="font-size:12px;margin:10px 0 0">Cada bairro abre quando os já abertos passam de ${limiar}% vendidos, do centro para fora.</p>` : ''}`;
 }
 
 function setupLotToggle() {
   const label = document.createElement('label');
   label.innerHTML = '<input type="checkbox" data-lotes> Lotes';
+  lotToggle = label.querySelector('input');
   label.querySelector('input').addEventListener('change', async (e) => {
     const on = e.target.checked;
     if (on && !lots) {
       label.style.opacity = 0.5;
       await loadLots();
       label.style.opacity = 1;
-      $('[data-resumo]').textContent += ` · ${fmt.format(lots.resumo.total)} lotes, ${fmt.format(lots.resumo.vazios)} à venda`;
+      const abertos = Math.min(lots.openCount, lots.bairros.length || 1);
+      $('[data-resumo]').textContent += lots.bairros.length
+        ? ` · ${fmt.format(lots.resumo.total)} lotes em ${lots.bairros.length} bairros · ${abertos} aberto, ${fmt.format(lots.forSale)} à venda`
+        : ` · ${fmt.format(lots.resumo.total)} lotes, ${fmt.format(lots.resumo.vazios)} à venda`;
     }
     lotLayer.visible = on;
     if (!on) showLot(null);
@@ -299,12 +329,8 @@ function setupLayers(root) {
   }
 }
 
-// O centro de massa dos prédios é onde a cidade está de fato; a base é quase toda vazia.
-function frameCity(list) {
-  const xs = list.map((b) => b.x).sort((a, b) => a - b);
-  const zs = list.map((b) => b.z).sort((a, b) => a - b);
-  const cx = xs[xs.length >> 1];
-  const cz = zs[zs.length >> 1];
+// O centro da mancha urbana vem do conversor; a base de 34 km é quase toda vazia.
+function frameCity([cx, cz]) {
   controls.target.set(cx, 0, cz);
   camera.position.set(cx - 2200, 2000, cz + 2600);
   controls.update();
@@ -320,8 +346,13 @@ try {
   setupLayers(gltf.scene);
   setupLotToggle();
   scene.add(gltf.scene);
-  frameCity(buildings);
-  $('[data-resumo]').textContent = `${fmt.format(data.resumo.predios)} prédios · ${fmt.format(data.resumo.base_m / 1000)} km de base · ${fmt.format(data.resumo.glb_mb)} MB`;
+  frameCity(data.resumo.centro);
+  // Cidade sem prédios: o que há para ver são os lotes.
+  if (data.resumo.sem_predios) {
+    lotToggle.checked = true;
+    lotToggle.dispatchEvent(new Event('change'));
+  }
+  $('[data-resumo]').textContent = `${data.resumo.sem_predios ? 'Cidade sem prédios' : `${fmt.format(data.resumo.predios)} prédios`} · ${fmt.format(data.resumo.base_m / 1000)} km de base · ${fmt.format(data.resumo.glb_mb)} MB`;
   $('[data-aviso]').remove();
   window.__pittsburg = { scene, camera, controls, renderer, buildings, pick, showBuilding, pickLot, showLot, getLots: () => lots };
 } catch (error) {

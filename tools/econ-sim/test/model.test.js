@@ -5,7 +5,9 @@ import { test } from 'node:test';
 import {
   attributeMultiplier,
   buyChanceAt,
+  landPhases,
   landStock,
+  openPhases,
   converter,
   medianPayback,
   poolBrakeLevel,
@@ -196,8 +198,55 @@ test('lotes reais com elasticidade 1 aprovam o cenário base', () => {
   p.land.stock = JSON.parse(readFileSync(new URL('../params/lotes-pittsburg.json', import.meta.url)));
   const r = simulate(p, { priceUsd: 1, growth: p.scenarios.growth.base });
   assert.ok(r.landSold > 0 && r.landStockLeft > 0);
-  assert.ok(Math.abs(r.landPriceMedianScity - 1560) < 1);
+  // Lote mediano da cidade inteira a 30% do preço do doc 13: entre US$ 500 e 3.000.
+  assert.ok(r.landPriceMedianScity > 500 && r.landPriceMedianScity < 3000);
+  assert.ok(r.districtsOpen > 1 && r.districtsOpen < r.districtsTotal);
   assert.equal(evaluateGate(r, p.gate).pass, true);
+});
+
+test('estoque por bairro: em ordem, e cada fase termina no fim do bairro', () => {
+  const land = {
+    stock: {
+      bairros: [
+        { order: 0, lots: [{ zone: 'r', area: 100, count: 3 }] },
+        { order: 1, lots: [{ zone: 'r', area: 900, count: 2 }] },
+      ],
+    },
+    pricePerM2: { r: 1 },
+  };
+  const stock = landStock(land, mulberry32(3));
+  assert.deepEqual([...stock], [100, 100, 100, 900, 900]);
+  assert.deepEqual(landPhases(land, stock.length), [3, 5]);
+  assert.deepEqual(landPhases({ tiers: [] }, 7), [7]);
+});
+
+test('abre o próximo bairro quando o aberto passa do limiar', () => {
+  const ends = [10, 20, 30];
+  assert.equal(openPhases(ends, 1, 6, 0.7), 1);
+  assert.equal(openPhases(ends, 1, 7, 0.7), 2);
+  assert.equal(openPhases(ends, 2, 14, 0.7), 3);
+  assert.equal(openPhases(ends, 3, 30, 0.7), 3);
+});
+
+test('venda em fases: só vende o aberto e conta a demanda sem lote', () => {
+  const p = JSON.parse(JSON.stringify(params));
+  p.land.stock = {
+    bairros: [
+      { order: 0, lots: [{ zone: 'residential', area: 500, count: 20 }] },
+      { order: 1, lots: [{ zone: 'residential', area: 500, count: 2000 }] },
+    ],
+  };
+  p.land.releaseThreshold = 1;
+  p.land.initialDistricts = 1;
+  // Limiar acima de 100%: o segundo bairro nunca abre.
+  const fechado = { ...p, land: { ...p.land, releaseThreshold: 2 } };
+  const r = simulate(fechado, { ...quick, land: true });
+  assert.equal(r.landSold, 20);
+  assert.ok(r.blockedLotDemand > 0);
+  const aberto = simulate(p, { ...quick, land: true });
+  assert.equal(aberto.districtsOpen, 2);
+  assert.ok(aberto.landSold > 20);
+  assert.ok(Math.abs(aberto.ledgerError) < 1);
 });
 
 test('o gate acusa cada motivo', () => {

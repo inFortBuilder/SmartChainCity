@@ -5,6 +5,7 @@ import {
   Raster,
   SiteGrid,
   ZONES,
+  assignDistricts,
   boundaryShare,
   lotPolygon,
   lotPrice,
@@ -173,5 +174,31 @@ describe('vacantSites', () => {
 
   it('sem rua por perto não há lote', () => {
     expect(vacantSites(extent, 40, free(), new SiteGrid(), options)).toEqual([]);
+  });
+});
+
+describe('assignDistricts', () => {
+  const lots = [];
+  for (let i = 0; i < 300; i++) lots.push([100 + (i % 20), 100 + Math.floor(i / 20)]);
+  for (let i = 0; i < 300; i++) lots.push([2500 + (i % 20), 100 + Math.floor(i / 20)]);
+  lots.push([5100, 100]);
+
+  it('um bairro por quadrado, do centro para fora', () => {
+    const { district, districts } = assignDistricts(lots, [0, 0]);
+    expect(districts).toHaveLength(2);
+    expect(district[0]).toBe(0);
+    expect(district[350]).toBe(1);
+    expect(districts[0].lots + districts[1].lots).toBe(lots.length);
+  });
+
+  it('quadrado pequeno entra no vizinho mais próximo', () => {
+    const { district } = assignDistricts(lots, [0, 0]);
+    expect(district[600]).toBe(district[350]);
+  });
+
+  it('a ordem segue a distância ao centro', () => {
+    const { district } = assignDistricts(lots, [3000, 0]);
+    expect(district[350]).toBe(0);
+    expect(district[0]).toBe(1);
   });
 });

@@ -207,7 +207,9 @@
     "elasticity": 1,
     "referencePriceScity": 399,
     "maxDemandBoost": 3,
-    "stockFile": "lotes-pittsburg.json"
+    "stockFile": "lotes-pittsburg.json",
+    "releaseThreshold": 0.7,
+    "initialDistricts": 1
   },
   "poolBrake": {
     "fonte": "premissa: regra proposta pelo simulador para o pool não esgotar",

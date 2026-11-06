@@ -49,22 +49,57 @@ export function poolBrakeLevel(scityPaid, released, start) {
  */
 export function landStock(land, rand) {
   const prices = [];
-  if (land.stock) {
+  const shuffle = (from) => {
+    for (let i = prices.length - 1; i > from; i--) {
+      const j = from + Math.floor(rand() * (i - from + 1));
+      [prices[i], prices[j]] = [prices[j], prices[i]];
+    }
+  };
+  const push = (lots) => {
     const scale = land.priceScale ?? 1;
-    for (const lot of land.stock.lots) {
+    for (const lot of lots) {
       const price = lot.area * land.pricePerM2[lot.zone] * scale;
       for (let i = 0; i < lot.count; i++) prices.push(price);
     }
-    for (let i = prices.length - 1; i > 0; i--) {
-      const j = Math.floor(rand() * (i + 1));
-      [prices[i], prices[j]] = [prices[j], prices[i]];
+  };
+  if (land.stock?.bairros) {
+    // Bairro a bairro, na ordem de abertura; embaralhado só dentro de cada um.
+    for (const bairro of land.stock.bairros) {
+      const from = prices.length;
+      push(bairro.lots);
+      shuffle(from);
     }
+  } else if (land.stock) {
+    push(land.stock.lots);
+    shuffle(0);
   } else {
     for (const tier of land.tiers) {
       for (let i = 0; i < tier.lots; i++) prices.push(tier.priceScity);
     }
   }
   return Float64Array.from(prices);
+}
+
+/**
+ * Onde termina cada fase de venda no estoque: um bairro por fase (doc 03 §5).
+ * Sem bairros, uma fase só com tudo.
+ */
+export function landPhases(land, total) {
+  if (!land.stock?.bairros) return [total];
+  const ends = [];
+  let end = 0;
+  for (const bairro of land.stock.bairros) {
+    end += bairro.lots.reduce((s, l) => s + l.count, 0);
+    ends.push(end);
+  }
+  return ends;
+}
+
+/** Quantas fases abrir: as já abertas ficam; abre outra enquanto o vendido passa do limiar. */
+export function openPhases(ends, opened, sold, threshold) {
+  let n = opened;
+  while (n < ends.length && sold >= threshold * ends[n - 1]) n++;
+  return n;
 }
 
 /**

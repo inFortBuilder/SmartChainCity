@@ -24,23 +24,33 @@ const polygonsBytes = count * meta.pontos * 2 * 4;
 const areas = new Float32Array(buffer, polygonsBytes, count);
 const zones = new Uint8Array(buffer, polygonsBytes + count * 4, count);
 const vacant = new Uint8Array(buffer, polygonsBytes + count * 5, count);
+// Bairro em Uint16 no fim, quando o conversor gerou os bairros.
+const hasDistricts = raw.byteLength >= polygonsBytes + count * 8;
+const district = hasDistricts ? new Uint16Array(buffer, polygonsBytes + count * 6, count) : null;
 
-const BIN = 100;
+// Faixas de 200 m²: com 198 bairros, faixas menores fariam um arquivo grande sem mudar o resultado.
+const BIN = 200;
 const bins = new Map();
 for (let i = 0; i < count; i++) {
   if (!vacant[i]) continue;
   const area = Math.max(BIN, Math.round(areas[i] / BIN) * BIN);
-  const key = `${zones[i]}:${area}`;
+  const key = `${district ? district[i] : 0}:${zones[i]}:${area}`;
   bins.set(key, (bins.get(key) ?? 0) + 1);
 }
 
-const lots = [...bins.entries()]
-  .map(([key, n]) => {
-    const [zone, area] = key.split(':').map(Number);
-    return { zone: meta.zonas[zone].key, area, count: n };
-  })
-  .sort((a, b) => a.zone.localeCompare(b.zone) || a.area - b.area);
-
+const groups = new Map();
+for (const [key, n] of bins) {
+  const [d, zone, area] = key.split(':').map(Number);
+  if (!groups.has(d)) groups.set(d, []);
+  groups.get(d).push({ zone: meta.zonas[zone].key, area, count: n });
+}
+const bairros = [...groups.entries()]
+  .sort((a, b) => a[0] - b[0])
+  .map(([order, lots]) => ({
+    order,
+    lots: lots.sort((a, b) => a.zone.localeCompare(b.zone) || a.area - b.area),
+  }));
+const lots = bairros.flatMap((b) => b.lots);
 const total = lots.reduce((s, l) => s + l.count, 0);
 writeFileSync(
   out,
@@ -48,10 +58,12 @@ writeFileSync(
     {
       fonte: `lotes vazios de ${dir.replace(/\\/g, '/').split('/').filter(Boolean).at(-1)}, faixas de ${BIN} m²`,
       total,
-      lots,
+      liberacao: meta.liberacao ?? null,
+      bairros: district ? bairros : undefined,
+      lots: district ? undefined : lots,
     },
     null,
     2
   )}\n`
 );
-console.log(`${total} lotes vazios em ${lots.length} faixas → ${out}`);
+console.log(`${total} lotes vazios, ${bairros.length} bairro(s), ${lots.length} faixas → ${out}`);
