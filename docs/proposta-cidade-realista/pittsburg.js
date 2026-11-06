@@ -118,6 +118,7 @@ canvas.addEventListener('pointerup', (e) => {
 // Polígonos fixos de N pontos num binário: 100 mil lotes em JSON pesariam 40 MB.
 const ZONE_COLORS = [0x60a5fa, 0xf59e0b, 0xf472b6];
 const VACANT_COLOR = 0x8ddc0e;
+const CIVIC_COLOR = 0xfacc15;
 // Lote de bairro que ainda não abriu: existe no mapa, mas não está à venda.
 const LOCKED_COLOR = 0xaab2bd;
 const LOT_CELL = 150;
@@ -147,9 +148,11 @@ function insidePolygon(x, z, ring) {
 }
 
 async function loadLots() {
-  const [meta, buffer] = await Promise.all([
+  const [meta, buffer, civic] = await Promise.all([
     fetch(`${BASE}/lotes.json`).then((r) => r.json()),
     fetch(`${BASE}/lotes.bin`).then((r) => r.arrayBuffer()),
+    // Prédio público no centro (tools/scc-builder/bin/city-civic.js); opcional.
+    fetch(`${BASE}/civico.json`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
   ]);
   const n = meta.pontos;
   const count = meta.resumo.total;
@@ -166,18 +169,23 @@ async function loadLots() {
     n, count, polygons, areas, zones, vacant, district, isOpen,
     openCount, bairros: meta.bairros ?? [], liberacao: meta.liberacao,
     zonas: meta.zonas, resumo: meta.resumo, grid: new Map(),
+    civic, civicLots: new Set(civic?.lotes ?? []),
   };
+  // Os lotes do Centro Administrativo são da Prefeitura: saem da venda.
+  for (const i of lots.civicLots) vacant[i] = 0;
   let forSale = 0;
 
   const vertices = new Float32Array(count * n * 3);
   const colors = new Float32Array(count * n * 3);
   const index = new Uint32Array(count * n * 2);
   const fill = [];
+  const civicFill = [];
   const color = new THREE.Color();
   for (let i = 0; i < count; i++) {
     const open = isOpen(i);
     if (vacant[i] && open) forSale++;
-    color.set(vacant[i] ? (open ? VACANT_COLOR : LOCKED_COLOR) : ZONE_COLORS[zones[i]]);
+    const isCivic = lots.civicLots.has(i);
+    color.set(isCivic ? CIVIC_COLOR : vacant[i] ? (open ? VACANT_COLOR : LOCKED_COLOR) : ZONE_COLORS[zones[i]]);
     const ring = lotRing(i);
     let cx = 0;
     let cz = 0;
@@ -190,6 +198,7 @@ async function loadLots() {
       cx += x / n;
       cz += z / n;
       if (vacant[i] && open && k >= 2) fill.push(i * n, v - 1, v);
+      if (isCivic && k >= 2) civicFill.push(i * n, v - 1, v);
     });
     for (let a = -1; a <= 1; a++) {
       for (let b = -1; b <= 1; b++) {
@@ -216,7 +225,16 @@ async function loadLots() {
   );
   areasMesh.frustumCulled = false;
 
-  lotLayer.add(lines, areasMesh);
+  const civicGeometry = new THREE.BufferGeometry();
+  civicGeometry.setAttribute('position', geometry.getAttribute('position'));
+  civicGeometry.setIndex(civicFill);
+  const civicMesh = new THREE.Mesh(
+    civicGeometry,
+    new THREE.MeshBasicMaterial({ color: CIVIC_COLOR, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false }),
+  );
+  civicMesh.frustumCulled = false;
+
+  lotLayer.add(lines, areasMesh, civicMesh);
   lots.forSale = forSale;
 }
 
@@ -264,6 +282,19 @@ function showLot(i) {
   lotOutline.visible = true;
   highlight.visible = false;
 
+  if (lots.civicLots.has(i)) {
+    const c = lots.civic;
+    const [w, h, d] = c.modelo.tamanho_m;
+    ficha.hidden = false;
+    ficha.innerHTML = `<h2>🏛️ ${c.nome}</h2><dl>
+      <dt>Situação</dt><dd>Prefeitura · não está à venda</dd>
+      <dt>Lote</dt><dd>PIT-${String(i + 1).padStart(6, '0')}</dd>
+      <dt>Terreno</dt><dd>${c.lotes.length} lotes unidos</dd>
+      <dt>Prédio</dt><dd>${fmt.format(Math.round(w))} × ${fmt.format(Math.round(d))} m, ${fmt.format(Math.round(h))} m</dd>
+      <dt>Do centro</dt><dd>${fmt.format(c.distancia_do_centro_m)} m</dd></dl>
+      <p class="muted" style="font-size:12px;margin:10px 0 0">Sede do governo da cidade, no centro. Os lotes dele saíram da venda.</p>`;
+    return;
+  }
   const zone = lots.zonas[lots.zones[i]];
   const area = lots.areas[i];
   const free = lots.vacant[i] === 1;
@@ -289,6 +320,35 @@ function showLot(i) {
     <dt>Preço</dt><dd>${fmt.format(Math.round(area * zone.price))} SCITY</dd></dl>
     ${free && !open ? `<p class="muted" style="font-size:12px;margin:10px 0 0">Cada bairro abre quando os já abertos passam de ${limiar}% vendidos, do centro para fora.</p>` : ''}`;
   gestao?.decorateLot(i, ficha);
+}
+
+async function loadCivic() {
+  const c = lots?.civic;
+  if (!c) return;
+  const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
+  const lod = new THREE.LOD();
+  const distances = [0, 600, 1800];
+  const scenes = await Promise.all(c.modelo.lods.map((f) => loader.loadAsync(`${BASE}/${f}`)));
+  scenes.forEach((g, k) => lod.addLevel(g.scene, distances[k] ?? 1800));
+  lod.position.set(c.centro[0], 3, c.centro[1]);
+  lod.rotation.y = -c.angulo;
+  lod.traverse((o) => {
+    if (o.isMesh) o.castShadow = o.receiveShadow = true;
+  });
+  scene.add(lod);
+
+  const go = document.createElement('button');
+  go.type = 'button';
+  go.className = 'btn btn--ghost';
+  go.style.cssText = 'width:100%;margin-top:10px';
+  go.textContent = `🏛️ Ir ao ${c.nome}`;
+  go.addEventListener('click', () => {
+    controls.target.set(c.centro[0], 110, c.centro[1]);
+    camera.position.set(c.centro[0] + 520, 330, c.centro[1] + 520);
+    showLot(c.lotes[0]);
+  });
+  $('[data-layers]').after(go);
+  return lod;
 }
 
 function setupLotToggle() {
@@ -378,12 +438,13 @@ try {
   $('[data-aviso]').remove();
   // A gestão precisa dos lotes, com ou sem a camada ligada.
   await ensureLots(lotToggle.parentElement);
+  const civicBuilding = await loadCivic().catch((err) => console.warn('Centro Administrativo não carregou', err));
   gestao = createGestao({
     THREE, scene, camera, controls, fmt,
     getLots: () => lots, lotRing, lotAt, showLot, currentLot: () => shownLot,
     loadGlb: (buffer) => new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).parseAsync(buffer, ''),
   });
-  window.__pittsburg = { scene, camera, controls, renderer, buildings, pick, showBuilding, pickLot, showLot, getLots: () => lots, gestao };
+  window.__pittsburg = { scene, camera, controls, renderer, buildings, pick, showBuilding, pickLot, showLot, getLots: () => lots, gestao, civicBuilding };
 } catch (error) {
   console.error(error);
   $('[data-aviso]').innerHTML = `<div class="glass">Cidade não encontrada. Gere com:<br><code>node tools/scc-builder/bin/city-import.js Pittsburg.obj .local/cidades/pittsburg</code></div>`;

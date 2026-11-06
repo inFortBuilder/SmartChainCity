@@ -451,6 +451,19 @@ Medido em Pittsburg: 100.152 lotes (24.717 vazios), área mediana de 1.259 m², 
 
 A zona vem do porte do prédio, porque o OBJ não traz o uso; lote vazio é residencial. É um ponto de partida, não um zoneamento: 23.571 prédios existentes passam do gabarito da própria zona. Conjuntos colados contam como um prédio e geram lotes grandes, até 34 hectares.
 
+#### Centro Administrativo
+
+`bin/city-civic.js` põe um prédio público no centro da cidade. Ele procura, do centro para fora, o primeiro lugar onde a base do prédio, mais uma margem de praça, fica inteira sobre lotes, sem cruzar rua nem água (`bin/lib/civic.js`). Os lotes cobertos saem da venda e passam a ser da Prefeitura:
+
+```bash
+node ../scc-optimize/scc-optimize.mjs edificio.glb ../../.local/cidades/pittsburg/civico --scale 0.01
+node bin/city-civic.js ../../.local/cidades/pittsburg ../../.local/cidades/pittsburg/civico --nome "Centro Administrativo" --margem 6
+```
+
+O primeiro comando gera os três LODs e o `.meta.json` com o tamanho; o segundo grava `civico.json` na pasta da cidade (centro, giro e lotes), que o mapa lê. Medido em Pittsburg com o prédio do [estudo de caso do doc 13](../../docs/13-cidade-realista-construtores.md#13-estudo-de-caso-edifício-grande-edificioglb) (86 × 89 m, 272 m de altura): 9 lotes unidos a 320 m do centro, em 0,8 s.
+
+> Esse prédio é de uma biblioteca comercial (doc 13 §13.4): serve para teste, fica em `.local/` e não pode ser versionado nem publicado no jogo.
+
 ### Editor e o JWT
 
 O jogo abre o editor com `https://<host>/#token=<jwt>`. O fragmento não vai
