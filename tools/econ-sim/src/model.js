@@ -42,6 +42,42 @@ export function poolBrakeLevel(scityPaid, released, start) {
   return Math.max(0, Math.min(1, (used - start) / (1 - start)));
 }
 
+/**
+ * Estoque de lotes à venda, em SCITY a US$ 1. Vem das faixas genéricas
+ * (`tiers`) ou do estoque real (`stock`: área × preço por m² da zona × escala),
+ * embaralhado com a semente para a ordem de venda não favorecer um tamanho.
+ */
+export function landStock(land, rand) {
+  const prices = [];
+  if (land.stock) {
+    const scale = land.priceScale ?? 1;
+    for (const lot of land.stock.lots) {
+      const price = lot.area * land.pricePerM2[lot.zone] * scale;
+      for (let i = 0; i < lot.count; i++) prices.push(price);
+    }
+    for (let i = prices.length - 1; i > 0; i--) {
+      const j = Math.floor(rand() * (i + 1));
+      [prices[i], prices[j]] = [prices[j], prices[i]];
+    }
+  } else {
+    for (const tier of land.tiers) {
+      for (let i = 0; i < tier.lots; i++) prices.push(tier.priceScity);
+    }
+  }
+  return Float64Array.from(prices);
+}
+
+/**
+ * Demanda que reage ao preço: lote mais caro que a referência vende menos.
+ * Elasticidade 0 = demanda fixa; 1 = o gasto total quase não muda com o preço.
+ */
+export function buyChanceAt(base, price, land) {
+  const elasticity = land.elasticity ?? 0;
+  if (elasticity === 0 || price <= 0) return base;
+  const factor = Math.min(land.maxDemandBoost ?? 3, (land.referencePriceScity / price) ** elasticity);
+  return base * factor;
+}
+
 /** Jogadores-alvo no dia: crescimento linear de start a end no horizonte. */
 export function targetPlayers(growth, day, days) {
   return Math.round(growth.start + ((growth.end - growth.start) * day) / Math.max(1, days - 1));

@@ -47,13 +47,13 @@ O [doc 03](03-cidade-lotes-imoveis.md) previa uma grade de lotes 1 × 1. A propo
 | Preço primário | Por região | Por m² × fator da zona e da distância ao centro |
 | Regra "1 bairro por região" | Contagem de lotes | Área total por bairro (ex.: até 30% da área do bairro) |
 
-Parâmetros por zona usados no protótipo (a calibrar no simulador econômico):
+Parâmetros por zona. O preço foi calibrado no [simulador](../tools/econ-sim/README.md) e é fixado em dólar (US$ por m², pago em SCITY pela cotação do dia):
 
 | Zona | Gabarito | Coeficiente | Recuo | Preço base |
 |---|---:|---:|---:|---:|
-| Comercial central | 160 m | 6,0 | 3 m | 9,5 SCITY/m² |
-| Uso misto | 60 m | 3,5 | 3 m | 5,2 SCITY/m² |
-| Residencial | 15 m | 1,4 | 4 m | 2,6 SCITY/m² |
+| Comercial central | 160 m | 6,0 | 3 m | US$ 2,85/m² (era 9,5 SCITY/m²) |
+| Uso misto | 60 m | 3,5 | 3 m | US$ 1,56/m² (era 5,2) |
+| Residencial | 15 m | 1,4 | 4 m | US$ 0,78/m² (era 2,6) |
 
 ---
 

@@ -4,6 +4,8 @@ import { test } from 'node:test';
 
 import {
   attributeMultiplier,
+  buyChanceAt,
+  landStock,
   converter,
   medianPayback,
   poolBrakeLevel,
@@ -154,7 +156,48 @@ test('com freio o pool não esgota, o ledger fecha e o saque cai', () => {
 test('parâmetros de base adotam o dreno de 55% e o lote em dólar', () => {
   assert.equal(params.sinks.incomeRate, 0.55);
   assert.equal(params.land.priceInUsd, true);
+  assert.equal(params.land.priceScale, 0.3);
+  assert.equal(params.land.elasticity, 1);
   assert.equal(simulate(params, { ...quick, incomeSink: undefined }).incomeSink, 0.55);
+});
+
+test('estoque real: preço = área × preço por m² da zona × escala', () => {
+  const land = {
+    stock: { lots: [{ zone: 'residential', area: 1000, count: 3 }, { zone: 'mixed', area: 500, count: 1 }] },
+    pricePerM2: { residential: 2, mixed: 4 },
+    priceScale: 0.5,
+  };
+  const stock = landStock(land, mulberry32(1));
+  assert.equal(stock.length, 4);
+  assert.deepEqual([...stock].sort((a, b) => a - b), [1000, 1000, 1000, 1000]);
+});
+
+test('estoque embaralhado com a semente, e as faixas genéricas continuam valendo', () => {
+  const land = {
+    stock: { lots: [{ zone: 'r', area: 100, count: 50 }, { zone: 'r', area: 900, count: 50 }] },
+    pricePerM2: { r: 1 },
+  };
+  assert.deepEqual(landStock(land, mulberry32(7)), landStock(land, mulberry32(7)));
+  assert.notEqual(landStock(land, mulberry32(7))[0], undefined);
+  const tiers = landStock({ tiers: [{ lots: 2, priceScity: 10 }, { lots: 1, priceScity: 5 }] }, mulberry32(1));
+  assert.deepEqual([...tiers], [10, 10, 5]);
+});
+
+test('demanda cai com o preço só quando há elasticidade', () => {
+  const land = { elasticity: 1, referencePriceScity: 400, maxDemandBoost: 3 };
+  assert.equal(buyChanceAt(0.01, 800, land), 0.005);
+  assert.equal(buyChanceAt(0.01, 400, land), 0.01);
+  assert.equal(buyChanceAt(0.01, 10, land), 0.03);
+  assert.equal(buyChanceAt(0.01, 800, { ...land, elasticity: 0 }), 0.01);
+});
+
+test('lotes reais com elasticidade 1 aprovam o cenário base', () => {
+  const p = JSON.parse(JSON.stringify(params));
+  p.land.stock = JSON.parse(readFileSync(new URL('../params/lotes-pittsburg.json', import.meta.url)));
+  const r = simulate(p, { priceUsd: 1, growth: p.scenarios.growth.base });
+  assert.ok(r.landSold > 0 && r.landStockLeft > 0);
+  assert.ok(Math.abs(r.landPriceMedianScity - 1560) < 1);
+  assert.equal(evaluateGate(r, p.gate).pass, true);
 });
 
 test('o gate acusa cada motivo', () => {

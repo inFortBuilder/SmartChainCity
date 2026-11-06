@@ -14,7 +14,10 @@ export const LOT_POINTS = 16;
 /** Passo da marcha do raio, em metros. */
 const RAY_STEP = 2;
 
-/** Zonas do doc 13 §3. Os números são os do `validate-lot` e do protótipo. */
+/**
+ * Zonas do doc 13 §3. Regras urbanísticas do `validate-lot`; o preço por m² é o
+ * do doc 13 × 0,3, calibrado no tools/econ-sim e fixado em dólar.
+ */
 export const ZONES = [
   {
     key: 'residential',
@@ -22,16 +25,16 @@ export const ZONES = [
     max_height_m: 15,
     far: 1.4,
     setback_m: 4,
-    price: 2.6,
+    price: 0.78,
   },
-  { key: 'mixed', label: 'Uso misto', max_height_m: 60, far: 3.5, setback_m: 3, price: 5.2 },
+  { key: 'mixed', label: 'Uso misto', max_height_m: 60, far: 3.5, setback_m: 3, price: 1.56 },
   {
     key: 'commercial',
     label: 'Comercial central',
     max_height_m: 160,
     far: 6,
     setback_m: 3,
-    price: 9.5,
+    price: 2.85,
   },
 ];
 

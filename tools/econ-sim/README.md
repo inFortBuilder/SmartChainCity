@@ -11,6 +11,7 @@ npm run gate            # 3 × 3 cenários; sai com erro se reprovar
 npm run sweep           # varre a escala dos custos fixos (com o dreno da base)
 npm start -- --sweep-income    # varre um dreno proporcional à renda
 npm start -- --all --no-brake                       # testa uma hipótese
+npm start -- --sweep-land --elasticity 1             # varre o preço por m² dos lotes
 ```
 
 Relatórios (CSV, HTML, JSON) saem em `out/`. Cada linha traz payback por raridade, sinks/faucets, THALER per capita, SCITY pago, dia em que o pool P2E esgota e dólares que entraram e saíram.
@@ -29,6 +30,26 @@ Relatórios (CSV, HTML, JSON) saem em `out/`. Cada linha traz payback por rarida
 **Freio do pool** (`poolBrake`; `--no-brake` desliga): quando o SCITY pago se aproxima do liberado, o limite de saque cai e o spread sobe, gradualmente.
 
 **Fora do modelo:** marketplace, corridas, fazenda, staking e revenda de lotes. O preço do SCITY é dado pelo cenário e não reage à venda dos jogadores, o que **esconde** a queda que a pressão de venda causaria. A entrada de dinheiro novo é a premissa mais sensível: `freshMoneyShare` não tem base em dados.
+
+## Preço dos lotes (05/11/2026)
+
+Os lotes reais de Pittsburg (mapa, E1.8) custavam ~3.500 SCITY no preço por m² do doc 13, enquanto a economia tinha sido aprovada com lotes de 260–950 SCITY. Agora o simulador vende o estoque real: os 24.717 lotes vazios, em faixas de área exportadas por `scripts/lotes-para-params.mjs` para `params/lotes-pittsburg.json`, só contagens. A demanda reage ao preço: `elasticity` 1 significa que lote 2× mais caro vende metade.
+
+Varredura do preço por m² (`priceScale` × doc 13), 9 cenários:
+
+| Escala | Lote mediano | Sem elasticidade | Elasticidade 1 | Lotes vendidos no ano (base, elast. 1) |
+|---:|---:|---:|---:|---:|
+| 0,1 | 520 SCITY | 6/9 | 1/9 | 7.363 |
+| 0,2 | 1.040 | 9/9 | 6/9 | 4.745 |
+| **0,3** | **1.560** | 9/9 | **9/9** | **3.305** |
+| 0,5 | 2.600 | 9/9 | 9/9 | 2.248 |
+| 1 (doc 13) | 5.200 | 9/9 | 9/9 | 1.234 |
+
+1. **O preço do doc 13 não reprova a economia; ele trava a cidade.** Lote caro passa no gate, mas com demanda sensível ao preço só ~5% do estoque vende no ano, e o jogo de construir fica sem lotes ocupados.
+2. **Sem elasticidade o modelo mente:** com demanda fixa, cada aumento de preço só aumenta a cobertura. Com elasticidade 1, a receita de lotes fica em US$ 5,2–5,6 M por ano em qualquer escala, então subir preço não salva a economia.
+3. **Adotado: escala 0,3**, ou US$ 0,78/m² residencial (lote mediano de US$ 1.560 fixos), US$ 1,56/m² uso misto e US$ 2,85/m² comercial. Aprova 9 de 9 nas 4 sementes testadas e vende ~3.300 lotes no ano.
+4. **A folga é fina.** Com metade do dinheiro novo previsto, ou com elasticidade 1,5, cai para 1 de 9 (cobertura ~0,89). Elasticidade e dinheiro novo são premissas sem dados: calibrá-las é o que decide se a aprovação é real.
+5. **O tamanho do lote vazio é escolha do gerador**, não dado: a mediana de 2.000 m² vem do raio de 15 m mais a margem de 12 m do `city-import`. Lote menor com o mesmo preço por m² é lote mais barato.
 
 ## Resultado (31/10/2026): aprovado no gate, 9 de 9
 

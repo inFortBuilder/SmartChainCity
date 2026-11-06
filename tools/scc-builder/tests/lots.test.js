@@ -134,10 +134,10 @@ describe('área e preço', () => {
     ).toBe(100);
   });
 
-  it('segue o preço por m² da zona (doc 13 §3)', () => {
-    expect(lotPrice(100, 0)).toBe(260);
-    expect(lotPrice(100, 1)).toBe(520);
-    expect(lotPrice(100, 2)).toBe(950);
+  it('segue o preço por m² calibrado no simulador', () => {
+    expect(lotPrice(100, 0)).toBe(78);
+    expect(lotPrice(100, 1)).toBe(156);
+    expect(lotPrice(100, 2)).toBe(285);
   });
 });
 

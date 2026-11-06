@@ -175,7 +175,7 @@
     "minDollarCoverage": 1
   },
   "land": {
-    "fonte": "estoque: doc 03 §5 (A1 + 4 regiões); preço: premissa a partir do doc 13 (SCITY/m² × 100 m²), fixado no valor em dólar a US$ 1 por SCITY; casa, reserva, revenda: premissa. Sem isto, ownerShare dá imóvel de graça",
+    "fonte": "estoque: lotes vazios reais de Pittsburg (params/lotes-pittsburg.json, gerado por scripts/lotes-para-params.mjs); preço: doc 13 §3 por m² × priceScale, calibrado no simulador e fixado em dólar; elasticidade: premissa conservadora. tiers só valem com --land-stock none",
     "enabled": true,
     "tiers": [
       {
@@ -197,7 +197,17 @@
     "houseThaler": 4000,
     "reserveThaler": 1000,
     "assetResale": 0.8,
-    "priceInUsd": true
+    "priceInUsd": true,
+    "pricePerM2": {
+      "residential": 2.6,
+      "mixed": 5.2,
+      "commercial": 9.5
+    },
+    "priceScale": 0.3,
+    "elasticity": 1,
+    "referencePriceScity": 399,
+    "maxDemandBoost": 3,
+    "stockFile": "lotes-pittsburg.json"
   },
   "poolBrake": {
     "fonte": "premissa: regra proposta pelo simulador para o pool não esgotar",

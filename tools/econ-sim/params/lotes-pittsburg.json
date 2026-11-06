@@ -1,0 +1,116 @@
+{
+  "fonte": "lotes vazios de pittsburg, faixas de 100 m²",
+  "total": 24717,
+  "lots": [
+    {
+      "zone": "residential",
+      "area": 100,
+      "count": 97
+    },
+    {
+      "zone": "residential",
+      "area": 200,
+      "count": 88
+    },
+    {
+      "zone": "residential",
+      "area": 300,
+      "count": 153
+    },
+    {
+      "zone": "residential",
+      "area": 400,
+      "count": 155
+    },
+    {
+      "zone": "residential",
+      "area": 500,
+      "count": 217
+    },
+    {
+      "zone": "residential",
+      "area": 600,
+      "count": 267
+    },
+    {
+      "zone": "residential",
+      "area": 700,
+      "count": 379
+    },
+    {
+      "zone": "residential",
+      "area": 800,
+      "count": 396
+    },
+    {
+      "zone": "residential",
+      "area": 900,
+      "count": 413
+    },
+    {
+      "zone": "residential",
+      "area": 1000,
+      "count": 652
+    },
+    {
+      "zone": "residential",
+      "area": 1100,
+      "count": 803
+    },
+    {
+      "zone": "residential",
+      "area": 1200,
+      "count": 782
+    },
+    {
+      "zone": "residential",
+      "area": 1300,
+      "count": 803
+    },
+    {
+      "zone": "residential",
+      "area": 1400,
+      "count": 869
+    },
+    {
+      "zone": "residential",
+      "area": 1500,
+      "count": 877
+    },
+    {
+      "zone": "residential",
+      "area": 1600,
+      "count": 1025
+    },
+    {
+      "zone": "residential",
+      "area": 1700,
+      "count": 1169
+    },
+    {
+      "zone": "residential",
+      "area": 1800,
+      "count": 1201
+    },
+    {
+      "zone": "residential",
+      "area": 1900,
+      "count": 1416
+    },
+    {
+      "zone": "residential",
+      "area": 2000,
+      "count": 1461
+    },
+    {
+      "zone": "residential",
+      "area": 2100,
+      "count": 2617
+    },
+    {
+      "zone": "residential",
+      "area": 2200,
+      "count": 8877
+    }
+  ]
+}
