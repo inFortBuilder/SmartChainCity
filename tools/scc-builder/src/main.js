@@ -1594,6 +1594,9 @@ async function exportToMap() {
       ),
       t('Tamanho: ^1 → ^2 (limite 40 MB)', formatSize(r.sourceBytes), formatSize(r.totalBytes)),
     ];
+    if (resposta.valid === false) {
+      linhas.push(t('O prédio não cabe no lote escolhido: veja o motivo na ficha do lote, no mapa.'));
+    }
     if (r.texturesResized > 0) {
       linhas.push(t('^1 textura(s) reduzida(s) para ^2 px', r.texturesResized, r.textureMax));
     }

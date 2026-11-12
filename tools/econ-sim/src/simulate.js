@@ -12,6 +12,10 @@ import {
   attributeMultiplier,
   converter,
   medianPayback,
+  buyChanceAt,
+  landPhases,
+  landStock,
+  openPhases,
   poolBrakeLevel,
   poolReleasedUntil,
   shiftEarnings,
@@ -121,8 +125,15 @@ export function simulate(params, run) {
   let brakeFirstDay = null;
   let brakeDays = 0;
   let peakBrake = 0;
-  let tierIndex = 0;
-  let tierSold = 0;
+  // Estoque montado com a mesma semente: a simulação continua reprodutível.
+  const stock = landStock(L, rand);
+  let stockIndex = 0;
+  // Venda em fases: começa com N bairros e abre o próximo quando o aberto passa do limiar.
+  const phaseEnds = landPhases(L, stock.length);
+  const threshold = L.releaseThreshold ?? 1;
+  let opened = Math.min(phaseEnds.length, L.initialDistricts ?? phaseEnds.length);
+  let blockedDemand = 0;
+  const openedOnDay = [];
   let landSold = 0;
   let landUsdIn = 0;
   let scityBought = 0;
@@ -195,10 +206,17 @@ export function simulate(params, run) {
       if (sick) pay(i, S.hospitalFee, 'hospital');
 
       // Venda primária: dinheiro novo entra por fora; o saldo em THALER é sink.
-      if (landOn && !owner[i] && tierIndex < L.tiers.length && rand() < p.buyChance) {
-        const tier = L.tiers[tierIndex];
+      const wantsLot =
+        landOn &&
+        !owner[i] &&
+        stockIndex < stock.length &&
+        rand() < buyChanceAt(p.buyChance, stock[stockIndex], L);
+      // Quem quis comprar com o bairro aberto já vendido não acha lote: demanda perdida.
+      if (wantsLot && stockIndex >= phaseEnds[opened - 1]) blockedDemand++;
+      if (wantsLot && stockIndex < phaseEnds[opened - 1]) {
+        const priceScity = stock[stockIndex];
         // priceInUsd: o lote vale o mesmo em dólar a qualquer preço do SCITY.
-        const lotThaler = tier.priceScity * (L.priceInUsd ? C.thalerPerScityAtOneUsd : rate);
+        const lotThaler = priceScity * (L.priceInUsd ? C.thalerPerScityAtOneUsd : rate);
         const total = lotThaler + L.houseThaler;
         const usd = total * usdPerThaler;
         let bought = false;
@@ -206,7 +224,7 @@ export function simulate(params, run) {
           usdIn += usd;
           landUsdIn += usd;
           investedUsd[i] += usd;
-          scityBought += tier.priceScity;
+          scityBought += priceScity;
           bought = true;
         } else if (balance[i] >= total + L.reserveThaler) {
           balance[i] -= total;
@@ -218,11 +236,10 @@ export function simulate(params, run) {
           owner[i] = 1;
           assetUsd[i] = usd;
           landSold++;
-          if (++tierSold >= tier.lots) {
-            tierIndex++;
-            tierSold = 0;
-            if (tierIndex >= L.tiers.length) landSoldOutDay = day + 1;
-          }
+          if (++stockIndex >= stock.length) landSoldOutDay = day + 1;
+          const nowOpen = openPhases(phaseEnds, opened, stockIndex, threshold);
+          for (let k = opened; k < nowOpen; k++) openedOnDay.push(day + 1);
+          opened = nowOpen;
         }
       }
     }
@@ -336,6 +353,14 @@ export function simulate(params, run) {
     landUsdIn,
     scityBought,
     landSoldOutDay,
+    landStockLeft: stock.length - stockIndex,
+    districtsOpen: opened,
+    districtsTotal: phaseEnds.length,
+    districtOpenedOnDay: openedOnDay,
+    blockedLotDemand: blockedDemand,
+    // Ocupação do que está aberto: o que a cidade mostra ao jogador.
+    openOccupancy: phaseEnds[opened - 1] > 0 ? stockIndex / phaseEnds[opened - 1] : 0,
+    landPriceMedianScity: [...stock].sort((a, b) => a - b)[stock.length >> 1] ?? 0,
     paybackByRarity: Object.fromEntries(rarities.map((r, k) => [r.key, medianPayback(cohort[k])])),
     daily,
   };

@@ -33,6 +33,8 @@ import {
   ZONES,
   lotPolygon,
   lotPrice,
+  RELEASE_THRESHOLD,
+  assignDistricts,
   polygonArea,
   vacantSites,
   zoneOf,
@@ -40,7 +42,11 @@ import {
 
 const { values, positionals } = parseArgs({
   allowPositionals: true,
-  options: { half: { type: 'string', default: '17300' } },
+  options: {
+    half: { type: 'string', default: '17300' },
+    // Cidade vazia: só o traçado, e todo terreno de prédio vira lote à venda.
+    'sem-predios': { type: 'boolean', default: false },
+  },
 });
 const [input, outDir] = positionals;
 if (!input || !outDir) {
@@ -48,6 +54,7 @@ if (!input || !outDir) {
   process.exit(1);
 }
 const half = Number(values.half);
+const empty = values['sem-predios'];
 
 const mtlPath = join(dirname(input), `${basename(input, '.obj')}.mtl`);
 const colors = parseMtl(readFileSync(mtlPath, 'utf8'));
@@ -171,6 +178,7 @@ const buffer = doc.createBuffer();
 const scene = doc.createScene('cidade');
 for (const [name, target] of Object.entries(layers)) {
   if (target.index.length === 0) continue;
+  if (empty && name === 'buildings') continue;
   const prim = doc
     .createPrimitive()
     .setAttribute(
@@ -236,10 +244,26 @@ for (const site of sites) {
   const area = polygonArea(polygon);
   // Sobra de fronteira, menor que um terreno de verdade.
   if (area >= 60)
-    lots.push({ polygon, area, zone: zoneOf(site), vacant: Boolean(site.vacant), h: site.h });
+    // Sem prédios, o lote mantém a zona do que havia ali e fica à venda.
+    lots.push({
+      polygon,
+      area,
+      zone: zoneOf(site),
+      vacant: empty || Boolean(site.vacant),
+      h: empty ? 0 : site.h,
+    });
 }
 
-// Binário: polígonos em Float32, depois área em Float32, depois zona e situação em Uint8.
+// Bairros para a liberação em fases, do centro para fora.
+const { district, districts } = assignDistricts(
+  lots.map((lot) => [
+    lot.polygon.reduce((s, p) => s + p[0], 0) / LOT_POINTS,
+    lot.polygon.reduce((s, p) => s + p[1], 0) / LOT_POINTS,
+  ]),
+  [pct(sortedX, 0.5), pct(sortedZ, 0.5)]
+);
+
+// Binário: polígonos em Float32, área em Float32, zona e situação em Uint8, bairro em Uint16.
 const polygons = new Float32Array(lots.length * LOT_POINTS * 2);
 const areas = new Float32Array(lots.length);
 const zones = new Uint8Array(lots.length);
@@ -257,7 +281,7 @@ lots.forEach((lot, i) => {
 mkdirSync(outDir, { recursive: true });
 writeFileSync(
   join(outDir, 'lotes.bin'),
-  Buffer.concat([polygons, areas, zones, vacancy].map((a) => Buffer.from(a.buffer)))
+  Buffer.concat([polygons, areas, zones, vacancy, district].map((a) => Buffer.from(a.buffer)))
 );
 
 const median = (list) => [...list].sort((a, b) => a - b)[list.length >> 1] ?? 0;
@@ -274,10 +298,17 @@ const lotSummary = {
     ZONES.map((z, i) => [z.key, lots.filter((l) => l.zone === i).length])
   ),
   acima_do_gabarito: lots.filter((l) => l.h > ZONES[l.zone].max_height_m).length,
+  bairros: districts.length,
 };
 writeFileSync(
   join(outDir, 'lotes.json'),
-  JSON.stringify({ pontos: LOT_POINTS, zonas: ZONES, resumo: lotSummary })
+  JSON.stringify({
+    pontos: LOT_POINTS,
+    zonas: ZONES,
+    resumo: lotSummary,
+    liberacao: { limiar: RELEASE_THRESHOLD, abertos_no_inicio: 1 },
+    bairros: districts,
+  })
 );
 
 const heights = buildings.map((b) => b.h).sort((a, b) => a - b);
@@ -286,7 +317,10 @@ const summary = {
   base_m: half * 2,
   faces: stats,
   camadas: Object.fromEntries(Object.entries(layers).map(([k, v]) => [k, v.faces])),
-  predios: buildings.length,
+  predios: empty ? 0 : buildings.length,
+  sem_predios: empty,
+  // Centro da mancha urbana, para a página enquadrar a cidade mesmo sem prédios.
+  centro: [pct(sortedX, 0.5), pct(sortedZ, 0.5)],
   altura_mediana_m: heights[Math.floor(heights.length / 2)] ?? 0,
   altura_maxima_m: heights.at(-1) ?? 0,
   glb_mb: Number((statSync(glbPath).size / 1048576).toFixed(1)),
@@ -294,6 +328,6 @@ const summary = {
 };
 writeFileSync(
   join(outDir, 'predios.json'),
-  JSON.stringify({ resumo: summary, predios: buildings })
+  JSON.stringify({ resumo: summary, predios: empty ? [] : buildings })
 );
 console.log(JSON.stringify(summary, null, 2));

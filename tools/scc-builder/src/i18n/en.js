@@ -644,6 +644,8 @@ export default {
   'Atenção: ^1 materiais; o limite por prédio é ^2.':
     'Warning: ^1 materials; the limit per building is ^2.',
   'Modelo enviado ao mapa da Smart Chain City.': 'Model sent to the Smart Chain City map.',
+  'O prédio não cabe no lote escolhido: veja o motivo na ficha do lote, no mapa.':
+    'The building does not fit the chosen lot: see why on the lot card, in the map.',
   'Mesmo simplificado, o modelo passa dos limites do mapa (300 mil triângulos, 40 MB). Oculte blocos que não fazem parte do prédio (paisagismo, terreno) e tente de novo.':
     'Even simplified, the model exceeds the map limits (300 thousand triangles, 40 MB). Hide blocks that are not part of the building (landscaping, terrain) and try again.',
   'A janela do mapa foi fechada antes de receber o modelo.':

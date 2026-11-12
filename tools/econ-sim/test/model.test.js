@@ -4,6 +4,10 @@ import { test } from 'node:test';
 
 import {
   attributeMultiplier,
+  buyChanceAt,
+  landPhases,
+  landStock,
+  openPhases,
   converter,
   medianPayback,
   poolBrakeLevel,
@@ -154,7 +158,95 @@ test('com freio o pool não esgota, o ledger fecha e o saque cai', () => {
 test('parâmetros de base adotam o dreno de 55% e o lote em dólar', () => {
   assert.equal(params.sinks.incomeRate, 0.55);
   assert.equal(params.land.priceInUsd, true);
+  assert.equal(params.land.priceScale, 0.3);
+  assert.equal(params.land.elasticity, 1);
   assert.equal(simulate(params, { ...quick, incomeSink: undefined }).incomeSink, 0.55);
+});
+
+test('estoque real: preço = área × preço por m² da zona × escala', () => {
+  const land = {
+    stock: { lots: [{ zone: 'residential', area: 1000, count: 3 }, { zone: 'mixed', area: 500, count: 1 }] },
+    pricePerM2: { residential: 2, mixed: 4 },
+    priceScale: 0.5,
+  };
+  const stock = landStock(land, mulberry32(1));
+  assert.equal(stock.length, 4);
+  assert.deepEqual([...stock].sort((a, b) => a - b), [1000, 1000, 1000, 1000]);
+});
+
+test('estoque embaralhado com a semente, e as faixas genéricas continuam valendo', () => {
+  const land = {
+    stock: { lots: [{ zone: 'r', area: 100, count: 50 }, { zone: 'r', area: 900, count: 50 }] },
+    pricePerM2: { r: 1 },
+  };
+  assert.deepEqual(landStock(land, mulberry32(7)), landStock(land, mulberry32(7)));
+  assert.notEqual(landStock(land, mulberry32(7))[0], undefined);
+  const tiers = landStock({ tiers: [{ lots: 2, priceScity: 10 }, { lots: 1, priceScity: 5 }] }, mulberry32(1));
+  assert.deepEqual([...tiers], [10, 10, 5]);
+});
+
+test('demanda cai com o preço só quando há elasticidade', () => {
+  const land = { elasticity: 1, referencePriceScity: 400, maxDemandBoost: 3 };
+  assert.equal(buyChanceAt(0.01, 800, land), 0.005);
+  assert.equal(buyChanceAt(0.01, 400, land), 0.01);
+  assert.equal(buyChanceAt(0.01, 10, land), 0.03);
+  assert.equal(buyChanceAt(0.01, 800, { ...land, elasticity: 0 }), 0.01);
+});
+
+test('lotes reais com elasticidade 1 aprovam o cenário base', () => {
+  const p = JSON.parse(JSON.stringify(params));
+  p.land.stock = JSON.parse(readFileSync(new URL('../params/lotes-pittsburg.json', import.meta.url)));
+  const r = simulate(p, { priceUsd: 1, growth: p.scenarios.growth.base });
+  assert.ok(r.landSold > 0 && r.landStockLeft > 0);
+  // Lote mediano da cidade inteira a 30% do preço do doc 13: entre US$ 500 e 3.000.
+  assert.ok(r.landPriceMedianScity > 500 && r.landPriceMedianScity < 3000);
+  assert.ok(r.districtsOpen > 1 && r.districtsOpen < r.districtsTotal);
+  assert.equal(evaluateGate(r, p.gate).pass, true);
+});
+
+test('estoque por bairro: em ordem, e cada fase termina no fim do bairro', () => {
+  const land = {
+    stock: {
+      bairros: [
+        { order: 0, lots: [{ zone: 'r', area: 100, count: 3 }] },
+        { order: 1, lots: [{ zone: 'r', area: 900, count: 2 }] },
+      ],
+    },
+    pricePerM2: { r: 1 },
+  };
+  const stock = landStock(land, mulberry32(3));
+  assert.deepEqual([...stock], [100, 100, 100, 900, 900]);
+  assert.deepEqual(landPhases(land, stock.length), [3, 5]);
+  assert.deepEqual(landPhases({ tiers: [] }, 7), [7]);
+});
+
+test('abre o próximo bairro quando o aberto passa do limiar', () => {
+  const ends = [10, 20, 30];
+  assert.equal(openPhases(ends, 1, 6, 0.7), 1);
+  assert.equal(openPhases(ends, 1, 7, 0.7), 2);
+  assert.equal(openPhases(ends, 2, 14, 0.7), 3);
+  assert.equal(openPhases(ends, 3, 30, 0.7), 3);
+});
+
+test('venda em fases: só vende o aberto e conta a demanda sem lote', () => {
+  const p = JSON.parse(JSON.stringify(params));
+  p.land.stock = {
+    bairros: [
+      { order: 0, lots: [{ zone: 'residential', area: 500, count: 20 }] },
+      { order: 1, lots: [{ zone: 'residential', area: 500, count: 2000 }] },
+    ],
+  };
+  p.land.releaseThreshold = 1;
+  p.land.initialDistricts = 1;
+  // Limiar acima de 100%: o segundo bairro nunca abre.
+  const fechado = { ...p, land: { ...p.land, releaseThreshold: 2 } };
+  const r = simulate(fechado, { ...quick, land: true });
+  assert.equal(r.landSold, 20);
+  assert.ok(r.blockedLotDemand > 0);
+  const aberto = simulate(p, { ...quick, land: true });
+  assert.equal(aberto.districtsOpen, 2);
+  assert.ok(aberto.landSold > 20);
+  assert.ok(Math.abs(aberto.ledgerError) < 1);
 });
 
 test('o gate acusa cada motivo', () => {

@@ -32,6 +32,12 @@ export function summaryRow(name, r, gate) {
     usd_lotes: Math.round(r.landUsdIn),
     scity_comprado: Math.round(r.scityBought),
     lotes_esgotam_dia: r.landSoldOutDay,
+    lotes_restantes: r.landStockLeft,
+    preco_lote_mediano: Math.round(r.landPriceMedianScity),
+    bairros_abertos: r.districtsOpen,
+    bairros_total: r.districtsTotal,
+    ocupacao_aberta: Number(r.openOccupancy.toFixed(2)),
+    demanda_sem_lote: r.blockedLotDemand,
     aprovado: gate.pass,
     motivos: gate.reasons.join('; '),
   };

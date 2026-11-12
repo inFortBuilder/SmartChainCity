@@ -42,6 +42,77 @@ export function poolBrakeLevel(scityPaid, released, start) {
   return Math.max(0, Math.min(1, (used - start) / (1 - start)));
 }
 
+/**
+ * Estoque de lotes à venda, em SCITY a US$ 1. Vem das faixas genéricas
+ * (`tiers`) ou do estoque real (`stock`: área × preço por m² da zona × escala),
+ * embaralhado com a semente para a ordem de venda não favorecer um tamanho.
+ */
+export function landStock(land, rand) {
+  const prices = [];
+  const shuffle = (from) => {
+    for (let i = prices.length - 1; i > from; i--) {
+      const j = from + Math.floor(rand() * (i - from + 1));
+      [prices[i], prices[j]] = [prices[j], prices[i]];
+    }
+  };
+  const push = (lots) => {
+    const scale = land.priceScale ?? 1;
+    for (const lot of lots) {
+      const price = lot.area * land.pricePerM2[lot.zone] * scale;
+      for (let i = 0; i < lot.count; i++) prices.push(price);
+    }
+  };
+  if (land.stock?.bairros) {
+    // Bairro a bairro, na ordem de abertura; embaralhado só dentro de cada um.
+    for (const bairro of land.stock.bairros) {
+      const from = prices.length;
+      push(bairro.lots);
+      shuffle(from);
+    }
+  } else if (land.stock) {
+    push(land.stock.lots);
+    shuffle(0);
+  } else {
+    for (const tier of land.tiers) {
+      for (let i = 0; i < tier.lots; i++) prices.push(tier.priceScity);
+    }
+  }
+  return Float64Array.from(prices);
+}
+
+/**
+ * Onde termina cada fase de venda no estoque: um bairro por fase (doc 03 §5).
+ * Sem bairros, uma fase só com tudo.
+ */
+export function landPhases(land, total) {
+  if (!land.stock?.bairros) return [total];
+  const ends = [];
+  let end = 0;
+  for (const bairro of land.stock.bairros) {
+    end += bairro.lots.reduce((s, l) => s + l.count, 0);
+    ends.push(end);
+  }
+  return ends;
+}
+
+/** Quantas fases abrir: as já abertas ficam; abre outra enquanto o vendido passa do limiar. */
+export function openPhases(ends, opened, sold, threshold) {
+  let n = opened;
+  while (n < ends.length && sold >= threshold * ends[n - 1]) n++;
+  return n;
+}
+
+/**
+ * Demanda que reage ao preço: lote mais caro que a referência vende menos.
+ * Elasticidade 0 = demanda fixa; 1 = o gasto total quase não muda com o preço.
+ */
+export function buyChanceAt(base, price, land) {
+  const elasticity = land.elasticity ?? 0;
+  if (elasticity === 0 || price <= 0) return base;
+  const factor = Math.min(land.maxDemandBoost ?? 3, (land.referencePriceScity / price) ** elasticity);
+  return base * factor;
+}
+
 /** Jogadores-alvo no dia: crescimento linear de start a end no horizonte. */
 export function targetPlayers(growth, day, days) {
   return Math.round(growth.start + ((growth.end - growth.start) * day) / Math.max(1, days - 1));

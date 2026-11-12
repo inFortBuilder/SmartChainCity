@@ -414,16 +414,18 @@ modelo do editor direto para o lote do jogador no mapa da Smart Chain City:
    | Materiais          | 8 por prédio           | avisa                                                                                                 |
 
 3. abre o mapa e entrega os três LODs por `postMessage` (o arquivo vai de
-   uma aba para a outra, sem rede). O mapa entra no modo **Construtor**, põe o
-   prédio no lote e roda a validação; a resposta volta para o editor.
+   uma aba para a outra, sem rede). O mapa de Pittsburg confere se o prédio
+   cabe no seu lote (gabarito, recuo e coeficiente) e, com a sua confirmação
+   na ficha, troca a construção que estiver lá pelo prédio; a resposta volta
+   para o editor.
 
 Medido no browser: plano de 400 mil triângulos com textura de 4096 px, 11 MB →
 LOD0 240 mil, LOD1 60 mil, LOD2 12 mil, textura de 2048 px, **1,4 MB** em 3,7 s.
 
 O endereço do mapa vem de `VITE_SCC_MAP_URL`; em desenvolvimento, sem ela, é
-o protótipo em `http://localhost:8081/docs/proposta-cidade-realista/index.html`.
-O mapa só aceita mensagens das origens listadas em `BUILDER_ORIGINS`, no
-`main.js` dele — acrescente lá o domínio de produção do SCC Builder.
+o mapa de Pittsburg em `http://localhost:8081/docs/proposta-cidade-realista/pittsburg.html`
+(a cidade de exemplo, `index.html`, também recebe). O mapa só aceita mensagens
+das origens listadas em `BUILDER_ORIGINS`, no `gestao.js` (Pittsburg) e no `main.js` (exemplo) — acrescente lá o domínio de produção do SCC Builder.
 
 ### Cidade inteira em OBJ
 
@@ -439,11 +441,28 @@ Deixe a saída em `.local/`, fora do repositório, até confirmar a licença do 
 
 #### Lotes poligonais
 
+Com `--sem-predios`, a cidade sai só com o traçado (ruas, água, áreas verdes) e todo terreno vira lote à venda, com a zona herdada do prédio que havia ali. Em Pittsburg são 100.152 lotes à venda, somando 137 M de SCITY.
+
+Os lotes são agrupados em bairros de 1 km, numerados do centro para fora (quadrado com menos de 200 lotes entra no vizinho): 198 em Pittsburg. O bairro de cada lote vai no fim de `lotes.bin`, e a regra de liberação (`limiar` 70%, 1 aberto no início) vai em `lotes.json`.
+
 Cada prédio vira um lote ocupado, e as áreas livres perto de rua viram lotes vazios à venda. O polígono tem 16 pontos: raios saem do centro e param na rua, na água, no parque ou na fronteira com o vizinho, onde o prédio maior pesa mais. Polígono, recuo, gabarito e coeficiente são os mesmos campos do `validate-lot`.
 
 Medido em Pittsburg: 100.152 lotes (24.717 vazios), área mediana de 1.259 m², 15 s. Em 400 mil pontos sorteados, 21 caem em dois lotes (0,005%).
 
 A zona vem do porte do prédio, porque o OBJ não traz o uso; lote vazio é residencial. É um ponto de partida, não um zoneamento: 23.571 prédios existentes passam do gabarito da própria zona. Conjuntos colados contam como um prédio e geram lotes grandes, até 34 hectares.
+
+#### Centro Administrativo
+
+`bin/city-civic.js` põe um prédio público no centro da cidade. Ele procura, do centro para fora, o primeiro lugar onde a base do prédio, mais uma margem de praça, fica inteira sobre lotes, sem cruzar rua nem água (`bin/lib/civic.js`). Os lotes cobertos saem da venda e passam a ser da Prefeitura:
+
+```bash
+node ../scc-optimize/scc-optimize.mjs edificio.glb ../../.local/cidades/pittsburg/civico --scale 0.01
+node bin/city-civic.js ../../.local/cidades/pittsburg ../../.local/cidades/pittsburg/civico --nome "Centro Administrativo" --margem 6
+```
+
+O primeiro comando gera os três LODs e o `.meta.json` com o tamanho; o segundo grava `civico.json` na pasta da cidade (centro, giro e lotes), que o mapa lê. Medido em Pittsburg com o prédio do [estudo de caso do doc 13](../../docs/13-cidade-realista-construtores.md#13-estudo-de-caso-edifício-grande-edificioglb) (86 × 89 m, 272 m de altura): 9 lotes unidos a 320 m do centro, em 0,8 s.
+
+> Esse prédio é de uma biblioteca comercial (doc 13 §13.4): serve para teste, fica em `.local/` e não pode ser versionado nem publicado no jogo.
 
 ### Editor e o JWT
 

@@ -14,7 +14,10 @@ export const LOT_POINTS = 16;
 /** Passo da marcha do raio, em metros. */
 const RAY_STEP = 2;
 
-/** Zonas do doc 13 §3. Os números são os do `validate-lot` e do protótipo. */
+/**
+ * Zonas do doc 13 §3. Regras urbanísticas do `validate-lot`; o preço por m² é o
+ * do doc 13 × 0,3, calibrado no tools/econ-sim e fixado em dólar.
+ */
 export const ZONES = [
   {
     key: 'residential',
@@ -22,16 +25,16 @@ export const ZONES = [
     max_height_m: 15,
     far: 1.4,
     setback_m: 4,
-    price: 2.6,
+    price: 0.78,
   },
-  { key: 'mixed', label: 'Uso misto', max_height_m: 60, far: 3.5, setback_m: 3, price: 5.2 },
+  { key: 'mixed', label: 'Uso misto', max_height_m: 60, far: 3.5, setback_m: 3, price: 1.56 },
   {
     key: 'commercial',
     label: 'Comercial central',
     max_height_m: 160,
     far: 6,
     setback_m: 3,
-    price: 9.5,
+    price: 2.85,
   },
 ];
 
@@ -252,4 +255,63 @@ export function vacantSites(extent, spacing, raster, buildingGrid, options) {
     }
   }
   return sites;
+}
+
+/** Fração vendida do que está aberto a partir da qual o próximo bairro abre. */
+export const RELEASE_THRESHOLD = 0.7;
+
+/**
+ * Bairros para liberar a venda em fases (doc 03 §5): quadrados de `size`
+ * metros; quadrado com menos de `minLots` lotes entra no vizinho mais próximo.
+ * A ordem vai do centro para fora, como os anéis do doc 03.
+ *
+ * @param {Array<[number, number]>} centroids centro de cada lote
+ * @param {[number, number]} center centro da cidade
+ * @returns {{district: Uint16Array, districts: Array<{order:number, lots:number, center:[number, number]}>}}
+ */
+export function assignDistricts(centroids, center, size = 1000, minLots = 200) {
+  const cells = new Map();
+  centroids.forEach(([x, z], i) => {
+    const key = `${Math.floor(x / size)},${Math.floor(z / size)}`;
+    let cell = cells.get(key);
+    if (!cell) cells.set(key, (cell = { lots: [], sx: 0, sz: 0 }));
+    cell.lots.push(i);
+    cell.sx += x;
+    cell.sz += z;
+  });
+
+  const all = [...cells.values()].map((c) => ({
+    ...c,
+    cx: c.sx / c.lots.length,
+    cz: c.sz / c.lots.length,
+  }));
+  const big = all.filter((c) => c.lots.length >= minLots);
+  const groups = big.length > 0 ? big : all;
+  for (const cell of all) {
+    if (groups.includes(cell)) continue;
+    let best = groups[0];
+    let bestD = Infinity;
+    for (const g of groups) {
+      const d = (g.cx - cell.cx) ** 2 + (g.cz - cell.cz) ** 2;
+      if (d < bestD) {
+        bestD = d;
+        best = g;
+      }
+    }
+    best.lots.push(...cell.lots);
+  }
+
+  groups.sort(
+    (a, b) =>
+      (a.cx - center[0]) ** 2 +
+      (a.cz - center[1]) ** 2 -
+      ((b.cx - center[0]) ** 2 + (b.cz - center[1]) ** 2)
+  );
+
+  const district = new Uint16Array(centroids.length);
+  const districts = groups.map((g, order) => {
+    for (const i of g.lots) district[i] = order;
+    return { order, lots: g.lots.length, center: [Math.round(g.cx), Math.round(g.cz)] };
+  });
+  return { district, districts };
 }
