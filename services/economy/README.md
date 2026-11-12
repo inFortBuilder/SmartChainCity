@@ -29,7 +29,7 @@ cp services/economy/.env.example services/economy/.env
 pnpm --filter @scc/economy dev
 ```
 
-Sem `DATABASE_URL`, o ledger roda em memória (só para desenvolvimento). O `JWT_SECRET` e o `JWT_ISSUER` são os mesmos do gateway: o economy só valida o token, com a mesma regra (`verifyAccessToken`, em `@scc/shared`).
+No `.env`, preencha `JWT_SECRET` (o mesmo do gateway) e `INTERNAL_TOKEN` (uma chave de 32 caracteres ou mais, que os outros serviços enviam no `X-Service-Token`). Sem `DATABASE_URL`, o ledger roda em memória (só para desenvolvimento). O `JWT_SECRET` e o `JWT_ISSUER` são os mesmos do gateway: o economy só valida o token, com a mesma regra (`verifyAccessToken`, em `@scc/shared`).
 
 Testes, com o Postgres do `pnpm db:up` no ar:
 
