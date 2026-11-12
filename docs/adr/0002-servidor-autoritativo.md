@@ -1,6 +1,6 @@
 # ADR-0002 — Servidor autoritativo para saldo, atributos e sorteios
 
-- **Status:** Proposto
+- **Status:** Aceito (2026-11-12)
 - **Data:** 2026-10-18
 - **Trilhas afetadas:** backend · client
 

@@ -1,6 +1,6 @@
 # ADR-0011 — Fastify como framework do backend
 
-- **Status:** Proposto
+- **Status:** Aceito (2026-11-12)
 - **Data:** 2026-10-31
 - **Trilhas afetadas:** backend · infra
 

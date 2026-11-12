@@ -1,6 +1,6 @@
 # ADR-0004 — SCITY on-chain e THALER off-chain
 
-- **Status:** Proposto
+- **Status:** Aceito (2026-11-12)
 - **Data:** 2026-10-18
 - **Trilhas afetadas:** econ · backend · contracts
 

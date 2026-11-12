@@ -4,16 +4,19 @@ Cada decisão técnica ou de produto relevante é registrada como um arquivo `NN
 
 | ADR | Decisão | Status |
 |-----|---------|--------|
-| [0001](0001-monorepo.md) | Monorepo único para todas as trilhas | Proposto |
-| [0002](0002-servidor-autoritativo.md) | Servidor autoritativo para saldo, atributos e sorteios | Proposto |
-| [0003](0003-blockchain-bsc.md) | BNB Smart Chain como rede | Proposto |
-| [0004](0004-duas-moedas.md) | SCITY on-chain e THALER off-chain | Proposto |
-| [0005](0005-multiplayer-colyseus.md) | Colyseus para presença multiplayer | Proposto |
-| [0006](0006-strapi-backoffice.md) | Strapi 5 apenas como backoffice | Proposto |
-| [0007](0007-cidade-real-nivel2.md) | Réplica de cidade pelo traçado do OpenStreetMap | Proposto |
-| [0008](0008-tempo-real.md) | Um dia de jogo = 24 horas reais | Proposto |
-| [0009](0009-cliente-web-nativo.md) | Cliente web nativo (Three.js) para a cidade e os prédios de jogadores | Proposto |
+| [0001](0001-monorepo.md) | Monorepo único para todas as trilhas | Aceito |
+| [0002](0002-servidor-autoritativo.md) | Servidor autoritativo para saldo, atributos e sorteios | Aceito |
+| [0003](0003-blockchain-bsc.md) | BNB Smart Chain como rede | Aceito |
+| [0004](0004-duas-moedas.md) | SCITY on-chain e THALER off-chain | Aceito |
+| [0005](0005-multiplayer-colyseus.md) | Colyseus para presença multiplayer | Aceito |
+| [0006](0006-strapi-backoffice.md) | Strapi 5 apenas como backoffice | Aceito |
+| [0007](0007-cidade-real-nivel2.md) | Réplica de cidade pelo traçado do OpenStreetMap | Substituído por 0012 |
+| [0008](0008-tempo-real.md) | Um dia de jogo = 24 horas reais | Aceito |
+| [0009](0009-cliente-web-nativo.md) | Cliente web nativo (Three.js) para a cidade e os prédios de jogadores | Aceito (verificado pelo spike E0.9) |
 | [0010](0010-criterio-economia-cobertura.md) | Economia aprovada por payback e cobertura em dólar | Aceito |
-| [0011](0011-framework-backend-fastify.md) | Fastify e Drizzle no backend | Proposto |
+| [0011](0011-framework-backend-fastify.md) | Fastify e Drizzle no backend | Aceito |
+| [0012](0012-cidade-real-construtores.md) | Cidade real com lotes poligonais e prédios de construtores | Aceito |
+| [0013](0013-regras-conflitos-fontes.md) | Regras de jogo para os conflitos entre as fontes | Aceito |
+| [0014](0014-decisoes-produto-mvp.md) | Decisões de produto do MVP | Aceito |
 
-Pendentes de ADR (ver [doc 11](../11-decisoes-pendentes.md)): faixa de Educação, IaC (Terraform ou CDK), regra de bairro no mercado secundário, moeda da Lucky Box, período grátis.
+Pendentes de ADR (ver [doc 11](../11-decisoes-pendentes.md)): IaC (Terraform ou CDK); o tomate duplicado na tabela de alimentos; e, do [doc 13 §11](../13-cidade-realista-construtores.md#11-decisões-pendentes), cidade de referência definitiva, padrão das unidades, royalty/alvará/outorga, quem pode ser construtor e titularidade do Convert3D.

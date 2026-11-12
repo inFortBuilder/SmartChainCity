@@ -1,6 +1,6 @@
 # ADR-0006 — Strapi 5 apenas como backoffice de catálogo
 
-- **Status:** Proposto
+- **Status:** Aceito (2026-11-12)
 - **Data:** 2026-10-18
 - **Trilhas afetadas:** cms · backend
 

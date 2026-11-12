@@ -1,6 +1,6 @@
 # ADR-0009 — Cliente web nativo (Three.js) para a cidade e os prédios de jogadores
 
-- **Status:** Proposto
+- **Status:** Aceito (2026-11-12), verificado pelo spike E0.9
 - **Data:** 2026-10-18
 - **Trilhas afetadas:** client · backend · tools · infra
 
@@ -13,7 +13,7 @@ A nova direção ([doc 13](../13-cidade-realista-construtores.md)) pede uma cida
 3. **Web nativo (Babylon.js)** — parecido com a opção 2, com mais recursos de engine integrados; não compartilha código com o Convert3D.
 
 ## Decisão
-Proposta: **opção 2**, condicionada a um *spike* de 2 sprints (épico E0.9). O protótipo em `docs/proposta-cidade-realista/` é o ponto de partida. Critérios de aceite do spike: 60 FPS em notebook médio com 1 região e streaming por célula; 30 FPS em celular médio; download inicial ≤ 10 MB; carregar 20 prédios GLB de jogadores com LOD.
+**Opção 2.** O *spike* de 2 sprints (épico E0.9) é a verificação: se ele falhar nos critérios abaixo, volta-se à opção 1. O protótipo em `docs/proposta-cidade-realista/` é o ponto de partida. Critérios de aceite do spike: 60 FPS em notebook médio com 1 região e streaming por célula; 30 FPS em celular médio; download inicial ≤ 10 MB; carregar 20 prédios GLB de jogadores com LOD.
 
 ## Consequências
 - A trilha `client-unity` vira `client-web` (Vite + Three.js + TypeScript); o Unity fica opcional para minijogos.
