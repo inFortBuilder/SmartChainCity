@@ -4,7 +4,7 @@
 import { fitBuilding } from './encaixe.js';
 import { BUSINESSES, DAY_MS, businessState, byKey, eligibility, netPerDay, paybackDays } from './negocios.js';
 
-const STORAGE_KEY = 'scc-gestao-pittsburg-v1';
+const STORAGE_KEY = 'scc-gestao-pittsburg-v1'; // gitleaks:allow (nome da chave do localStorage)
 const SPEEDS = [
   { value: 1, label: 'Tempo real' },
   { value: 60, label: '1 h por minuto' },
