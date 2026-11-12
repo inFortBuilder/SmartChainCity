@@ -7,7 +7,7 @@ import { buildApp } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
 import { MemoryAuthStore } from '../src/infra/memory-store.js';
 
-const SECRET = 'segredo-de-teste-com-mais-de-32-caracteres';
+const SECRET = 'segredo-de-teste-com-mais-de-32-caracteres'; // gitleaks:allow (só no teste)
 const config = loadConfig({
   NODE_ENV: 'test',
   JWT_SECRET: SECRET,
