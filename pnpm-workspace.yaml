@@ -8,3 +8,5 @@ packages:
 allowBuilds:
   esbuild: true
   "@embedded-postgres/windows-x64": true
+  # O CI roda em Linux: sem esta linha a instalação para com ERR_PNPM_IGNORED_BUILDS.
+  "@embedded-postgres/linux-x64": true
