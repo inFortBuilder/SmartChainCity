@@ -1,0 +1,256 @@
+{
+  "id": "af0e4fa2-5c0a-4116-a6d8-b8e23e914681",
+  "prevId": "00000000-0000-0000-0000-000000000000",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "economy.ledger_account": {
+      "name": "ledger_account",
+      "schema": "economy",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "owner_type": {
+          "name": "owner_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "owner_id": {
+          "name": "owner_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "currency": {
+          "name": "currency",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "balance": {
+          "name": "balance",
+          "type": "numeric(38, 0)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "ledger_account_owner_unique": {
+          "name": "ledger_account_owner_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "owner_type",
+            "owner_id",
+            "currency"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "ledger_account_owner_type_check": {
+          "name": "ledger_account_owner_type_check",
+          "value": "\"economy\".\"ledger_account\".\"owner_type\" in ('player', 'system', 'pool', 'burn', 'escrow')"
+        },
+        "ledger_account_currency_check": {
+          "name": "ledger_account_currency_check",
+          "value": "\"economy\".\"ledger_account\".\"currency\" in ('THALER', 'SCITY')"
+        },
+        "ledger_account_balance_check": {
+          "name": "ledger_account_balance_check",
+          "value": "\"economy\".\"ledger_account\".\"owner_type\" = 'system' or \"economy\".\"ledger_account\".\"balance\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "economy.ledger_entry": {
+      "name": "ledger_entry",
+      "schema": "economy",
+      "columns": {
+        "tx_id": {
+          "name": "tx_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount": {
+          "name": "amount",
+          "type": "numeric(38, 0)",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "ledger_entry_account_idx": {
+          "name": "ledger_entry_account_idx",
+          "columns": [
+            {
+              "expression": "account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "ledger_entry_tx_id_ledger_tx_id_fk": {
+          "name": "ledger_entry_tx_id_ledger_tx_id_fk",
+          "tableFrom": "ledger_entry",
+          "tableTo": "ledger_tx",
+          "schemaTo": "economy",
+          "columnsFrom": [
+            "tx_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "ledger_entry_account_id_ledger_account_id_fk": {
+          "name": "ledger_entry_account_id_ledger_account_id_fk",
+          "tableFrom": "ledger_entry",
+          "tableTo": "ledger_account",
+          "schemaTo": "economy",
+          "columnsFrom": [
+            "account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "ledger_entry_tx_id_account_id_pk": {
+          "name": "ledger_entry_tx_id_account_id_pk",
+          "columns": [
+            "tx_id",
+            "account_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "ledger_entry_amount_check": {
+          "name": "ledger_entry_amount_check",
+          "value": "\"economy\".\"ledger_entry\".\"amount\" <> 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "economy.ledger_tx": {
+      "name": "ledger_tx",
+      "schema": "economy",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "seq": {
+          "name": "seq",
+          "type": "bigserial",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ref_type": {
+          "name": "ref_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ref_id": {
+          "name": "ref_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "idempotency_key": {
+          "name": "idempotency_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "request_hash": {
+          "name": "request_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "ledger_tx_seq_unique": {
+          "name": "ledger_tx_seq_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "seq"
+          ]
+        },
+        "ledger_tx_idempotency_key_unique": {
+          "name": "ledger_tx_idempotency_key_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "idempotency_key"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {
+    "economy": "economy"
+  },
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}
