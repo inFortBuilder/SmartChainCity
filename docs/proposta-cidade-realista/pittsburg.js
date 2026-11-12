@@ -5,6 +5,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { Sky } from 'three/addons/objects/Sky.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 import { readChunk } from '../../tools/scc-builder/bin/lib/lot-chunks.js';
 
@@ -15,9 +16,33 @@ const $ = (s) => document.querySelector(s);
 const fmt = new Intl.NumberFormat('pt-BR');
 
 const canvas = $('#scene');
-// A cidade tem 34 km: sem depth logarítmico, as camadas planas piscam de longe.
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, logarithmicDepthBuffer: true });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+const PARAMS = new URLSearchParams(location.search);
+// A cidade tem 34 km: com depth comum e plano próximo fixo, as camadas planas
+// piscam de longe. O depth logarítmico resolvia, mas escreve a profundidade por
+// pixel e desliga o descarte antecipado, o que custa caro em placa integrada
+// (spike E0.9). O padrão agora é o depth comum com o plano próximo acompanhando
+// a distância da câmera (ver updateNearPlane). ?profundidade=log volta ao
+// antigo; ?profundidade=reversa testa o depth reverso do three, que no r170
+// ainda não desenha esta cena.
+const DEPTH = ['log', 'reversa'].includes(PARAMS.get('profundidade')) ? PARAMS.get('profundidade') : 'normal';
+const renderer = new THREE.WebGLRenderer({
+  canvas,
+  antialias: true,
+  logarithmicDepthBuffer: DEPTH === 'log',
+  reverseDepthBuffer: DEPTH === 'reversa',
+});
+// Resolução adaptativa: se o quadro passa de 22 ms, a resolução cai aos poucos
+// (até 0,6×) e volta a subir quando sobra folga. ?resolucao=fixa desliga.
+const QUALITY = {
+  max: Math.min(devicePixelRatio, 2),
+  // Em tela 3× (celular), cair abaixo da metade deixa a imagem borrada demais.
+  min: Math.min(Math.min(devicePixelRatio, 2), Math.max(0.6, devicePixelRatio * 0.5)),
+  capped: false,
+  adaptive: PARAMS.get('resolucao') !== 'fixa',
+  scale: Math.min(devicePixelRatio, 2),
+  depth: DEPTH,
+};
+renderer.setPixelRatio(QUALITY.scale);
 renderer.setSize(innerWidth, innerHeight);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 0.85;
@@ -38,6 +63,10 @@ sky.material.uniforms.turbidity.value = 2.2;
 sky.material.uniforms.rayleigh.value = 2.4;
 const sunDir = new THREE.Vector3().setFromSphericalCoords(1, THREE.MathUtils.degToRad(58), THREE.MathUtils.degToRad(215));
 sky.material.uniforms.sunPosition.value.copy(sunDir);
+// O shader do céu se põe no fundo com z = w; no depth reverso isso é a frente.
+// Desenhado primeiro e sem teste de profundidade, ele fica atrás nos dois modos.
+sky.material.depthTest = false;
+sky.renderOrder = -1;
 scene.add(sky);
 
 const sun = new THREE.DirectionalLight(0xfff4e6, 2.6);
@@ -418,10 +447,59 @@ const LOD_FETCH_AT = 2500;
 const progressive = [];
 const gltfLoader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
 const gltfCache = new Map();
+const MERGE = PARAMS.get('juntar') !== 'nao';
 const loadScene = (url) => {
-  if (!gltfCache.has(url)) gltfCache.set(url, gltfLoader.loadAsync(url));
-  return gltfCache.get(url).then((g) => g.scene.clone());
+  if (!gltfCache.has(url)) gltfCache.set(url, gltfLoader.loadAsync(url).then((g) => (MERGE ? mergeByMaterial(g.scene) : g.scene)));
+  return gltfCache.get(url).then((root) => root.clone());
 };
+
+/** Atributos quantizados (meshopt) viram Float32: a matriz do nó entra no vértice ao juntar. */
+function toFloatAttributes(geometry) {
+  const out = new THREE.BufferGeometry();
+  for (const [name, attr] of Object.entries(geometry.attributes)) {
+    const n = attr.count;
+    const size = attr.itemSize;
+    const array = new Float32Array(n * size);
+    const get = [attr.getX, attr.getY, attr.getZ, attr.getW];
+    for (let i = 0; i < n; i++) for (let c = 0; c < size; c++) array[i * size + c] = get[c].call(attr, i);
+    out.setAttribute(name, new THREE.BufferAttribute(array, size));
+  }
+  if (geometry.index) out.setIndex(Array.from(geometry.index.array));
+  return out;
+}
+
+/**
+ * Junta as malhas de um prédio por material: o prédio de teste tem ~34 malhas,
+ * e cada uma é uma chamada de desenho. Malha instanciada fica como está.
+ * ?juntar=nao desliga, para comparar no spike.
+ */
+function mergeByMaterial(root) {
+  root.updateMatrixWorld(true);
+  const groups = new Map();
+  const keep = [];
+  root.traverse((o) => {
+    if (!o.isMesh) return;
+    if (o.isInstancedMesh || o.isSkinnedMesh || Array.isArray(o.material) || o.morphTargetInfluences) {
+      keep.push(o);
+      return;
+    }
+    const g = o.geometry;
+    const key = `${o.material.uuid}|${Object.keys(g.attributes).sort().join(',')}|${g.index ? 'i' : 'n'}`;
+    if (!groups.has(key)) groups.set(key, { material: o.material, meshes: [] });
+    groups.get(key).meshes.push(o);
+  });
+  const out = new THREE.Group();
+  for (const { material, meshes } of groups.values()) {
+    const merged = mergeGeometries(meshes.map((m) => toFloatAttributes(m.geometry).applyMatrix4(m.matrixWorld)), false);
+    if (merged) out.add(new THREE.Mesh(merged, material));
+    else meshes.forEach((m) => keep.push(m));
+  }
+  for (const o of keep) {
+    o.matrixWorld.decompose(o.position, o.quaternion, o.scale);
+    out.add(o);
+  }
+  return out;
+}
 
 function progressiveBuilding(files, [x, z], angle) {
   const lod = new THREE.LOD();
@@ -566,6 +644,7 @@ try {
         progressiveBuilding,
         center: c.centro,
         measureFrames: (s) => measureFrames(renderer, s),
+        quality: () => ({ escala: QUALITY.scale, profundidade: QUALITY.depth, adaptativa: QUALITY.adaptive, juntar: MERGE, limiteDaTela: QUALITY.capped }),
         lookAt: (x, z, dist) => {
           controls.target.set(x, 60, z);
           camera.position.set(x + dist * 0.7, dist * 0.55, z + dist * 0.7);
@@ -590,9 +669,52 @@ addEventListener('resize', () => {
   renderer.setSize(innerWidth, innerHeight);
 });
 let lastStream = 0;
+let lastFrame = 0;
+const frameTimes = [];
+let easy = 0;
+// Uma vez por segundo, ajusta a resolução pelo tempo de quadro. Quadro cravado
+// num valor (ex.: 33,3 ms com pouca variação) é o limite da tela ou do aparelho,
+// como o Modo de Pouca Energia do iPhone, que trava em 30 FPS: não é
+// sobrecarga, então a resolução não cai por causa dele.
+function adaptResolution(now) {
+  if (lastFrame) frameTimes.push(now - lastFrame);
+  lastFrame = now;
+  if (!QUALITY.adaptive || frameTimes.reduce((a, b) => a + b, 0) < 1000) return;
+  const sorted = [...frameTimes].sort((a, b) => a - b);
+  frameTimes.length = 0;
+  const median = sorted[sorted.length >> 1];
+  const spread = sorted[Math.floor(sorted.length * 0.9)] - sorted[Math.floor(sorted.length * 0.1)];
+  QUALITY.capped = spread < 2.5 && median > 18;
+  let next = QUALITY.scale;
+  if (!QUALITY.capped && median > 22 && QUALITY.scale > QUALITY.min) {
+    next = Math.max(QUALITY.min, QUALITY.scale * 0.85);
+    easy = 0;
+  } else if ((median < 17.5 || QUALITY.capped) && QUALITY.scale < QUALITY.max && ++easy >= 3) {
+    next = Math.min(QUALITY.max, QUALITY.scale * 1.1);
+    easy = 0;
+  }
+  if (next !== QUALITY.scale) {
+    QUALITY.scale = next;
+    renderer.setPixelRatio(next);
+  }
+}
+
+// Depth comum: o plano próximo acompanha a distância da câmera ao alvo, para a
+// razão longe/perto ficar pequena e as camadas planas não piscarem.
+function updateNearPlane() {
+  if (DEPTH !== 'normal') return;
+  const near = THREE.MathUtils.clamp(camera.position.distanceTo(controls.target) * 0.05, 2, 400);
+  if (Math.abs(near - camera.near) / camera.near > 0.1) {
+    camera.near = near;
+    camera.updateProjectionMatrix();
+  }
+}
+
 renderer.setAnimationLoop((now) => {
+  adaptResolution(now);
   gestao?.tick();
   controls.update();
+  updateNearPlane();
   if (now - lastStream > 300) {
     lastStream = now;
     streamLots();

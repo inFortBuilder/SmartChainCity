@@ -80,7 +80,8 @@ export async function runSpike(api, { count = 20, files }) {
   await Promise.all(buildings.map((b) => b.ready));
   // Câmera de onde se veem todos, com os mais próximos dentro do LOD0.
   api.lookAt(api.center[0], api.center[1] + 400, 900);
-  await new Promise((r) => setTimeout(r, 2500));
+  // Espera os LODs e a resolução adaptativa assentarem antes de medir.
+  await new Promise((r) => setTimeout(r, 5000));
   await Promise.all(buildings.filter((b) => b.upgraded).map((b) => b.upgrade()));
   const withBuildings = await api.measureFrames(5);
   const levels = buildings.map((b) => b.levelsLoaded());
@@ -89,12 +90,15 @@ export async function runSpike(api, { count = 20, files }) {
     gpu: api.gpu(),
     dpr: devicePixelRatio,
     viewport: `${innerWidth}×${innerHeight}`,
+    cpus: navigator.hardwareConcurrency ?? null,
+    memoriaGB: navigator.deviceMemory ?? null,
     initialMB: initial.total / MB,
     totalMB: downloaded().total / MB,
     city,
     withBuildings,
     buildings: count,
     buildingsWithAllLods: levels.filter((n) => n === files.length).length,
+    quality: api.quality?.() ?? null,
   };
   window.__spikeResult = result;
   const f = (v, d = 1) => v.toFixed(d).replace('.', ',');
@@ -105,6 +109,18 @@ export async function runSpike(api, { count = 20, files }) {
     ${ok(withBuildings.fps >= 30)} Com ${count} prédios: ${f(withBuildings.fps)} FPS · quadro ${f(withBuildings.frameMs)} ms (p95 ${f(withBuildings.p95Ms)})<br>
     ${f(withBuildings.triangles / 1e6, 2)} mi triângulos · ${withBuildings.calls} chamadas · ${result.buildingsWithAllLods} de ${count} com todos os LODs<br>
     Total baixado: ${f(result.totalMB, 2)} MB<br>
-    <span class="muted">Meta: 60 FPS em notebook médio, 30 FPS em celular médio. O FPS trava na taxa da tela.</span>`);
+    ${result.quality ? `Perfil: depth ${result.quality.profundidade} · resolução ${f(result.quality.escala, 2)}× ${result.quality.adaptativa ? "(adaptativa)" : "(fixa)"} · malhas ${result.quality.juntar ? "juntadas" : "separadas"}${result.quality.limiteDaTela ? " · ⚠️ FPS travado pelo aparelho (ex.: Modo de Pouca Energia)" : ""}<br>` : ""}
+    <span class="muted">Meta: 60 FPS em notebook médio, 30 FPS em celular médio. O FPS trava na taxa da tela.</span>
+    <div data-spike-envio class="muted">Enviando o resultado…</div>`);
+  // Com o servidor de desenvolvimento, o resultado volta para o PC que serve o
+  // mapa (.local/spike/resultados.jsonl): dá para medir no celular sem print.
+  const status = document.querySelector('[data-spike-envio]');
+  fetch('spike-resultado.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(result) })
+    .then((r) => {
+      status.textContent = r.ok ? '✅ Resultado enviado para o PC.' : 'Resultado não enviado: este servidor não grava.';
+    })
+    .catch(() => {
+      status.textContent = 'Resultado não enviado: este servidor não grava.';
+    });
   return result;
 }
