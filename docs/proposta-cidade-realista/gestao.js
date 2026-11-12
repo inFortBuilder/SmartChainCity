@@ -670,9 +670,12 @@ export function createGestao(api) {
   }
 
   seedTestLot();
-  for (const i of state.lots) if (!meshes.has(i)) draw(i);
   renderHud();
-  restoreModels();
+  // Os lotes chegam por bairro (spike E0.9): espera os do jogador antes de desenhar.
+  (api.loadLotsFor ? api.loadLotsFor(state.lots) : Promise.resolve()).then(() => {
+    for (const i of state.lots) if (!meshes.has(i)) draw(i);
+    restoreModels();
+  });
 
   return {
     decorateLot, tick, buyLot, build, claim, goTo, placeModel, removeModel,

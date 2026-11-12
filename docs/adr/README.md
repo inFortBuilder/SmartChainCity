@@ -12,7 +12,7 @@ Cada decisão técnica ou de produto relevante é registrada como um arquivo `NN
 | [0006](0006-strapi-backoffice.md) | Strapi 5 apenas como backoffice | Aceito |
 | [0007](0007-cidade-real-nivel2.md) | Réplica de cidade pelo traçado do OpenStreetMap | Substituído por 0012 |
 | [0008](0008-tempo-real.md) | Um dia de jogo = 24 horas reais | Aceito |
-| [0009](0009-cliente-web-nativo.md) | Cliente web nativo (Three.js) para a cidade e os prédios de jogadores | Aceito (verificado pelo spike E0.9) |
+| [0009](0009-cliente-web-nativo.md) | Cliente web nativo (Three.js) para a cidade e os prédios de jogadores | Aceito e verificado (spike E0.9) |
 | [0010](0010-criterio-economia-cobertura.md) | Economia aprovada por payback e cobertura em dólar | Aceito |
 | [0011](0011-framework-backend-fastify.md) | Fastify e Drizzle no backend | Aceito |
 | [0012](0012-cidade-real-construtores.md) | Cidade real com lotes poligonais e prédios de construtores | Aceito |
