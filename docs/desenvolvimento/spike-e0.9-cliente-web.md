@@ -2,7 +2,7 @@
 
 Verificação da [ADR-0009](../adr/0009-cliente-web-nativo.md). O cliente web foi aceito com a condição de passar nestes critérios; se falhar, volta-se ao Unity com glTFast.
 
-**Situação em 2026-11-12:** download, 20 prédios e celular passam. Num **Galaxy S9** (2018, Adreno 630), os 20 prédios rodam a **43 FPS** em resolução 2×, acima da meta de 30; no iPhone 17 Pro Max, a 30 FPS travados pelo aparelho. Num notebook com placa integrada fraca (Intel HD 620, de 2016, abaixo do "notebook médio"), o FPS subiu de 19 para 50 com os ajustes, ainda abaixo de 60. **Falta só medir num notebook com placa integrada atual** (Iris Xe ou equivalente).
+**Situação em 2026-11-12: aprovado.** Os quatro critérios passam. Num notebook com **GeForce 940MX** (placa de entrada de 2016, abaixo de um notebook médio atual), os 20 prédios rodam a **60 FPS em resolução cheia**; num **Galaxy S9** (2018), a **43 FPS**; o download inicial é de 2,5 a 2,8 MB. Na integrada Intel HD 620 do mesmo notebook, fica entre 42 e 50 FPS com a resolução adaptativa: é o piso, abaixo da meta.
 
 ## Resultado
 
@@ -11,8 +11,8 @@ Medido em Pittsburg (34,6 km de base, 100.152 lotes em 198 bairros), Chrome, des
 | Critério da ADR-0009 | Meta | Medido | Situação |
 |---|---:|---:|---|
 | Download inicial | ≤ 10 MB | **2,8 MB** só com o bairro aberto · **5,7 MB** com os bairros que a câmera inicial enxerga | ✅ (era 19,95 MB) |
-| FPS com 1 região e streaming por célula | 60 em notebook médio | Desktop: 59 FPS. Notebook com HD 620: **48 FPS** (era 35) | ✅ no desktop; ⚠️ HD 620 abaixo; ⏳ falta um notebook médio |
-| 20 prédios GLB de jogadores com LOD | carregar e manter o FPS | 20 de 20 com os 3 LODs, 2,78 mi triângulos. Desktop: **58 FPS**. Notebook com HD 620: **50 FPS** (era 19), p95 de 33,5 ms, resolução adaptada a 0,65× | ✅ no desktop; ⚠️ HD 620 abaixo de 60 |
+| FPS com 1 região e streaming por célula | 60 em notebook médio | Notebook com GeForce 940MX: **60 FPS** com os 20 prédios, 55 na cidade (medida enquanto os bairros chegam), resolução cheia. Na integrada HD 620: 42 a 50 FPS | ✅ |
+| 20 prédios GLB de jogadores com LOD | carregar e manter o FPS | 20 de 20 com os 3 LODs, 2,78 mi triângulos: 58 FPS no desktop, 60 FPS na GeForce 940MX, 43 FPS no Galaxy S9 | ✅ |
 | FPS em celular médio | 30 | Galaxy S9 (2018): **43 FPS** com os 20 prédios, 52 FPS na cidade, resolução 2×. iPhone 17 Pro Max: 30 FPS, travado em 30 pelo aparelho | ✅ |
 
 Os 20 prédios do teste são cópias do pior caso permitido: o prédio do estudo de caso do doc 13, com LOD0 de 304 mil triângulos (o limite por prédio é 300 mil). Com 20 cópias do mesmo arquivo, o download conta uma vez só (9,6 MB no total com os três LODs); 20 prédios diferentes somariam até ~4 MB cada, baixados só quando a câmera chega perto.
@@ -27,6 +27,7 @@ Os 20 prédios do teste são cópias do pior caso permitido: o prédio do estudo
 | Notebook, Intel HD 620 | depth comum, resolução adaptativa (caiu a 0,65×), malhas juntadas | **48 FPS** (21 ms) | **50 FPS** (20 ms, p95 33,5) | 624 |
 | iPhone 17 Pro Max, Safari, 440 × 793, DPR 3 | depth comum, resolução adaptativa (caiu ao mínimo de 0,6×, sem reconhecer o limite) | 27 FPS | 30 FPS (33,3 ms, p95 34) | 471 |
 | iPhone 17 Pro Max, Safari | depth comum, resolução adaptativa que reconhece o limite do aparelho (ficou em 2×) | 30 FPS | **30 FPS** (33,3 ms, p95 34) | 477 |
+| Notebook, **GeForce 940MX** (mesmo notebook, Chrome com `--force_high_performance_gpu`) | depth comum, resolução adaptativa (ficou em 1,25×, cheia), malhas juntadas | 55 FPS (18,3 ms) | **60 FPS** (16,6 ms, p95 17) | 624 |
 | Galaxy S9 (SM-G9600, Adreno 630, Android 10), Chrome, 360 × 612, DPR 3 | depth comum, resolução adaptativa (ficou em 2×), malhas juntadas | **52 FPS** (19,3 ms) | **43 FPS** (23,3 ms, p95 33,4) | 483 |
 
 No iPhone, o quadro ficou cravado em 33,3 ms mesmo com a resolução no mínimo: é o limite de 30 FPS do aparelho (o iOS faz isso no Modo de Pouca Energia), não sobrecarga. A primeira versão da resolução adaptativa confundia esse limite com falta de desempenho e borrava a imagem à toa; agora, quadro estável (variação menor que 2,5 ms) não derruba a resolução, e o painel avisa "FPS travado pelo aparelho". Em tela 3×, a resolução mínima passou a ser 1,5×.
@@ -95,6 +96,7 @@ Para o "notebook médio", repita no notebook com placa integrada (Intel Iris Xe 
 
 ## Próximos passos
 
-1. Medir num notebook com placa integrada atual (Iris Xe ou equivalente); registrar aqui. No iPhone, repetir sem o Modo de Pouca Energia para ver a folga acima de 30 FPS.
-2. Se o celular ficar abaixo de 30 FPS: limitar o DPR a 1,5, reduzir sombras e juntar as malhas dos prédios.
-3. Com os dois aparelhos aprovados, marcar a ADR-0009 como verificada e começar a trilha `client-web` (Vite + Three.js + TypeScript) a partir deste protótipo.
+1. Começar a trilha `client-web` (Vite + Three.js + TypeScript) a partir deste protótipo, levando os blocos por bairro, o LOD progressivo e a resolução adaptativa.
+2. Notebooks só com integrada antiga (HD 620) ficam abaixo de 60: vale um perfil "Baixo" (sem antialiasing, menos prédios em LOD0) a decidir na trilha.
+3. Chamadas de desenho: juntar malhas por material no preset `scc` do SCC Builder, antes do envio.
+4. HUD compacto para telas estreitas.
