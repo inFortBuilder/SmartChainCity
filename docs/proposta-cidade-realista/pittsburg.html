@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cidade de Pittsburg — Protótipo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="style.css?v=3">
+<style>
+  .layers { position: fixed; left: 16px; top: 96px; z-index: 5; padding: 14px 16px; width: 200px; border-radius: var(--radius); }
+  .layers h2 { margin: 0 0 8px; font-size: 14px; }
+  .layers label { display: flex; gap: 8px; align-items: center; font-size: 13px; padding: 3px 0; cursor: pointer; }
+  .layers p { margin: 10px 0 0; color: var(--muted); font-size: 12px; line-height: 1.4; }
+  .ficha { position: fixed; right: 16px; top: 96px; z-index: 5; padding: 14px 16px; width: 240px; border-radius: var(--radius); }
+  .ficha h2 { margin: 0 0 8px; font-size: 15px; }
+  .ficha dl { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; margin: 0; font-size: 13px; }
+  .ficha dt { color: var(--muted); }
+  .ficha dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+  .credito { position: fixed; right: 12px; bottom: 8px; z-index: 5; font-size: 11px; color: #1e293b; background: rgba(255,255,255,.7); padding: 2px 6px; border-radius: 6px; }
+  .aviso { position: fixed; inset: 0; display: grid; place-items: center; z-index: 9; text-align: center; padding: 24px; }
+  .aviso div { max-width: 480px; padding: 20px 24px; border-radius: var(--radius); line-height: 1.5; }
+  .aviso code { font-size: 12px; word-break: break-all; }
+  @media (max-width: 640px) { .layers { top: auto; bottom: 16px; left: 8px; width: 150px; } .ficha { right: 8px; width: 190px; } }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<canvas id="scene" aria-label="Cidade de Pittsburg em 3D"></canvas>
+
+<header class="topbar glass">
+  <img class="logo" src="../../website/public/assets/img/brand/logo-3d-260.webp" alt="Smart Chain City" width="120" height="62">
+  <strong>Pittsburg, Califórnia</strong>
+  <span data-resumo class="muted"></span>
+</header>
+
+<aside class="layers glass">
+  <h2>Camadas</h2>
+  <div data-layers></div>
+  <p>Arraste para girar. Clique direito para mover. Clique num prédio para ver a ficha.</p>
+</aside>
+
+<aside class="ficha glass" data-ficha hidden></aside>
+<div class="credito">© OpenStreetMap contributors</div>
+<div class="aviso" data-aviso><div class="glass">Carregando a cidade…</div></div>
+
+<script type="module" src="pittsburg.js"></script>
+</body>
+</html>
