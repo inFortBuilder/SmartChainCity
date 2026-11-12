@@ -32,7 +32,19 @@ pnpm install
 docker compose -f infra/docker/docker-compose.dev.yml up -d
 ```
 
-O Compose sobe: PostgreSQL (5432), Redis (6379), MySQL ou Postgres do Strapi e um nó local `anvil` (8545).
+O Compose sobe PostgreSQL (5433) e Redis (6379). O Docker exige virtualização ligada na BIOS (SVM ou VT-x) e WSL 2.
+
+**Sem Docker:** `pnpm db:up` sobe um Postgres portátil na mesma porta e com a mesma URL, sem administrador. Os dados ficam em `.local/postgres`. Use um ou outro, não os dois.
+
+```bash
+pnpm db:migrate
+```
+
+```bash
+pnpm dev
+```
+
+Copie antes `services/gateway/.env.example` para `.env` e use em `JWT_SECRET` o mesmo `jwt_secret` do SCC Builder.
 
 ## Variáveis de ambiente
 

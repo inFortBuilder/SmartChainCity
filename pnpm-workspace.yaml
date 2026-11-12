@@ -1,0 +1,12 @@
+# Só o que já tem package.json e é TypeScript do workspace. O tools/scc-builder
+# tem npm próprio; o tools/econ-sim não tem dependências e roda job próprio no CI.
+packages:
+  - services/shared
+  - services/gateway
+
+# Binário do tsx/vitest; sem isto a instalação no CI acusa build ignorado.
+allowBuilds:
+  esbuild: true
+  "@embedded-postgres/windows-x64": true
+  # O CI roda em Linux: sem esta linha a instalação para com ERR_PNPM_IGNORED_BUILDS.
+  "@embedded-postgres/linux-x64": true

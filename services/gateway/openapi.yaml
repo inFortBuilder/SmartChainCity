@@ -1,0 +1,125 @@
+openapi: 3.1.0
+info:
+  title: Smart Chain City — Gateway
+  version: 0.1.0
+  description: Autenticação por SIWE (EIP-4361) e JWT. Ver docs/06-modelo-dados-api.md §3.
+components:
+  securitySchemes:
+    bearer: { type: http, scheme: bearer, bearerFormat: JWT }
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string }
+            message: { type: string }
+    Account:
+      type: object
+      required: [id, email, status, kyc_level, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: [string, 'null'] }
+        status: { type: string, enum: [active, suspended, banned] }
+        kyc_level: { type: integer }
+        created_at: { type: string, format: date-time }
+paths:
+  /healthz:
+    get:
+      summary: Saúde do serviço
+      responses:
+        '200': { description: No ar }
+  /v1/auth/siwe/nonce:
+    post:
+      summary: Gera o nonce de uso único
+      responses:
+        '200':
+          description: Nonce para a mensagem SIWE
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [nonce, expires_at]
+                properties:
+                  nonce: { type: string }
+                  expires_at: { type: string, format: date-time }
+        '429': { description: Limite excedido }
+  /v1/auth/siwe/verify:
+    post:
+      summary: Verifica a assinatura e devolve o JWT
+      description: Cria a conta no primeiro login da carteira. O nonce vale uma única tentativa.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message, signature]
+              properties:
+                message: { type: string, description: Mensagem EIP-4361 completa }
+                signature: { type: string, pattern: '^0x[0-9a-fA-F]+$' }
+      responses:
+        '200':
+          description: Login aceito
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [access_token, token_type, expires_in, account]
+                properties:
+                  access_token: { type: string }
+                  token_type: { type: string, const: Bearer }
+                  expires_in: { type: integer }
+                  account: { $ref: '#/components/schemas/Account' }
+        '400':
+          description: invalid_request, invalid_siwe_message
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401':
+          description: invalid_siwe_domain, invalid_siwe_chain, invalid_siwe_message, invalid_nonce, invalid_signature
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '403':
+          description: account_blocked
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /v1/me:
+    get:
+      summary: Conta e carteiras do jogador
+      description: Avatares e saldos entram quando game-core e economy existirem.
+      security: [{ bearer: [] }]
+      responses:
+        '200':
+          description: Conta autenticada
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [account, wallets]
+                properties:
+                  account: { $ref: '#/components/schemas/Account' }
+                  wallets:
+                    type: array
+                    items:
+                      type: object
+                      required: [address, chain_id, verified_at]
+                      properties:
+                        address: { type: string }
+                        chain_id: { type: integer }
+                        verified_at: { type: string, format: date-time }
+        '401':
+          description: missing_credentials, invalid_token, token_expired
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '403':
+          description: account_blocked
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
