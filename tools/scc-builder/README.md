@@ -451,6 +451,16 @@ Medido em Pittsburg: 100.152 lotes (24.717 vazios), área mediana de 1.259 m², 
 
 A zona vem do porte do prédio, porque o OBJ não traz o uso; lote vazio é residencial. É um ponto de partida, não um zoneamento: 23.571 prédios existentes passam do gabarito da própria zona. Conjuntos colados contam como um prédio e geram lotes grandes, até 34 hectares.
 
+#### Lotes por bairro
+
+`bin/city-chunks.js` divide `lotes.bin` em um arquivo por bairro, para o mapa baixar só os bairros perto da câmera ([spike E0.9](../../docs/desenvolvimento/spike-e0.9-cliente-web.md)):
+
+```bash
+node bin/city-chunks.js ../../.local/cidades/pittsburg
+```
+
+Grava `lotes/b<bairro>.bin` (formato em `bin/lib/lot-chunks.js`, lido pelo mapa com o mesmo código), `lotes-bairros.bin` (o bairro de cada lote) e a lista `blocos` no `lotes.json`. O número de cada lote não muda. Em Pittsburg: 198 blocos em 0,2 s, mediano de 65 KB e maior de 154 KB, contra 13,6 MB do `lotes.bin` inteiro, que fica para as ferramentas.
+
 #### Centro Administrativo
 
 `bin/city-civic.js` põe um prédio público no centro da cidade. Ele procura, do centro para fora, o primeiro lugar onde a base do prédio, mais uma margem de praça, fica inteira sobre lotes, sem cruzar rua nem água (`bin/lib/civic.js`). Os lotes cobertos saem da venda e passam a ser da Prefeitura:

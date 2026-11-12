@@ -6,6 +6,8 @@ import { Sky } from 'three/addons/objects/Sky.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 
+import { readChunk } from '../../tools/scc-builder/bin/lib/lot-chunks.js';
+
 import { createGestao } from './gestao.js';
 
 const BASE = '../../.local/cidades/pittsburg';
@@ -147,59 +149,112 @@ function insidePolygon(x, z, ring) {
   return inside;
 }
 
+// Lotes por bairro (spike E0.9, ADR-0009): o mapa baixa só os bairros perto da
+// câmera. Os arrays têm o tamanho da cidade e cada bloco preenche os seus ids,
+// então o número do lote (PIT-000001…) não muda para a ficha nem para a gestão.
+const STREAM_RADIUS = 1800;
+const STREAM_PARALLEL = 4;
+
 async function loadLots() {
-  const [meta, buffer, civic] = await Promise.all([
+  const [meta, districtBuffer, civic] = await Promise.all([
     fetch(`${BASE}/lotes.json`).then((r) => r.json()),
-    fetch(`${BASE}/lotes.bin`).then((r) => r.arrayBuffer()),
+    fetch(`${BASE}/lotes-bairros.bin`).then((r) => (r.ok ? r.arrayBuffer() : null)),
     // Prédio público no centro (tools/scc-builder/bin/city-civic.js); opcional.
     fetch(`${BASE}/civico.json`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
   ]);
+  if (meta.blocos?.formato !== 1 || !districtBuffer) {
+    throw new Error('Lotes sem blocos por bairro: rode node tools/scc-builder/bin/city-chunks.js .local/cidades/pittsburg');
+  }
   const n = meta.pontos;
   const count = meta.resumo.total;
-  const polygons = new Float32Array(buffer, 0, count * n * 2);
-  const areas = new Float32Array(buffer, polygons.byteLength, count);
-  const zones = new Uint8Array(buffer, polygons.byteLength + areas.byteLength, count);
-  const vacant = new Uint8Array(buffer, polygons.byteLength + areas.byteLength + count, count);
-  const districtOffset = polygons.byteLength + areas.byteLength + 2 * count;
-  const district = buffer.byteLength >= districtOffset + 2 * count ? new Uint16Array(buffer, districtOffset, count) : null;
+  const district = new Uint16Array(districtBuffer);
   // Venda por bairro (doc 03 §5): só os primeiros abrem; o resto espera a vez.
   const openCount = meta.liberacao?.abertos_no_inicio ?? Infinity;
-  const isOpen = (i) => !district || district[i] < openCount;
+  const isOpen = (i) => district[i] < openCount;
+  const civicLots = new Set(civic?.lotes ?? []);
   lots = {
-    n, count, polygons, areas, zones, vacant, district, isOpen,
-    openCount, bairros: meta.bairros ?? [], liberacao: meta.liberacao,
+    n, count, district, isOpen, openCount,
+    polygons: new Float32Array(count * n * 2),
+    areas: new Float32Array(count),
+    zones: new Uint8Array(count),
+    vacant: new Uint8Array(count),
+    bairros: meta.bairros ?? [], liberacao: meta.liberacao,
     zonas: meta.zonas, resumo: meta.resumo, grid: new Map(),
-    civic, civicLots: new Set(civic?.lotes ?? []),
+    civic, civicLots,
+    blocos: meta.blocos.bairros, arquivo: meta.blocos.arquivo,
+    loaded: new Map(), pending: 0, bytes: districtBuffer.byteLength,
   };
-  // Os lotes do Centro Administrativo são da Prefeitura: saem da venda.
-  for (const i of lots.civicLots) vacant[i] = 0;
-  let forSale = 0;
+  // À venda: vagos dos bairros abertos, menos os da Prefeitura.
+  lots.forSale =
+    lots.blocos.filter((b) => b.bairro < openCount).reduce((s, b) => s + b.vagos, 0) -
+    [...civicLots].filter((i) => isOpen(i)).length;
+  // Os bairros abertos vêm primeiro: é onde o jogador compra.
+  await Promise.all(lots.blocos.filter((b) => b.bairro < openCount).map((b) => loadBairro(b.bairro)));
+}
 
-  const vertices = new Float32Array(count * n * 3);
-  const colors = new Float32Array(count * n * 3);
-  const index = new Uint32Array(count * n * 2);
+function loadBairro(order) {
+  if (!lots.loaded.has(order)) {
+    lots.pending++;
+    const url = `${BASE}/${lots.arquivo.replace('{bairro}', order)}`;
+    lots.loaded.set(
+      order,
+      fetch(url)
+        .then((r) => {
+          if (!r.ok) throw new Error(`${url}: ${r.status}`);
+          return r.arrayBuffer();
+        })
+        .then((buffer) => {
+          lots.bytes += buffer.byteLength;
+          addChunk(readChunk(buffer, lots.n));
+        })
+        .finally(() => {
+          lots.pending--;
+        }),
+    );
+  }
+  return lots.loaded.get(order);
+}
+
+/** Garante que os bairros destes lotes já chegaram (lotes da gestão, da Prefeitura). */
+function loadLotsFor(ids) {
+  const orders = new Set([...ids].map((i) => lots.district[i]));
+  return Promise.all([...orders].map(loadBairro));
+}
+
+function addChunk(c) {
+  const { n } = lots;
+  const k = c.ids.length;
+  const vertices = new Float32Array(k * n * 3);
+  const colors = new Float32Array(k * n * 3);
+  const index = new Uint32Array(k * n * 2);
   const fill = [];
   const civicFill = [];
   const color = new THREE.Color();
-  for (let i = 0; i < count; i++) {
-    const open = isOpen(i);
-    if (vacant[i] && open) forSale++;
+  c.ids.forEach((i, j) => {
+    lots.polygons.set(c.polygons.subarray(j * n * 2, (j + 1) * n * 2), i * n * 2);
+    lots.areas[i] = c.areas[j];
+    lots.zones[i] = c.zones[j];
     const isCivic = lots.civicLots.has(i);
-    color.set(isCivic ? CIVIC_COLOR : vacant[i] ? (open ? VACANT_COLOR : LOCKED_COLOR) : ZONE_COLORS[zones[i]]);
-    const ring = lotRing(i);
+    // Os lotes do Centro Administrativo são da Prefeitura: saem da venda.
+    lots.vacant[i] = isCivic ? 0 : c.vacant[j];
+    const open = lots.isOpen(i);
+    const vacant = lots.vacant[i];
+    color.set(isCivic ? CIVIC_COLOR : vacant ? (open ? VACANT_COLOR : LOCKED_COLOR) : ZONE_COLORS[lots.zones[i]]);
     let cx = 0;
     let cz = 0;
-    ring.forEach(([x, z], k) => {
-      const v = i * n + k;
+    for (let p = 0; p < n; p++) {
+      const x = c.polygons[(j * n + p) * 2];
+      const z = c.polygons[(j * n + p) * 2 + 1];
+      const v = j * n + p;
       vertices.set([x, 3, z], v * 3);
       colors.set([color.r, color.g, color.b], v * 3);
       index[v * 2] = v;
-      index[v * 2 + 1] = i * n + ((k + 1) % n);
+      index[v * 2 + 1] = j * n + ((p + 1) % n);
       cx += x / n;
       cz += z / n;
-      if (vacant[i] && open && k >= 2) fill.push(i * n, v - 1, v);
-      if (isCivic && k >= 2) civicFill.push(i * n, v - 1, v);
-    });
+      if (vacant && open && p >= 2) fill.push(j * n, v - 1, v);
+      if (isCivic && p >= 2) civicFill.push(j * n, v - 1, v);
+    }
     for (let a = -1; a <= 1; a++) {
       for (let b = -1; b <= 1; b++) {
         const near = `${Math.floor(cx / LOT_CELL) + a},${Math.floor(cz / LOT_CELL) + b}`;
@@ -207,35 +262,46 @@ async function loadLots() {
         lots.grid.get(near).push(i);
       }
     }
-  }
+  });
 
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
   geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
   geometry.setIndex(new THREE.BufferAttribute(index, 1));
-  const lines = new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({ vertexColors: true }));
-  lines.frustumCulled = false;
+  geometry.computeBoundingSphere();
+  const lines = new THREE.LineSegments(geometry, LINE_MATERIAL);
+  const parts = [lines];
+  for (const [list, material] of [[fill, VACANT_MATERIAL], [civicFill, CIVIC_MATERIAL]]) {
+    if (!list.length) continue;
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', geometry.getAttribute('position'));
+    g.setIndex(list);
+    g.boundingSphere = geometry.boundingSphere;
+    parts.push(new THREE.Mesh(g, material));
+  }
+  lotLayer.add(...parts);
+}
 
-  const fillGeometry = new THREE.BufferGeometry();
-  fillGeometry.setAttribute('position', geometry.getAttribute('position'));
-  fillGeometry.setIndex(fill);
-  const areasMesh = new THREE.Mesh(
-    fillGeometry,
-    new THREE.MeshBasicMaterial({ color: VACANT_COLOR, transparent: true, opacity: 0.45, side: THREE.DoubleSide, depthWrite: false }),
-  );
-  areasMesh.frustumCulled = false;
+const LINE_MATERIAL = new THREE.LineBasicMaterial({ vertexColors: true });
+const VACANT_MATERIAL = new THREE.MeshBasicMaterial({ color: VACANT_COLOR, transparent: true, opacity: 0.45, side: THREE.DoubleSide, depthWrite: false });
+const CIVIC_MATERIAL = new THREE.MeshBasicMaterial({ color: CIVIC_COLOR, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false });
 
-  const civicGeometry = new THREE.BufferGeometry();
-  civicGeometry.setAttribute('position', geometry.getAttribute('position'));
-  civicGeometry.setIndex(civicFill);
-  const civicMesh = new THREE.Mesh(
-    civicGeometry,
-    new THREE.MeshBasicMaterial({ color: CIVIC_COLOR, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false }),
-  );
-  civicMesh.frustumCulled = false;
-
-  lotLayer.add(lines, areasMesh, civicMesh);
-  lots.forSale = forSale;
+/** Pede os bairros cuja caixa está perto do alvo da câmera; de longe, o raio cresce. */
+function streamLots() {
+  if (!lots) return;
+  const t = controls.target;
+  const radius = Math.min(6000, Math.max(STREAM_RADIUS, camera.position.distanceTo(t) * 1.2));
+  const wanted = lots.blocos
+    .filter((b) => !lots.loaded.has(b.bairro))
+    .map((b) => {
+      const [x0, z0, x1, z1] = b.bbox;
+      const dx = Math.max(x0 - t.x, 0, t.x - x1);
+      const dz = Math.max(z0 - t.z, 0, t.z - z1);
+      return { order: b.bairro, d: Math.hypot(dx, dz) };
+    })
+    .filter((b) => b.d <= radius)
+    .sort((a, b) => a.d - b.d);
+  for (const b of wanted.slice(0, Math.max(0, STREAM_PARALLEL - lots.pending))) loadBairro(b.order);
 }
 
 const lotLayer = new THREE.Group();
@@ -325,17 +391,9 @@ function showLot(i) {
 async function loadCivic() {
   const c = lots?.civic;
   if (!c) return;
-  const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
-  const lod = new THREE.LOD();
-  const distances = [0, 600, 1800];
-  const scenes = await Promise.all(c.modelo.lods.map((f) => loader.loadAsync(`${BASE}/${f}`)));
-  scenes.forEach((g, k) => lod.addLevel(g.scene, distances[k] ?? 1800));
-  lod.position.set(c.centro[0], 3, c.centro[1]);
-  lod.rotation.y = -c.angulo;
-  lod.traverse((o) => {
-    if (o.isMesh) o.castShadow = o.receiveShadow = true;
-  });
-  scene.add(lod);
+  await loadLotsFor(c.lotes);
+  const lod = progressiveBuilding(c.modelo.lods.map((f) => `${BASE}/${f}`), c.centro, c.angulo);
+  await lod.ready;
 
   const go = document.createElement('button');
   go.type = 'button';
@@ -349,6 +407,58 @@ async function loadCivic() {
   });
   $('[data-layers]').after(go);
   return lod;
+}
+
+// ---------- Prédio com LOD progressivo ----------
+// Chega primeiro o LOD mais leve (o último da lista); os mais detalhados só são
+// baixados quando a câmera se aproxima. Vale para o Centro Administrativo e
+// para os prédios de jogadores (teste dos 20 prédios do spike).
+const LOD_DISTANCES = [0, 600, 1800];
+const LOD_FETCH_AT = 2500;
+const progressive = [];
+const gltfLoader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
+const gltfCache = new Map();
+const loadScene = (url) => {
+  if (!gltfCache.has(url)) gltfCache.set(url, gltfLoader.loadAsync(url));
+  return gltfCache.get(url).then((g) => g.scene.clone());
+};
+
+function progressiveBuilding(files, [x, z], angle) {
+  const lod = new THREE.LOD();
+  lod.position.set(x, 3, z);
+  lod.rotation.y = -angle;
+  scene.add(lod);
+  const levels = files.map((url, k) => ({ url, distance: LOD_DISTANCES[k] ?? LOD_DISTANCES.at(-1), object: null }));
+  const coarsest = levels.at(-1);
+  const show = () => {
+    const have = levels.filter((l) => l.object);
+    lod.levels.splice(0).forEach((l) => lod.remove(l.object));
+    // O mais leve que já chegou cobre de 0 até o próximo nível que ainda falta.
+    have.forEach((l, k) => lod.addLevel(l.object, k === 0 ? 0 : l.distance));
+  };
+  const load = (level) =>
+    (level.loading ??= loadScene(level.url).then((obj) => {
+      obj.traverse((o) => {
+        if (o.isMesh) o.castShadow = o.receiveShadow = true;
+      });
+      level.object = obj;
+      show();
+    }));
+  lod.ready = load(coarsest);
+  lod.upgrade = () => Promise.all(levels.map(load));
+  lod.levelsLoaded = () => levels.filter((l) => l.object).length;
+  progressive.push(lod);
+  return lod;
+}
+
+function streamBuildings() {
+  for (const lod of progressive) {
+    if (lod.upgraded) continue;
+    if (camera.position.distanceTo(lod.position) < LOD_FETCH_AT) {
+      lod.upgraded = true;
+      lod.upgrade();
+    }
+  }
 }
 
 function setupLotToggle() {
@@ -441,10 +551,34 @@ try {
   const civicBuilding = await loadCivic().catch((err) => console.warn('Centro Administrativo não carregou', err));
   gestao = createGestao({
     THREE, scene, camera, controls, fmt,
-    getLots: () => lots, lotRing, lotAt, showLot, currentLot: () => shownLot,
+    getLots: () => lots, lotRing, lotAt, showLot, currentLot: () => shownLot, loadLotsFor,
     loadGlb: (buffer) => new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).parseAsync(buffer, ''),
   });
-  window.__pittsburg = { scene, camera, controls, renderer, buildings, pick, showBuilding, pickLot, showLot, getLots: () => lots, gestao, civicBuilding };
+  window.__pittsburg = { scene, camera, controls, renderer, buildings, pick, showBuilding, pickLot, showLot, getLots: () => lots, gestao, civicBuilding, progressiveBuilding, loadLotsFor };
+
+  // Spike E0.9: ?spike (ou ?spike=20) mede download, FPS e 20 prédios com LOD.
+  const spikeParam = new URLSearchParams(location.search).get('spike');
+  if (spikeParam !== null && lots?.civic) {
+    const { runSpike, measureFrames } = await import('./spike.js');
+    const c = lots.civic;
+    runSpike(
+      {
+        progressiveBuilding,
+        center: c.centro,
+        measureFrames: (s) => measureFrames(renderer, s),
+        lookAt: (x, z, dist) => {
+          controls.target.set(x, 60, z);
+          camera.position.set(x + dist * 0.7, dist * 0.55, z + dist * 0.7);
+        },
+        gpu: () => {
+          const gl = renderer.getContext();
+          const ext = gl.getExtension('WEBGL_debug_renderer_info');
+          return ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : 'desconhecida';
+        },
+      },
+      { count: Number(spikeParam) || 20, files: c.modelo.lods.map((f) => `${BASE}/${f}`) },
+    );
+  }
 } catch (error) {
   console.error(error);
   $('[data-aviso]').innerHTML = `<div class="glass">Cidade não encontrada. Gere com:<br><code>node tools/scc-builder/bin/city-import.js Pittsburg.obj .local/cidades/pittsburg</code></div>`;
@@ -455,8 +589,14 @@ addEventListener('resize', () => {
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
 });
-renderer.setAnimationLoop(() => {
+let lastStream = 0;
+renderer.setAnimationLoop((now) => {
   gestao?.tick();
   controls.update();
+  if (now - lastStream > 300) {
+    lastStream = now;
+    streamLots();
+    streamBuildings();
+  }
   renderer.render(scene, camera);
 });

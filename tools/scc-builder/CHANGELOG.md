@@ -24,6 +24,7 @@ Chain City (doc 13 §5), sem vínculo com a aplicação de origem.
   `modelo.meta.json` com contorno da base, caixa/colisor, altura e
   triângulos. No editor, aviso acima de 300 mil triângulos.
 - **`bin/city-import.js`:** converte uma cidade em OBJ gerado do OpenStreetMap em camadas e uma tabela de prédios.
+- **`bin/city-chunks.js`:** divide os lotes da cidade em um arquivo por bairro (`bin/lib/lot-chunks.js`), para o mapa baixar só os bairros perto da câmera.
 - **`bin/city-civic.js`:** põe um prédio público (Centro Administrativo) no lugar viável mais central da cidade, unindo os lotes cobertos, que saem da venda.
 - **Lotes poligonais** (`bin/lib/lots.js`, E1.8): a importação da cidade gera lotes ocupados e vazios, com zona, gabarito, recuo e coeficiente.
 - **Exportar para o mapa** (botão abaixo de "Baixar arquivo convertido"):

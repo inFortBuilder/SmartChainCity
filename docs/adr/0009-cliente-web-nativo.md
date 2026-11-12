@@ -20,3 +20,4 @@ A nova direção ([doc 13](../13-cidade-realista-construtores.md)) pede uma cida
 - Validação de lote, LOD e presets são compartilhados entre o SCC Builder e o cliente.
 - Física, animação de avatar e editor de cena precisam ser montados (Rapier, three-mesh-bvh, animações glTF).
 - Se o spike falhar nos critérios, volta-se à opção 1 com glTFast.
+- Resultado do spike: [spike E0.9](../desenvolvimento/spike-e0.9-cliente-web.md). Em 2026-11-12, download inicial, FPS e 20 prédios com LOD passam no desktop; falta medir num celular médio e num notebook com placa integrada.
