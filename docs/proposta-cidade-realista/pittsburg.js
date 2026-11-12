@@ -107,8 +107,166 @@ function showBuilding(b) {
 let down = null;
 canvas.addEventListener('pointerdown', (e) => { down = [e.clientX, e.clientY]; });
 canvas.addEventListener('pointerup', (e) => {
-  if (down && Math.hypot(e.clientX - down[0], e.clientY - down[1]) < 5) showBuilding(pick(e));
+  if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) >= 5) return;
+  if (lotLayer.visible) showLot(pickLot(e));
+  else showBuilding(pick(e));
 });
+
+// ---------- Lotes ----------
+// Polígonos fixos de N pontos num binário: 100 mil lotes em JSON pesariam 40 MB.
+const ZONE_COLORS = [0x60a5fa, 0xf59e0b, 0xf472b6];
+const VACANT_COLOR = 0x8ddc0e;
+const LOT_CELL = 150;
+let lots = null;
+
+function lotPoint(i, k) {
+  const at = (i * lots.n + k) * 2;
+  return [lots.polygons[at], lots.polygons[at + 1]];
+}
+
+function lotRing(i) {
+  return Array.from({ length: lots.n }, (_, k) => lotPoint(i, k));
+}
+
+function insidePolygon(x, z, ring) {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [ax, az] = ring[i];
+    const [bx, bz] = ring[j];
+    if (az > z !== bz > z && x < ((bx - ax) * (z - az)) / (bz - az) + ax) inside = !inside;
+  }
+  return inside;
+}
+
+async function loadLots() {
+  const [meta, buffer] = await Promise.all([
+    fetch(`${BASE}/lotes.json`).then((r) => r.json()),
+    fetch(`${BASE}/lotes.bin`).then((r) => r.arrayBuffer()),
+  ]);
+  const n = meta.pontos;
+  const count = meta.resumo.total;
+  const polygons = new Float32Array(buffer, 0, count * n * 2);
+  const areas = new Float32Array(buffer, polygons.byteLength, count);
+  const zones = new Uint8Array(buffer, polygons.byteLength + areas.byteLength, count);
+  const vacant = new Uint8Array(buffer, polygons.byteLength + areas.byteLength + count, count);
+  lots = { n, count, polygons, areas, zones, vacant, zonas: meta.zonas, resumo: meta.resumo, grid: new Map() };
+
+  const vertices = new Float32Array(count * n * 3);
+  const colors = new Float32Array(count * n * 3);
+  const index = new Uint32Array(count * n * 2);
+  const fill = [];
+  const color = new THREE.Color();
+  for (let i = 0; i < count; i++) {
+    color.set(vacant[i] ? VACANT_COLOR : ZONE_COLORS[zones[i]]);
+    const ring = lotRing(i);
+    let cx = 0;
+    let cz = 0;
+    ring.forEach(([x, z], k) => {
+      const v = i * n + k;
+      vertices.set([x, 3, z], v * 3);
+      colors.set([color.r, color.g, color.b], v * 3);
+      index[v * 2] = v;
+      index[v * 2 + 1] = i * n + ((k + 1) % n);
+      cx += x / n;
+      cz += z / n;
+      if (vacant[i] && k >= 2) fill.push(i * n, v - 1, v);
+    });
+    for (let a = -1; a <= 1; a++) {
+      for (let b = -1; b <= 1; b++) {
+        const near = `${Math.floor(cx / LOT_CELL) + a},${Math.floor(cz / LOT_CELL) + b}`;
+        if (!lots.grid.has(near)) lots.grid.set(near, []);
+        lots.grid.get(near).push(i);
+      }
+    }
+  }
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  geometry.setIndex(new THREE.BufferAttribute(index, 1));
+  const lines = new THREE.LineSegments(geometry, new THREE.LineBasicMaterial({ vertexColors: true }));
+  lines.frustumCulled = false;
+
+  const fillGeometry = new THREE.BufferGeometry();
+  fillGeometry.setAttribute('position', geometry.getAttribute('position'));
+  fillGeometry.setIndex(fill);
+  const areasMesh = new THREE.Mesh(
+    fillGeometry,
+    new THREE.MeshBasicMaterial({ color: VACANT_COLOR, transparent: true, opacity: 0.45, side: THREE.DoubleSide, depthWrite: false }),
+  );
+  areasMesh.frustumCulled = false;
+
+  lotLayer.add(lines, areasMesh);
+}
+
+const lotLayer = new THREE.Group();
+lotLayer.visible = false;
+scene.add(lotLayer);
+const lotOutline = new THREE.LineLoop(
+  new THREE.BufferGeometry(),
+  new THREE.LineBasicMaterial({ color: 0xffffff }),
+);
+lotOutline.frustumCulled = false;
+lotOutline.visible = false;
+scene.add(lotOutline);
+
+function pickLot(event) {
+  if (!lots) return null;
+  const ndc = new THREE.Vector2((event.clientX / innerWidth) * 2 - 1, -(event.clientY / innerHeight) * 2 + 1);
+  const ray = new THREE.Raycaster();
+  ray.setFromCamera(ndc, camera);
+  const { origin, direction } = ray.ray;
+  if (direction.y >= 0) return null;
+  const t = -origin.y / direction.y;
+  const x = origin.x + direction.x * t;
+  const z = origin.z + direction.z * t;
+  const key = `${Math.floor(x / LOT_CELL)},${Math.floor(z / LOT_CELL)}`;
+  return (lots.grid.get(key) ?? []).find((i) => insidePolygon(x, z, lotRing(i))) ?? null;
+}
+
+function showLot(i) {
+  const ficha = $('[data-ficha]');
+  if (i === null) {
+    ficha.hidden = true;
+    lotOutline.visible = false;
+    return;
+  }
+  const ring = lotRing(i);
+  lotOutline.geometry.setFromPoints(ring.map(([x, z]) => new THREE.Vector3(x, 4, z)));
+  lotOutline.visible = true;
+  highlight.visible = false;
+
+  const zone = lots.zonas[lots.zones[i]];
+  const area = lots.areas[i];
+  const free = lots.vacant[i] === 1;
+  ficha.hidden = false;
+  ficha.innerHTML = `<h2>Lote PIT-${String(i + 1).padStart(6, '0')}</h2><dl>
+    <dt>Situação</dt><dd>${free ? 'À venda' : 'Ocupado'}</dd>
+    <dt>Zona</dt><dd>${zone.label}</dd>
+    <dt>Área</dt><dd>${fmt.format(Math.round(area))} m²</dd>
+    <dt>Gabarito</dt><dd>${zone.max_height_m} m</dd>
+    <dt>Coeficiente</dt><dd>${fmt.format(zone.far)}</dd>
+    <dt>Recuo</dt><dd>${zone.setback_m} m</dd>
+    <dt>Área construível</dt><dd>${fmt.format(Math.round(area * zone.far))} m²</dd>
+    <dt>Preço</dt><dd>${fmt.format(Math.round(area * zone.price))} SCITY</dd></dl>`;
+}
+
+function setupLotToggle() {
+  const label = document.createElement('label');
+  label.innerHTML = '<input type="checkbox" data-lotes> Lotes';
+  label.querySelector('input').addEventListener('change', async (e) => {
+    const on = e.target.checked;
+    if (on && !lots) {
+      label.style.opacity = 0.5;
+      await loadLots();
+      label.style.opacity = 1;
+      $('[data-resumo]').textContent += ` · ${fmt.format(lots.resumo.total)} lotes, ${fmt.format(lots.resumo.vazios)} à venda`;
+    }
+    lotLayer.visible = on;
+    if (!on) showLot(null);
+  });
+  $('[data-layers]').append(label);
+}
 
 const LABELS = { buildings: 'Prédios', roads: 'Ruas', water: 'Água', land: 'Uso do solo', rail: 'Ferrovias', ground: 'Terreno' };
 const TUNE = {
@@ -160,11 +318,12 @@ try {
   buildings = data.predios;
   indexBuildings(buildings);
   setupLayers(gltf.scene);
+  setupLotToggle();
   scene.add(gltf.scene);
   frameCity(buildings);
   $('[data-resumo]').textContent = `${fmt.format(data.resumo.predios)} prédios · ${fmt.format(data.resumo.base_m / 1000)} km de base · ${fmt.format(data.resumo.glb_mb)} MB`;
   $('[data-aviso]').remove();
-  window.__pittsburg = { scene, camera, controls, renderer, buildings, pick, showBuilding };
+  window.__pittsburg = { scene, camera, controls, renderer, buildings, pick, showBuilding, pickLot, showLot, getLots: () => lots };
 } catch (error) {
   console.error(error);
   $('[data-aviso]').innerHTML = `<div class="glass">Cidade não encontrada. Gere com:<br><code>node tools/scc-builder/bin/city-import.js Pittsburg.obj .local/cidades/pittsburg</code></div>`;

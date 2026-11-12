@@ -4,7 +4,7 @@
  *
  *   node bin/city-import.js <cidade.obj> <pasta-de-saída> [--half 17300]
  *
- * Gera cidade.glb (Meshopt) e predios.json. O modelo pode ser de terceiros:
+ * Gera cidade.glb (Meshopt), predios.json e os lotes (lotes.json + lotes.bin). O modelo pode ser de terceiros:
  * deixe a saída em .local/, fora do repositório, até confirmar a licença.
  */
 import { createReadStream, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
@@ -26,6 +26,17 @@ import {
   insideBase,
   parseMtl,
 } from './lib/city-import.js';
+import {
+  LOT_POINTS,
+  Raster,
+  SiteGrid,
+  ZONES,
+  lotPolygon,
+  lotPrice,
+  polygonArea,
+  vacantSites,
+  zoneOf,
+} from './lib/lots.js';
 
 const { values, positionals } = parseArgs({
   allowPositionals: true,
@@ -53,8 +64,14 @@ const layers = Object.fromEntries(
 const components = new Components();
 const stats = { faces: 0, kept: 0, clipped: 0, skipped: 0 };
 
+// Margem do lote além do prédio e parâmetros dos lotes vazios, em metros.
+const LOT_MARGIN = 12;
+const VACANT = { spacing: 50, radius: 15, roadReach: 80 };
+const raster = new Raster(half);
+
 let layer = null;
 let color = [0.6, 0.6, 0.6];
+let blocksLots = false;
 
 const addVertex = (target, v, rgb) => {
   const key = rgb === color ? v : `${v}:${rgb.join()}`;
@@ -85,7 +102,13 @@ for await (const line of rl) {
     positions[vertexCount * 3 + 2] = Number(parts[3]);
     vertexCount++;
   } else if (c0 === 111 /* o */ && line.charCodeAt(1) === 32) {
-    layer = classifyObject(line.slice(2));
+    const name = line.slice(2);
+    layer = classifyObject(name);
+    // Caminho de pedestre corta o quarteirão sem separar lotes; rua, água e parque separam.
+    blocksLots =
+      layer === 'water' ||
+      (layer === 'roads' && !/^highway_(footway|path|cycleway|steps|track)/.test(name)) ||
+      (layer === 'land' && /^leisure/.test(name));
   } else if (line.startsWith('usemtl ')) {
     color = colors[line.slice(7)] ?? color;
   } else if (c0 === 102 /* f */ && line.charCodeAt(1) === 32) {
@@ -107,6 +130,11 @@ for await (const line of rl) {
       continue;
     }
     stats.kept++;
+    if (blocksLots) {
+      for (let i = 1; i + 1 < face.length; i++) {
+        raster.fillTriangle(xs[0], zs[0], xs[i], zs[i], xs[i + 1], zs[i + 1]);
+      }
+    }
     const target = layers[layer];
     target.faces++;
     if (layer === 'buildings') {
@@ -176,6 +204,82 @@ mkdirSync(outDir, { recursive: true });
 const glbPath = join(outDir, 'cidade.glb');
 writeFileSync(glbPath, await io.writeBinary(doc));
 
+// ─ Lotes ─
+const buildingSites = buildings.map((b) => ({
+  x: b.x,
+  z: b.z,
+  r: Math.hypot(b.w, b.d) / 2,
+  h: b.h,
+}));
+const buildingGrid = new SiteGrid();
+for (const site of buildingSites) buildingGrid.add(site, LOT_MARGIN);
+
+// Só a mancha urbana recebe lotes vazios: a base tem 34 km, quase toda sem cidade.
+const sortedX = buildings.map((b) => b.x).sort((a, b) => a - b);
+const sortedZ = buildings.map((b) => b.z).sort((a, b) => a - b);
+const pct = (list, p) => list[Math.floor((list.length - 1) * p)];
+const extent = {
+  minX: pct(sortedX, 0.01),
+  maxX: pct(sortedX, 0.99),
+  minZ: pct(sortedZ, 0.01),
+  maxZ: pct(sortedZ, 0.99),
+};
+const vacant = vacantSites(extent, VACANT.spacing, raster, buildingGrid, VACANT);
+
+const sites = [...buildingSites, ...vacant];
+const lotGrid = new SiteGrid();
+for (const site of sites) lotGrid.add(site, LOT_MARGIN);
+
+const lots = [];
+for (const site of sites) {
+  const polygon = lotPolygon(site, lotGrid.neighbors(site, LOT_MARGIN), raster, LOT_MARGIN);
+  const area = polygonArea(polygon);
+  // Sobra de fronteira, menor que um terreno de verdade.
+  if (area >= 60)
+    lots.push({ polygon, area, zone: zoneOf(site), vacant: Boolean(site.vacant), h: site.h });
+}
+
+// Binário: polígonos em Float32, depois área em Float32, depois zona e situação em Uint8.
+const polygons = new Float32Array(lots.length * LOT_POINTS * 2);
+const areas = new Float32Array(lots.length);
+const zones = new Uint8Array(lots.length);
+const vacancy = new Uint8Array(lots.length);
+lots.forEach((lot, i) => {
+  lot.polygon.forEach(([x, z], k) => {
+    polygons[(i * LOT_POINTS + k) * 2] = x;
+    polygons[(i * LOT_POINTS + k) * 2 + 1] = z;
+  });
+  areas[i] = lot.area;
+  zones[i] = lot.zone;
+  vacancy[i] = lot.vacant ? 1 : 0;
+});
+
+mkdirSync(outDir, { recursive: true });
+writeFileSync(
+  join(outDir, 'lotes.bin'),
+  Buffer.concat([polygons, areas, zones, vacancy].map((a) => Buffer.from(a.buffer)))
+);
+
+const median = (list) => [...list].sort((a, b) => a - b)[list.length >> 1] ?? 0;
+const lotSummary = {
+  total: lots.length,
+  ocupados: lots.filter((l) => !l.vacant).length,
+  vazios: lots.filter((l) => l.vacant).length,
+  area_mediana_m2: Math.round(median(lots.map((l) => l.area))),
+  preco_mediano_scity: median(lots.map((l) => lotPrice(l.area, l.zone))),
+  valor_total_vazios_scity: lots
+    .filter((l) => l.vacant)
+    .reduce((sum, l) => sum + lotPrice(l.area, l.zone), 0),
+  por_zona: Object.fromEntries(
+    ZONES.map((z, i) => [z.key, lots.filter((l) => l.zone === i).length])
+  ),
+  acima_do_gabarito: lots.filter((l) => l.h > ZONES[l.zone].max_height_m).length,
+};
+writeFileSync(
+  join(outDir, 'lotes.json'),
+  JSON.stringify({ pontos: LOT_POINTS, zonas: ZONES, resumo: lotSummary })
+);
+
 const heights = buildings.map((b) => b.h).sort((a, b) => a - b);
 const summary = {
   fonte: basename(input),
@@ -186,6 +290,7 @@ const summary = {
   altura_mediana_m: heights[Math.floor(heights.length / 2)] ?? 0,
   altura_maxima_m: heights.at(-1) ?? 0,
   glb_mb: Number((statSync(glbPath).size / 1048576).toFixed(1)),
+  lotes: lotSummary,
 };
 writeFileSync(
   join(outDir, 'predios.json'),

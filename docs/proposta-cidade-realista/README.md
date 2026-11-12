@@ -14,7 +14,7 @@ Rode na raiz do repositório e abra http://localhost:8081/docs/proposta-cidade-r
 | **Mapa de lotes** | Situação de cada lote: seu, à venda pela Prefeitura, à venda por jogadores, ocupado, vazio, parque |
 | **Construtor** | Lote do jogador → modelo (torre exemplo ou um `.glb`/`.gltf` real, inclusive com Draco ou meshopt) → validação (recuo, gabarito, coeficiente com outorga, polígonos, escala) → unidades (pé-direito, unidades por andar, térreo comercial, preço por m², VGV) → publicar → clicar num andar para ver e comprar as unidades |
 
-**Cidade real:** [pittsburg.html](pittsburg.html) mostra Pittsburg, Califórnia, a partir de um OBJ do OpenStreetMap: camadas, sol e clique com a ficha de cada prédio. O modelo não fica no repositório; gere antes com [`bin/city-import.js`](../../tools/scc-builder/README.md#cidade-inteira-em-obj). Ainda não tem lotes, compra nem Construtor.
+**Cidade real:** [pittsburg.html](pittsburg.html) mostra Pittsburg, Califórnia, a partir de um OBJ do OpenStreetMap: camadas, sol, clique com a ficha de cada prédio e camada **Lotes**, com 100 mil lotes poligonais, zona, regras e preço. O modelo não fica no repositório; gere antes com [`bin/city-import.js`](../../tools/scc-builder/README.md#cidade-inteira-em-obj). Ainda não tem compra nem Construtor, e os lotes não estão no banco.
 
 No modo Construtor:
 - **Megaempreendimento (superquadra):** remembra 4 quadras numa superquadra-marco (gabarito de 320 m), para prédios grandes como o do [estudo de caso do doc 13](../13-cidade-realista-construtores.md#13-estudo-de-caso-edifício-grande-edificioglb).
