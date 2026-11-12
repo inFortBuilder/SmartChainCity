@@ -1,6 +1,6 @@
 # ADR-0005 — Colyseus para presença multiplayer
 
-- **Status:** Proposto
+- **Status:** Aceito (2026-11-12)
 - **Data:** 2026-10-18
 - **Trilhas afetadas:** backend · client · infra
 

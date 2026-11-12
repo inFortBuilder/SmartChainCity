@@ -1,6 +1,6 @@
 # ADR-0007 — Réplica de cidade real pelo traçado do OpenStreetMap
 
-- **Status:** Proposto
+- **Status:** Substituído por [ADR-0012](0012-cidade-real-construtores.md)
 - **Data:** 2026-10-18
 - **Trilhas afetadas:** tools · client · backend
 

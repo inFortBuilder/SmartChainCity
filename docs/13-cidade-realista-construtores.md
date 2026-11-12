@@ -1,6 +1,6 @@
-# 13 — Cidade Realista e Construtores (proposta)
+# 13 — Cidade Realista e Construtores
 
-> **Status: proposta.** Muda a direção visual e acrescenta um sistema central ao jogo: **construtores sobem o próprio edifício (modelo 3D) no lote comprado e vendem as unidades dentro do jogo.** As decisões abertas estão no §11 e no [ADR-0009](adr/0009-cliente-web-nativo.md).
+> **Status: aprovada em 2026-11-12 ([ADR-0012](adr/0012-cidade-real-construtores.md)), com o cliente web nativo ([ADR-0009](adr/0009-cliente-web-nativo.md)).** Muda a direção visual e acrescenta um sistema central ao jogo: **construtores sobem o próprio edifício (modelo 3D) no lote comprado e vendem as unidades dentro do jogo.** As decisões abertas estão no §11 e no [ADR-0009](adr/0009-cliente-web-nativo.md).
 
 **Ver o protótipo:** na raiz do repositório, rode `php -S localhost:8081 -t .` e abra http://localhost:8081/docs/proposta-cidade-realista/index.html. São três modos:
 - **Explorar:** a cidade com quadras irregulares, parques, trânsito, sombras e sol pela hora do dia.
@@ -224,7 +224,7 @@ O protótipo usa **Three.js** (o mesmo motor do editor do Convert3D) e já carre
 
 ## 11. Decisões pendentes
 
-1. Adotar o cliente web nativo? ([ADR-0009](adr/0009-cliente-web-nativo.md))
+1. ~~Adotar o cliente web nativo?~~ Sim: [ADR-0009](adr/0009-cliente-web-nativo.md), verificado pelo spike E0.9.
 2. Cidade de referência para o traçado real (qual cidade, qual recorte).
 3. Unidades como ERC-721 por unidade (recomendado) ou ERC-1155.
 4. Royalty do construtor, taxa de alvará e valor da outorga por m² (calibrar no simulador).

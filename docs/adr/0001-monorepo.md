@@ -1,6 +1,6 @@
 # ADR-0001 — Monorepo único para todas as trilhas
 
-- **Status:** Proposto
+- **Status:** Aceito (2026-11-12)
 - **Data:** 2026-10-18
 - **Trilhas afetadas:** todas
 

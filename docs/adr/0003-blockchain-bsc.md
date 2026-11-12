@@ -1,6 +1,6 @@
 # ADR-0003 — BNB Smart Chain como rede
 
-- **Status:** Proposto
+- **Status:** Aceito (2026-11-12)
 - **Data:** 2026-10-18
 - **Trilhas afetadas:** contracts · backend · client
 

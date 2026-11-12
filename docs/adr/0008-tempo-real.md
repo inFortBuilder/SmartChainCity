@@ -1,6 +1,6 @@
 # ADR-0008 — Um dia de jogo = 24 horas reais
 
-- **Status:** Proposto
+- **Status:** Aceito (2026-11-12)
 - **Data:** 2026-10-18
 - **Trilhas afetadas:** backend · client · econ
 
