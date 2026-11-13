@@ -75,3 +75,42 @@ describe('API do game-core', () => {
     expect((await create(account)).json().error.code).toBe('avatar_limit');
   });
 });
+
+describe('ferramentas de desenvolvimento', () => {
+  it('avatar de teste: desligado é 404; ligado dá um só por conta', async () => {
+    const account = randomUUID();
+    const headers = await auth(account);
+    expect((await app.inject({ method: 'POST', url: '/v1/dev/avatar', headers })).statusCode).toBe(404);
+
+    const dev = await buildApp({ ...config, DEV_FREE_AVATAR: true }, new MemoryAvatarStore(), () => clock);
+    const first = await dev.inject({ method: 'POST', url: '/v1/dev/avatar', headers });
+    expect(first.statusCode).toBe(201);
+    expect(first.json().avatar.rarity).toBe('common');
+    const again = await dev.inject({ method: 'POST', url: '/v1/dev/avatar', headers });
+    expect(again.json().avatar.id).toBe(first.json().avatar.id);
+  });
+
+  it('em produção, as opções de desenvolvimento impedem o serviço de subir', () => {
+    const base = { JWT_SECRET: SECRET, INTERNAL_TOKEN: INTERNAL, NODE_ENV: 'production' };
+    expect(() => loadConfig({ ...base, DEV_FREE_AVATAR: 'true' })).toThrow();
+    expect(() => loadConfig({ ...base, DEV_SHIFT_MINUTES: '1' })).toThrow();
+    expect(() => loadConfig(base)).not.toThrow();
+  });
+
+  it('turno encurtado termina antes, mas paga como 6 h', async () => {
+    const dev = await buildApp({ ...config, DEV_FREE_AVATAR: true, DEV_SHIFT_MINUTES: 2 }, new MemoryAvatarStore(), () => clock);
+    const headers = await auth(randomUUID());
+    const id = (await dev.inject({ method: 'POST', url: '/v1/dev/avatar', headers })).json().avatar.id;
+    const shift = (await dev.inject({ method: 'POST', url: `/v1/avatars/${id}/work`, headers, payload: { shift: 6 } })).json().shift;
+    expect(new Date(shift.ends_at).getTime() - new Date(shift.starts_at).getTime()).toBe(2 * 60_000);
+    expect(shift.hours).toBe(6);
+  });
+
+  it('CORS libera só as origens configuradas', async () => {
+    const web = await buildApp({ ...config, CORS_ORIGINS: ['http://localhost:8081'] }, new MemoryAvatarStore(), () => clock);
+    const ok = await web.inject({ method: 'OPTIONS', url: '/v1/avatars', headers: { origin: 'http://localhost:8081', 'access-control-request-method': 'GET' } });
+    expect(ok.headers['access-control-allow-origin']).toBe('http://localhost:8081');
+    const other = await web.inject({ method: 'OPTIONS', url: '/v1/avatars', headers: { origin: 'https://site-estranho.example', 'access-control-request-method': 'GET' } });
+    expect(other.headers['access-control-allow-origin']).toBeUndefined();
+  });
+});

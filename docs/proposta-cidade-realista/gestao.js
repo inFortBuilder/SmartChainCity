@@ -211,8 +211,9 @@ export function createGestao(api) {
   });
 
   function renderHud() {
-    hud.querySelector('[data-hud-scity]').textContent = `SCITY ${fmt.format(Math.floor(state.scity))}`;
-    hud.querySelector('[data-hud-thaler]').textContent = `THALER ${fmt.format(Math.floor(state.thaler))}`;
+    // A gestão ainda é simulada no navegador; o THALER de verdade está no painel do servidor.
+    hud.querySelector('[data-hud-scity]').innerHTML = `SCITY ${fmt.format(Math.floor(state.scity))}<span class="demo">simulado</span>`;
+    hud.querySelector('[data-hud-thaler]').innerHTML = `THALER ${fmt.format(Math.floor(state.thaler))}<span class="demo">simulado</span>`;
     hud.querySelector('[data-hud-patrimonio]').textContent = `Meu patrimônio (${state.lots.length})`;
     const t = controls.target;
     const here = api.lotAt(t.x, t.z);

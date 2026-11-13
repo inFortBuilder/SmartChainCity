@@ -96,7 +96,7 @@ const startOfUtcDay = (d: Date) => new Date(Date.UTC(d.getUTCFullYear(), d.getUT
  */
 export function startShift(
   avatar: Avatar,
-  input: { id: string; hours: number; hoursToday: number; running: boolean },
+  input: { id: string; hours: number; hoursToday: number; running: boolean; durationMs?: number },
   now: Date,
 ): { shift: Shift; avatar: Avatar } {
   if (!SHIFT_HOURS.includes(input.hours as ShiftHours)) {
@@ -121,7 +121,7 @@ export function startShift(
     jobCode: avatar.jobCode,
     hours,
     startsAt: now,
-    endsAt: new Date(now.getTime() + hours * HOUR),
+    endsAt: new Date(now.getTime() + (input.durationMs ?? hours * HOUR)),
     seedCommit: createHash('sha256').update(seed).digest('hex'),
     seed,
     snapshot: {

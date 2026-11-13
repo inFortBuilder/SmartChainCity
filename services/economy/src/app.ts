@@ -1,4 +1,5 @@
 import { AppError, bearerToken, requireServiceToken, verifyAccessToken } from '@scc/shared';
+import cors from '@fastify/cors';
 import Fastify, { type FastifyRequest } from 'fastify';
 import { z } from 'zod';
 
@@ -60,6 +61,8 @@ export async function buildApp(config: Config, store: LedgerStore, now: () => Da
         ? false
         : { redact: ['req.headers.authorization', 'req.headers["x-service-token"]'] },
   });
+
+  await app.register(cors, { origin: config.CORS_ORIGINS });
 
   app.setErrorHandler((error, request, reply) => {
     if (error instanceof AppError) {
