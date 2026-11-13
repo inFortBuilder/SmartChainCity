@@ -480,6 +480,231 @@ export interface AdminUser extends Struct.CollectionTypeSchema {
   };
 }
 
+export interface ApiActivityActivity extends Struct.CollectionTypeSchema {
+  collectionName: 'activities';
+  info: {
+    description: 'Atividades fora do trabalho e o efeito de cada uma nos atributos do avatar (GDD, se\u00E7\u00E3o 4.5). A UI mostra s\u00F3 a dire\u00E7\u00E3o do efeito.';
+    displayName: 'Atividade';
+    pluralName: 'activities';
+    singularName: 'activity';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  attributes: {
+    code: Schema.Attribute.UID & Schema.Attribute.Required;
+    conferir: Schema.Attribute.JSON;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    energy: Schema.Attribute.Integer &
+      Schema.Attribute.Required &
+      Schema.Attribute.SetMinMax<
+        {
+          max: 10;
+          min: -10;
+        },
+        number
+      > &
+      Schema.Attribute.DefaultTo<0>;
+    food: Schema.Attribute.Integer &
+      Schema.Attribute.Required &
+      Schema.Attribute.SetMinMax<
+        {
+          max: 10;
+          min: -10;
+        },
+        number
+      > &
+      Schema.Attribute.DefaultTo<0>;
+    group: Schema.Attribute.Enumeration<
+      [
+        'transportes',
+        'pets',
+        'educacao',
+        'alimentacao',
+        'parque',
+        'ginasio',
+        'galeria',
+        'hospital',
+        'academia',
+        'lojas',
+        'moradia',
+        'higiene',
+      ]
+    > &
+      Schema.Attribute.Required;
+    happiness: Schema.Attribute.Integer &
+      Schema.Attribute.Required &
+      Schema.Attribute.SetMinMax<
+        {
+          max: 10;
+          min: -10;
+        },
+        number
+      > &
+      Schema.Attribute.DefaultTo<0>;
+    health: Schema.Attribute.Integer &
+      Schema.Attribute.Required &
+      Schema.Attribute.SetMinMax<
+        {
+          max: 10;
+          min: -10;
+        },
+        number
+      > &
+      Schema.Attribute.DefaultTo<0>;
+    hygiene: Schema.Attribute.Integer &
+      Schema.Attribute.Required &
+      Schema.Attribute.SetMinMax<
+        {
+          max: 10;
+          min: -10;
+        },
+        number
+      > &
+      Schema.Attribute.DefaultTo<0>;
+    label: Schema.Attribute.String & Schema.Attribute.Required;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::activity.activity'
+    > &
+      Schema.Attribute.Private;
+    publishedAt: Schema.Attribute.DateTime;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
+export interface ApiAttributeMultiplierAttributeMultiplier
+  extends Struct.CollectionTypeSchema {
+  collectionName: 'attribute_multipliers';
+  info: {
+    description: 'Multiplicador do ganho do turno por n\u00EDvel de sa\u00FAde, felicidade, experi\u00EAncia e pet (Tabela de Atributos, doc 02 \u00A72.4).';
+    displayName: 'Multiplicador';
+    pluralName: 'attribute-multipliers';
+    singularName: 'attribute-multiplier';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  attributes: {
+    attribute: Schema.Attribute.Enumeration<
+      ['health', 'happiness', 'experience', 'pet']
+    > &
+      Schema.Attribute.Required;
+    conferir: Schema.Attribute.JSON;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    factor: Schema.Attribute.Decimal &
+      Schema.Attribute.Required &
+      Schema.Attribute.SetMinMax<
+        {
+          min: 0;
+        },
+        number
+      >;
+    level: Schema.Attribute.Integer &
+      Schema.Attribute.Required &
+      Schema.Attribute.SetMinMax<
+        {
+          max: 100;
+          min: 0;
+        },
+        number
+      >;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::attribute-multiplier.attribute-multiplier'
+    > &
+      Schema.Attribute.Private;
+    publishedAt: Schema.Attribute.DateTime;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
+export interface ApiFoodFood extends Struct.CollectionTypeSchema {
+  collectionName: 'foods';
+  info: {
+    description: 'Alimentos do jogo: efeito na energia e na sa\u00FAde, pacote e pre\u00E7o (Tabela de Atributos, doc 02 \u00A77). Invent\u00E1rio do jogador fica no game-core.';
+    displayName: 'Alimento';
+    pluralName: 'foods';
+    singularName: 'food';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  attributes: {
+    code: Schema.Attribute.UID & Schema.Attribute.Required;
+    conferir: Schema.Attribute.JSON;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    energy: Schema.Attribute.Integer &
+      Schema.Attribute.Required &
+      Schema.Attribute.SetMinMax<
+        {
+          max: 10;
+          min: -10;
+        },
+        number
+      > &
+      Schema.Attribute.DefaultTo<0>;
+    farmLevel: Schema.Attribute.Integer &
+      Schema.Attribute.SetMinMax<
+        {
+          max: 3;
+          min: 1;
+        },
+        number
+      >;
+    group: Schema.Attribute.Enumeration<
+      ['fruta', 'grao_legume', 'proteina', 'lanche']
+    > &
+      Schema.Attribute.Required;
+    health: Schema.Attribute.Integer &
+      Schema.Attribute.Required &
+      Schema.Attribute.SetMinMax<
+        {
+          max: 10;
+          min: -10;
+        },
+        number
+      > &
+      Schema.Attribute.DefaultTo<0>;
+    label: Schema.Attribute.String & Schema.Attribute.Required;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<'oneToMany', 'api::food.food'> &
+      Schema.Attribute.Private;
+    pack: Schema.Attribute.Integer &
+      Schema.Attribute.Required &
+      Schema.Attribute.SetMinMax<
+        {
+          min: 1;
+        },
+        number
+      > &
+      Schema.Attribute.DefaultTo<1>;
+    price: Schema.Attribute.Integer &
+      Schema.Attribute.SetMinMax<
+        {
+          min: 0;
+        },
+        number
+      >;
+    publishedAt: Schema.Attribute.DateTime;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
 export interface ApiJobJob extends Struct.CollectionTypeSchema {
   collectionName: 'jobs';
   info: {
@@ -523,6 +748,128 @@ export interface ApiJobJob extends Struct.CollectionTypeSchema {
         },
         number
       >;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
+export interface ApiPropertyTypePropertyType
+  extends Struct.CollectionTypeSchema {
+  collectionName: 'property_types';
+  info: {
+    description: 'Tipos de im\u00F3vel (residencial, comercial, industrial, rural) e os n\u00EDveis de cada um, com renda e custo de upgrade (doc 03 \u00A76). Posse e desgaste ficam no world e no game-core.';
+    displayName: 'Tipo de im\u00F3vel';
+    pluralName: 'property-types';
+    singularName: 'property-type';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  attributes: {
+    availability: Schema.Attribute.Enumeration<['always', 'events']> &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<'always'>;
+    buildMinutes: Schema.Attribute.Integer &
+      Schema.Attribute.SetMinMax<
+        {
+          min: 0;
+        },
+        number
+      >;
+    code: Schema.Attribute.UID & Schema.Attribute.Required;
+    conferir: Schema.Attribute.JSON;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    description: Schema.Attribute.Text;
+    label: Schema.Attribute.String & Schema.Attribute.Required;
+    levels: Schema.Attribute.Component<'game.property-level', true>;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::property-type.property-type'
+    > &
+      Schema.Attribute.Private;
+    lots: Schema.Attribute.Integer &
+      Schema.Attribute.Required &
+      Schema.Attribute.SetMinMax<
+        {
+          min: 1;
+        },
+        number
+      > &
+      Schema.Attribute.DefaultTo<1>;
+    price: Schema.Attribute.Integer &
+      Schema.Attribute.SetMinMax<
+        {
+          min: 0;
+        },
+        number
+      >;
+    publishedAt: Schema.Attribute.DateTime;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    upgradesFrom: Schema.Attribute.String;
+    zone: Schema.Attribute.Enumeration<
+      ['residential', 'commercial', 'industrial', 'rural']
+    > &
+      Schema.Attribute.Required;
+  };
+}
+
+export interface ApiRarityRarity extends Struct.CollectionTypeSchema {
+  collectionName: 'rarities';
+  info: {
+    description: 'Raridades do avatar e a faixa de ganho por dia de cada uma (doc 02 \u00A72.2), aprovada no simulador econ\u00F4mico.';
+    displayName: 'Raridade';
+    pluralName: 'rarities';
+    singularName: 'rarity';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  attributes: {
+    baseMax: Schema.Attribute.Integer &
+      Schema.Attribute.Required &
+      Schema.Attribute.SetMinMax<
+        {
+          min: 0;
+        },
+        number
+      >;
+    baseMin: Schema.Attribute.Integer &
+      Schema.Attribute.Required &
+      Schema.Attribute.SetMinMax<
+        {
+          min: 0;
+        },
+        number
+      >;
+    code: Schema.Attribute.Enumeration<
+      ['common', 'rare', 'epic', 'legendary']
+    > &
+      Schema.Attribute.Required &
+      Schema.Attribute.Unique;
+    comboPriceUsd: Schema.Attribute.Decimal &
+      Schema.Attribute.SetMinMax<
+        {
+          min: 0;
+        },
+        number
+      >;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    label: Schema.Attribute.String & Schema.Attribute.Required;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::rarity.rarity'
+    > &
+      Schema.Attribute.Private;
+    publishedAt: Schema.Attribute.DateTime;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
@@ -1064,7 +1411,12 @@ declare module '@strapi/strapi' {
       'admin::transfer-token': AdminTransferToken;
       'admin::transfer-token-permission': AdminTransferTokenPermission;
       'admin::user': AdminUser;
+      'api::activity.activity': ApiActivityActivity;
+      'api::attribute-multiplier.attribute-multiplier': ApiAttributeMultiplierAttributeMultiplier;
+      'api::food.food': ApiFoodFood;
       'api::job.job': ApiJobJob;
+      'api::property-type.property-type': ApiPropertyTypePropertyType;
+      'api::rarity.rarity': ApiRarityRarity;
       'plugin::content-releases.release': PluginContentReleasesRelease;
       'plugin::content-releases.release-action': PluginContentReleasesReleaseAction;
       'plugin::i18n.locale': PluginI18NLocale;

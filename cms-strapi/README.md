@@ -12,9 +12,14 @@ O Strapi 5.62 (TypeScript) fica nesta pasta, com npm próprio, fora do workspace
 | O que | Como |
 |---|---|
 | Tipo **Profissão** (`api::job.job`) | código, nome, raridade, ganho do dia (`tokens`), duração e a lista de **Tarefas** (componente `game.job-task`: nome, energia, felicidade, minutos, tokens), com rascunho e publicação |
-| Leitura pública | Na inicialização, o papel público ganha `find` e `findOne` das profissões: o catálogo é dado público do jogo. Só o publicado aparece |
-| Webhook para o game-core | Na inicialização, se o `.env` tiver `CATALOG_WEBHOOK_URL` e `CATALOG_WEBHOOK_TOKEN`, o Strapi registra o webhook "game-core: atualizar catálogo" (publicar, despublicar, apagar). O game-core recarrega o catálogo sem deploy (trilha, passo 6) |
-| Seed | `npm run seed` carrega as 44 profissões de `seed/profissoes.json` e publica. Pode rodar de novo: atualiza pelo código, não duplica |
+| Tipo **Atividade** (`api::activity.activity`) | 95 atividades fora do trabalho (GDD 4.5), em 12 grupos (transportes, pets, educação, alimentação, parque, ginásio, galeria, hospital, academia, lojas, moradia, higiene), com o efeito em energia, saúde, felicidade, alimentação e higiene |
+| Tipo **Alimento** (`api::food.food`) | 17 alimentos da Tabela de Atributos (doc 02 §7): energia, saúde, pacote, nível da fazenda que produz e preço |
+| Tipo **Raridade** (`api::rarity.rarity`) | As 4 raridades com a faixa de ganho por dia (doc 02 §2.2) e o preço do combo |
+| Tipo **Multiplicador** (`api::attribute-multiplier.attribute-multiplier`) | 36 linhas: multiplicador do ganho por nível de saúde, felicidade, experiência e pet (doc 02 §2.4) |
+| Tipo **Tipo de imóvel** (`api::property-type.property-type`) | 26 tipos (6 residenciais, 12 comerciais, 3 industriais, 5 rurais, doc 03 §6) com os níveis no componente `game.property-level` (renda máxima e custo de upgrade) |
+| Leitura pública | Na inicialização, o papel público ganha `find` e `findOne` de todos os tipos do catálogo: é dado público do jogo. Só o publicado aparece |
+| Webhook para o game-core | Na inicialização, se o `.env` tiver `CATALOG_WEBHOOK_URL` e `CATALOG_WEBHOOK_TOKEN`, o Strapi registra o webhook "game-core: atualizar catálogo" (publicar, despublicar, apagar). O game-core recarrega as profissões sem deploy (trilha, passo 6); aviso de outro tipo é ignorado (`{ ignored: "food" }`) até o game-core usar esse tipo |
+| Seed | `npm run seed` carrega e publica tudo o que está em `seed/`. Pode rodar de novo: atualiza pela chave (código, ou atributo e nível), não duplica. `npm run seed -- food` carrega só um tipo |
 
 ```bash
 pnpm db:up                       # na raiz do monorepo
@@ -77,7 +82,32 @@ O **cabeçalho** de cada profissão (ganho e duração) é o valor oficial. Em 2
 | Delegado | tarefas somam 230 tokens; o cabeçalho diz 240; tarefas somam 260 minutos; o cabeçalho diz 240 |
 | Astronauta | tarefas somam 220 tokens; o cabeçalho diz 235; tarefas somam 265 minutos; o cabeçalho diz 230 |
 
-E um problema de desenho: o minigame de cada profissão gasta de 5 a 20 de energia, mas o atributo energia vai de 0 a 10. Até isso ser acertado, o turno do game-core gasta uma energia fixa (3 no de 6 h, 6 no de 12 h).
+## Demais tipos do catálogo (seed)
+
+| Arquivo | Origem | Como sai |
+|---|---|---|
+| [`seed/atividades.json`](seed/atividades.json) | GDD, seção 4.5 "Atividades extras" | Gerado: `node cms-strapi/scripts/gdd-atividades.mjs gdd.txt cms-strapi/seed/atividades.json` (o leitor tem teste) |
+| [`seed/alimentos.json`](seed/alimentos.json) | Tabela de Atributos, doc 02 §7 e §6 | À mão |
+| [`seed/raridades.json`](seed/raridades.json) | Tabela de Atributos, doc 02 §2.2 | À mão |
+| [`seed/multiplicadores.json`](seed/multiplicadores.json) | Tabela de Atributos, doc 02 §2.4 | À mão |
+| [`seed/imoveis.json`](seed/imoveis.json) | GDD §3.4, doc 03 §6 | À mão |
+
+O teste [`scripts/seed.test.mjs`](scripts/seed.test.mjs) confere os arquivos antes da carga: códigos únicos, efeitos na escala dos atributos (−10 a 10), profissões dentro da faixa da raridade, multiplicadores que não caem quando o nível sobe e upgrade de imóvel a partir de um tipo que existe.
+
+### Para o game designer conferir (demais tipos)
+
+| O quê | Situação |
+|---|---|
+| **Atividades** | O GDD só dá a direção do efeito ("+felicidade, −energia"). O seed grava 1 ou −1 em cada atributo e anota em `conferir`. Pela planilha, a UI mostra só a direção, mas o servidor precisa do número |
+| **Atividades estranhas** | "Assaltar loja" e "Destruir loja" dão +felicidade; "Tomar banho" na academia dá +energia e na higiene dá +saúde e +higiene. Ficaram como no GDD |
+| **Tomate** | A planilha tem o tomate duas vezes (+2 e +3 de saúde). O seed usa +2 e anota (doc 11, conflito 4) |
+| **Preço dos alimentos** | Não está no GDD nem na planilha transcrita. Fica vazio; o simulador conta 12 THALER/dia de alimentação |
+| **Multiplicador de pet** | A tabela pula do nível 7 para o 3. Os níveis 6, 5 e 4 seguem o passo de 0,02 (1,06, 1,04, 1,02) e estão anotados |
+| **Imóveis** | Capacidade, preço, renda e custo de upgrade estão na "Figura 16" do GDD, que não veio no texto (doc 11, lacuna 3). Os campos ficam vazios; só o T1 nível 1 traz a premissa do simulador (4000 THALER, renda de 10/dia) |
+
+## Problema de desenho nas profissões
+
+O minigame de cada profissão gasta de 5 a 20 de energia, mas o atributo energia vai de 0 a 10. Até isso ser acertado, o turno do game-core gasta uma energia fixa (3 no de 6 h, 6 no de 12 h).
 
 ## Testes
 

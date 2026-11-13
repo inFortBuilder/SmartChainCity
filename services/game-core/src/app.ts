@@ -194,6 +194,9 @@ export async function buildApp(
   // Webhook do Strapi (entry.publish): o jogo muda sem deploy (trilha do CMS, passo 6).
   app.post('/internal/v1/catalog/refresh', async (request) => {
     requireServiceToken(request.headers['x-service-token'], config.INTERNAL_TOKEN);
+    // O webhook dispara para todo tipo do catálogo; o game-core por enquanto só usa as profissões.
+    const model = (request.body as { model?: unknown } | undefined)?.model;
+    if (typeof model === 'string' && model !== 'job') return { ignored: model };
     try {
       return { professions: await loadCatalog(), origin: catalogOrigin() };
     } catch (error) {
