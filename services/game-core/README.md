@@ -10,7 +10,7 @@ Regras do jogo: avatares, atributos, turnos de trabalho (jobs agendados com seed
 
 | Regra | Como |
 |---|---|
-| Avatar com raridade e profissão | 4 raridades e as 44 profissões do GDD em `src/domain/catalog.ts` (até o catálogo do Strapi, E1.2). A profissão tem de ser da raridade do avatar |
+| Avatar com raridade e profissão | 4 raridades e as 44 profissões do GDD, lidas de [`cms-strapi/seed/profissoes.json`](../../cms-strapi/README.md) (o seed do Strapi, E1.2) e conferidas ao subir. A profissão tem de ser da raridade do avatar. `CATALOG_FILE` troca o arquivo |
 | Atributos | Energia, saúde, felicidade, alimentação e higiene de 0 a 10; educação de 0 a 100, cumulativa. O banco repete as faixas em `CHECK` |
 | Até 3 avatares por conta | Trava por conta no Postgres (`pg_advisory_xact_lock`): 8 pedidos em paralelo criam exatamente 3 |
 | Queda com o tempo | Ver a tabela abaixo. A leitura mostra o valor atual; o job grava |
@@ -35,7 +35,7 @@ Cada atributo que cai guarda o **instante de referência** (`food_at`, `happines
 | Energia | 3 no turno de 6 h e 6 no de 12 h (**premissa**: o GDD dá o custo por tarefa). Precisa de energia e saúde ≥ 1 |
 | Roda sem o cliente | O job `shift.complete` (a cada 60 s) conclui os turnos vencidos; listar e coletar também concluem o que já venceu |
 | Ganho | A fórmula do simulador (doc 04 §4): base da raridade × saúde × felicidade × experiência (teto 2,5×) × danos. Turno de 12 h = 1 dia de base; de 6 h = meio. 48 h sem comer = 0 |
-| Base | Fixa por avatar, tirada do id dentro da faixa da raridade (comum 100–125, raro 140–165, épico 180–205, lendário 225–250) |
+| Base | O ganho do dia da profissão no GDD (Padeiro 125, Pedreiro 100, Médico 250…), sempre dentro da faixa da raridade que o simulador usa |
 | Danos | 5% de chance de perder 30% (premissas do simulador), sorteados com a semente do turno |
 | Sorteio auditável | No começo, o servidor publica `seed_commit` = sha256(semente). No fim, revela a semente; o resultado é HMAC(semente, turno), que qualquer um refaz |
 | Pagamento | O "Coletar" paga pelo ledger do economy, do pool P2E para o jogador, com a chave `shift:<id>`: repetir nunca paga em dobro. Pool vazio responde `503 pool_empty` e o turno fica para coletar depois |
@@ -68,6 +68,7 @@ TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc pnpm --filter @scc
 | POST | `/v1/avatars/:id/claim` | jogador (Bearer) | Paga no ledger os turnos concluídos e ainda não coletados |
 | POST | `/v1/dev/avatar` | jogador (Bearer) | **Só desenvolvimento** (`DEV_FREE_AVATAR=true`): dá um avatar comum a quem não tem; desligado, 404 |
 | POST | `/internal/v1/avatars` | serviços (`X-Service-Token`) | Cria `{account_id, rarity, job_code}`; na Etapa 2, chamado ao ver o mint da Lucky Box |
+| GET | `/v1/catalog/professions` | público | As 44 profissões com ganho do dia, duração e tarefas; das tarefas, só a direção (+/−) de energia e felicidade (GDD §2.4) |
 | GET | `/healthz` | — | `{status: "ok"}` |
 
 Erros com código estável: `invalid_rarity`, `invalid_job`, `avatar_limit`, `invalid_shift`, `shift_running`, `daily_limit`, `too_tired`, `pool_empty`, `ledger_unavailable`, `not_found`, `forbidden`, `missing_credentials`, `invalid_token`, `token_expired`.

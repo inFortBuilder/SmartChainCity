@@ -1,0 +1,10 @@
+{
+  "name": "@scc/cms",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Catálogo do jogo: seed gerado do GDD e, depois, o Strapi 5 (ADR-0006).",
+  "scripts": {
+    "test": "node --test \"scripts/*.test.mjs\""
+  }
+}
