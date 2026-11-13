@@ -1,7 +1,6 @@
 # Só o que já tem package.json e é TypeScript do workspace. O tools/scc-builder
 # tem npm próprio; o tools/econ-sim não tem dependências e roda job próprio no CI.
 packages:
-  - cms-strapi
   - services/shared
   - services/gateway
   - services/economy

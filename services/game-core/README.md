@@ -10,7 +10,7 @@ Regras do jogo: avatares, atributos, turnos de trabalho (jobs agendados com seed
 
 | Regra | Como |
 |---|---|
-| Avatar com raridade e profissão | 4 raridades e as 44 profissões do GDD, lidas de [`cms-strapi/seed/profissoes.json`](../../cms-strapi/README.md) (o seed do Strapi, E1.2) e conferidas ao subir. A profissão tem de ser da raridade do avatar. `CATALOG_FILE` troca o arquivo |
+| Avatar com raridade e profissão | 4 raridades e as 44 profissões do GDD, lidas do Strapi (`CMS_URL`) ou, sem ele, de [`cms-strapi/seed/profissoes.json`](../../cms-strapi/README.md); conferidas ao subir e a cada publicação, pelo webhook. A profissão tem de ser da raridade do avatar. `CATALOG_FILE` troca o arquivo |
 | Atributos | Energia, saúde, felicidade, alimentação e higiene de 0 a 10; educação de 0 a 100, cumulativa. O banco repete as faixas em `CHECK` |
 | Até 3 avatares por conta | Trava por conta no Postgres (`pg_advisory_xact_lock`): 8 pedidos em paralelo criam exatamente 3 |
 | Queda com o tempo | Ver a tabela abaixo. A leitura mostra o valor atual; o job grava |
@@ -68,6 +68,7 @@ TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc pnpm --filter @scc
 | POST | `/v1/avatars/:id/claim` | jogador (Bearer) | Paga no ledger os turnos concluídos e ainda não coletados |
 | POST | `/v1/dev/avatar` | jogador (Bearer) | **Só desenvolvimento** (`DEV_FREE_AVATAR=true`): dá um avatar comum a quem não tem; desligado, 404 |
 | POST | `/internal/v1/avatars` | serviços (`X-Service-Token`) | Cria `{account_id, rarity, job_code}`; na Etapa 2, chamado ao ver o mint da Lucky Box |
+| POST | `/internal/v1/catalog/refresh` | Strapi (webhook, `X-Service-Token`) | Recarrega o catálogo publicado no Strapi; catálogo quebrado ou sem uma profissão em uso é recusado (`422 catalog_rejected`) |
 | GET | `/v1/catalog/professions` | público | As 44 profissões com ganho do dia, duração e tarefas; das tarefas, só a direção (+/−) de energia e felicidade (GDD §2.4) |
 | GET | `/healthz` | — | `{status: "ok"}` |
 

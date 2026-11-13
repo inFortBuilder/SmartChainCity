@@ -7,7 +7,8 @@ import { z } from 'zod';
 
 import type { Config } from './config.js';
 import { type Avatar, type AvatarStore, decayed, newAvatar, status } from './domain/avatar.js';
-import { PROFESSIONS, PROFESSION_LIST, professionLabel } from './domain/catalog.js';
+import { catalogOrigin, professionLabel, professions, professionsByRarity, replaceCatalog } from './domain/catalog.js';
+import { fetchCmsProfessions } from './infra/cms-catalog.js';
 import { type Payer, type Shift, type ShiftStore, startShift } from './domain/shift.js';
 import { completeShifts } from './jobs/shift.js';
 
@@ -96,7 +97,8 @@ export async function buildApp(
   // Catálogo público das profissões (do GDD), para a tela de avatar e a Lucky Box.
   // Sem o ganho por tarefa: o GDD pede que a tela mostre só a direção (+/−) dos atributos.
   app.get('/v1/catalog/professions', async () => ({
-    professions: PROFESSION_LIST.map((p) => ({
+    origin: catalogOrigin(),
+    professions: professions().map((p) => ({
       code: p.code,
       label: p.label,
       rarity: p.rarity,
@@ -180,6 +182,27 @@ export async function buildApp(
     return { claimed, thaler: total.toString(), decimals: 2 };
   });
 
+  /** Busca o catálogo publicado no Strapi e troca, se passar na conferência. */
+  const loadCatalog = async () => {
+    if (!config.CMS_URL) throw new AppError('cms_disabled', 'CMS_URL não está configurado.', 503);
+    const list = await fetchCmsProfessions(config.CMS_URL);
+    replaceCatalog(list, 'cms');
+    return list.length;
+  };
+  app.decorate('loadCatalog', loadCatalog);
+
+  // Webhook do Strapi (entry.publish): o jogo muda sem deploy (trilha do CMS, passo 6).
+  app.post('/internal/v1/catalog/refresh', async (request) => {
+    requireServiceToken(request.headers['x-service-token'], config.INTERNAL_TOKEN);
+    try {
+      return { professions: await loadCatalog(), origin: catalogOrigin() };
+    } catch (error) {
+      if (error instanceof AppError) throw error;
+      request.log.warn(`catálogo do CMS recusado: ${(error as Error).message}`);
+      throw new AppError('catalog_rejected', (error as Error).message, 422);
+    }
+  });
+
   // Só desenvolvimento: enquanto não existe Lucky Box (E2.1), quem entra no
   // mapa sem avatar ganha um comum de profissão sorteada. Desligado, é 404.
   app.post('/v1/dev/avatar', async (request, reply) => {
@@ -187,7 +210,7 @@ export async function buildApp(
     const accountId = await player(request);
     const [existing] = await store.listByAccount(accountId);
     if (existing) return { avatar: avatarDto(decayed(existing, now())) };
-    const jobs = Object.keys(PROFESSIONS.common);
+    const jobs = Object.keys(professionsByRarity().common);
     const jobCode = jobs[Math.floor(Math.random() * jobs.length)]!;
     const created = await store.create(newAvatar({ id: randomUUID(), accountId, rarity: 'common', jobCode }, now()));
     return reply.status(201).send({ avatar: avatarDto(created) });

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { BASE_RANGE, PROFESSIONS, PROFESSION_LIST, professionFits, validateCatalog } from '../src/domain/catalog.js';
+import { BASE_RANGE, SEED_PROFESSIONS as PROFESSION_LIST, professionFits, professionsByRarity, validateCatalog } from '../src/domain/catalog.js';
+
+const PROFESSIONS = professionsByRarity();
 
 describe('catálogo de profissões (GDD, capítulo 4)', () => {
   it('tem as 44 profissões: 11 comuns, 11 raras, 14 épicas e 8 lendárias', () => {

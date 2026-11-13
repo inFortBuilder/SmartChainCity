@@ -23,6 +23,16 @@ const payer =
 const app = await buildApp(config, store, undefined, payer);
 app.log.info(`armazenamento: ${pool ? 'postgres' : 'memória'}; pagamento de turnos: ${payer ? config.ECONOMY_URL : 'desligado'}`);
 
+// Catálogo publicado no Strapi; se ele estiver fora, segue o seed e o webhook atualiza depois.
+if (config.CMS_URL) {
+  try {
+    const n = await (app as unknown as { loadCatalog: () => Promise<number> }).loadCatalog();
+    app.log.info(`catálogo: ${n} profissões do Strapi (${config.CMS_URL})`);
+  } catch (error) {
+    app.log.warn(`catálogo: Strapi indisponível, usando o seed (${(error as Error).message})`);
+  }
+}
+
 const decay = scheduleDecay(store, config.DECAY_EVERY_SECONDS * 1000, (msg) => app.log.info(msg));
 const shifts = scheduleShifts(store, config.SHIFT_CHECK_SECONDS * 1000, (msg) => app.log.info(msg));
 

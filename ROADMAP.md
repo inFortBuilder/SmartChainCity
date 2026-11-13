@@ -66,7 +66,7 @@ S1–S4            S5–S8              S9–S14              S15–S22         
 | E1.6 Célula jogável | client · art | 1 célula com lotes, 1 casa T1, câmera isométrica | Célula carrega por Addressables com dados de `/world/cells` |
 | E1.7 Observabilidade | infra | Logs estruturados, métricas, Sentry, ambiente `dev` | Painel mostra requisições e erros por serviço |
 
-> **Situação em 2026-11-12:** o critério de saída foi demonstrado localmente. No mapa de Pittsburg (cliente web, [ADR-0009](docs/adr/0009-cliente-web-nativo.md)), o jogador entra com a carteira, trabalha um turno e coleta THALER no ledger, tudo pelo servidor. Prontos: E1.1 (login SIWE; e-mail ainda não), E1.3, E1.4, E1.5 e E1.6 (com lotes ainda em arquivos estáticos, sem o serviço world). Faltam E1.2 (catálogo no Strapi), E1.7 (observabilidade) e o ambiente `dev` publicado.
+> **Situação em 2026-11-12:** o critério de saída foi demonstrado localmente. No mapa de Pittsburg (cliente web, [ADR-0009](docs/adr/0009-cliente-web-nativo.md)), o jogador entra com a carteira, trabalha um turno e coleta THALER no ledger, tudo pelo servidor. Prontos: E1.1 (login SIWE; e-mail ainda não), E1.3, E1.4, E1.5 e E1.6 (com lotes ainda em arquivos estáticos, sem o serviço world). E1.2 em andamento: Strapi 5 com as 44 profissões do GDD, publicadas e lidas pelo game-core sem deploy; faltam alimentos, atividades e imóveis no catálogo. Faltam E1.7 (observabilidade) e o ambiente `dev` publicado.
 
 ---
 

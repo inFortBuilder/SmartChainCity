@@ -32,6 +32,8 @@ const schema = z.object({
    * Só desenvolvimento: dá um avatar de teste a quem não tem (ainda não existe
    * Lucky Box) e encurta a duração do turno, sem mudar o pagamento.
    */
+  /** Strapi com o catálogo publicado. Sem ele, vale o seed (cms-strapi/seed). */
+  CMS_URL: optional(z.url()),
   DEV_FREE_AVATAR: z.stringbool().default(false),
   DEV_SHIFT_MINUTES: optional(z.coerce.number().positive()),
 });
