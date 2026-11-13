@@ -18,6 +18,10 @@ export function requestIdFrom(req: Pick<IncomingMessage, 'headers'>): string {
   return typeof incoming === 'string' && REQUEST_ID.test(incoming) ? incoming : randomUUID();
 }
 
+/** Cabeçalho para repassar o id numa chamada a outro serviço; vazio sem id. */
+export const forwardRequestId = (requestId?: string): Record<string, string> =>
+  requestId ? { 'x-request-id': requestId } : {};
+
 export interface ServerOptionsInput {
   service: string;
   nodeEnv: string;

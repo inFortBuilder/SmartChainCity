@@ -153,7 +153,7 @@ export interface WorldStore {
 /** Quem cobra o lote: o ledger do economy. Separado para os testes trocarem por um falso. */
 export interface LandPayments {
   /** SCITY do jogador para a Prefeitura. Idempotente pela compra. */
-  charge(purchase: Purchase): Promise<void>;
+  charge(purchase: Purchase, requestId?: string): Promise<void>;
   /** Devolve o valor, quando a reserva se perdeu depois de pago. Idempotente pela compra. */
-  refund(purchase: Purchase): Promise<void>;
+  refund(purchase: Purchase, requestId?: string): Promise<void>;
 }

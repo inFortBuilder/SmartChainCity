@@ -15,15 +15,21 @@ import { type LandPayments, type Purchase, RESERVATION_MS, type WorldStore, pric
  * do ledger se perder, a compra fica pendente e o job `purchases.settle`
  * refaz os passos 2 e 3: como a cobrança é idempotente, o resultado é o mesmo.
  */
-export async function settlePurchase(store: WorldStore, payments: LandPayments, purchase: Purchase, now: Date) {
+export async function settlePurchase(
+  store: WorldStore,
+  payments: LandPayments,
+  purchase: Purchase,
+  now: Date,
+  requestId?: string,
+) {
   try {
-    await payments.charge(purchase);
+    await payments.charge(purchase, requestId);
   } catch (error) {
     if ((error as AppError).code === 'insufficient_scity') await store.fail(purchase.id, 'failed');
     throw error;
   }
   if (await store.confirm(purchase.id, now)) return { ...purchase, status: 'paid' as const };
-  await payments.refund(purchase);
+  await payments.refund(purchase, requestId);
   await store.fail(purchase.id, 'refunded');
   throw new AppError('reservation_lost', 'A reserva venceu e o lote foi para outro jogador; o valor foi devolvido.', 409);
 }
@@ -31,7 +37,7 @@ export async function settlePurchase(store: WorldStore, payments: LandPayments, 
 export async function buyLot(
   store: WorldStore,
   payments: LandPayments,
-  input: { city: string; lotId: number; accountId: string; scityUsd: number },
+  input: { city: string; lotId: number; accountId: string; scityUsd: number; requestId?: string },
   now: () => Date,
 ) {
   const purchase = await store.reserve(input.city, input.lotId, input.accountId, now(), (lot, city) => {
@@ -40,7 +46,7 @@ export async function buyLot(
     return priceOf(lot.areaM2, zone, input.scityUsd);
   });
   if (purchase.status === 'paid') return purchase;
-  return settlePurchase(store, payments, purchase, now());
+  return settlePurchase(store, payments, purchase, now(), input.requestId);
 }
 
 /** Job `purchases.settle`: resolve compras que ficaram pendentes além da reserva. */

@@ -31,7 +31,7 @@ const series = (title, gridPos, targets, unit) =>
 const panels = [
   stat('Serviços no ar', 0, 'sum(up)', 'none', [
     { color: 'red', value: null },
-    { color: 'green', value: 3 },
+    { color: 'green', value: 4 },
   ]),
   stat('Requisições/s', 6, `sum(rate(http_requests_total{${sel}}[1m]))`, 'reqps', [{ color: 'blue', value: null }]),
   stat('Erros 5xx (5 min)', 12, `sum(increase(http_requests_total{${sel},status=~"5.."}[5m]))`, 'none', [

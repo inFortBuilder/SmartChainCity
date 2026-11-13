@@ -171,7 +171,7 @@ export const hoursSince = (shifts: Pick<Shift, 'startsAt' | 'hours'>[], now: Dat
 /** Quem paga o turno: o ledger do economy. Separado para os testes trocarem por um falso. */
 export interface Payer {
   /** Paga do pool P2E para o jogador. Idempotente pela chave `shift:<id>`. */
-  payShift(shift: Shift, amountCents: bigint): Promise<void>;
+  payShift(shift: Shift, amountCents: bigint, requestId?: string): Promise<void>;
 }
 
 /** O plano do turno recebe o avatar já travado e com a queda até agora. */

@@ -7,6 +7,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { type LandPayments, type Purchase, RESERVATION_MS, type WorldStore } from '../src/domain/lots.js';
 import { buyLot, settleStale } from '../src/domain/purchase.js';
 import { PostgresWorldStore } from '../src/infra/db/postgres-store.js';
+import { LedgerLandPayments } from '../src/infra/ledger-payments.js';
 import { MemoryWorldStore } from '../src/infra/memory-store.js';
 import { testCity, testLots, uniqueCode } from './fixtures.js';
 
@@ -121,5 +122,22 @@ describe.each(stores)('compra de lote: %s', (_name, make, enabled) => {
     expect((await store.getLot(code, 3))!.ownerAccountId).toBe(b);
     expect(pay.balances.get(a)).toBe(10_000n * WEI);
     expect(pay.refunded.has(pa.id)).toBe(true);
+  });
+});
+
+describe('LedgerLandPayments', () => {
+  it('repassa o x-request-id ao ledger', async () => {
+    const headers: Headers[] = [];
+    const fake = (async (_url: string, init?: RequestInit) => {
+      headers.push(new Headers(init?.headers));
+      return new Response('{}', { status: 201 });
+    }) as typeof fetch;
+    const pay = new LedgerLandPayments('http://economy', 'x'.repeat(32), fake);
+    const purchase = { id: 'p-1', accountId: 'a-1', priceWei: 10n } as Purchase;
+    await pay.charge(purchase, 'req-9');
+    await pay.refund(purchase);
+    expect(headers[0]!.get('x-request-id')).toBe('req-9');
+    expect(headers[0]!.get('idempotency-key')).toBe('lot-buy:p-1');
+    expect(headers[1]!.has('x-request-id')).toBe(false);
   });
 });
