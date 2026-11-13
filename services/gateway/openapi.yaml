@@ -135,40 +135,7 @@ paths:
               required: [email, code]
               properties:
                 email: { type: string, format: email, maxLength: 254 }
-                code: { type: string, pattern: '^[0-9]{6}    get:
-      summary: Conta e carteiras do jogador
-      description: Avatares e saldos entram quando game-core e economy existirem.
-      security: [{ bearer: [] }]
-      responses:
-        '200':
-          description: Conta autenticada
-          content:
-            application/json:
-              schema:
-                type: object
-                required: [account, wallets]
-                properties:
-                  account: { $ref: '#/components/schemas/Account' }
-                  wallets:
-                    type: array
-                    items:
-                      type: object
-                      required: [address, chain_id, verified_at]
-                      properties:
-                        address: { type: string }
-                        chain_id: { type: integer }
-                        verified_at: { type: string, format: date-time }
-        '401':
-          description: missing_credentials, invalid_token, token_expired
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Error' }
-        '403':
-          description: account_blocked
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Error' }
- }
+                code: { type: string, pattern: '^[0-9]{6}$' }
       responses:
         '200':
           description: Login aceito
