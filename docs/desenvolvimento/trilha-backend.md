@@ -11,7 +11,7 @@ Pasta: [`services/`](../../services/README.md) · Especificação: [doc 05 §4](
 | 3 | 1 | gateway | JWT, rate limit, `openapi.yaml`, roteamento | Contrato publicado e gerando o cliente Unity |
 | 4 | 1 | gateway (auth) | SIWE (`nonce` → `verify`), login por e-mail, vínculo de carteira | `GET /v1/me` autenticado |
 | 5 | 1 | economy | ✅ Ledger de dupla entrada, contas `player/system/pool/burn/escrow`, extrato, idempotência ([README](../../services/economy/README.md)) | Invariante do ledger em teste de propriedade: 10 mil transações em memória e no Postgres |
-| 6 | 1 | game-core | Avatar, atributos, decaimento agendado | Atributos decaem por job |
+| 6 | 1 | game-core | ✅ Avatar, atributos, decaimento agendado ([README](../../services/game-core/README.md)) | Atributos decaem por job (`attributes.decay`, em lotes, com o mesmo resultado da leitura) |
 | 7 | 1 | game-core | **Turno de trabalho**: validações, seed commit-reveal, job `shift.complete`, coleta | Turno de 6 h conclui sem cliente |
 | 8 | 1 | game-core | Leitor do catálogo (webhook do Strapi → Redis) | Mudança no Strapi aparece sem redeploy |
 | 9 | 2 | world | Grade, regiões, `GET /world/cells`, cotação assinada (EIP-712) com regras de bairro e cerco | Cotação aceita pelo `LandNFT` na testnet |
