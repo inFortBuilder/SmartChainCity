@@ -4,7 +4,9 @@ import { buildApp } from './app.js';
 import { loadConfig } from './config.js';
 import { PostgresAvatarStore } from './infra/db/postgres-store.js';
 import { MemoryAvatarStore } from './infra/memory-store.js';
+import { EconomyPayer } from './infra/economy-payer.js';
 import { scheduleDecay } from './jobs/decay.js';
+import { scheduleShifts } from './jobs/shift.js';
 
 const config = loadConfig();
 
@@ -15,13 +17,18 @@ if (config.NODE_ENV === 'production' && !config.DATABASE_URL) {
 const pool = config.DATABASE_URL ? new Pool({ connectionString: config.DATABASE_URL }) : null;
 const store = pool ? new PostgresAvatarStore(pool) : new MemoryAvatarStore();
 
-const app = await buildApp(config, store);
-app.log.info(`armazenamento: ${pool ? 'postgres' : 'memória'}`);
+const payer =
+  config.ECONOMY_URL && config.ECONOMY_TOKEN ? new EconomyPayer(config.ECONOMY_URL, config.ECONOMY_TOKEN) : null;
+
+const app = await buildApp(config, store, undefined, payer);
+app.log.info(`armazenamento: ${pool ? 'postgres' : 'memória'}; pagamento de turnos: ${payer ? config.ECONOMY_URL : 'desligado'}`);
 
 const decay = scheduleDecay(store, config.DECAY_EVERY_SECONDS * 1000, (msg) => app.log.info(msg));
+const shifts = scheduleShifts(store, config.SHIFT_CHECK_SECONDS * 1000, (msg) => app.log.info(msg));
 
 const shutdown = async () => {
   decay.stop();
+  shifts.stop();
   await app.close();
   await pool?.end();
   process.exit(0);

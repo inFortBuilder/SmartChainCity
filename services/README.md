@@ -5,7 +5,7 @@ Serviços de backend em TypeScript (workspace pnpm).
 | Serviço | Pacote | Responsabilidade |
 |---------|--------|------------------|
 | [gateway](gateway/README.md) | `@scc/gateway` | Autenticação (SIWE/e-mail), JWT, rate limit, OpenAPI |
-| [game-core](game-core/README.md) | `@scc/game-core` | Avatares e atributos (pronto: queda por job, até 3 por conta), turnos, negócios, fazenda, pets |
+| [game-core](game-core/README.md) | `@scc/game-core` | Avatares e atributos (pronto: queda por job, até 3 por conta), turnos (pronto: commit-reveal, pago pelo ledger), negócios, fazenda, pets |
 | [economy](economy/README.md) | `@scc/economy` | Ledger THALER (pronto: dupla entrada, idempotência, extrato), impostos, câmbio, saques |
 | [world](world/README.md) | `@scc/world` | Grade, lotes, imóveis, cotações assinadas |
 | [realtime](realtime/README.md) | `@scc/realtime` | Colyseus: presença, chat, eventos |

@@ -1,3 +1,5 @@
+import { AppError } from '@scc/shared';
+
 import {
   type Avatar,
   type AvatarStore,
@@ -6,6 +8,9 @@ import {
   decayed,
   tooManyAvatars,
 } from '../domain/avatar.js';
+import { type Shift, type ShiftPlanner, type ShiftStore, hoursSince, settle } from '../domain/shift.js';
+
+const cloneShift = (s: Shift): Shift => ({ ...s, snapshot: { ...s.snapshot }, result: s.result && { ...s.result } });
 
 const clone = (a: Avatar): Avatar => ({
   ...a,
@@ -14,8 +19,46 @@ const clone = (a: Avatar): Avatar => ({
 });
 
 /** Para testes e desenvolvimento. Uma thread só: cada operação é atômica. */
-export class MemoryAvatarStore implements AvatarStore {
+export class MemoryAvatarStore implements AvatarStore, ShiftStore {
   private readonly avatars = new Map<string, Avatar>();
+  private readonly shifts = new Map<string, Shift>();
+
+  async beginShift(avatarId: string, accountId: string, now: Date, plan: ShiftPlanner) {
+    const stored = this.avatars.get(avatarId);
+    if (!stored || stored.accountId !== accountId) throw new AppError('not_found', 'Avatar não encontrado.', 404);
+    const own = [...this.shifts.values()].filter((s) => s.avatarId === avatarId);
+    const { shift, avatar } = plan(decayed(stored, now), {
+      hoursToday: hoursSince(own, now),
+      running: own.some((s) => s.status === 'running'),
+    });
+    this.avatars.set(avatarId, clone(avatar));
+    this.shifts.set(shift.id, cloneShift(shift));
+    return cloneShift(shift);
+  }
+
+  async completeDue(now: Date, batch: number) {
+    let done = 0;
+    for (const [id, s] of this.shifts) {
+      if (done >= batch) break;
+      if (s.status !== 'running' || s.endsAt > now) continue;
+      this.shifts.set(id, { ...s, status: 'done', result: settle(s) });
+      done++;
+    }
+    return done;
+  }
+
+  async listShifts(avatarId: string, limit: number) {
+    return [...this.shifts.values()]
+      .filter((s) => s.avatarId === avatarId)
+      .sort((a, b) => b.startsAt.getTime() - a.startsAt.getTime())
+      .slice(0, limit)
+      .map(cloneShift);
+  }
+
+  async markClaimed(shiftId: string) {
+    const s = this.shifts.get(shiftId);
+    if (s?.status === 'done') this.shifts.set(shiftId, { ...s, status: 'claimed' });
+  }
 
   async create(avatar: Avatar) {
     const owned = [...this.avatars.values()].filter((a) => a.accountId === avatar.accountId).length;
