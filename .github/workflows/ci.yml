@@ -16,6 +16,7 @@ jobs:
       contracts: ${{ steps.filter.outputs.contracts }}
       website: ${{ steps.filter.outputs.website }}
       econ_sim: ${{ steps.filter.outputs.econ_sim }}
+      cms: ${{ steps.filter.outputs.cms }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -34,6 +35,8 @@ jobs:
               - 'website/**'
             econ_sim:
               - 'tools/econ-sim/**'
+            cms:
+              - 'cms-strapi/**'
 
   secrets-scan:
     runs-on: ubuntu-latest
@@ -86,6 +89,19 @@ jobs:
         run: pnpm -r lint
       - if: steps.ws.outputs.present == 'true'
         run: pnpm -r test
+
+  # Leitor do GDD e seed do catálogo. O Strapi tem npm próprio e não é instalado aqui:
+  # o teste do leitor não precisa de dependência.
+  cms:
+    needs: changes
+    if: needs.changes.outputs.cms == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+      - run: node --test "cms-strapi/scripts/*.test.mjs"
 
   econ-sim:
     needs: changes

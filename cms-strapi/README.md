@@ -5,6 +5,30 @@ Backoffice de **catálogo** (profissões, tarefas, alimentos, imóveis, eventos,
 - Caminho de desenvolvimento: [docs/desenvolvimento/trilha-cms.md](../docs/desenvolvimento/trilha-cms.md)
 - Origem: `C:\SmartChainCity\Strapi-main` (Strapi 4.4.3). Ao importar, **não** trazer `.env`, uploads nem os endpoints de saldo (ver [docs/10 §1](../docs/10-seguranca-compliance.md)).
 
+## Strapi 5
+
+O Strapi 5.62 (TypeScript) fica nesta pasta, com npm próprio, fora do workspace do pnpm. Usa o Postgres do `pnpm db:up`, no esquema próprio `cms`.
+
+| O que | Como |
+|---|---|
+| Tipo **Profissão** (`api::job.job`) | código, nome, raridade, ganho do dia (`tokens`), duração e a lista de **Tarefas** (componente `game.job-task`: nome, energia, felicidade, minutos, tokens), com rascunho e publicação |
+| Leitura pública | Na inicialização, o papel público ganha `find` e `findOne` das profissões: o catálogo é dado público do jogo. Só o publicado aparece |
+| Webhook para o game-core | Na inicialização, se o `.env` tiver `CATALOG_WEBHOOK_URL` e `CATALOG_WEBHOOK_TOKEN`, o Strapi registra o webhook "game-core: atualizar catálogo" (publicar, despublicar, apagar). O game-core recarrega o catálogo sem deploy (trilha, passo 6) |
+| Seed | `npm run seed` carrega as 44 profissões de `seed/profissoes.json` e publica. Pode rodar de novo: atualiza pelo código, não duplica |
+
+```bash
+pnpm db:up                       # na raiz do monorepo
+cd cms-strapi
+cp .env.example .env             # gere as chaves APP_KEYS, *_SALT, *_SECRET
+npm install
+npm run develop                  # admin em http://localhost:1337/admin (crie o seu usuário)
+npm run seed                     # em outro terminal, com o Strapi parado ou no ar
+```
+
+No `.env`, além das chaves do Strapi, `DATABASE_*` aponta para o Postgres local com `DATABASE_SCHEMA=cms` (crie o esquema uma vez: `create schema cms`). Para o webhook, `CATALOG_WEBHOOK_URL=http://127.0.0.1:8020/internal/v1/catalog/refresh` e `CATALOG_WEBHOOK_TOKEN` = o `INTERNAL_TOKEN` do game-core. No game-core, `CMS_URL=http://127.0.0.1:1337`.
+
+O game-core confere todo catálogo que chega do Strapi antes de trocar: ganho fora da faixa da raridade, profissão sem tarefas ou profissão em uso que sumiu (despublicada) são recusados (`422 catalog_rejected`), e o jogo segue com o anterior. Sem o Strapi no ar, vale o seed.
+
 ## Catálogo de profissões (seed)
 
 [`seed/profissoes.json`](seed/profissoes.json) tem as **44 profissões** do GDD original (capítulo 4, "Atividades dos minigames das profissões"): raridade, ganho de um dia de trabalho em THALER, duração do minigame e as 365 tarefas, com energia, felicidade, minutos e tokens de cada uma. É o seed dos tipos `job` e `job_task` do Strapi (trilha do CMS, passo 5). Até o Strapi existir, o [game-core](../services/game-core/README.md) lê este arquivo diretamente: o ganho base do turno é o da profissão (Padeiro 125, Pedreiro 100…).

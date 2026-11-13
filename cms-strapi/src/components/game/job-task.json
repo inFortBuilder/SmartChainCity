@@ -1,0 +1,16 @@
+{
+  "collectionName": "components_game_job_tasks",
+  "info": {
+    "displayName": "Tarefa",
+    "description": "Uma tarefa do minigame da profissão (GDD, capítulo 4)",
+    "icon": "check"
+  },
+  "options": {},
+  "attributes": {
+    "name": { "type": "string", "required": true },
+    "energy": { "type": "integer", "default": 0 },
+    "happiness": { "type": "integer", "default": 0 },
+    "minutes": { "type": "integer", "default": 0, "min": 0 },
+    "tokens": { "type": "integer", "default": 0, "min": 0 }
+  }
+}

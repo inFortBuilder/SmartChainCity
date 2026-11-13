@@ -2,9 +2,47 @@
   "name": "@scc/cms",
   "version": "0.1.0",
   "private": true,
-  "type": "module",
-  "description": "Catálogo do jogo: seed gerado do GDD e, depois, o Strapi 5 (ADR-0006).",
+  "description": "Catálogo do jogo em Strapi 5 (ADR-0006): profissões e tarefas geradas do GDD.",
   "scripts": {
+    "build": "strapi build",
+    "console": "strapi console",
+    "dev": "strapi develop",
+    "develop": "strapi develop",
+    "start": "strapi start",
+    "strapi": "strapi",
+    "upgrade": "npx @strapi/upgrade latest",
+    "upgrade:dry": "npx @strapi/upgrade latest --dry",
+    "seed": "node scripts/seed.cjs",
     "test": "node --test \"scripts/*.test.mjs\""
+  },
+  "dependencies": {
+    "@strapi/database": "5.62.0",
+    "@strapi/plugin-users-permissions": "5.62.0",
+    "@strapi/strapi": "5.62.0",
+    "pg": "8.20.0",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
+    "react-router-dom": "^6.30.3",
+    "styled-components": "^6.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "typescript": "^5"
+  },
+  "engines": {
+    "node": ">=22.0.0 <=26.x.x",
+    "npm": ">=6.0.0"
+  },
+  "strapi": {
+    "uuid": "54363381-3415-4276-8519-46d4025358f8",
+    "installId": "4e6fe8c1a4232cb168e1cc632fc9bd247eb42677387b409056561ded7a697324"
+  },
+  "allowScripts": {
+    "@swc/core@1.16.22": true,
+    "esbuild@0.28.2": true,
+    "esbuild@0.25.12": true,
+    "core-js-pure": false
   }
 }

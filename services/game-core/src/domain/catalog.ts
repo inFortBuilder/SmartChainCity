@@ -58,19 +58,40 @@ export function validateCatalog(professions: Profession[]): Profession[] {
 const CATALOG_FILE =
   process.env.CATALOG_FILE ?? new URL('../../../../cms-strapi/seed/profissoes.json', import.meta.url);
 
-export const PROFESSION_LIST: Profession[] = validateCatalog(
+/** O catálogo do seed (GDD): é o que vale até o Strapi responder, e se ele cair. */
+export const SEED_PROFESSIONS: Profession[] = validateCatalog(
   (JSON.parse(readFileSync(CATALOG_FILE, 'utf8')) as { profissoes: Profession[] }).profissoes,
 );
 
-/** Por raridade e código: `PROFESSIONS.common.padeiro` → "Padeiro". */
-export const PROFESSIONS: Record<Rarity, Record<string, string>> = Object.fromEntries(
-  RARITIES.map((r) => [r, Object.fromEntries(PROFESSION_LIST.filter((p) => p.rarity === r).map((p) => [p.code, p.label]))]),
-) as Record<Rarity, Record<string, string>>;
+let current: Profession[] = SEED_PROFESSIONS;
+let byCode = new Map(current.map((p) => [p.code, p]));
+let origin: 'seed' | 'cms' = 'seed';
 
-const BY_CODE = new Map(PROFESSION_LIST.map((p) => [p.code, p]));
-export const profession = (code: string) => BY_CODE.get(code);
+/**
+ * Troca o catálogo inteiro, depois de conferir. Catálogo quebrado não entra:
+ * o jogo segue com o anterior.
+ */
+export function replaceCatalog(list: Profession[], from: 'seed' | 'cms') {
+  // Profissão que some quebra o turno de quem já é dela: despublicar não vale.
+  const codes = new Set(list.map((p) => p.code));
+  const missing = current.filter((p) => !codes.has(p.code)).map((p) => p.code);
+  if (missing.length) throw new Error(`Catálogo sem profissões em uso: ${missing.join(', ')}`);
+  current = validateCatalog(list);
+  byCode = new Map(current.map((p) => [p.code, p]));
+  origin = from;
+}
+
+export const professions = () => current;
+export const catalogOrigin = () => origin;
+export const profession = (code: string) => byCode.get(code);
+
+/** Por raridade e código: `professionsByRarity().common.padeiro` → "Padeiro". */
+export const professionsByRarity = (): Record<Rarity, Record<string, string>> =>
+  Object.fromEntries(
+    RARITIES.map((r) => [r, Object.fromEntries(current.filter((p) => p.rarity === r).map((p) => [p.code, p.label]))]),
+  ) as Record<Rarity, Record<string, string>>;
 
 /** A profissão precisa ser da raridade do avatar (a profissão inicial sai da mesma raridade). */
-export const professionFits = (rarity: Rarity, jobCode: string) => BY_CODE.get(jobCode)?.rarity === rarity;
+export const professionFits = (rarity: Rarity, jobCode: string) => byCode.get(jobCode)?.rarity === rarity;
 
-export const professionLabel = (_rarity: Rarity, jobCode: string) => BY_CODE.get(jobCode)?.label ?? jobCode;
+export const professionLabel = (_rarity: Rarity, jobCode: string) => byCode.get(jobCode)?.label ?? jobCode;
