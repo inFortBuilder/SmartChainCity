@@ -67,6 +67,8 @@ S1–S4            S5–S8              S9–S14              S15–S22         
 | E1.7 Observabilidade | infra | Logs estruturados, métricas, Sentry, ambiente `dev` | Painel mostra requisições e erros por serviço |
 
 > **Situação em 2026-11-12:** o critério de saída foi demonstrado localmente. No mapa de Pittsburg (cliente web, [ADR-0009](docs/adr/0009-cliente-web-nativo.md)), o jogador entra com a carteira, trabalha um turno e coleta THALER no ledger, tudo pelo servidor. Prontos: E1.1 (login SIWE; e-mail ainda não), E1.3, E1.4, E1.5 e E1.6 (com lotes ainda em arquivos estáticos, sem o serviço world). Faltam E1.2 (catálogo no Strapi), E1.7 (observabilidade) e o ambiente `dev` publicado.
+>
+> **E1.7 em 2026-11-13:** logs JSON com o serviço e o id da requisição, métricas em `/metrics` e painel local (Prometheus + Grafana) com requisições, erros e latência por serviço ([infra/observability](infra/observability/README.md)). Faltam o Sentry, que precisa de uma conta, e o ambiente `dev` publicado.
 
 ---
 
