@@ -1,5 +1,5 @@
 // Liga o mapa aos serviços (célula jogável, E1.6): o jogador entra com a
-// carteira (SIWE, pelo gateway), vê o avatar (game-core) e o THALER do ledger
+// carteira (SIWE, pelo gateway) ou com um código por e-mail, vê o avatar (game-core) e o THALER do ledger
 // (economy), trabalha um turno e coleta. Aqui nada é simulado: quem decide é o
 // servidor (ADR-0002). A gestão de lotes e negócios do painel "Meu
 // patrimônio" continua simulada no navegador até o serviço world.
@@ -115,6 +115,22 @@ async function signIn(useTestWallet) {
   return { token: result.access_token, address, expiresAt: Date.now() + result.expires_in * 1000 };
 }
 
+/** Login por e-mail: o gateway manda um código de 6 dígitos (no MVP local, no log dele). */
+async function sendEmailCode(email) {
+  await call(API.gateway, '/v1/auth/email/start', { method: 'POST', body: { email } });
+}
+
+async function verifyEmailCode(email, code) {
+  try {
+    const result = await call(API.gateway, '/v1/auth/email/verify', { method: 'POST', body: { email, code } });
+    return { token: result.access_token, address: null, email: result.account.email, expiresAt: Date.now() + result.expires_in * 1000 };
+  } catch (error) {
+    // Código errado é 401, mas não é sessão expirada: mostra a mensagem e deixa tentar de novo.
+    if (error.status === 401) throw new ApiError(400, error.code, error.message);
+    throw error;
+  }
+}
+
 export function createServidor(map) {
   const panel = document.createElement('aside');
   panel.className = 'servidor glass';
@@ -133,6 +149,8 @@ export function createServidor(map) {
   let messageOk = false;
   let busy = false;
   let open = true;
+  /** E-mail que já recebeu o código: a tela pede o código em vez do e-mail. */
+  let emailSent = null;
 
   const logout = (why = '') => {
     session = null;
@@ -197,10 +215,24 @@ export function createServidor(map) {
     const note = message ? `<p class="${messageOk ? 'ok-s' : 'aviso-s'}">${esc(message)}</p>` : '';
     if (!session) {
       panel.innerHTML = `${head}
-        <p class="muted">Entre com a carteira para trabalhar e receber THALER de verdade, pelo servidor.</p>
+        <p class="muted">Entre com a carteira ou com o e-mail para trabalhar e receber THALER de verdade, pelo servidor.</p>
         ${window.ethereum ? '<button class="btn btn--primary" type="button" data-s="entrar">Entrar com a carteira</button>' : ''}
         ${LOCAL ? '<button class="btn btn--blue" type="button" data-s="entrar-teste">Entrar com carteira de teste</button>' : ''}
-        ${!window.ethereum && !LOCAL ? '<p class="muted">Instale uma carteira (MetaMask) para entrar.</p>' : ''}
+        ${!window.ethereum && !LOCAL ? '<p class="muted">Instale uma carteira (MetaMask) ou entre com o e-mail.</p>' : ''}
+        <h3>Com e-mail</h3>
+        ${
+          emailSent
+            ? `<form data-form="codigo">
+                <p class="muted">Código enviado para <b>${esc(emailSent)}</b>. Vale 10 minutos.${LOCAL ? ' Na máquina local, ele aparece no log do gateway.' : ''}</p>
+                <div class="linha"><input class="campo" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required placeholder="000000" aria-label="Código de 6 dígitos" /></div>
+                <button class="btn btn--primary" type="submit" ${busy ? 'disabled' : ''}>Entrar</button>
+                <button class="btn btn--ghost pequeno" type="button" data-s="email-voltar">Trocar e-mail ou pedir outro código</button>
+              </form>`
+            : `<form data-form="email">
+                <div class="linha"><input class="campo" name="email" type="email" autocomplete="email" required maxlength="254" placeholder="voce@exemplo.com" aria-label="E-mail" /></div>
+                <button class="btn btn--blue" type="submit" ${busy ? 'disabled' : ''}>Receber código</button>
+              </form>`
+        }
         ${note}`;
       return;
     }
@@ -239,12 +271,32 @@ export function createServidor(map) {
       }
     }
     panel.innerHTML = `${head}
-      <dl class="resumo"><dt>Conta</dt><dd>${short(session.address)}</dd><dt>THALER (ledger)</dt><dd>${thaler(data.balance)}</dd><dt>SCITY (ledger)</dt><dd>${scity(data.scity)}</dd><dt>Lotes no servidor</dt><dd>${data.lots.length}</dd></dl>
+      <dl class="resumo"><dt>Conta</dt><dd>${session.address ? short(session.address) : esc(session.email ?? '')}</dd><dt>THALER (ledger)</dt><dd>${thaler(data.balance)}</dd><dt>SCITY (ledger)</dt><dd>${scity(data.scity)}</dd><dt>Lotes no servidor</dt><dd>${data.lots.length}</dd></dl>
       ${data.lots.length ? `<p class="muted pequeno">${data.lots.map((l) => esc(l.code)).join(' · ')} <span class="tag-srv">violeta no mapa</span></p>` : '<p class="muted pequeno">Clique num lote verde e compre pela ficha.</p>'}
       ${LOCAL ? `<button class="btn btn--ghost pequeno" type="button" data-s="faucet" ${busy ? 'disabled' : ''}>+1.000 SCITY de teste</button>` : ''}
       ${body}${note}
       <button class="btn btn--ghost pequeno" type="button" data-s="sair">Sair</button>`;
   }
+
+  panel.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const form = e.target.closest('form[data-form]');
+    if (!form || busy) return;
+    const field = new FormData(form);
+    if (form.dataset.form === 'email') {
+      const email = String(field.get('email') ?? '').trim();
+      return act(async () => {
+        await sendEmailCode(email);
+        emailSent = email;
+      });
+    }
+    const code = String(field.get('code') ?? '').trim();
+    return act(async () => {
+      session = await verifyEmailCode(emailSent, code);
+      storage.set(TOKEN_KEY, JSON.stringify(session));
+      emailSent = null;
+    });
+  });
 
   panel.addEventListener('click', (e) => {
     const b = e.target.closest('[data-s]');
@@ -255,6 +307,11 @@ export function createServidor(map) {
       return render();
     }
     if (what === 'sair') return logout();
+    if (what === 'email-voltar') {
+      emailSent = null;
+      message = '';
+      return render();
+    }
     if (what === 'entrar' || what === 'entrar-teste') {
       return act(async () => {
         session = await signIn(what === 'entrar-teste');

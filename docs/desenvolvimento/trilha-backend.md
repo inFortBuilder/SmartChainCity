@@ -9,7 +9,7 @@ Pasta: [`services/`](../../services/README.md) · Especificação: [doc 05 §4](
 | 1 | 0 | todos | Workspace pnpm, pacote `@scc/shared` (tipos, erros, logger, config), modelo de serviço com healthcheck | `pnpm dev` sobe um serviço de exemplo |
 | 2 | 0 | — | Escolher ORM e framework (ADR), esquema inicial do [doc 06 §2](../06-modelo-dados-api.md#2-esquema-proposto-postgresql) | Migração roda no Postgres do Compose |
 | 3 | 1 | gateway | JWT, rate limit, `openapi.yaml`, roteamento | Contrato publicado e gerando o cliente Unity |
-| 4 | 1 | gateway (auth) | SIWE (`nonce` → `verify`), login por e-mail, vínculo de carteira | `GET /v1/me` autenticado |
+| 4 | 1 | gateway (auth) | SIWE (`nonce` → `verify`) ✅, login por e-mail com código ✅ ([README](../../services/gateway/README.md#login-por-e-mail)), vínculo de carteira | `GET /v1/me` autenticado |
 | 5 | 1 | economy | ✅ Ledger de dupla entrada, contas `player/system/pool/burn/escrow`, extrato, idempotência ([README](../../services/economy/README.md)) | Invariante do ledger em teste de propriedade: 10 mil transações em memória e no Postgres |
 | 6 | 1 | game-core | ✅ Avatar, atributos, decaimento agendado ([README](../../services/game-core/README.md)) | Atributos decaem por job (`attributes.decay`, em lotes, com o mesmo resultado da leitura) |
 | 7 | 1 | game-core | ✅ **Turno de trabalho**: validações, seed commit-reveal, job `shift.complete`, coleta paga pelo ledger ([README](../../services/game-core/README.md#turno-de-trabalho-e14-passo-7-da-trilha)) | Turno de 6 h conclui sem cliente (teste de ponta a ponta com o economy) |

@@ -27,6 +27,14 @@ const schema = z.object({
   RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(120),
   AUTH_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(20),
   TRUST_PROXY: z.stringbool().default(false),
+  /**
+   * Como o código de login por e-mail chega: 'log' escreve no log do gateway
+   * (MVP local, sem provedor pago; recusado em produção). 'off' desliga a rota.
+   */
+  EMAIL_LOGIN: z.enum(['log', 'off']).default('log'),
+  EMAIL_CODE_TTL_SECONDS: z.coerce.number().int().positive().default(600),
+  EMAIL_CODE_RESEND_SECONDS: z.coerce.number().int().nonnegative().default(60),
+  EMAIL_CODE_MAX_ATTEMPTS: z.coerce.number().int().positive().default(5),
 });
 
 export type Config = z.infer<typeof schema>;
