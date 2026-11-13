@@ -1,7 +1,7 @@
 import Fastify from 'fastify';
 import { describe, expect, it } from 'vitest';
 
-import { observe, serverOptions } from '../src/observability.js';
+import { forwardRequestId, observe, serverOptions } from '../src/observability.js';
 
 const TOKEN = 'token-de-metricas-de-teste-com-32-caracteres'; // gitleaks:allow (só no teste)
 
@@ -62,5 +62,12 @@ describe('métricas', () => {
 
   it('em produção sem token, /metrics fica desligado', async () => {
     expect((await (await app('production')).inject({ url: '/metrics' })).statusCode).toBe(404);
+  });
+});
+
+describe('forwardRequestId', () => {
+  it('monta o cabeçalho só quando há id', () => {
+    expect(forwardRequestId('abc')).toEqual({ 'x-request-id': 'abc' });
+    expect(forwardRequestId()).toEqual({});
   });
 });

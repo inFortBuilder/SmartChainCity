@@ -124,6 +124,27 @@ export async function buildApp(config: Config, store: LedgerStore, now: () => Da
     };
   });
 
+  // Só desenvolvimento: 1.000 SCITY de teste por pedido, como um depósito
+  // simulado da ponte (system/bridge). Desligada, é 404.
+  app.post('/v1/dev/faucet', async (request) => {
+    if (!config.DEV_FAUCET) throw new AppError('not_found', 'Rota não encontrada.', 404);
+    const accountId = await player(request);
+    const amount = 1000n * 10n ** 18n;
+    await store.post(
+      {
+        kind: 'dev_faucet',
+        refType: 'dev',
+        idempotencyKey: `faucet:${accountId}:${now().getTime()}`,
+        legs: [
+          { account: { ownerType: 'system', ownerId: 'bridge', currency: 'SCITY' }, amount: -amount },
+          { account: { ownerType: 'player', ownerId: accountId, currency: 'SCITY' }, amount },
+        ],
+      },
+      now(),
+    );
+    return { currency: 'SCITY', amount: amount.toString(), decimals: 18 };
+  });
+
   // Lançamento feito pelos outros serviços (pagamento de turno, compra de lote,
   // imposto). Jogador nunca chama: o cliente não decide saldo (ADR-0002).
   app.post('/internal/v1/ledger/transactions', async (request, reply) => {

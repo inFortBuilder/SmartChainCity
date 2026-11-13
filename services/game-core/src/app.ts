@@ -156,7 +156,7 @@ export async function buildApp(
     for (const shift of done) {
       const cents = shift.result?.thalerCents ?? 0n;
       // Turno sem ganho (48 h sem comer) não vai ao ledger: lançamento de zero não existe.
-      if (cents > 0n) await payer.payShift(shift, cents);
+      if (cents > 0n) await payer.payShift(shift, cents, request.id);
       await store.markClaimed(shift.id);
       total += cents;
       claimed.push(shift.id);
