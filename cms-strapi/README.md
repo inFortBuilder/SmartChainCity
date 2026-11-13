@@ -105,6 +105,26 @@ O teste [`scripts/seed.test.mjs`](scripts/seed.test.mjs) confere os arquivos ant
 | **Multiplicador de pet** | A tabela pula do nível 7 para o 3. Os níveis 6, 5 e 4 seguem o passo de 0,02 (1,06, 1,04, 1,02) e estão anotados |
 | **Imóveis** | Capacidade, preço, renda e custo de upgrade estão na "Figura 16" do GDD, que não veio no texto (doc 11, lacuna 3). Os campos ficam vazios; só o T1 nível 1 traz a premissa do simulador (4000 THALER, renda de 10/dia) |
 
+## Papéis do admin
+
+Definidos em [`src/papeis.ts`](src/papeis.ts) e aplicados a cada início do Strapi. Uma mudança feita à mão em *Configurações → Papéis* volta ao que está no código no próximo início; para mudar um papel, edite o arquivo.
+
+| Papel | Pode | Não pode |
+|---|---|---|
+| **Game designer** | Ver, criar, editar todos os campos (balanceamento) e publicar todo o catálogo; subir arte | Apagar: o jogo guarda os códigos (profissão do avatar, tipo do imóvel) |
+| **Conteúdo** | Ver tudo; editar só os textos (nome das profissões, tarefas, atividades, alimentos, raridades e imóveis; descrição dos imóveis); subir arte | Publicar, criar, apagar, editar números. Campo numérico enviado junto é ignorado. O game designer revisa e publica |
+| **Leitura** | Ver o catálogo e a biblioteca de mídia | Qualquer mudança |
+
+Para dar um papel a alguém: *Configurações → Usuários → Convidar*, escolhendo o papel. O seu usuário segue como *Super Admin*.
+
+Teste das permissões, com o Strapi no ar (`npm run develop`):
+
+```bash
+npm run test:papeis
+```
+
+O teste cria um usuário temporário por papel, com senha aleatória só na memória, e um alimento de teste. Entra como cada um, confere 12 casos (o que pode e o que não pode) e apaga tudo no fim, mesmo se falhar.
+
 ## Problema de desenho nas profissões
 
 O minigame de cada profissão gasta de 5 a 20 de energia, mas o atributo energia vai de 0 a 10. Até isso ser acertado, o turno do game-core gasta uma energia fixa (3 no de 6 h, 6 no de 12 h).
