@@ -1,6 +1,6 @@
 # services/gateway
 
-Entrada da API: login por carteira (SIWE, EIP-4361), JWT e rate limit. Contrato em [openapi.yaml](openapi.yaml).
+Entrada da API: login por carteira (SIWE, EIP-4361) ou por código no e-mail, JWT e rate limit. Contrato em [openapi.yaml](openapi.yaml).
 
 - Guia: [trilha-backend.md](../../docs/desenvolvimento/trilha-backend.md)
 - Modelo de dados e API: [docs/06](../../docs/06-modelo-dados-api.md)
@@ -25,7 +25,8 @@ pnpm --filter @scc/gateway login:dev   # entra com uma carteira descartável e i
 | JWT HS256 aceito pelo SCC Builder | ✅ testado com a API PHP real |
 | Rate limit, CORS por lista, logs sem token nem assinatura | ✅ |
 | Armazenamento em Postgres (Drizzle) | ✅ sem `DATABASE_URL` usa memória, e em produção recusa subir |
-| Login por e-mail, vínculo de segunda carteira, 2FA | ❌ |
+| `POST /v1/auth/email/start` e `/verify`: login por código de 6 dígitos no e-mail | ✅ no MVP local o código sai no log do gateway (`EMAIL_LOGIN=log`), sem provedor de e-mail |
+| Carteira embutida para quem entra por e-mail, vínculo de carteira à conta, 2FA | ❌ a conta de e-mail entra sem carteira; joga, mas ainda não assina na rede |
 | Carteiras de contrato (ERC-1271) | ❌ só carteiras comuns |
 | ESLint, Dockerfile | ❌ `lint` hoje é a checagem de tipos |
 
@@ -35,6 +36,24 @@ pnpm --filter @scc/gateway login:dev   # entra com uma carteira descartável e i
 2. O jogador assina a mensagem SIWE na carteira. Assinar não custa gás nem move fundos.
 3. O gateway confere domínio, rede, validade e nonce, e só então a assinatura. A tentativa queima o nonce, mesmo se falhar.
 4. Devolve o JWT: `sub` = id da conta, `iss` = `scc-gateway`, `aud` = `scc-api` e `scc-builder`, 1 hora de validade.
+
+## Login por e-mail
+
+1. `POST /v1/auth/email/start` com `{ email }`: o gateway gera um código de 6 dígitos, que vale 10 minutos. A resposta é sempre `202`, exista a conta ou não, para não revelar quem joga.
+2. No MVP local não há provedor de e-mail (sem custo): o código aparece no **log do gateway**, numa linha `warn` com `código de login para …`. Em produção, `EMAIL_LOGIN=log` impede a subida.
+3. `POST /v1/auth/email/verify` com `{ email, code }` devolve o mesmo JWT do SIWE. A conta nasce no primeiro login, com o e-mail em minúsculas.
+
+Regras:
+
+- O código vale uma vez.
+- 5 erros queimam o código.
+- Pedir de novo antes de 60 s não gera outro código.
+- O banco guarda só o HMAC do código (`email_code`), nunca o código.
+- Os limites ficam no `.env`: `EMAIL_CODE_TTL_SECONDS`, `EMAIL_CODE_RESEND_SECONDS` e `EMAIL_CODE_MAX_ATTEMPTS`.
+
+O mapa de Pittsburg tem o formulário no painel "Jogo no servidor".
+
+Depois de atualizar o código, rode `pnpm db:migrate`: a tabela `email_code` é nova.
 
 ## Com o SCC Builder
 

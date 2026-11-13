@@ -164,7 +164,8 @@ Autenticação: `Authorization: Bearer <JWT>`. Toda mutação aceita `Idempotenc
 |--------|------|-----------|
 | POST | `/v1/auth/siwe/nonce` | Nonce para assinatura |
 | POST | `/v1/auth/siwe/verify` | Verifica assinatura → JWT |
-| POST | `/v1/auth/email/login` | Login por e-mail (carteira embutida) |
+| POST | `/v1/auth/email/start` | Manda um código de 6 dígitos para o e-mail (no MVP local, no log do gateway) |
+| POST | `/v1/auth/email/verify` | Código → JWT. A carteira embutida fica para depois |
 | GET | `/v1/me` | Conta, carteiras, avatares, saldos |
 
 ### Avatares e trabalho

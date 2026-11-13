@@ -89,6 +89,115 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
+  /v1/auth/email/start:
+    post:
+      summary: Manda um código de login para o e-mail
+      description: >
+        Código de 6 dígitos, válido por 10 minutos. A resposta é a mesma exista a
+        conta ou não. Pedir de novo antes do intervalo (60 s) não gera outro código.
+        No MVP local o código sai no log do gateway.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email, maxLength: 254 }
+      responses:
+        '202':
+          description: Pedido aceito
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [expires_in]
+                properties:
+                  expires_in: { type: integer, description: Validade do código em segundos }
+        '400':
+          description: invalid_request
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404': { description: Login por e-mail desligado (EMAIL_LOGIN=off) }
+        '429': { description: Limite excedido }
+  /v1/auth/email/verify:
+    post:
+      summary: Troca o código pelo JWT
+      description: Cria a conta no primeiro login do e-mail. O código vale uma vez e queima depois de 5 erros.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, code]
+              properties:
+                email: { type: string, format: email, maxLength: 254 }
+                code: { type: string, pattern: '^[0-9]{6}    get:
+      summary: Conta e carteiras do jogador
+      description: Avatares e saldos entram quando game-core e economy existirem.
+      security: [{ bearer: [] }]
+      responses:
+        '200':
+          description: Conta autenticada
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [account, wallets]
+                properties:
+                  account: { $ref: '#/components/schemas/Account' }
+                  wallets:
+                    type: array
+                    items:
+                      type: object
+                      required: [address, chain_id, verified_at]
+                      properties:
+                        address: { type: string }
+                        chain_id: { type: integer }
+                        verified_at: { type: string, format: date-time }
+        '401':
+          description: missing_credentials, invalid_token, token_expired
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '403':
+          description: account_blocked
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+ }
+      responses:
+        '200':
+          description: Login aceito
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [access_token, token_type, expires_in, account]
+                properties:
+                  access_token: { type: string }
+                  token_type: { type: string, const: Bearer }
+                  expires_in: { type: integer }
+                  account: { $ref: '#/components/schemas/Account' }
+        '400':
+          description: invalid_request
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401':
+          description: invalid_code
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '403':
+          description: account_blocked
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404': { description: Login por e-mail desligado (EMAIL_LOGIN=off) }
   /v1/me:
     get:
       summary: Conta e carteiras do jogador

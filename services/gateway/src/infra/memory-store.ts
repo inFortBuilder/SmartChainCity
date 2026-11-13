@@ -10,6 +10,7 @@ export class MemoryAuthStore implements AuthStore {
   private readonly nonces = new Map<string, Date>();
   private readonly accounts = new Map<string, Account>();
   private readonly wallets = new Map<string, WalletLink>();
+  private readonly codes = new Map<string, { codeHash: string; expiresAt: Date; attempts: number; createdAt: Date }>();
 
   async saveNonce(nonce: string, expiresAt: Date) {
     this.nonces.set(nonce, expiresAt);
@@ -35,6 +36,32 @@ export class MemoryAuthStore implements AuthStore {
     this.accounts.set(account.id, account);
     this.wallets.set(address, { accountId: account.id, address, chainId, verifiedAt: now });
     return account;
+  }
+
+  async findOrCreateAccountByEmail(email: string, now: Date) {
+    const existing = [...this.accounts.values()].find((a) => a.email === email);
+    if (existing) return existing;
+    const account: Account = { id: randomUUID(), email, status: 'active', kycLevel: 0, createdAt: now };
+    this.accounts.set(account.id, account);
+    return account;
+  }
+
+  async saveEmailCode(email: string, codeHash: string, expiresAt: Date, now: Date, minIntervalSeconds: number) {
+    const current = this.codes.get(email);
+    if (current && now.getTime() - current.createdAt.getTime() < minIntervalSeconds * 1000) return false;
+    this.codes.set(email, { codeHash, expiresAt, attempts: 0, createdAt: now });
+    return true;
+  }
+
+  async consumeEmailCode(email: string, codeHash: string, now: Date, maxAttempts: number) {
+    const current = this.codes.get(email);
+    if (!current) return false;
+    if (current.codeHash === codeHash && current.expiresAt > now && current.attempts < maxAttempts) {
+      this.codes.delete(email);
+      return true;
+    }
+    current.attempts++;
+    return false;
   }
 
   async findAccount(id: string) {

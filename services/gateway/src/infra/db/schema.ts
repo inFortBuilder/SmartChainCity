@@ -45,6 +45,15 @@ export const walletLink = pgTable(
   ],
 );
 
+/** Código de login por e-mail: um por e-mail, guardado como HMAC. */
+export const emailCode = pgTable('email_code', {
+  email: text('email').primaryKey(),
+  codeHash: text('code_hash').notNull(),
+  expiresAt: timestamptz('expires_at').notNull(),
+  attempts: smallint('attempts').notNull().default(0),
+  createdAt: timestamptz('created_at').notNull(),
+});
+
 export const authNonce = pgTable('auth_nonce', {
   nonce: text('nonce').primaryKey(),
   expiresAt: timestamptz('expires_at').notNull(),
