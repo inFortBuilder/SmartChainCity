@@ -184,6 +184,9 @@ importers:
 
   services/economy:
     dependencies:
+      '@fastify/cors':
+        specifier: ^11.3.1
+        version: 11.3.1
       '@scc/shared':
         specifier: workspace:*
         version: link:../shared
@@ -212,6 +215,9 @@ importers:
 
   services/game-core:
     dependencies:
+      '@fastify/cors':
+        specifier: ^11.3.1
+        version: 11.3.1
       '@scc/shared':
         specifier: workspace:*
         version: link:../shared

@@ -10,6 +10,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { readChunk } from '../../tools/scc-builder/bin/lib/lot-chunks.js';
 
 import { createGestao } from './gestao.js';
+import { createServidor } from './servidor.js';
 
 const BASE = '../../.local/cidades/pittsburg';
 const $ = (s) => document.querySelector(s);
@@ -632,7 +633,9 @@ try {
     getLots: () => lots, lotRing, lotAt, showLot, currentLot: () => shownLot, loadLotsFor,
     loadGlb: (buffer) => new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).parseAsync(buffer, ''),
   });
-  window.__pittsburg = { scene, camera, controls, renderer, buildings, pick, showBuilding, pickLot, showLot, getLots: () => lots, gestao, civicBuilding, progressiveBuilding, loadLotsFor };
+  // Célula jogável (E1.6): login, avatar, THALER e turno pelos serviços.
+  const servidor = createServidor();
+  window.__pittsburg = { scene, camera, controls, renderer, buildings, pick, showBuilding, pickLot, showLot, getLots: () => lots, gestao, civicBuilding, progressiveBuilding, loadLotsFor, servidor };
 
   // Spike E0.9: ?spike (ou ?spike=20) mede download, FPS e 20 prédios com LOD.
   const spikeParam = new URLSearchParams(location.search).get('spike');
