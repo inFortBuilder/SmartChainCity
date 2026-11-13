@@ -8,6 +8,13 @@
       "when": 1794527530779,
       "tag": "0000_nostalgic_mentallo",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1794528982195,
+      "tag": "0001_pink_synch",
+      "breakpoints": true
     }
   ]
 }

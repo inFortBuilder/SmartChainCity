@@ -1,4 +1,5 @@
-import { asc, eq, sql } from 'drizzle-orm';
+import { AppError } from '@scc/shared';
+import { and, asc, desc, eq, lte, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import type { Pool } from 'pg';
 
@@ -12,7 +13,40 @@ import {
   tooManyAvatars,
 } from '../../domain/avatar.js';
 import type { Rarity } from '../../domain/catalog.js';
-import { avatar } from './schema.js';
+import {
+  type Shift,
+  type ShiftHours,
+  type ShiftPlanner,
+  type ShiftResult,
+  type ShiftStatus,
+  type ShiftStore,
+  type Snapshot,
+  hoursSince,
+  settle,
+} from '../../domain/shift.js';
+import { avatar, workShift } from './schema.js';
+
+type ShiftRow = typeof workShift.$inferSelect;
+
+/** O resultado vai em jsonb; o valor em centavos fica na coluna numérica e volta como bigint. */
+const toShift = (r: ShiftRow): Shift => ({
+  id: r.id,
+  avatarId: r.avatarId,
+  accountId: r.accountId,
+  jobCode: r.jobCode,
+  hours: r.shiftHours as ShiftHours,
+  startsAt: r.startsAt,
+  endsAt: r.endsAt,
+  seedCommit: r.seedCommit,
+  seed: r.seed,
+  snapshot: r.snapshot as Snapshot,
+  result: r.result
+    ? { ...(r.result as Omit<ShiftResult, 'thalerCents'>), thalerCents: BigInt(r.thalerEarned ?? '0') }
+    : null,
+  status: r.status as ShiftStatus,
+});
+
+const resultJson = (result: ShiftResult) => ({ damaged: result.damaged, factors: result.factors });
 
 type Row = typeof avatar.$inferSelect;
 
@@ -47,7 +81,7 @@ const toRow = (a: Avatar) => ({
   updatedAt: a.updatedAt,
 });
 
-export class PostgresAvatarStore implements AvatarStore {
+export class PostgresAvatarStore implements AvatarStore, ShiftStore {
   private readonly db;
 
   constructor(pool: Pool) {
@@ -115,5 +149,74 @@ export class PostgresAvatarStore implements AvatarStore {
       return done;
     });
   }
-}
 
+  async beginShift(avatarId: string, accountId: string, now: Date, plan: ShiftPlanner) {
+    return this.db.transaction(async (tx) => {
+      // Trava o avatar: dois pedidos de turno em paralelo viram um turno e um erro.
+      const [row] = await tx.select().from(avatar).where(eq(avatar.id, avatarId)).for('update');
+      if (!row || row.accountId !== accountId) throw new AppError('not_found', 'Avatar não encontrado.', 404);
+      const recent = await tx
+        .select({ startsAt: workShift.startsAt, hours: workShift.shiftHours, status: workShift.status })
+        .from(workShift)
+        .where(and(eq(workShift.avatarId, avatarId), sql`${workShift.startsAt} >= ${new Date(now.getTime() - 86_400_000)}`));
+      const { shift, avatar: next } = plan(decayed(toAvatar(row), now), {
+        hoursToday: hoursSince(recent.map((r) => ({ startsAt: r.startsAt, hours: r.hours as ShiftHours })), now),
+        running: recent.some((r) => r.status === 'running'),
+      });
+      await tx
+        .update(avatar)
+        .set({ ...toRow(next), lastWorkedAt: now })
+        .where(eq(avatar.id, avatarId));
+      await tx.insert(workShift).values({
+        id: shift.id,
+        avatarId: shift.avatarId,
+        accountId: shift.accountId,
+        jobCode: shift.jobCode,
+        shiftHours: shift.hours,
+        startsAt: shift.startsAt,
+        endsAt: shift.endsAt,
+        seedCommit: shift.seedCommit,
+        seed: shift.seed,
+        snapshot: shift.snapshot,
+        status: shift.status,
+      });
+      return shift;
+    });
+  }
+
+  async completeDue(now: Date, batch: number) {
+    return this.db.transaction(async (tx) => {
+      const rows = await tx
+        .select()
+        .from(workShift)
+        .where(and(eq(workShift.status, 'running'), lte(workShift.endsAt, now)))
+        .limit(batch)
+        .for('update', { skipLocked: true });
+      for (const row of rows) {
+        const result = settle(toShift(row));
+        await tx
+          .update(workShift)
+          .set({ status: 'done', result: resultJson(result), thalerEarned: result.thalerCents.toString() })
+          .where(eq(workShift.id, row.id));
+      }
+      return rows.length;
+    });
+  }
+
+  async listShifts(avatarId: string, limit: number) {
+    const rows = await this.db
+      .select()
+      .from(workShift)
+      .where(eq(workShift.avatarId, avatarId))
+      .orderBy(desc(workShift.startsAt))
+      .limit(limit);
+    return rows.map(toShift);
+  }
+
+  async markClaimed(shiftId: string) {
+    await this.db
+      .update(workShift)
+      .set({ status: 'claimed' })
+      .where(and(eq(workShift.id, shiftId), eq(workShift.status, 'done')));
+  }
+}

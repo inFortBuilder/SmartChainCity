@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { check, index, numeric, pgSchema, smallint, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { check, index, jsonb, numeric, pgSchema, smallint, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 /**
  * Esquema próprio `game` (o serviço não toca o banco dos outros). Tabela
@@ -43,5 +43,36 @@ export const avatar = game.table(
     check('avatar_food_check', range(t.food, 10)),
     check('avatar_hygiene_check', range(t.hygiene, 10)),
     check('avatar_education_check', range(t.education, 100)),
+  ],
+);
+
+/**
+ * Turno de trabalho (doc 06 §2 `work_shift`). A semente fica em `seed` e só
+ * sai na API depois que o turno acaba; até lá, só o `seed_commit` (sha256).
+ */
+export const workShift = game.table(
+  'work_shift',
+  {
+    id: uuid('id').primaryKey(),
+    avatarId: uuid('avatar_id')
+      .notNull()
+      .references(() => avatar.id),
+    accountId: uuid('account_id').notNull(),
+    jobCode: text('job_code').notNull(),
+    shiftHours: smallint('shift_hours').notNull(),
+    startsAt: timestamptz('starts_at').notNull(),
+    endsAt: timestamptz('ends_at').notNull(),
+    seedCommit: text('seed_commit').notNull(),
+    seed: text('seed').notNull(),
+    snapshot: jsonb('snapshot').notNull(),
+    result: jsonb('result'),
+    thalerEarned: numeric('thaler_earned', { precision: 38, scale: 0 }),
+    status: text('status').notNull(),
+  },
+  (t) => [
+    index('work_shift_avatar_idx').on(t.avatarId, t.startsAt),
+    index('work_shift_due_idx').on(t.status, t.endsAt),
+    check('work_shift_hours_check', sql`${t.shiftHours} in (6, 12)`),
+    check('work_shift_status_check', sql`${t.status} in ('running', 'done', 'claimed')`),
   ],
 );
