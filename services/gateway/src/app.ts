@@ -7,7 +7,7 @@ import { z } from 'zod';
 import type { Config } from './config.js';
 import { AuthService } from './domain/auth.js';
 import { EmailLogin, type Mailer } from './domain/email-login.js';
-import type { Account, AuthStore } from './domain/ports.js';
+import type { Account, AuthStore, WalletLink } from './domain/ports.js';
 import { verifyToken } from './domain/token.js';
 import { LogMailer } from './infra/log-mailer.js';
 
@@ -152,16 +152,42 @@ export async function buildApp(config: Config, store: AuthStore, now?: () => Dat
     return verifyToken(match[1], tokenOptions);
   };
 
-  app.get('/v1/me', async (request) => {
-    const { account, wallets } = await auth.me(await authenticate(request));
-    return {
-      account: accountDto(account),
-      wallets: wallets.map((wallet) => ({
-        address: wallet.address,
-        chain_id: wallet.chainId,
-        verified_at: wallet.verifiedAt.toISOString(),
-      })),
-    };
+  const meDto = ({ account, wallets }: { account: Account; wallets: WalletLink[] }) => ({
+    account: accountDto(account),
+    wallets: wallets.map((wallet) => ({
+      address: wallet.address,
+      chain_id: wallet.chainId,
+      verified_at: wallet.verifiedAt.toISOString(),
+    })),
+  });
+
+  app.get('/v1/me', async (request) => meDto(await auth.me(await authenticate(request))));
+
+  // Liga mais uma carteira à conta logada, com a mesma assinatura SIWE do login.
+  app.post('/v1/me/wallets', { config: authLimit }, async (request, reply) => {
+    const accountId = await authenticate(request);
+    const body = verifyBody.parse(request.body);
+    const result = await auth.linkWallet(accountId, body.message, body.signature as `0x${string}`);
+    return reply.status(result.linked ? 201 : 200).send(meDto(result));
+  });
+
+  // Põe e-mail na conta logada (a de carteira): código como no login.
+  app.post('/v1/me/email/start', { config: authLimit }, async (request, reply) => {
+    emailOn();
+    const accountId = await authenticate(request);
+    const { email } = emailStartBody.parse(request.body);
+    const { account } = await auth.me(accountId);
+    const { expiresIn } = await emailLogin.startLink(account, email);
+    return reply.status(202).send({ expires_in: expiresIn });
+  });
+
+  app.post('/v1/me/email/verify', { config: authLimit }, async (request) => {
+    emailOn();
+    const accountId = await authenticate(request);
+    const body = emailVerifyBody.parse(request.body);
+    await auth.me(accountId);
+    await emailLogin.verifyLink(accountId, body.email, body.code);
+    return meDto(await auth.me(accountId));
   });
 
   return app;
