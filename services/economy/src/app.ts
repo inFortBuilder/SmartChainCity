@@ -1,4 +1,4 @@
-import { AppError, bearerToken, requireServiceToken, verifyAccessToken } from '@scc/shared';
+import { AppError, bearerToken, observe, requireServiceToken, serverOptions, verifyAccessToken } from '@scc/shared';
 import cors from '@fastify/cors';
 import Fastify, { type FastifyRequest } from 'fastify';
 import { z } from 'zod';
@@ -56,11 +56,13 @@ const txDto = (tx: PostedTx) => ({
 
 export async function buildApp(config: Config, store: LedgerStore, now: () => Date = () => new Date()) {
   const app = Fastify({
-    logger:
-      config.NODE_ENV === 'test'
-        ? false
-        : { redact: ['req.headers.authorization', 'req.headers["x-service-token"]'] },
+    ...serverOptions({
+      service: 'economy',
+      nodeEnv: config.NODE_ENV,
+      logLevel: config.LOG_LEVEL,
+    }),
   });
+  observe(app, { service: 'economy', nodeEnv: config.NODE_ENV, metricsToken: config.METRICS_TOKEN });
 
   await app.register(cors, { origin: config.CORS_ORIGINS });
 

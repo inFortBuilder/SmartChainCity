@@ -286,6 +286,9 @@ importers:
 
   services/shared:
     dependencies:
+      fastify:
+        specifier: ^5.12.7
+        version: 5.12.7
       jose:
         specifier: ^6.2.14
         version: 6.2.14
