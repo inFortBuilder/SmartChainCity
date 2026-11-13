@@ -1,4 +1,4 @@
-import { AppError } from '@scc/shared';
+import { AppError, forwardRequestId } from '@scc/shared';
 
 import type { Payer, Shift } from '../domain/shift.js';
 
@@ -15,7 +15,7 @@ export class EconomyPayer implements Payer {
     private readonly fetchFn: typeof fetch = fetch,
   ) {}
 
-  async payShift(shift: Shift, amountCents: bigint) {
+  async payShift(shift: Shift, amountCents: bigint, requestId?: string) {
     let response: Response;
     try {
       response = await this.fetchFn(`${this.baseUrl.replace(/\/$/, '')}/internal/v1/ledger/transactions`, {
@@ -24,6 +24,7 @@ export class EconomyPayer implements Payer {
           'content-type': 'application/json',
           'x-service-token': this.token,
           'idempotency-key': `shift:${shift.id}`,
+          ...forwardRequestId(requestId),
         },
         body: JSON.stringify({
           kind: 'shift_pay',

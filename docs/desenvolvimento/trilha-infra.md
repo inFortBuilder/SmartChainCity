@@ -11,7 +11,7 @@ Pasta: [`infra/`](../../infra/README.md) · Especificação: [doc 05 §5](../05-
 | 3 | 0 | `infra/docker/docker-compose.dev.yml` (Postgres, Redis, Strapi DB, anvil) | `docker compose up` funcionando |
 | 4 | 1 | IaC (Terraform ou CDK — ADR) para o ambiente `dev`: VPC, RDS, ElastiCache, ECS, S3 + CloudFront | `dev` criado só por código |
 | 5 | 1 | CDN do WebGL com `Content-Encoding: br` e `Content-Type` corretos; cache por hash dos bundles | Build carrega sem fallback de descompressão |
-| 6 | 1 | Observabilidade: OpenTelemetry, CloudWatch, Sentry, alertas | Painel por serviço |
+| 6 | 1 | Observabilidade: OpenTelemetry, CloudWatch, Sentry, alertas. 🟡 Logs JSON com `requestId`, `GET /metrics` em cada serviço, Prometheus + Grafana local com painel por serviço (gateway, economy, game-core e world), `x-request-id` repassado entre serviços e alertas de base ([infra/observability](../../infra/observability/README.md)); Sentry, CloudWatch e OpenTelemetry adiados: o MVP roda só na máquina local, sem custo | Painel por serviço |
 | 7 | 2 | Ambiente `staging` + deploy contínuo da `main` | Deploy automático após merge |
 | 8 | 2 | Build Unity WebGL no CI (runner com licença Unity) e publicação no CDN | Build por PR com link de preview |
 | 9 | 3 | Teste de carga (k6 para API, bots WebSocket para Realtime) | 10 mil simultâneos e 1 mil req/s |

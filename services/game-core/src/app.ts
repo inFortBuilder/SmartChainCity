@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { AppError, bearerToken, requireServiceToken, verifyAccessToken } from '@scc/shared';
+import { AppError, bearerToken, observe, requireServiceToken, serverOptions, verifyAccessToken } from '@scc/shared';
 import cors from '@fastify/cors';
 import Fastify, { type FastifyRequest } from 'fastify';
 import { z } from 'zod';
@@ -63,11 +63,13 @@ export async function buildApp(
   payer: Payer | null = null,
 ) {
   const app = Fastify({
-    logger:
-      config.NODE_ENV === 'test'
-        ? false
-        : { redact: ['req.headers.authorization', 'req.headers["x-service-token"]'] },
+    ...serverOptions({
+      service: 'game-core',
+      nodeEnv: config.NODE_ENV,
+      logLevel: config.LOG_LEVEL,
+    }),
   });
+  observe(app, { service: 'game-core', nodeEnv: config.NODE_ENV, metricsToken: config.METRICS_TOKEN });
 
   await app.register(cors, { origin: config.CORS_ORIGINS });
 
@@ -174,7 +176,7 @@ export async function buildApp(
     for (const shift of done) {
       const cents = shift.result?.thalerCents ?? 0n;
       // Turno sem ganho (48 h sem comer) não vai ao ledger: lançamento de zero não existe.
-      if (cents > 0n) await payer.payShift(shift, cents);
+      if (cents > 0n) await payer.payShift(shift, cents, request.id);
       await store.markClaimed(shift.id);
       total += cents;
       claimed.push(shift.id);
