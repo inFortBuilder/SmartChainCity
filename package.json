@@ -10,7 +10,7 @@
     "lint": "pnpm -r lint",
     "test": "pnpm -r test",
     "db:up": "node infra/dev/postgres.mjs",
-    "db:migrate": "pnpm --filter @scc/gateway db:migrate"
+    "db:migrate": "pnpm -r --if-present db:migrate"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",

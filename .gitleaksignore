@@ -3,3 +3,5 @@
 6266e7e6f3e3a38d31bfeaf1c079f3bd78131bc8:services/gateway/test/auth.test.ts:generic-api-key:10
 # Nome da chave do localStorage do protótipo de gestão: não é segredo.
 5c0ed09db28fb5ec7c023dde20e6f3924e9c92f2:docs/proposta-cidade-realista/gestao.js:generic-api-key:6
+# Texto de exemplo no .env.example do economy (trocado por valor em branco depois).
+2faa561f890e52b9d7e8c89c4bd3e72130a2ba64:services/economy/.env.example:generic-api-key:6

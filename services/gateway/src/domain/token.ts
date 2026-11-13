@@ -1,5 +1,5 @@
-import { AppError } from '@scc/shared';
-import { SignJWT, errors, jwtVerify } from 'jose';
+import { verifyAccessToken } from '@scc/shared';
+import { SignJWT } from 'jose';
 
 /** This API, plus the SCC Builder, which validates the same token. */
 export const AUDIENCES = ['scc-api', 'scc-builder'];
@@ -27,24 +27,7 @@ export async function issueToken(accountId: string, options: TokenOptions, now: 
   return { token, expiresIn: options.ttlSeconds };
 }
 
-/** Returns the account id. The algorithm is pinned: the token header is never trusted. */
-export async function verifyToken(
-  token: string,
-  options: Pick<TokenOptions, 'secret' | 'issuer'>,
-): Promise<string> {
-  try {
-    const { payload } = await jwtVerify(token, key(options.secret), {
-      algorithms: ['HS256'],
-      issuer: options.issuer,
-      audience: 'scc-api',
-    });
-    if (!payload.sub) throw new AppError('invalid_token', 'Token sem conta.', 401);
-    return payload.sub;
-  } catch (error) {
-    if (error instanceof AppError) throw error;
-    if (error instanceof errors.JWTExpired) {
-      throw new AppError('token_expired', 'Token expirado.', 401);
-    }
-    throw new AppError('invalid_token', 'Token inválido.', 401);
-  }
+/** Returns the account id. Same rules as every other service: see @scc/shared. */
+export function verifyToken(token: string, options: Pick<TokenOptions, 'secret' | 'issuer'>): Promise<string> {
+  return verifyAccessToken(token, options);
 }
