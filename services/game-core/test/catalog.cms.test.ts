@@ -62,6 +62,19 @@ describe('catálogo publicado no Strapi', () => {
     expect(profession('padeiro')).toBeDefined();
   });
 
+  it('publicação de outro tipo do catálogo (alimento, imóvel...) não recarrega as profissões', async () => {
+    jobs = []; // se recarregasse, seria recusado por faltar profissão em uso
+    const r = await (await app()).inject({
+      method: 'POST',
+      url: '/internal/v1/catalog/refresh',
+      headers: { 'x-service-token': INTERNAL },
+      payload: { event: 'entry.publish', model: 'food', entry: { code: 'milho' } },
+    });
+    expect(r.statusCode).toBe(200);
+    expect(r.json()).toEqual({ ignored: 'food' });
+    expect(catalogOrigin()).toBe('seed');
+  });
+
   it('só serviços (o webhook do Strapi, com a chave) atualizam', async () => {
     expect((await refresh('chave-errada')).statusCode).toBe(403);
   });

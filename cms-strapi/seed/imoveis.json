@@ -1,0 +1,58 @@
+{
+  "fonte": "GDD §3.4, transcrito no doc 03 §6.1 e §6.2; T1 com as premissas do simulador (tools/econ-sim/params/base.json)",
+  "gerado_por": "à mão, a partir de docs/03-cidade-lotes-imoveis.md",
+  "unidades": {
+    "lots": "lotes que o imóvel ocupa",
+    "price": "preço de compra, em THALER",
+    "buildMinutes": "tempo de obra",
+    "levels.maxIncome": "renda máxima por dia, em THALER (com desgaste 100)",
+    "levels.upgradeCost": "custo para subir a este nível, em THALER"
+  },
+  "pendente": "Capacidade de moradores, preços e renda por tipo estão na \"Figura 16\" do GDD, que não veio no texto (doc 11, lacuna 3). Os campos ficam vazios até o game designer definir; só o T1 nível 1 traz a premissa do simulador.",
+  "imoveis": [
+    {
+      "code": "t1",
+      "label": "Casa T1",
+      "zone": "residential",
+      "lots": 1,
+      "availability": "always",
+      "price": 4000,
+      "levels": [{ "level": 1, "maxIncome": 10 }, { "level": 2 }, { "level": 3 }],
+      "conferir": ["Preço (4000) e renda (10/dia) são premissas do simulador econômico, não do GDD"]
+    },
+    { "code": "t2", "label": "Casa T2", "zone": "residential", "lots": 1, "availability": "always", "upgradesFrom": "t1", "levels": [{ "level": 1 }, { "level": 2 }, { "level": 3 }] },
+    {
+      "code": "t3",
+      "label": "Casa T3",
+      "zone": "residential",
+      "lots": 1,
+      "availability": "always",
+      "upgradesFrom": "t2",
+      "description": "Casa com pequeno negócio e renda extra",
+      "levels": [{ "level": 1 }, { "level": 2 }, { "level": 3 }]
+    },
+    { "code": "residencial_1", "label": "Residencial 1", "zone": "residential", "lots": 1, "availability": "events", "description": "Edifício; aluga unidades", "levels": [{ "level": 1 }, { "level": 2 }, { "level": 3 }] },
+    { "code": "residencial_2", "label": "Residencial 2", "zone": "residential", "lots": 2, "availability": "events", "description": "Edifício em lote duplo", "levels": [{ "level": 1 }, { "level": 2 }, { "level": 3 }] },
+    { "code": "residencial_3", "label": "Residencial 3", "zone": "residential", "lots": 2, "availability": "always", "description": "Edifício em lote duplo", "levels": [{ "level": 1 }, { "level": 2 }, { "level": 3 }] },
+    { "code": "mercado", "label": "Mercado", "zone": "commercial", "lots": 1, "availability": "always", "levels": [{ "level": 1 }, { "level": 2 }, { "level": 3 }] },
+    { "code": "fast_food", "label": "Fast food", "zone": "commercial", "lots": 1, "availability": "always", "levels": [{ "level": 1 }, { "level": 2 }, { "level": 3 }] },
+    { "code": "restaurante", "label": "Restaurante", "zone": "commercial", "lots": 1, "availability": "always", "levels": [{ "level": 1 }] },
+    { "code": "loja_roupas", "label": "Loja de roupas e acessórios", "zone": "commercial", "lots": 1, "availability": "always", "levels": [{ "level": 1 }, { "level": 2 }, { "level": 3 }] },
+    { "code": "loja_calcados", "label": "Loja de calçados", "zone": "commercial", "lots": 1, "availability": "always", "levels": [{ "level": 1 }] },
+    { "code": "loja_moveis", "label": "Loja de móveis e eletrodomésticos", "zone": "commercial", "lots": 1, "availability": "always", "levels": [{ "level": 1 }] },
+    { "code": "farmacia", "label": "Farmácia", "zone": "commercial", "lots": 1, "availability": "always", "description": "Exige avatar enfermeiro como dono", "levels": [{ "level": 1 }] },
+    { "code": "pet_shop", "label": "Pet shop", "zone": "commercial", "lots": 1, "availability": "always", "levels": [{ "level": 1 }] },
+    { "code": "oficina", "label": "Oficina", "zone": "commercial", "lots": 1, "availability": "always", "levels": [{ "level": 1 }] },
+    { "code": "academia", "label": "Academia", "zone": "commercial", "lots": 1, "availability": "always", "levels": [{ "level": 1 }] },
+    { "code": "galeria", "label": "Galeria de arte", "zone": "commercial", "lots": 1, "availability": "always", "levels": [{ "level": 1 }] },
+    { "code": "hotel", "label": "Hotel", "zone": "commercial", "lots": 1, "availability": "always", "description": "Inclui alimentação; bônus por ocupação", "levels": [{ "level": 1 }, { "level": 2 }, { "level": 3 }] },
+    { "code": "posto", "label": "Posto de gasolina", "zone": "industrial", "lots": 1, "availability": "always", "levels": [{ "level": 1 }] },
+    { "code": "industria", "label": "Indústria", "zone": "industrial", "lots": 1, "availability": "always", "description": "Um tipo por setor (alimentos, carnes, cimento, veículos...) quando a fase 2 abrir", "levels": [{ "level": 1 }] },
+    { "code": "usina", "label": "Usina de energia", "zone": "industrial", "lots": 1, "availability": "always", "levels": [{ "level": 1 }] },
+    { "code": "casa_fazenda", "label": "Casa de fazenda", "zone": "rural", "lots": 4, "availability": "always", "description": "Vendida junto com o slot mínimo de 4 lotes na região A3", "levels": [{ "level": 1 }, { "level": 2 }, { "level": 3 }] },
+    { "code": "galinheiro", "label": "Galinheiro", "zone": "rural", "lots": 1, "availability": "always", "description": "Até 12 galinhas", "levels": [{ "level": 1 }] },
+    { "code": "chiqueiro", "label": "Chiqueiro", "zone": "rural", "lots": 1, "availability": "always", "levels": [{ "level": 1 }] },
+    { "code": "curral", "label": "Curral", "zone": "rural", "lots": 1, "availability": "always", "levels": [{ "level": 1 }] },
+    { "code": "pasto", "label": "Pasto", "zone": "rural", "lots": 1, "availability": "always", "levels": [{ "level": 1 }] }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "fonte": "Tabela de Atributos (planilha), transcrita no doc 02 §2.2; faixas aprovadas no simulador (tools/econ-sim)",
+  "gerado_por": "à mão, a partir de docs/02-game-design.md",
+  "unidades": {
+    "baseMin": "ganho mínimo de um dia de trabalho, em THALER",
+    "baseMax": "ganho máximo de um dia de trabalho, em THALER",
+    "comboPriceUsd": "preço do combo na planilha, em dólar"
+  },
+  "raridades": [
+    { "code": "common", "label": "Comum", "baseMin": 100, "baseMax": 125, "comboPriceUsd": 150 },
+    { "code": "rare", "label": "Raro", "baseMin": 140, "baseMax": 165, "comboPriceUsd": 200 },
+    { "code": "epic", "label": "Épico", "baseMin": 180, "baseMax": 205, "comboPriceUsd": 250 },
+    { "code": "legendary", "label": "Lendário", "baseMin": 225, "baseMax": 250, "comboPriceUsd": 300 }
+  ]
+}
