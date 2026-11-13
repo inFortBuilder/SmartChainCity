@@ -59,6 +59,35 @@ describe.each(stores)('AuthStore: %s', (_name, make, enabled) => {
   });
 });
 
+describe.each(stores)('AuthStore, vínculos: %s', (_name, make, enabled) => {
+  const email = () => `${randomUUID()}@teste.local`;
+
+  it.runIf(enabled)('carteira disputada por duas contas em paralelo fica com uma só', async () => {
+    const store = make();
+    const accounts = await Promise.all(Array.from({ length: 5 }, () => store.findOrCreateAccountByEmail(email(), new Date())));
+    const wallet = address();
+    const results = await Promise.all(accounts.map((a) => store.linkWallet(a.id, wallet, 97, new Date())));
+    expect(results.filter((r) => r === 'linked')).toHaveLength(1);
+    expect(results.filter((r) => r === 'taken')).toHaveLength(4);
+    const owner = accounts[results.indexOf('linked')]!;
+    expect(await store.linkWallet(owner.id, wallet, 97, new Date())).toBe('already_linked');
+    expect((await store.findOrCreateAccountByWallet(wallet, 97, new Date())).id).toBe(owner.id);
+  });
+
+  it.runIf(enabled)('e-mail entra só em conta sem e-mail e só se for livre', async () => {
+    const store = make();
+    const taken = email();
+    await store.findOrCreateAccountByEmail(taken, new Date());
+    const target = await store.findOrCreateAccountByWallet(address(), 97, new Date());
+    expect(await store.setAccountEmail(target.id, taken)).toBe('taken');
+    const mine = email();
+    expect(await store.setAccountEmail(target.id, mine)).toBe('set');
+    expect(await store.setAccountEmail(target.id, mine)).toBe('already_set');
+    expect(await store.setAccountEmail(target.id, email())).toBe('has_other');
+    expect((await store.findOrCreateAccountByEmail(mine, new Date())).id).toBe(target.id);
+  });
+});
+
 describe.each(stores)('AuthStore, código por e-mail: %s', (_name, make, enabled) => {
   const email = () => `${randomUUID()}@teste.local`;
 

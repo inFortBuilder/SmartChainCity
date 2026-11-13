@@ -16,6 +16,11 @@ export interface WalletLink {
   verifiedAt: Date;
 }
 
+/** Resultado de ligar uma carteira a uma conta que já existe. */
+export type LinkWalletResult = 'linked' | 'already_linked' | 'taken';
+/** Resultado de pôr um e-mail numa conta que já existe. */
+export type SetEmailResult = 'set' | 'already_set' | 'taken' | 'has_other';
+
 /** Persistence port. Mirrors `account` and `wallet_link` from doc 06 §2. */
 export interface AuthStore {
   saveNonce(nonce: string, expiresAt: Date): Promise<void>;
@@ -33,6 +38,16 @@ export interface AuthStore {
    * apaga e devolve true (uma vez só, mesmo em paralelo); errado, conta um erro.
    */
   consumeEmailCode(email: string, codeHash: string, now: Date, maxAttempts: number): Promise<boolean>;
+  /**
+   * Liga a carteira à conta. `taken` se ela já é de outra conta (uma carteira,
+   * uma conta só). Atômico: duas contas disputando a mesma carteira, uma ganha.
+   */
+  linkWallet(accountId: string, address: string, chainId: number, now: Date): Promise<LinkWalletResult>;
+  /**
+   * Põe o e-mail na conta que ainda não tem. `taken` se outra conta usa o e-mail;
+   * `has_other` se esta já tem outro. Atômico.
+   */
+  setAccountEmail(accountId: string, email: string): Promise<SetEmailResult>;
   findAccount(id: string): Promise<Account | null>;
   listWallets(accountId: string): Promise<WalletLink[]>;
 }

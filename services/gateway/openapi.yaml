@@ -26,6 +26,20 @@ components:
         status: { type: string, enum: [active, suspended, banned] }
         kyc_level: { type: integer }
         created_at: { type: string, format: date-time }
+    Me:
+      type: object
+      required: [account, wallets]
+      properties:
+        account: { $ref: '#/components/schemas/Account' }
+        wallets:
+          type: array
+          items:
+            type: object
+            required: [address, chain_id, verified_at]
+            properties:
+              address: { type: string }
+              chain_id: { type: integer }
+              verified_at: { type: string, format: date-time }
 paths:
   /healthz:
     get:
@@ -196,6 +210,113 @@ paths:
               schema: { $ref: '#/components/schemas/Error' }
         '403':
           description: account_blocked
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /v1/me/wallets:
+    post:
+      summary: Liga mais uma carteira à conta logada
+      description: >-
+        Mesma mensagem e assinatura SIWE do login (pegue o nonce em /v1/auth/siwe/nonce).
+        Serve para a conta de e-mail ganhar carteira. Uma carteira pertence a uma conta só.
+      security: [{ bearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message, signature]
+              properties:
+                message: { type: string, maxLength: 4096 }
+                signature: { type: string, pattern: '^0x[0-9a-fA-F]+$' }
+      responses:
+        '201':
+          description: Carteira ligada; devolve a conta como no GET /v1/me
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Me' }
+        '200':
+          description: A carteira já era desta conta
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Me' }
+        '400':
+          description: invalid_request, invalid_siwe_message
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401':
+          description: Token (missing_credentials, invalid_token, token_expired) ou SIWE (invalid_siwe_domain, invalid_siwe_chain, invalid_nonce, invalid_signature)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '403':
+          description: account_blocked
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '409':
+          description: wallet_in_use (a carteira é de outra conta)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /v1/me/email/start:
+    post:
+      summary: Manda o código para pôr e-mail na conta logada
+      description: Para a conta de carteira. Conta que já tem e-mail recebe 409 email_already_set.
+      security: [{ bearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email, maxLength: 254 }
+      responses:
+        '202':
+          description: Pedido aceito
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [expires_in]
+                properties:
+                  expires_in: { type: integer }
+        '401': { description: missing_credentials, invalid_token, token_expired }
+        '404': { description: Login por e-mail desligado (EMAIL_LOGIN=off) }
+        '409':
+          description: email_already_set
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /v1/me/email/verify:
+    post:
+      summary: Confere o código e grava o e-mail na conta logada
+      description: Só depois do código certo o jogador fica sabendo se outra conta já usa o e-mail (409 email_in_use).
+      security: [{ bearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, code]
+              properties:
+                email: { type: string, format: email, maxLength: 254 }
+                code: { type: string, pattern: '^[0-9]{6}$' }
+      responses:
+        '200':
+          description: E-mail gravado; devolve a conta como no GET /v1/me
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Me' }
+        '401': { description: invalid_code, ou token inválido }
+        '404': { description: Login por e-mail desligado (EMAIL_LOGIN=off) }
+        '409':
+          description: email_in_use, email_already_set
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }

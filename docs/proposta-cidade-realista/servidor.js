@@ -78,8 +78,11 @@ async function call(base, path, { method = 'GET', body, token } = {}) {
   return json;
 }
 
-/** Assina a mensagem SIWE com a MetaMask, ou com a carteira de teste guardada no navegador. */
-async function signIn(useTestWallet) {
+/**
+ * Assina a mensagem SIWE com a MetaMask, ou com a carteira de teste guardada no
+ * navegador. Serve para entrar e para ligar a carteira a uma conta de e-mail.
+ */
+async function siweProof(useTestWallet, statement) {
   const { createSiweMessage } = await import(`${VIEM}/siwe`);
   let address;
   let sign;
@@ -108,11 +111,15 @@ async function signIn(useTestWallet) {
     nonce,
     uri: location.origin,
     version: '1',
-    statement: 'Entrar na Smart Chain City.',
+    statement,
   });
-  const signature = await sign(message);
+  return { message, signature: await sign(message), address };
+}
+
+async function signIn(useTestWallet) {
+  const { message, signature, address } = await siweProof(useTestWallet, 'Entrar na Smart Chain City.');
   const result = await call(API.gateway, '/v1/auth/siwe/verify', { method: 'POST', body: { message, signature } });
-  return { token: result.access_token, address, expiresAt: Date.now() + result.expires_in * 1000 };
+  return { token: result.access_token, address, email: result.account.email, expiresAt: Date.now() + result.expires_in * 1000 };
 }
 
 /** Login por e-mail: o gateway manda um código de 6 dígitos (no MVP local, no log dele). */
@@ -125,9 +132,36 @@ async function verifyEmailCode(email, code) {
     const result = await call(API.gateway, '/v1/auth/email/verify', { method: 'POST', body: { email, code } });
     return { token: result.access_token, address: null, email: result.account.email, expiresAt: Date.now() + result.expires_in * 1000 };
   } catch (error) {
-    // Código errado é 401, mas não é sessão expirada: mostra a mensagem e deixa tentar de novo.
-    if (error.status === 401) throw new ApiError(400, error.code, error.message);
+    return codeError(error);
+  }
+}
+
+/** Código errado é 401, mas não é sessão expirada: mostra a mensagem e deixa tentar de novo. */
+function codeError(error) {
+  if (error.status === 401 && error.code === 'invalid_code') throw new ApiError(400, error.code, error.message);
+  throw error;
+}
+
+/** Códigos de 401 que querem dizer "token não vale mais". */
+const SESSION_ERRORS = new Set(['missing_credentials', 'invalid_token', 'token_expired']);
+
+/** Vínculos da conta logada: carteira na conta de e-mail, e-mail na conta de carteira. */
+async function linkWallet(token, useTestWallet) {
+  const { message, signature } = await siweProof(useTestWallet, 'Ligar esta carteira à minha conta na Smart Chain City.');
+  try {
+    return await call(API.gateway, '/v1/me/wallets', { method: 'POST', token, body: { message, signature } });
+  } catch (error) {
+    // Assinatura ou nonce recusados também são 401, mas a sessão continua valendo.
+    if (error.status === 401 && !SESSION_ERRORS.has(error.code)) throw new ApiError(400, error.code, error.message);
     throw error;
+  }
+}
+
+async function linkEmailVerify(token, email, code) {
+  try {
+    return await call(API.gateway, '/v1/me/email/verify', { method: 'POST', token, body: { email, code } });
+  } catch (error) {
+    return codeError(error);
   }
 }
 
@@ -151,9 +185,15 @@ export function createServidor(map) {
   let open = true;
   /** E-mail que já recebeu o código: a tela pede o código em vez do e-mail. */
   let emailSent = null;
+  /** O mesmo, para pôr e-mail na conta logada. */
+  let linkSent = null;
+  /** Conta no gateway: e-mail e carteiras ligadas (null até o primeiro /v1/me). */
+  let me = null;
 
   const logout = (why = '') => {
     session = null;
+    me = null;
+    linkSent = null;
     storage.set(TOKEN_KEY, null);
     data = { avatar: null, balance: '0', scity: '0', lots: [], shifts: [] };
     drawLots();
@@ -164,10 +204,16 @@ export function createServidor(map) {
   async function refresh() {
     if (!session) return render();
     try {
-      const [avatars, balances] = await Promise.all([
+      const [avatars, balances, profile] = await Promise.all([
         call(API.game, '/v1/avatars', { token: session.token }),
         call(API.economy, '/v1/economy/balances', { token: session.token }),
+        // Gateway fora não derruba o painel: só some a parte de vínculos.
+        call(API.gateway, '/v1/me', { token: session.token }).catch((error) => {
+          if (error.status === 401) throw error;
+          return null;
+        }),
       ]);
+      if (profile) me = { email: profile.account.email, wallets: profile.wallets.map((w) => w.address) };
       data.avatar = avatars.avatars[0] ?? null;
       data.balance = balances.balances.find((b) => b.currency === 'THALER')?.amount ?? '0';
       data.scity = balances.balances.find((b) => b.currency === 'SCITY')?.amount ?? '0';
@@ -270,10 +316,37 @@ export function createServidor(map) {
         body += `<p class="muted pequeno">Último turno: ${thaler(last.result.thaler)} THALER${last.result.damaged ? ' (com danos)' : ''} · semente revelada <code>${last.seed.slice(0, 12)}…</code></p>`;
       }
     }
+    const email = me?.email ?? session.email ?? null;
+    const wallets = me?.wallets ?? (session.address ? [session.address] : []);
+    const who = [email ? esc(email) : '', ...wallets.map(short)].filter(Boolean).join('<br>');
+    // Vínculos: a conta de e-mail ganha carteira; a de carteira ganha e-mail.
+    let links = '';
+    if (me && !wallets.length && (window.ethereum || LOCAL)) {
+      links += `<p class="muted pequeno">Ligue uma carteira para entrar também por ela e, depois, receber NFTs.</p>
+        <div class="linha">
+          ${window.ethereum ? `<button class="btn btn--ghost pequeno" type="button" data-s="ligar-carteira" ${busy ? 'disabled' : ''}>Ligar carteira</button>` : ''}
+          ${LOCAL ? `<button class="btn btn--ghost pequeno" type="button" data-s="ligar-carteira-teste" ${busy ? 'disabled' : ''}>Ligar carteira de teste</button>` : ''}
+        </div>`;
+    }
+    if (me && !email) {
+      links += linkSent
+        ? `<form data-form="ligar-codigo">
+            <p class="muted pequeno">Código enviado para <b>${esc(linkSent)}</b>.${LOCAL ? ' Na máquina local, ele aparece no log do gateway.' : ''}</p>
+            <div class="linha"><input class="campo" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required placeholder="000000" aria-label="Código de 6 dígitos" />
+            <button class="btn btn--ghost pequeno" type="submit" ${busy ? 'disabled' : ''}>Confirmar</button></div>
+            <button class="btn btn--ghost pequeno" type="button" data-s="ligar-email-voltar">Trocar e-mail</button>
+          </form>`
+        : `<form data-form="ligar-email">
+            <p class="muted pequeno">Ponha um e-mail na conta para entrar sem a carteira.</p>
+            <div class="linha"><input class="campo" name="email" type="email" autocomplete="email" required maxlength="254" placeholder="voce@exemplo.com" aria-label="E-mail da conta" />
+            <button class="btn btn--ghost pequeno" type="submit" ${busy ? 'disabled' : ''}>Receber código</button></div>
+          </form>`;
+    }
     panel.innerHTML = `${head}
-      <dl class="resumo"><dt>Conta</dt><dd>${session.address ? short(session.address) : esc(session.email ?? '')}</dd><dt>THALER (ledger)</dt><dd>${thaler(data.balance)}</dd><dt>SCITY (ledger)</dt><dd>${scity(data.scity)}</dd><dt>Lotes no servidor</dt><dd>${data.lots.length}</dd></dl>
+      <dl class="resumo"><dt>Conta</dt><dd>${who}</dd><dt>THALER (ledger)</dt><dd>${thaler(data.balance)}</dd><dt>SCITY (ledger)</dt><dd>${scity(data.scity)}</dd><dt>Lotes no servidor</dt><dd>${data.lots.length}</dd></dl>
       ${data.lots.length ? `<p class="muted pequeno">${data.lots.map((l) => esc(l.code)).join(' · ')} <span class="tag-srv">violeta no mapa</span></p>` : '<p class="muted pequeno">Clique num lote verde e compre pela ficha.</p>'}
       ${LOCAL ? `<button class="btn btn--ghost pequeno" type="button" data-s="faucet" ${busy ? 'disabled' : ''}>+1.000 SCITY de teste</button>` : ''}
+      ${links}
       ${body}${note}
       <button class="btn btn--ghost pequeno" type="button" data-s="sair">Sair</button>`;
   }
@@ -290,7 +363,28 @@ export function createServidor(map) {
         emailSent = email;
       });
     }
+    if (form.dataset.form === 'ligar-email') {
+      const email = String(field.get('email') ?? '').trim();
+      return act(async () => {
+        await call(API.gateway, '/v1/me/email/start', { method: 'POST', token: session.token, body: { email } });
+        linkSent = email;
+      });
+    }
     const code = String(field.get('code') ?? '').trim();
+    if (form.dataset.form === 'ligar-codigo') {
+      return act(async () => {
+        try {
+          await linkEmailVerify(session.token, linkSent, code);
+        } catch (error) {
+          // E-mail de outra conta: não adianta outro código, volta para o campo do e-mail.
+          if (error.status === 409) linkSent = null;
+          throw error;
+        }
+        message = `E-mail ${linkSent} ligado à conta.`;
+        messageOk = true;
+        linkSent = null;
+      });
+    }
     return act(async () => {
       session = await verifyEmailCode(emailSent, code);
       storage.set(TOKEN_KEY, JSON.stringify(session));
@@ -307,6 +401,18 @@ export function createServidor(map) {
       return render();
     }
     if (what === 'sair') return logout();
+    if (what === 'ligar-carteira' || what === 'ligar-carteira-teste') {
+      return act(async () => {
+        await linkWallet(session.token, what === 'ligar-carteira-teste');
+        message = 'Carteira ligada à conta. Agora dá para entrar por ela também.';
+        messageOk = true;
+      });
+    }
+    if (what === 'ligar-email-voltar') {
+      linkSent = null;
+      message = '';
+      return render();
+    }
     if (what === 'email-voltar') {
       emailSent = null;
       message = '';

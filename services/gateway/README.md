@@ -55,6 +55,15 @@ O mapa de Pittsburg tem o formulário no painel "Jogo no servidor".
 
 Depois de atualizar o código, rode `pnpm db:migrate`: a tabela `email_code` é nova.
 
+## Vincular carteira e e-mail
+
+Uma conta pode ter as duas formas de entrar. Os vínculos pedem o JWT da conta.
+
+- **Carteira na conta de e-mail:** `POST /v1/me/wallets` com `{ message, signature }`, a mesma mensagem SIWE do login (nonce em `/v1/auth/siwe/nonce`). Responde `201` com a conta, ou `200` se a carteira já era dela. Uma carteira pertence a uma conta só: se for de outra, é `409 wallet_in_use`. A conta pode ter mais de uma carteira.
+- **E-mail na conta de carteira:** `POST /v1/me/email/start` com `{ email }` manda o código, como no login. `POST /v1/me/email/verify` com `{ email, code }` grava o e-mail. Conta que já tem e-mail recebe `409 email_already_set`, e o e-mail não troca por aqui. Só depois do código certo o jogador fica sabendo se outra conta já usa o e-mail (`409 email_in_use`).
+
+Depois do vínculo, entrar por qualquer um dos dois cai na mesma conta. No mapa de Pittsburg, o painel "Jogo no servidor" mostra os botões "Ligar carteira" e o campo de e-mail quando falta um deles. Não há migração nova.
+
 ## Com o SCC Builder
 
 Use o mesmo segredo nos dois lados: `JWT_SECRET` aqui e `jwt_secret` no Builder. No Builder, defina `jwt_issuer` como `scc-gateway` e `jwt_audience` como `scc-builder`.
