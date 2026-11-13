@@ -1,3 +1,5 @@
+import { timingSafeEqual } from 'node:crypto';
+
 import { errors, jwtVerify } from 'jose';
 
 import { AppError } from './index.js';
@@ -37,4 +39,16 @@ export function bearerToken(header: string | undefined): string {
   const match = /^Bearer\s+(.+)$/i.exec(header ?? '');
   if (!match?.[1]) throw new AppError('missing_credentials', 'Envie o token.', 401);
   return match[1];
+}
+
+/**
+ * Confere a chave de serviço (`X-Service-Token`) dos endpoints internos, em
+ * tempo constante: a chave não vaza pelo tempo de resposta.
+ */
+export function requireServiceToken(given: string | string[] | undefined, expected: string): void {
+  const a = Buffer.from(typeof given === 'string' ? given : '');
+  const b = Buffer.from(expected);
+  if (a.length !== b.length || !timingSafeEqual(a, b)) {
+    throw new AppError('forbidden', 'Só serviços internos usam esta rota.', 403);
+  }
 }

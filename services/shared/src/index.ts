@@ -13,4 +13,4 @@ export class AppError extends Error {
   }
 }
 
-export { bearerToken, verifyAccessToken, type VerifyOptions } from './auth.js';
+export { bearerToken, requireServiceToken, verifyAccessToken, type VerifyOptions } from './auth.js';

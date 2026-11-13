@@ -1,6 +1,4 @@
-import { timingSafeEqual } from 'node:crypto';
-
-import { AppError, bearerToken, verifyAccessToken } from '@scc/shared';
+import { AppError, bearerToken, requireServiceToken, verifyAccessToken } from '@scc/shared';
 import Fastify, { type FastifyRequest } from 'fastify';
 import { z } from 'zod';
 
@@ -54,13 +52,6 @@ const txDto = (tx: PostedTx) => ({
     amount: l.amount.toString(),
   })),
 });
-
-/** Compara em tempo constante: a chave interna não vaza por tempo de resposta. */
-function sameSecret(given: string | undefined, expected: string) {
-  const a = Buffer.from(given ?? '');
-  const b = Buffer.from(expected);
-  return a.length === b.length && timingSafeEqual(a, b);
-}
 
 export async function buildApp(config: Config, store: LedgerStore, now: () => Date = () => new Date()) {
   const app = Fastify({
@@ -131,9 +122,7 @@ export async function buildApp(config: Config, store: LedgerStore, now: () => Da
   // Lançamento feito pelos outros serviços (pagamento de turno, compra de lote,
   // imposto). Jogador nunca chama: o cliente não decide saldo (ADR-0002).
   app.post('/internal/v1/ledger/transactions', async (request, reply) => {
-    if (!sameSecret(request.headers['x-service-token'] as string | undefined, config.INTERNAL_TOKEN)) {
-      throw new AppError('forbidden', 'Só serviços internos lançam no ledger.', 403);
-    }
+    requireServiceToken(request.headers['x-service-token'], config.INTERNAL_TOKEN);
     const key = request.headers['idempotency-key'];
     if (typeof key !== 'string') {
       throw new AppError('missing_idempotency_key', 'Envie o cabeçalho Idempotency-Key.', 400);
