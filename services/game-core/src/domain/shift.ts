@@ -3,7 +3,7 @@ import { createHash, createHmac, randomBytes } from 'node:crypto';
 import { AppError } from '@scc/shared';
 
 import { type Attributes, type Avatar, status } from './avatar.js';
-import type { Rarity } from './catalog.js';
+import { BASE_RANGE, profession } from './catalog.js';
 
 /**
  * Turno de trabalho (E1.4; doc 02 §3.2, doc 04 §4). O ganho segue a mesma
@@ -17,16 +17,15 @@ export type ShiftHours = (typeof SHIFT_HOURS)[number];
 /** No máximo 12 h por dia: um turno de 12 h ou dois de 6 h (GDD §3.2). */
 export const MAX_HOURS_PER_DAY = 12;
 
-/** Energia gasta no turno. Premissa: o GDD dá o custo por tarefa, não por turno. */
+/**
+ * Energia gasta no turno. Premissa: o minigame de cada profissão no GDD gasta
+ * de 5 a 20 de energia, mas o atributo vai só de 0 a 10; até o game designer
+ * acertar isso no catálogo, o turno usa um custo fixo.
+ */
 export const ENERGY_COST: Record<ShiftHours, number> = { 6: 3, 12: 6 };
 
-/** Ganho base por dia (THALER), da tabela de atributos (doc 02 §2.2). */
-export const BASE_RANGE: Record<Rarity, [number, number]> = {
-  common: [100, 125],
-  rare: [140, 165],
-  epic: [180, 205],
-  legendary: [225, 250],
-};
+/** Faixa de ganho por raridade (doc 02 §2.2): o catálogo confere cada profissão contra ela. */
+export { BASE_RANGE };
 
 /** doc 02 §2.4, índice = nível 0..10 (nível 0 tratado como 1), como no simulador. */
 export const HEALTH_MULT = [0.5, 0.5, 0.55, 0.6, 0.7, 0.8, 0.9, 1, 1.2, 1.4, 1.5];
@@ -39,13 +38,13 @@ export const DAMAGE_CHANCE = 0.05;
 export const DAMAGE_FRACTION = 0.3;
 
 /**
- * Base do avatar dentro da faixa da raridade. O simulador sorteia uma base por
- * avatar; aqui ela sai do id, então é sempre a mesma para o mesmo avatar.
+ * Ganho base do dia: o da profissão no catálogo do GDD (Padeiro 125, Pedreiro
+ * 100…), sempre dentro da faixa da raridade que o simulador usa.
  */
-export function baseOf(avatarId: string, rarity: Rarity): number {
-  const [min, max] = BASE_RANGE[rarity];
-  const n = createHash('sha256').update(`base:${avatarId}`).digest().readUInt32BE(0);
-  return min + (n % (max - min + 1));
+export function baseOf(jobCode: string): number {
+  const p = profession(jobCode);
+  if (!p) throw new AppError('invalid_job', `Profissão ${jobCode} não está no catálogo.`, 500);
+  return p.tokens;
 }
 
 export const expMultiplier = (education: number) => 1 + Math.min(100, Math.max(0, education)) / 50;
@@ -129,7 +128,7 @@ export function startShift(
       happiness: a.happiness,
       education: a.education,
       earnsReward: status(avatar).earnsReward,
-      base: baseOf(avatar.id, avatar.rarity),
+      base: baseOf(avatar.jobCode),
     },
     result: null,
     status: 'running',

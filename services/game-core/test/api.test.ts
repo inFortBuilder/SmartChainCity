@@ -114,3 +114,13 @@ describe('ferramentas de desenvolvimento', () => {
     expect(other.headers['access-control-allow-origin']).toBeUndefined();
   });
 });
+
+describe('catálogo na API', () => {
+  it('lista as 44 profissões, sem o valor exato de atributo por tarefa', async () => {
+    const r = (await app.inject({ method: 'GET', url: '/v1/catalog/professions' })).json();
+    expect(r.professions).toHaveLength(44);
+    const padeiro = r.professions.find((p: { code: string }) => p.code === 'padeiro');
+    expect(padeiro).toMatchObject({ label: 'Padeiro', rarity: 'common', thaler_per_day: 125 });
+    expect(padeiro.tasks.every((t: { energy: number }) => [-1, 0, 1].includes(t.energy))).toBe(true);
+  });
+});

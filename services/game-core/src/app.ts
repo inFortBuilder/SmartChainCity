@@ -7,7 +7,7 @@ import { z } from 'zod';
 
 import type { Config } from './config.js';
 import { type Avatar, type AvatarStore, decayed, newAvatar, status } from './domain/avatar.js';
-import { PROFESSIONS, professionLabel } from './domain/catalog.js';
+import { PROFESSIONS, PROFESSION_LIST, professionLabel } from './domain/catalog.js';
 import { type Payer, type Shift, type ShiftStore, startShift } from './domain/shift.js';
 import { completeShifts } from './jobs/shift.js';
 
@@ -92,6 +92,24 @@ export async function buildApp(
     });
 
   app.get('/healthz', async () => ({ status: 'ok' }));
+
+  // Catálogo público das profissões (do GDD), para a tela de avatar e a Lucky Box.
+  // Sem o ganho por tarefa: o GDD pede que a tela mostre só a direção (+/−) dos atributos.
+  app.get('/v1/catalog/professions', async () => ({
+    professions: PROFESSION_LIST.map((p) => ({
+      code: p.code,
+      label: p.label,
+      rarity: p.rarity,
+      thaler_per_day: p.tokens,
+      minutes: p.minutes,
+      tasks: p.tasks.map((t) => ({
+        name: t.name,
+        minutes: t.minutes,
+        energy: Math.sign(t.energy),
+        happiness: Math.sign(t.happiness),
+      })),
+    })),
+  }));
 
   app.get('/v1/avatars', async (request) => {
     const avatars = await store.listByAccount(await player(request));
