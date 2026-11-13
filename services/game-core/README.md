@@ -38,9 +38,30 @@ Cada atributo que cai guarda o **instante de referência** (`food_at`, `happines
 | Base | O ganho do dia da profissão no GDD (Padeiro 125, Pedreiro 100, Médico 250…), sempre dentro da faixa da raridade que o simulador usa |
 | Danos | 5% de chance de perder 30% (premissas do simulador), sorteados com a semente do turno |
 | Sorteio auditável | No começo, o servidor publica `seed_commit` = sha256(semente). No fim, revela a semente; o resultado é HMAC(semente, turno), que qualquer um refaz |
-| Pagamento | O "Coletar" paga pelo ledger do economy, do pool P2E para o jogador, com a chave `shift:<id>`: repetir nunca paga em dobro. Pool vazio responde `503 pool_empty` e o turno fica para coletar depois |
+| Pagamento | O "Coletar" paga pelo ledger do economy, do pool P2E para o jogador, com a chave `shift:<id>`: repetir nunca paga em dobro. O `x-request-id` da coleta vai junto, para achar o pagamento no log do economy. Pool vazio responde `503 pool_empty` e o turno fica para coletar depois |
 
 Moradia irregular (×0,5) e evento semanal (×1,15) ficam em 1 até existirem imóveis e eventos. O pet entra no teto de 2,5× quando existir.
+
+## Alimentação (E2.3, passo 12 da trilha)
+
+O avatar come no **mercado do jogo**: compra uma unidade do alimento e come na hora.
+
+| Regra | Como |
+|---|---|
+| Alimentos | Os 17 da Tabela de Atributos (doc 02 §7), lidos do Strapi (`/api/foods`) ou, sem ele, de [`cms-strapi/seed/alimentos.json`](../../cms-strapi/README.md). Publicar um alimento no Strapi recarrega o mercado pelo mesmo webhook das profissões. `FOODS_FILE` troca o arquivo |
+| Efeito | +3 de alimentação (**premissa**: o GDD pede 3 refeições por dia e a alimentação cai 5 pontos por dia), mais a energia e a saúde do alimento, que podem ser negativas. Tudo fica entre 0 e 10 |
+| Satisfeito | Com alimentação 10 não come (`409 not_hungry`), e nada é cobrado |
+| Preço | O do catálogo (THALER por pacote) dividido pelas unidades do pacote. Sem preço no catálogo, que é o caso hoje, 4 THALER por unidade (**premissa**: o simulador conta 12 THALER por dia de comida, em 3 refeições). A API marca `provisional_price` |
+| Para onde vai o THALER | Para a queima (`burn/food`): comida é sink (doc 04 §7). Lançamento `meal_buy` com a chave `meal:<id>` |
+| Sem saldo | `409 insufficient_thaler`: a refeição fica `failed` e o avatar não muda |
+| Ledger fora | A refeição fica `pending` e a próxima chamada do jogador (comer ou listar) termina: cobra com a mesma chave, que o ledger nunca lança duas vezes, e aplica |
+| Clique repetido | Com `Idempotency-Key`, o mesmo pedido devolve a mesma refeição e cobra uma vez |
+
+No mapa de Pittsburg, o painel mostra a lista de alimentos e o botão "Comer" quando a alimentação está abaixo de 10.
+
+Depois de atualizar o código, rode `pnpm db:migrate`: a tabela `meal` é nova.
+
+Ainda não: comprar e guardar pacotes (despensa), o tempo de compra do mercado (4 min + volume), a dor de barriga de 3% (doenças, com a farmácia) e a regra da energia que recarrega a cada 8 h.
 
 ## Rodar
 
@@ -51,10 +72,10 @@ cp services/game-core/.env.example services/game-core/.env
 pnpm --filter @scc/game-core dev
 ```
 
-No `.env`, preencha `JWT_SECRET` (o mesmo do gateway) e `INTERNAL_TOKEN` (32 caracteres ou mais). `CORS_ORIGINS` lista as origens do navegador (o mapa em `http://localhost:8081`). Para testar, `DEV_FREE_AVATAR=true` e `DEV_SHIFT_MINUTES=1` (turno de 1 minuto que paga como 6 h); os dois são recusados em produção. Para pagar turnos, `ECONOMY_URL` e `ECONOMY_TOKEN` (o `INTERNAL_TOKEN` do economy); o pool P2E precisa ter saldo, emitido pelo `system/mint` (veja o [README do economy](../economy/README.md)). Testes, com o Postgres do `pnpm db:up` no ar:
+No `.env`, preencha `JWT_SECRET` (o mesmo do gateway) e `INTERNAL_TOKEN` (32 caracteres ou mais). `CORS_ORIGINS` lista as origens do navegador (o mapa em `http://localhost:8081`). Para testar, `DEV_FREE_AVATAR=true` e `DEV_SHIFT_MINUTES=1` (turno de 1 minuto que paga como 6 h); os dois são recusados em produção. Para pagar turnos, `ECONOMY_URL` e `ECONOMY_TOKEN` (o `INTERNAL_TOKEN` do economy); o pool P2E precisa ter saldo, emitido pelo `system/mint` (veja o [README do economy](../economy/README.md)). Testes, com o Postgres do `pnpm db:up` no ar e **no banco `scc_test`**, nunca no do jogo local: os jobs de teste varrem a tabela inteira (queda de atributos, conclusão de turnos) e mexeriam nos seus avatares. Migre antes com `DATABASE_URL=…/scc_test pnpm db:migrate`.
 
 ```bash
-TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc pnpm --filter @scc/game-core test
+TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc_test pnpm --filter @scc/game-core test
 ```
 
 ## API
@@ -66,22 +87,26 @@ TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc pnpm --filter @scc
 | POST | `/v1/avatars/:id/work` | jogador (Bearer) | Começa o turno `{shift}`, de 6 ou 12 h; devolve o `seed_commit` |
 | GET | `/v1/avatars/:id/shifts` | jogador (Bearer) | Últimos 20 turnos, com resultado e semente dos concluídos |
 | POST | `/v1/avatars/:id/claim` | jogador (Bearer) | Paga no ledger os turnos concluídos e ainda não coletados |
+| POST | `/v1/avatars/:id/meals` | jogador (Bearer) | Come `{food}`: cobra no ledger e aplica os efeitos. Aceita `Idempotency-Key`. Devolve a refeição e o avatar |
+| GET | `/v1/avatars/:id/meals` | jogador (Bearer) | Últimas 20 refeições (`pending`, `eaten`, `failed`) |
 | POST | `/v1/dev/avatar` | jogador (Bearer) | **Só desenvolvimento** (`DEV_FREE_AVATAR=true`): dá um avatar comum a quem não tem; desligado, 404 |
 | POST | `/internal/v1/avatars` | serviços (`X-Service-Token`) | Cria `{account_id, rarity, job_code}`; na Etapa 2, chamado ao ver o mint da Lucky Box |
-| POST | `/internal/v1/catalog/refresh` | Strapi (webhook, `X-Service-Token`) | Recarrega o catálogo publicado no Strapi; catálogo quebrado ou sem uma profissão em uso é recusado (`422 catalog_rejected`). Aviso de outro tipo do catálogo (`model` diferente de `job`) é ignorado |
+| POST | `/internal/v1/catalog/refresh` | Strapi (webhook, `X-Service-Token`) | Recarrega o catálogo publicado no Strapi; catálogo quebrado ou sem uma profissão em uso é recusado (`422 catalog_rejected`). Com `model: "food"`, recarrega só os alimentos; outros tipos do catálogo são ignorados |
+| GET | `/v1/catalog/foods` | público | Os alimentos do mercado com energia, saúde e o preço de uma unidade, em centavos de THALER |
 | GET | `/v1/catalog/professions` | público | As 44 profissões com ganho do dia, duração e tarefas; das tarefas, só a direção (+/−) de energia e felicidade (GDD §2.4) |
 | GET | `/healthz` | — | `{status: "ok"}` |
 
-Erros com código estável: `invalid_rarity`, `invalid_job`, `avatar_limit`, `invalid_shift`, `shift_running`, `daily_limit`, `too_tired`, `pool_empty`, `ledger_unavailable`, `not_found`, `forbidden`, `missing_credentials`, `invalid_token`, `token_expired`.
+Erros com código estável: `invalid_rarity`, `invalid_job`, `avatar_limit`, `invalid_shift`, `shift_running`, `daily_limit`, `too_tired`, `pool_empty`, `unknown_food`, `not_hungry`, `insufficient_thaler`, `ledger_unavailable`, `not_found`, `forbidden`, `missing_credentials`, `invalid_token`, `token_expired`.
 
 ## Banco
 
-Esquema próprio `game`: tabela `avatar` do doc 06, com os instantes de referência da queda, e `work_shift`, com a semente e o resultado. Migrações em `drizzle/`, controladas em `drizzle.__game_core_migrations`.
+Esquema próprio `game`: tabela `avatar` do doc 06, com os instantes de referência da queda, `work_shift`, com a semente e o resultado, e `meal`, com o preço, os efeitos e a situação da refeição. Migrações em `drizzle/`, controladas em `drizzle.__game_core_migrations`.
 
 ## Ainda não
 
 - Deslocamento (carro, skate, ônibus, a pé, home office) e as tarefas do minigame de cada profissão (catálogo do Strapi).
 - Bônus de itens, pet, moradia e eventos semanais no ganho.
-- Comer, descansar e atividades (sobem os atributos); hospital com energia ou saúde em 0; doenças.
+- Descansar e atividades (sobem os atributos); hospital com energia ou saúde em 0; doenças e farmácia.
+- Despensa (comprar pacotes e comer depois) e o tempo de compra do mercado.
 - Fila do BullMQ: o job roda no próprio processo até haver Redis no ambiente.
 - Calibrar as premissas de felicidade e higiene no simulador.

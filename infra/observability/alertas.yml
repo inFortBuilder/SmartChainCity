@@ -1,0 +1,22 @@
+# Alertas de base (E1.7). Os limites são de partida; ajustar com tráfego real.
+groups:
+  - name: servicos
+    rules:
+      - alert: ServicoFora
+        expr: up == 0
+        for: 1m
+        labels: { severity: critical }
+        annotations:
+          summary: '{{ $labels.instancia }} não responde ao /metrics há 1 minuto'
+      - alert: Erros5xx
+        expr: sum by (service) (rate(http_requests_total{status=~"5.."}[5m])) / sum by (service) (rate(http_requests_total[5m])) > 0.02
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: '{{ $labels.service }} com mais de 2% de respostas 5xx'
+      - alert: LatenciaP95Alta
+        expr: histogram_quantile(0.95, sum by (service, le) (rate(http_request_duration_seconds_bucket[5m]))) > 1
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: '{{ $labels.service }} com p95 acima de 1 s'

@@ -11,6 +11,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "fastify": "^5.12.7",
     "jose": "^6.2.14"
   }
 }

@@ -14,10 +14,10 @@ Pasta: [`services/`](../../services/README.md) · Especificação: [doc 05 §4](
 | 6 | 1 | game-core | ✅ Avatar, atributos, decaimento agendado ([README](../../services/game-core/README.md)) | Atributos decaem por job (`attributes.decay`, em lotes, com o mesmo resultado da leitura) |
 | 7 | 1 | game-core | ✅ **Turno de trabalho**: validações, seed commit-reveal, job `shift.complete`, coleta paga pelo ledger ([README](../../services/game-core/README.md#turno-de-trabalho-e14-passo-7-da-trilha)) | Turno de 6 h conclui sem cliente (teste de ponta a ponta com o economy) |
 | 8 | 1 | game-core | Leitor do catálogo (webhook do Strapi → Redis) | Mudança no Strapi aparece sem redeploy |
-| 9 | 2 | world | Grade, regiões, `GET /world/cells`, cotação assinada (EIP-712) com regras de bairro e cerco | Cotação aceita pelo `LandNFT` na testnet |
+| 9 | 2 | world | 🟡 Lotes no Postgres, venda primária paga pelo ledger com regras de bairro ([README](../../services/world/README.md)); falta a cotação assinada (EIP-712) e o cerco | Cotação aceita pelo `LandNFT` na testnet |
 | 10 | 2 | world | Imóveis: obra, desgaste, renda, upgrade, regularização, utilidades | Fluxo de imóvel completo |
 | 11 | 2 | economy | Impostos (IPTU, PT), aluguel, hotel; câmbio de teste | Cobrança agendada e auditável |
-| 12 | 2 | game-core | Alimentação, hospital, farmácia, doenças | Fluxos do GDD §5 da fase 1 |
+| 12 | 2 | game-core | 🟡 Alimentação no mercado do jogo, paga pelo ledger ([README](../../services/game-core/README.md#alimentação-e23-passo-12-da-trilha)); faltam despensa, hospital, farmácia e doenças | Fluxos do GDD §5 da fase 1 |
 | 13 | 2 | chain-indexer | Leitura de eventos com confirmações, idempotência por `tx_hash + log_index`, reorg | Depósito na testnet credita THALER uma vez |
 | 14 | 2 | realtime | Colyseus com salas por célula, presença, chat moderado | 100 clientes simulados por sala |
 | 15 | 2 | game-core | Antifraude v1 (limite de avatares, fingerprint, velocidade) | Regras com métricas |

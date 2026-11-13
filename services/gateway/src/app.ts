@@ -1,6 +1,6 @@
 import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
-import { AppError } from '@scc/shared';
+import { AppError, observe, serverOptions } from '@scc/shared';
 import Fastify, { type FastifyRequest } from 'fastify';
 import { z } from 'zod';
 
@@ -25,11 +25,14 @@ const accountDto = (account: Account) => ({
 export async function buildApp(config: Config, store: AuthStore, now?: () => Date) {
   const app = Fastify({
     trustProxy: config.TRUST_PROXY,
-    logger:
-      config.NODE_ENV === 'test'
-        ? false
-        : { redact: ['req.headers.authorization', 'req.body.signature'] },
+    ...serverOptions({
+      service: 'gateway',
+      nodeEnv: config.NODE_ENV,
+      logLevel: config.LOG_LEVEL,
+      redact: ['req.body.signature'],
+    }),
   });
+  observe(app, { service: 'gateway', nodeEnv: config.NODE_ENV, metricsToken: config.METRICS_TOKEN });
 
   const tokenOptions = {
     secret: config.JWT_SECRET,

@@ -15,6 +15,13 @@
       "when": 1794528982195,
       "tag": "0001_pink_synch",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794600772473,
+      "tag": "0002_lonely_night_thrasher",
+      "breakpoints": true
     }
   ]
 }

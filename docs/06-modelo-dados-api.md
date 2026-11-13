@@ -174,7 +174,8 @@ Autenticação: `Authorization: Bearer <JWT>`. Toda mutação aceita `Idempotenc
 | GET | `/v1/avatars/:id` | Atributos, condições, turno atual |
 | POST | `/v1/avatars/:id/work` | `{shift: 6|12, commute: "car"|"skate"|"walk"|"bus"|"home"}` |
 | POST | `/v1/avatars/:id/claim` | Coletar turno concluído |
-| POST | `/v1/avatars/:id/consume` | `{itemId}` — comer / remédio |
+| POST | `/v1/avatars/:id/meals` | `{food}` — compra uma unidade no mercado do jogo e come (pronto, E2.3) |
+| POST | `/v1/avatars/:id/consume` | `{itemId}` — item da despensa ou remédio |
 | POST | `/v1/avatars/:id/activities` | `{activityCode, placeId}` — lazer, academia, escola |
 | POST | `/v1/avatars/:id/move-in` | `{propertyId}` ou aluguel/hotel |
 
