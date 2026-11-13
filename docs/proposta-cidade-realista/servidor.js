@@ -59,7 +59,7 @@ class ApiError extends Error {
   }
 }
 
-async function call(base, path, { method = 'GET', body, token } = {}) {
+async function call(base, path, { method = 'GET', body, token, headers = {} } = {}) {
   let response;
   try {
     response = await fetch(base + path, {
@@ -67,6 +67,7 @@ async function call(base, path, { method = 'GET', body, token } = {}) {
       headers: {
         ...(body ? { 'content-type': 'application/json' } : {}),
         ...(token ? { authorization: `Bearer ${token}` } : {}),
+        ...headers,
       },
       body: body ? JSON.stringify(body) : undefined,
     });
@@ -129,6 +130,8 @@ export function createServidor(map) {
     session = null;
   }
   let data = { avatar: null, balance: '0', scity: '0', lots: [], shifts: [] };
+  /** Alimentos do mercado do jogo, com o preço de uma unidade em centavos de THALER. */
+  let foods = [];
   let message = '';
   let messageOk = false;
   let busy = false;
@@ -151,6 +154,12 @@ export function createServidor(map) {
         call(API.economy, '/v1/economy/balances', { token: session.token }),
       ]);
       data.avatar = avatars.avatars[0] ?? null;
+      // Lista do mercado: pública, busca uma vez (se o game-core for antigo, só não aparece).
+      if (!foods.length) {
+        foods = await call(API.game, '/v1/catalog/foods')
+          .then((r) => r.foods)
+          .catch(() => []);
+      }
       data.balance = balances.balances.find((b) => b.currency === 'THALER')?.amount ?? '0';
       data.scity = balances.balances.find((b) => b.currency === 'SCITY')?.amount ?? '0';
       // Lotes do servidor: se o world estiver fora, o resto do painel segue.
@@ -185,6 +194,8 @@ export function createServidor(map) {
     await refresh();
   }
 
+  const sign = (n) => (n > 0 ? `+${n}` : String(n));
+
   const bar = (label, value, max = 10) =>
     `<div class="attr"><span>${label}</span><div class="barra"><span style="width:${(value / max) * 100}%"></span></div><b>${value}</b></div>`;
 
@@ -218,6 +229,17 @@ export function createServidor(map) {
       body = `<p><strong>${esc(a.job.label)}</strong> <span class="muted">· ${esc(a.rarity)}</span></p>
         ${bar('Energia', at.energy)}${bar('Saúde', at.health)}${bar('Felicidade', at.happiness)}${bar('Alimentação', at.food)}${bar('Higiene', at.hygiene)}
         <p class="muted pequeno">Educação ${at.education}/100${a.status.earnsReward ? '' : ' · <strong>sem comer há 48 h: o turno não paga</strong>'}</p>`;
+      // Mercado do jogo (E2.3): comer custa THALER e sobe a alimentação.
+      if (foods.length && at.food < 10) {
+        const options = foods
+          .map((f) => `<option value="${esc(f.code)}">${esc(f.label)} · ${thaler(f.price)} · ${sign(f.energy)} energia, ${sign(f.health)} saúde</option>`)
+          .join('');
+        body += `<form data-form="comer" class="comer">
+          <div class="linha"><select class="campo" name="food" aria-label="Alimento">${options}</select>
+          <button class="btn btn--blue" type="submit" ${busy ? 'disabled' : ''}>Comer</button></div>
+          <p class="muted pequeno">Cada refeição dá +3 de alimentação.${foods.some((f) => f.provisional_price) ? ' Preço provisório até o game designer definir.' : ''}</p>
+        </form>`;
+      }
       if (running) {
         const total = new Date(running.ends_at) - new Date(running.starts_at);
         const pct = Math.min(100, ((Date.now() - new Date(running.starts_at)) / total) * 100);
@@ -245,6 +267,25 @@ export function createServidor(map) {
       ${body}${note}
       <button class="btn btn--ghost pequeno" type="button" data-s="sair">Sair</button>`;
   }
+
+  panel.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const form = e.target.closest('form[data-form="comer"]');
+    if (!form || busy) return;
+    const code = String(new FormData(form).get('food') ?? '');
+    const item = foods.find((f) => f.code === code);
+    return act(async () => {
+      // A chave faz o servidor reconhecer um clique repetido como o mesmo pedido.
+      const r = await call(API.game, `/v1/avatars/${data.avatar.id}/meals`, {
+        method: 'POST',
+        token: session.token,
+        body: { food: code },
+        headers: { 'idempotency-key': crypto.randomUUID() },
+      });
+      message = `${item?.label ?? code}: −${thaler(r.meal.price)} THALER, alimentação ${r.avatar.attributes.food}/10.`;
+      messageOk = true;
+    });
+  });
 
   panel.addEventListener('click', (e) => {
     const b = e.target.closest('[data-s]');

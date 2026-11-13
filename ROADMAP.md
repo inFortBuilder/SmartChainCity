@@ -66,7 +66,7 @@ S1–S4            S5–S8              S9–S14              S15–S22         
 | E1.6 Célula jogável | client · art | 1 célula com lotes, 1 casa T1, câmera isométrica | Célula carrega por Addressables com dados de `/world/cells` |
 | E1.7 Observabilidade | infra | Logs estruturados, métricas, Sentry, ambiente `dev` | Painel mostra requisições e erros por serviço |
 
-> **Situação em 2026-11-12:** o critério de saída foi demonstrado localmente. No mapa de Pittsburg (cliente web, [ADR-0009](docs/adr/0009-cliente-web-nativo.md)), o jogador entra com a carteira, trabalha um turno e coleta THALER no ledger, tudo pelo servidor. Prontos: E1.1 (login SIWE; e-mail ainda não), E1.3, E1.4, E1.5 e E1.6, com os lotes no serviço world e a compra paga em SCITY pelo ledger (a geometria segue em arquivos estáticos por bairro). E1.2 pronto no catálogo: Strapi 5 com profissões, atividades, alimentos, raridades, multiplicadores e tipos de imóvel publicados; o game-core lê as profissões sem deploy. Os números que o GDD não tem (efeito exato das atividades, preço dos alimentos, renda dos imóveis) esperam o game designer. Faltam E1.7 (observabilidade) e o ambiente `dev` publicado.
+> **Situação em 2026-11-12:** o critério de saída foi demonstrado localmente. No mapa de Pittsburg (cliente web, [ADR-0009](docs/adr/0009-cliente-web-nativo.md)), o jogador entra com a carteira, trabalha um turno e coleta THALER no ledger, tudo pelo servidor. Prontos: E1.1 (login SIWE; e-mail ainda não), E1.3, E1.4, E1.5 e E1.6, com os lotes no serviço world e a compra paga em SCITY pelo ledger (a geometria segue em arquivos estáticos por bairro). E1.2 pronto no catálogo: Strapi 5 com profissões, atividades, alimentos, raridades, multiplicadores e tipos de imóvel publicados; o game-core lê as profissões e os alimentos sem deploy. Os números que o GDD não tem (efeito exato das atividades, preço dos alimentos, renda dos imóveis) esperam o game designer. Faltam E1.7 (observabilidade) e o ambiente `dev` publicado.
 >
 > **E1.7 em 2026-11-13:** logs JSON com o serviço e o id da requisição, métricas em `/metrics` e painel local (Prometheus + Grafana) com requisições, erros e latência por serviço ([infra/observability](infra/observability/README.md)). Faltam o Sentry, que precisa de uma conta, e o ambiente `dev` publicado.
 
@@ -80,7 +80,7 @@ S1–S4            S5–S8              S9–S14              S15–S22         
 |-------|--------|----------|
 | E2.1 Lucky Box (testnet) | contracts · client | `AvatarNFT` + `LuckyBox` com Chainlink VRF; tela de abertura; probabilidades públicas |
 | E2.2 Profissões do MVP | backend · cms · art | 12 profissões com minigame (11 comuns + Cozinheiro); cards de arte |
-| E2.3 Alimentação e saúde | backend · client | Mercado do jogo, hospital, farmácia, doenças |
+| E2.3 Alimentação e saúde | backend · client | Mercado do jogo (🟡 comer pago pelo ledger, preço provisório), hospital, farmácia, doenças |
 | E2.4 Região A1 | backend · client · tools | Grade completa, compra primária com cotação assinada, regularização, água/energia |
 | E2.5 Imóveis | backend · contracts · client | `LandNFT`, `PropertyNFT`; T1–T3 e Residencial 3; obra, desgaste, renda; aluguel e hotel |
 | E2.6 Impostos | backend | IPTU, PT de lote vazio, inadimplência |

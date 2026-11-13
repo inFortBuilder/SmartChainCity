@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { check, index, jsonb, numeric, pgSchema, smallint, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { check, index, jsonb, numeric, pgSchema, smallint, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 
 /**
  * Esquema próprio `game` (o serviço não toca o banco dos outros). Tabela
@@ -74,5 +74,34 @@ export const workShift = game.table(
     index('work_shift_due_idx').on(t.status, t.endsAt),
     check('work_shift_hours_check', sql`${t.shiftHours} in (6, 12)`),
     check('work_shift_status_check', sql`${t.status} in ('running', 'done', 'claimed')`),
+  ],
+);
+
+/**
+ * Refeição no mercado do jogo (E2.3). Nasce `pending`, antes da cobrança no
+ * ledger; vira `eaten` com os efeitos aplicados ao avatar, ou `failed` se o
+ * ledger recusar. A chave do cliente (Idempotency-Key) é única por conta.
+ */
+export const meal = game.table(
+  'meal',
+  {
+    id: uuid('id').primaryKey(),
+    avatarId: uuid('avatar_id')
+      .notNull()
+      .references(() => avatar.id),
+    accountId: uuid('account_id').notNull(),
+    foodCode: text('food_code').notNull(),
+    priceCents: numeric('price_cents', { precision: 38, scale: 0 }).notNull(),
+    effects: jsonb('effects').notNull(),
+    status: text('status').notNull(),
+    clientKey: text('client_key'),
+    createdAt: timestamptz('created_at').notNull(),
+    eatenAt: timestamptz('eaten_at'),
+  },
+  (t) => [
+    index('meal_avatar_idx').on(t.avatarId, t.createdAt),
+    uniqueIndex('meal_client_key_unique').on(t.accountId, t.clientKey),
+    check('meal_status_check', sql`${t.status} in ('pending', 'eaten', 'failed')`),
+    check('meal_price_check', sql`${t.priceCents} > 0`),
   ],
 );

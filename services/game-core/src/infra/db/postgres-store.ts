@@ -13,6 +13,7 @@ import {
   tooManyAvatars,
 } from '../../domain/avatar.js';
 import type { Rarity } from '../../domain/catalog.js';
+import { type Meal, type MealEffects, type MealPlanner, type MealStatus, type MealStore, eat } from '../../domain/meal.js';
 import {
   type Shift,
   type ShiftHours,
@@ -24,7 +25,28 @@ import {
   hoursSince,
   settle,
 } from '../../domain/shift.js';
-import { avatar, workShift } from './schema.js';
+import { avatar, meal, workShift } from './schema.js';
+
+type MealRow = typeof meal.$inferSelect;
+
+const toMeal = (r: MealRow): Meal => ({
+  id: r.id,
+  avatarId: r.avatarId,
+  accountId: r.accountId,
+  foodCode: r.foodCode,
+  priceCents: BigInt(r.priceCents),
+  effects: r.effects as MealEffects,
+  status: r.status as MealStatus,
+  clientKey: r.clientKey,
+  createdAt: r.createdAt,
+  eatenAt: r.eatenAt,
+});
+
+/** Violação de unicidade do Postgres, venha crua ou embrulhada pelo Drizzle. */
+const isUniqueViolation = (error: unknown) => {
+  const e = error as { code?: string; cause?: { code?: string } } | null;
+  return e?.code === '23505' || e?.cause?.code === '23505';
+};
 
 type ShiftRow = typeof workShift.$inferSelect;
 
@@ -81,7 +103,7 @@ const toRow = (a: Avatar) => ({
   updatedAt: a.updatedAt,
 });
 
-export class PostgresAvatarStore implements AvatarStore, ShiftStore {
+export class PostgresAvatarStore implements AvatarStore, ShiftStore, MealStore {
   private readonly db;
 
   constructor(pool: Pool) {
@@ -218,5 +240,89 @@ export class PostgresAvatarStore implements AvatarStore, ShiftStore {
       .update(workShift)
       .set({ status: 'claimed' })
       .where(and(eq(workShift.id, shiftId), eq(workShift.status, 'done')));
+  }
+
+  private async mealByKey(accountId: string, clientKey: string) {
+    const [row] = await this.db
+      .select()
+      .from(meal)
+      .where(and(eq(meal.accountId, accountId), eq(meal.clientKey, clientKey)));
+    return row ? toMeal(row) : null;
+  }
+
+  async beginMeal(avatarId: string, accountId: string, clientKey: string | null, now: Date, plan: MealPlanner) {
+    try {
+      return await this.db.transaction(async (tx) => {
+        const [row] = await tx.select().from(avatar).where(eq(avatar.id, avatarId)).for('update');
+        if (!row || row.accountId !== accountId) throw new AppError('not_found', 'Avatar não encontrado.', 404);
+        if (clientKey !== null) {
+          const [same] = await tx
+            .select()
+            .from(meal)
+            .where(and(eq(meal.accountId, accountId), eq(meal.clientKey, clientKey)));
+          if (same) return toMeal(same);
+        }
+        const planned = plan(decayed(toAvatar(row), now));
+        const [created] = await tx
+          .insert(meal)
+          .values({
+            id: planned.id,
+            avatarId: planned.avatarId,
+            accountId: planned.accountId,
+            foodCode: planned.foodCode,
+            priceCents: planned.priceCents.toString(),
+            effects: planned.effects,
+            status: planned.status,
+            clientKey: planned.clientKey,
+            createdAt: planned.createdAt,
+          })
+          .returning();
+        return toMeal(created!);
+      });
+    } catch (error) {
+      // A mesma chave em dois avatares da conta ao mesmo tempo: vale a que entrou primeiro.
+      if (clientKey !== null && isUniqueViolation(error)) {
+        const same = await this.mealByKey(accountId, clientKey);
+        if (same) return same;
+      }
+      throw error;
+    }
+  }
+
+  async finishMeal(mealId: string, now: Date) {
+    return this.db.transaction(async (tx) => {
+      const [found] = await tx.select().from(meal).where(eq(meal.id, mealId)).for('update');
+      if (!found) throw new AppError('not_found', 'Refeição não encontrada.', 404);
+      if (found.status !== 'pending') return toMeal(found);
+      const [row] = await tx.select().from(avatar).where(eq(avatar.id, found.avatarId)).for('update');
+      const next = eat(decayed(toAvatar(row!), now), found.effects as MealEffects, now);
+      await tx.update(avatar).set(toRow(next)).where(eq(avatar.id, next.id));
+      const [done] = await tx
+        .update(meal)
+        .set({ status: 'eaten', eatenAt: now })
+        .where(eq(meal.id, mealId))
+        .returning();
+      return toMeal(done!);
+    });
+  }
+
+  async failMeal(mealId: string) {
+    await this.db
+      .update(meal)
+      .set({ status: 'failed' })
+      .where(and(eq(meal.id, mealId), eq(meal.status, 'pending')));
+    const [row] = await this.db.select().from(meal).where(eq(meal.id, mealId));
+    if (!row) throw new AppError('not_found', 'Refeição não encontrada.', 404);
+    return toMeal(row);
+  }
+
+  async listMeals(avatarId: string, limit: number) {
+    const rows = await this.db
+      .select()
+      .from(meal)
+      .where(eq(meal.avatarId, avatarId))
+      .orderBy(desc(meal.createdAt))
+      .limit(limit);
+    return rows.map(toMeal);
   }
 }
