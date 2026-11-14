@@ -15,6 +15,7 @@ import {
   tooManyAvatars,
 } from '../../domain/avatar.js';
 import type { Rarity } from '../../domain/catalog.js';
+import type { Condition, ConditionCode } from '../../domain/conditions.js';
 import {
   type FeeStatus,
   type HospitalReason,
@@ -94,6 +95,14 @@ const resultJson = (result: ShiftResult) => ({ damaged: result.damaged, factors:
 
 type Row = typeof avatar.$inferSelect;
 
+/** No jsonb as datas vão como texto ISO. */
+const toConditions = (value: unknown): Condition[] =>
+  ((value ?? []) as { code: string; startsAt: string; endsAt: string }[]).map((c) => ({
+    code: c.code as ConditionCode,
+    startsAt: new Date(c.startsAt),
+    endsAt: new Date(c.endsAt),
+  }));
+
 const toAvatar = (r: Row): Avatar => ({
   id: r.id,
   accountId: r.accountId,
@@ -109,6 +118,7 @@ const toAvatar = (r: Row): Avatar => ({
   },
   anchors: { food: r.foodAt, happiness: r.happinessAt, hygiene: r.hygieneAt },
   hospitalUntil: r.hospitalUntil,
+  conditions: toConditions(r.conditions),
   createdAt: r.createdAt,
   updatedAt: r.updatedAt,
 });
@@ -123,6 +133,7 @@ const toRow = (a: Avatar) => ({
   happinessAt: a.anchors.happiness,
   hygieneAt: a.anchors.hygiene,
   hospitalUntil: a.hospitalUntil,
+  conditions: a.conditions.map((c) => ({ code: c.code, startsAt: c.startsAt.toISOString(), endsAt: c.endsAt.toISOString() })),
   createdAt: a.createdAt,
   updatedAt: a.updatedAt,
 });

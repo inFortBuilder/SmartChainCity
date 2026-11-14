@@ -10,7 +10,20 @@ import { type Avatar, type AvatarStore, decayed, newAvatar, status } from './dom
 import { catalogOrigin, professionLabel, professions, professionsByRarity, replaceCatalog } from './domain/catalog.js';
 import { foods, foodsOrigin, replaceFoods } from './domain/foods.js';
 import { type HospitalPayer, type HospitalStay, type HospitalStore, needsHospital } from './domain/hospital.js';
-import { MEAL_FOOD_POINTS, type Meal, type MealPayer, type MealStore, planMeal, unitPriceCents } from './domain/meal.js';
+import { CONDITIONS, CONDITION_CODES, activeConditions } from './domain/conditions.js';
+import {
+  CURE_CHANCE,
+  MEAL_FOOD_POINTS,
+  MEDICINE_PRICE_CENTS,
+  type Meal,
+  type MealPayer,
+  type MealPlanner,
+  type MealStore,
+  isMedicine,
+  planMedicine,
+  planMeal,
+  unitPriceCents,
+} from './domain/meal.js';
 import { fetchCmsFoods, fetchCmsProfessions } from './infra/cms-catalog.js';
 import { type Payer, type Shift, type ShiftStore, startShift } from './domain/shift.js';
 import { chargeStay } from './jobs/hospital.js';
@@ -20,6 +33,7 @@ const uuid = z.uuid();
 
 const workBody = z.object({ shift: z.number().int() });
 const mealBody = z.object({ food: z.string().min(1).max(64) });
+const medicineBody = z.object({ condition: z.string().min(1).max(64) });
 const idempotencyKey = z.string().min(8).max(128).optional();
 
 const createBody = z.object({
@@ -40,6 +54,14 @@ const avatarDto = (a: Avatar, at: Date) => ({
   attributes: a.attributes,
   status: status(a, at),
   hospital_until: status(a, at).inHospital ? a.hospitalUntil!.toISOString() : null,
+  // Só as que estão em curso: a sorteada no turno aparece quando o turno acaba.
+  conditions: activeConditions(a.conditions, at).map((c) => ({
+    code: c.code,
+    label: CONDITIONS[c.code].label,
+    blocks_work: CONDITIONS[c.code].blocksWork,
+    yield_factor: CONDITIONS[c.code].yieldFactor,
+    ends_at: c.endsAt.toISOString(),
+  })),
   created_at: a.createdAt.toISOString(),
 });
 
@@ -91,6 +113,8 @@ export async function buildApp(
   payer: Payer | null = null,
   mealPayer: MealPayer | null = null,
   hospitalPayer: HospitalPayer | null = null,
+  /** Sorteio da dor de barriga e da cura do remédio; os testes trocam. */
+  random: () => number = Math.random,
 ) {
   const app = Fastify({
     ...serverOptions({
@@ -261,25 +285,58 @@ export async function buildApp(
     }
   };
 
-  // Come uma unidade do alimento, comprada no mercado do jogo.
-  app.post('/v1/avatars/:id/meals', async (request, reply) => {
+  /** Compra no mercado ou na farmácia: grava pendente, cobra e aplica. */
+  const purchase = async (request: FastifyRequest, plan: (clientKey: string | null) => MealPlanner) => {
     const avatar = await ownAvatar(request);
     if (!mealPayer) throw new AppError('ledger_unavailable', 'O mercado está fechado: o ledger está desligado.', 503);
-    const { food: foodCode } = mealBody.parse(request.body);
     const clientKey = idempotencyKey.parse(request.headers['idempotency-key']) ?? null;
     await settlePending(avatar.id, request.id);
-    const meal = await store.beginMeal(avatar.id, avatar.accountId, clientKey, now(), (current) =>
-      planMeal(current, { id: randomUUID(), foodCode, clientKey }, now()),
-    );
+    const meal = await store.beginMeal(avatar.id, avatar.accountId, clientKey, now(), plan(clientKey));
     const done = await settleMeal(meal, request.id);
     if (done.status === 'failed') {
-      throw new AppError('insufficient_thaler', 'THALER insuficiente para esta refeição.', 409);
+      throw new AppError('insufficient_thaler', `THALER insuficiente para ${isMedicine(done) ? 'o remédio' : 'esta refeição'}.`, 409);
     }
+    return { avatar, done };
+  };
+
+  // Come uma unidade do alimento, comprada no mercado do jogo.
+  app.post('/v1/avatars/:id/meals', async (request, reply) => {
+    const { food: foodCode } = mealBody.parse(request.body);
+    const { avatar, done } = await purchase(request, (clientKey) => (current) =>
+      planMeal(current, { id: randomUUID(), foodCode, clientKey, roll: random() }, now()),
+    );
     // Uma refeição que derruba a saúde a 0 já interna.
     const fresh = await hospitalize((await store.get(avatar.id))!, request);
     const at = now();
     return reply.status(201).send({ meal: mealDto(done), avatar: avatarDto(decayed(fresh, at), at) });
   });
+
+  // Farmácia do jogo: compra o remédio da doença e toma na hora (cura com 70%).
+  app.post('/v1/avatars/:id/medicine', async (request, reply) => {
+    const { condition } = medicineBody.parse(request.body);
+    const { avatar, done } = await purchase(request, (clientKey) => (current) =>
+      planMedicine(current, { id: randomUUID(), condition, clientKey, roll: random() }, now()),
+    );
+    const fresh = (await store.get(avatar.id))!;
+    const at = now();
+    return reply.status(201).send({ medicine: mealDto(done), cured: done.effects.cure?.success ?? false, avatar: avatarDto(decayed(fresh, at), at) });
+  });
+
+  app.get('/v1/catalog/pharmacy', async () => ({
+    price: MEDICINE_PRICE_CENTS.toString(),
+    decimals: 2,
+    cure_chance: CURE_CHANCE,
+    provisional_price: true,
+    conditions: CONDITION_CODES.map((code) => ({
+      code,
+      label: CONDITIONS[code].label,
+      chance: CONDITIONS[code].chance,
+      trigger: CONDITIONS[code].trigger,
+      hours: CONDITIONS[code].durationMs / 3_600_000,
+      blocks_work: CONDITIONS[code].blocksWork,
+      yield_factor: CONDITIONS[code].yieldFactor,
+    })),
+  }));
 
   app.get('/v1/avatars/:id/meals', async (request) => {
     const avatar = await ownAvatar(request);

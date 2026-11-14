@@ -22,6 +22,7 @@ const clone = (a: Avatar): Avatar => ({
   ...a,
   attributes: { ...a.attributes },
   anchors: { ...a.anchors },
+  conditions: a.conditions.map((c) => ({ ...c })),
 });
 
 /** Para testes e desenvolvimento. Uma thread só: cada operação é atômica. */

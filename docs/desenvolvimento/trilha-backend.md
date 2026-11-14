@@ -17,7 +17,7 @@ Pasta: [`services/`](../../services/README.md) · Especificação: [doc 05 §4](
 | 9 | 2 | world | 🟡 Lotes no Postgres, venda primária paga pelo ledger com regras de bairro ([README](../../services/world/README.md)); falta a cotação assinada (EIP-712) e o cerco | Cotação aceita pelo `LandNFT` na testnet |
 | 10 | 2 | world | Imóveis: obra, desgaste, renda, upgrade, regularização, utilidades | Fluxo de imóvel completo |
 | 11 | 2 | economy | Impostos (IPTU, PT), aluguel, hotel; câmbio de teste | Cobrança agendada e auditável |
-| 12 | 2 | game-core | 🟡 Alimentação no mercado do jogo, paga pelo ledger ([README](../../services/game-core/README.md#alimentação-e23-passo-12-da-trilha)), e hospital compulsório com taxa ([README](../../services/game-core/README.md#hospital-e23-passo-12-da-trilha)); faltam despensa, farmácia e doenças | Fluxos do GDD §5 da fase 1 |
+| 12 | 2 | game-core | 🟡 Alimentação no mercado do jogo, paga pelo ledger ([README](../../services/game-core/README.md#alimentação-e23-passo-12-da-trilha)), hospital compulsório com taxa ([README](../../services/game-core/README.md#hospital-e23-passo-12-da-trilha)) e doenças leves com a farmácia do jogo ([README](../../services/game-core/README.md#doenças-e-farmácia-e23-passo-12-da-trilha)); faltam despensa e as doenças do hospital | Fluxos do GDD §5 da fase 1 |
 | 13 | 2 | chain-indexer | Leitura de eventos com confirmações, idempotência por `tx_hash + log_index`, reorg | Depósito na testnet credita THALER uma vez |
 | 14 | 2 | realtime | Colyseus com salas por célula, presença, chat moderado | 100 clientes simulados por sala |
 | 15 | 2 | game-core | Antifraude v1 (limite de avatares, fingerprint, velocidade) | Regras com métricas |

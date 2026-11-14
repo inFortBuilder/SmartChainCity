@@ -61,7 +61,25 @@ No mapa de Pittsburg, o painel mostra a lista de alimentos e o botão "Comer" qu
 
 Depois de atualizar o código, rode `pnpm db:migrate`: a tabela `meal` é nova.
 
-Ainda não: comprar e guardar pacotes (despensa), o tempo de compra do mercado (4 min + volume), a dor de barriga de 3% (doenças, com a farmácia) e a regra da energia que recarrega a cada 8 h.
+Ainda não: comprar e guardar pacotes (despensa), o tempo de compra do mercado (4 min + volume) e a regra da energia que recarrega a cada 8 h.
+
+## Doenças e farmácia (E2.3, passo 12 da trilha)
+
+As doenças leves do GDD §5 ficam no próprio avatar (`conditions`, a `avatar_condition` do doc 06), uma de cada tipo por vez, e passam sozinhas no fim do prazo.
+
+| Doença | Quando aparece | Efeito |
+|---|---|---|
+| Dor de barriga | 3% das refeições (GDD) | De cama por 1 dia: não trabalha |
+| Gripe | 1% dos turnos (GDD; o gatilho no turno é **premissa**) | Isolado por 24 h: não trabalha |
+| Dor de cabeça | 5% dos turnos (**premissa**) | Trabalha com −10% de rendimento (GDD) por 12 h (**premissa**) |
+
+A gripe e a dor de cabeça saem da semente do próprio turno (`draw(semente, turno, "gripe")`), a mesma que o jogador recebe quando o turno acaba, e começam no fim do turno. Comer continua permitido doente.
+
+**Farmácia do jogo.** `POST /v1/avatars/:id/medicine` com `{condition}` compra o remédio daquela doença e toma na hora: cura com 70% de chance (GDD); sem cura, o THALER não volta. Custa 10 THALER (**premissa**: o GDD não tem o preço), que vão para a queima (`burn/pharmacy`, lançamento `medicine_buy`). O remédio passa pelo mesmo caminho da refeição: mesma tabela `meal` (código `remedio`), mesma cobrança em duas fases, mesma `Idempotency-Key`. A exigência de enfermeiro como dono vale quando as farmácias forem de jogadores (fase 2).
+
+No mapa de Pittsburg, o painel mostra "🤒 Doente" com cada doença, o tempo até passar e o botão do remédio.
+
+Depois de atualizar o código, rode `pnpm db:migrate`: a coluna `avatar.conditions` é nova.
 
 ## Hospital (E2.3, passo 12 da trilha)
 
@@ -78,7 +96,7 @@ Com **saúde 0 ou energia 0**, o avatar é internado na hora (GDD §2.3 e §5). 
 
 No mapa de Pittsburg, o painel mostra "🏥 Internado" com o tempo até a alta e esconde o mercado e os turnos.
 
-Hoje a saúde não chega a 0 sozinha (nenhum alimento do catálogo tira saúde e as doenças ainda não existem); a energia chega, quando um turno gasta toda a que sobrava. Depois de atualizar o código, rode `pnpm db:migrate`: a tabela `hospital_stay` e a coluna `avatar.hospital_until` são novas.
+Hoje a saúde não chega a 0 sozinha (nenhum alimento do catálogo tira saúde, e as doenças leves não mexem nela); a energia chega, quando um turno gasta toda a que sobrava. Depois de atualizar o código, rode `pnpm db:migrate`: a tabela `hospital_stay` e a coluna `avatar.hospital_until` são novas.
 
 ## Rodar
 
@@ -105,7 +123,9 @@ TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc_test pnpm --filter
 | GET | `/v1/avatars/:id/shifts` | jogador (Bearer) | Últimos 20 turnos, com resultado e semente dos concluídos |
 | POST | `/v1/avatars/:id/claim` | jogador (Bearer) | Paga no ledger os turnos concluídos e ainda não coletados |
 | POST | `/v1/avatars/:id/meals` | jogador (Bearer) | Come `{food}`: cobra no ledger e aplica os efeitos. Aceita `Idempotency-Key`. Devolve a refeição e o avatar |
-| GET | `/v1/avatars/:id/meals` | jogador (Bearer) | Últimas 20 refeições (`pending`, `eaten`, `failed`) |
+| GET | `/v1/avatars/:id/meals` | jogador (Bearer) | Últimas 20 compras do mercado e da farmácia (`pending`, `eaten`, `failed`) |
+| POST | `/v1/avatars/:id/medicine` | jogador (Bearer) | Compra e toma o remédio `{condition}`. Aceita `Idempotency-Key`. Devolve o remédio, `cured` e o avatar |
+| GET | `/v1/catalog/pharmacy` | público | Preço do remédio, chance de cura e a tabela das doenças |
 | GET | `/v1/avatars/:id/hospital` | jogador (Bearer) | Últimas 20 internações, com motivo, alta e situação da taxa (`pending`, `paid`, `waived`) |
 | POST | `/v1/dev/avatar` | jogador (Bearer) | **Só desenvolvimento** (`DEV_FREE_AVATAR=true`): dá um avatar comum a quem não tem; desligado, 404 |
 | POST | `/internal/v1/avatars` | serviços (`X-Service-Token`) | Cria `{account_id, rarity, job_code}`; na Etapa 2, chamado ao ver o mint da Lucky Box |
@@ -114,7 +134,7 @@ TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc_test pnpm --filter
 | GET | `/v1/catalog/professions` | público | As 44 profissões com ganho do dia, duração e tarefas; das tarefas, só a direção (+/−) de energia e felicidade (GDD §2.4) |
 | GET | `/healthz` | — | `{status: "ok"}` |
 
-Erros com código estável: `invalid_rarity`, `invalid_job`, `avatar_limit`, `invalid_shift`, `shift_running`, `daily_limit`, `too_tired`, `pool_empty`, `unknown_food`, `not_hungry`, `in_hospital`, `insufficient_thaler`, `ledger_unavailable`, `not_found`, `forbidden`, `missing_credentials`, `invalid_token`, `token_expired`.
+Erros com código estável: `invalid_rarity`, `invalid_job`, `avatar_limit`, `invalid_shift`, `shift_running`, `daily_limit`, `too_tired`, `pool_empty`, `unknown_food`, `not_hungry`, `in_hospital`, `sick`, `not_sick`, `invalid_condition`, `insufficient_thaler`, `ledger_unavailable`, `not_found`, `forbidden`, `missing_credentials`, `invalid_token`, `token_expired`.
 
 ## Banco
 
@@ -124,7 +144,7 @@ Esquema próprio `game`: tabela `avatar` do doc 06, com os instantes de referên
 
 - Deslocamento (carro, skate, ônibus, a pé, home office) e as tarefas do minigame de cada profissão (catálogo do Strapi).
 - Bônus de itens, pet, moradia e eventos semanais no ganho.
-- Descansar e atividades (sobem os atributos); doenças e farmácia.
+- Descansar e atividades (sobem os atributos); as doenças do hospital (febre, enxaqueca, virose: −1 de saúde a cada 15 min).
 - Despensa (comprar pacotes e comer depois) e o tempo de compra do mercado.
 - Fila do BullMQ: o job roda no próprio processo até haver Redis no ambiente.
 - Calibrar as premissas de felicidade e higiene no simulador.

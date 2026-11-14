@@ -33,6 +33,12 @@ export const avatar = game.table(
     lastWorkedAt: timestamptz('last_worked_at'),
     /** Internado até este instante (E2.3); null fora do hospital. */
     hospitalUntil: timestamptz('hospital_until'),
+    /**
+     * Doenças leves em curso ou marcadas para o fim do turno (E2.3): a
+     * `avatar_condition` do doc 06 §2, guardada no próprio avatar porque é
+     * sempre lida e gravada junto com ele. [{code, startsAt, endsAt}]
+     */
+    conditions: jsonb('conditions').notNull().default([]),
     createdAt: timestamptz('created_at').notNull(),
     updatedAt: timestamptz('updated_at').notNull(),
   },
