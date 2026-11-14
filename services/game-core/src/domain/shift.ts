@@ -4,6 +4,7 @@ import { AppError } from '@scc/shared';
 
 import { type Attributes, type Avatar, status } from './avatar.js';
 import { BASE_RANGE, profession } from './catalog.js';
+import { assertNotInHospital } from './hospital.js';
 
 /**
  * Turno de trabalho (E1.4; doc 02 §3.2, doc 04 §4). O ganho segue a mesma
@@ -103,12 +104,13 @@ export function startShift(
   }
   const hours = input.hours as ShiftHours;
   if (input.running) throw new AppError('shift_running', 'O avatar já está trabalhando.', 409);
+  assertNotInHospital(avatar, now);
   if (input.hoursToday + hours > MAX_HOURS_PER_DAY) {
     throw new AppError('daily_limit', `No máximo ${MAX_HOURS_PER_DAY} h de trabalho por dia.`, 409);
   }
   const cost = ENERGY_COST[hours];
   const a = avatar.attributes;
-  if (!status(avatar).canWork || a.energy < cost) {
+  if (!status(avatar, now).canWork || a.energy < cost) {
     throw new AppError('too_tired', `Energia ou saúde insuficiente: o turno de ${hours} h gasta ${cost} de energia.`, 409);
   }
 
@@ -127,7 +129,7 @@ export function startShift(
       health: a.health,
       happiness: a.happiness,
       education: a.education,
-      earnsReward: status(avatar).earnsReward,
+      earnsReward: status(avatar, now).earnsReward,
       base: baseOf(avatar.jobCode),
     },
     result: null,

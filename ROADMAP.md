@@ -80,7 +80,7 @@ S1–S4            S5–S8              S9–S14              S15–S22         
 |-------|--------|----------|
 | E2.1 Lucky Box (testnet) | contracts · client | `AvatarNFT` + `LuckyBox` com Chainlink VRF; tela de abertura; probabilidades públicas |
 | E2.2 Profissões do MVP | backend · cms · art | 12 profissões com minigame (11 comuns + Cozinheiro); cards de arte |
-| E2.3 Alimentação e saúde | backend · client | Mercado do jogo (🟡 comer pago pelo ledger, preço provisório), hospital, farmácia, doenças |
+| E2.3 Alimentação e saúde | backend · client | Mercado do jogo (🟡 comer pago pelo ledger, preço provisório), hospital (🟡 compulsório com taxa), farmácia, doenças |
 | E2.4 Região A1 | backend · client · tools | Grade completa, compra primária com cotação assinada, regularização, água/energia |
 | E2.5 Imóveis | backend · contracts · client | `LandNFT`, `PropertyNFT`; T1–T3 e Residencial 3; obra, desgaste, renda; aluguel e hotel |
 | E2.6 Impostos | backend | IPTU, PT de lote vazio, inadimplência |

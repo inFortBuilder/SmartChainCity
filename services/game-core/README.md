@@ -63,6 +63,23 @@ Depois de atualizar o código, rode `pnpm db:migrate`: a tabela `meal` é nova.
 
 Ainda não: comprar e guardar pacotes (despensa), o tempo de compra do mercado (4 min + volume), a dor de barriga de 3% (doenças, com a farmácia) e a regra da energia que recarrega a cada 8 h.
 
+## Hospital (E2.3, passo 12 da trilha)
+
+Com **saúde 0 ou energia 0**, o avatar é internado na hora (GDD §2.3 e §5). Ninguém escolhe ir.
+
+| Regra | Como |
+|---|---|
+| Quando | Na próxima chamada do jogador (ver o avatar, trabalhar, comer) ou na passada do job `hospital.admit` (`HOSPITAL_CHECK_SECONDS`, 60 s), o que vier antes. Com um turno rodando, espera o horário de fim do turno |
+| Quanto tempo | 1 dia (`hospital_until` no avatar). Até lá, trabalhar e comer respondem `409 in_hospital` |
+| Alta | Energia e saúde voltam a 10 (**premissa**: o castigo é o dia parado e a taxa). A alimentação continua caindo |
+| Taxa | 30 THALER, do jogador para a queima (`burn/hospital`): hospital é sink (doc 04 §7). Lançamento `hospital_fee` com a chave `hospital:<id>` |
+| Sem saldo | A internação vale do mesmo jeito e a taxa fica `waived` (**premissa**: o jogador não pode ficar preso sem trabalhar para pagar; a inadimplência entra com os impostos, E2.6) |
+| Ledger fora | A internação vale e a taxa fica `pending`; o job cobra depois, com a mesma chave |
+
+No mapa de Pittsburg, o painel mostra "🏥 Internado" com o tempo até a alta e esconde o mercado e os turnos.
+
+Hoje a saúde não chega a 0 sozinha (nenhum alimento do catálogo tira saúde e as doenças ainda não existem); a energia chega, quando um turno gasta toda a que sobrava. Depois de atualizar o código, rode `pnpm db:migrate`: a tabela `hospital_stay` e a coluna `avatar.hospital_until` são novas.
+
 ## Rodar
 
 ```bash
@@ -89,6 +106,7 @@ TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc_test pnpm --filter
 | POST | `/v1/avatars/:id/claim` | jogador (Bearer) | Paga no ledger os turnos concluídos e ainda não coletados |
 | POST | `/v1/avatars/:id/meals` | jogador (Bearer) | Come `{food}`: cobra no ledger e aplica os efeitos. Aceita `Idempotency-Key`. Devolve a refeição e o avatar |
 | GET | `/v1/avatars/:id/meals` | jogador (Bearer) | Últimas 20 refeições (`pending`, `eaten`, `failed`) |
+| GET | `/v1/avatars/:id/hospital` | jogador (Bearer) | Últimas 20 internações, com motivo, alta e situação da taxa (`pending`, `paid`, `waived`) |
 | POST | `/v1/dev/avatar` | jogador (Bearer) | **Só desenvolvimento** (`DEV_FREE_AVATAR=true`): dá um avatar comum a quem não tem; desligado, 404 |
 | POST | `/internal/v1/avatars` | serviços (`X-Service-Token`) | Cria `{account_id, rarity, job_code}`; na Etapa 2, chamado ao ver o mint da Lucky Box |
 | POST | `/internal/v1/catalog/refresh` | Strapi (webhook, `X-Service-Token`) | Recarrega o catálogo publicado no Strapi; catálogo quebrado ou sem uma profissão em uso é recusado (`422 catalog_rejected`). Com `model: "food"`, recarrega só os alimentos; outros tipos do catálogo são ignorados |
@@ -96,17 +114,17 @@ TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc_test pnpm --filter
 | GET | `/v1/catalog/professions` | público | As 44 profissões com ganho do dia, duração e tarefas; das tarefas, só a direção (+/−) de energia e felicidade (GDD §2.4) |
 | GET | `/healthz` | — | `{status: "ok"}` |
 
-Erros com código estável: `invalid_rarity`, `invalid_job`, `avatar_limit`, `invalid_shift`, `shift_running`, `daily_limit`, `too_tired`, `pool_empty`, `unknown_food`, `not_hungry`, `insufficient_thaler`, `ledger_unavailable`, `not_found`, `forbidden`, `missing_credentials`, `invalid_token`, `token_expired`.
+Erros com código estável: `invalid_rarity`, `invalid_job`, `avatar_limit`, `invalid_shift`, `shift_running`, `daily_limit`, `too_tired`, `pool_empty`, `unknown_food`, `not_hungry`, `in_hospital`, `insufficient_thaler`, `ledger_unavailable`, `not_found`, `forbidden`, `missing_credentials`, `invalid_token`, `token_expired`.
 
 ## Banco
 
-Esquema próprio `game`: tabela `avatar` do doc 06, com os instantes de referência da queda, `work_shift`, com a semente e o resultado, e `meal`, com o preço, os efeitos e a situação da refeição. Migrações em `drizzle/`, controladas em `drizzle.__game_core_migrations`.
+Esquema próprio `game`: tabela `avatar` do doc 06, com os instantes de referência da queda, `work_shift`, com a semente e o resultado, `meal`, com o preço, os efeitos e a situação da refeição, e `hospital_stay`, com o motivo, a alta e a taxa. Migrações em `drizzle/`, controladas em `drizzle.__game_core_migrations`.
 
 ## Ainda não
 
 - Deslocamento (carro, skate, ônibus, a pé, home office) e as tarefas do minigame de cada profissão (catálogo do Strapi).
 - Bônus de itens, pet, moradia e eventos semanais no ganho.
-- Descansar e atividades (sobem os atributos); hospital com energia ou saúde em 0; doenças e farmácia.
+- Descansar e atividades (sobem os atributos); doenças e farmácia.
 - Despensa (comprar pacotes e comer depois) e o tempo de compra do mercado.
 - Fila do BullMQ: o job roda no próprio processo até haver Redis no ambiente.
 - Calibrar as premissas de felicidade e higiene no simulador.

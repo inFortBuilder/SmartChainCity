@@ -2,6 +2,7 @@ import { AppError } from '@scc/shared';
 
 import { ATTRIBUTE_MAX, type Avatar } from './avatar.js';
 import { type Food, food as findFood } from './foods.js';
+import { assertNotInHospital } from './hospital.js';
 
 /**
  * Refeição no mercado do jogo (E2.3, GDD §2.3 e §4): o avatar compra uma
@@ -55,6 +56,8 @@ export function planMeal(
 ): Meal {
   const f = findFood(input.foodCode);
   if (!f) throw new AppError('unknown_food', 'Alimento não existe no mercado.', 404);
+  // No hospital o avatar não vai ao mercado.
+  assertNotInHospital(avatar, now);
   if (avatar.attributes.food >= ATTRIBUTE_MAX) {
     throw new AppError('not_hungry', 'O avatar está satisfeito. Coma quando a alimentação baixar.', 409);
   }

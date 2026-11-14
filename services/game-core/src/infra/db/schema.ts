@@ -31,6 +31,8 @@ export const avatar = game.table(
     hygieneAt: timestamptz('hygiene_at').notNull(),
     employmentStatus: text('employment_status').notNull().default('employed'),
     lastWorkedAt: timestamptz('last_worked_at'),
+    /** Internado até este instante (E2.3); null fora do hospital. */
+    hospitalUntil: timestamptz('hospital_until'),
     createdAt: timestamptz('created_at').notNull(),
     updatedAt: timestamptz('updated_at').notNull(),
   },
@@ -103,5 +105,34 @@ export const meal = game.table(
     uniqueIndex('meal_client_key_unique').on(t.accountId, t.clientKey),
     check('meal_status_check', sql`${t.status} in ('pending', 'eaten', 'failed')`),
     check('meal_price_check', sql`${t.priceCents} > 0`),
+  ],
+);
+
+/**
+ * Internação compulsória (E2.3): saúde 0 ou energia 0. A taxa nasce
+ * `pending` e vira `paid` quando o ledger cobra, ou `waived` se o jogador
+ * não tem THALER.
+ */
+export const hospitalStay = game.table(
+  'hospital_stay',
+  {
+    id: uuid('id').primaryKey(),
+    avatarId: uuid('avatar_id')
+      .notNull()
+      .references(() => avatar.id),
+    accountId: uuid('account_id').notNull(),
+    reason: text('reason').notNull(),
+    feeCents: numeric('fee_cents', { precision: 38, scale: 0 }).notNull(),
+    feeStatus: text('fee_status').notNull(),
+    admittedAt: timestamptz('admitted_at').notNull(),
+    dischargeAt: timestamptz('discharge_at').notNull(),
+  },
+  (t) => [
+    index('hospital_stay_avatar_idx').on(t.avatarId, t.admittedAt),
+    index('hospital_stay_fee_idx').on(t.feeStatus, t.admittedAt),
+    check('hospital_stay_reason_check', sql`${t.reason} in ('health', 'energy')`),
+    check('hospital_stay_fee_status_check', sql`${t.feeStatus} in ('pending', 'paid', 'waived')`),
+    check('hospital_stay_fee_check', sql`${t.feeCents} > 0`),
+    check('hospital_stay_period_check', sql`${t.dischargeAt} > ${t.admittedAt}`),
   ],
 );

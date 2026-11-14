@@ -28,6 +28,8 @@ const schema = z.object({
   DECAY_EVERY_SECONDS: z.coerce.number().int().positive().default(900),
   /** Intervalo do job que conclui os turnos vencidos (shift.complete). */
   SHIFT_CHECK_SECONDS: z.coerce.number().int().positive().default(60),
+  /** Intervalo do job que interna quem chegou a saúde 0 ou energia 0 e cobra a taxa (hospital.admit). */
+  HOSPITAL_CHECK_SECONDS: z.coerce.number().int().positive().default(60),
   /** Ledger que paga os turnos. Sem os dois, a coleta responde 503. */
   ECONOMY_URL: optional(z.url()),
   ECONOMY_TOKEN: optional(z.string().min(32, 'ECONOMY_TOKEN precisa de pelo menos 32 caracteres')),
