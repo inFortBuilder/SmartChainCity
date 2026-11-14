@@ -61,7 +61,9 @@ No mapa de Pittsburg, o painel mostra a lista de alimentos e o botão "Comer" qu
 
 Depois de atualizar o código, rode `pnpm db:migrate`: a tabela `meal` é nova.
 
-Ainda não: comprar e guardar pacotes (despensa), o tempo de compra do mercado (4 min + volume) e a regra da energia que recarrega a cada 8 h.
+**Despensa.** `POST /v1/avatars/:id/pantry` com `{food}` compra o pacote inteiro do catálogo (maçã vem em 5, ovos em 3) e guarda as unidades no avatar (`pantry`). Compra mesmo satisfeito. Comer da despensa (`POST /v1/avatars/:id/consume`, `{food}`) tem as mesmas regras e efeitos da refeição, inclusive a dor de barriga, e não cobra de novo. O pacote custa o preço do catálogo; sem ele, as unidades pelo preço provisório, sem desconto (**premissa**). Passa pelo mesmo caminho da refeição: lançamento `pack_buy` para `burn/food`, chave `meal:<id>`, `Idempotency-Key`. A despensa não tem limite até existirem casas (E2.5). No mapa, o botão "Pacote" fica ao lado de "Comer" e a despensa aparece com um botão por alimento.
+
+Ainda não: o tempo de compra do mercado (4 min + volume) e a regra da energia que recarrega a cada 8 h.
 
 ## Doenças e farmácia (E2.3, passo 12 da trilha)
 
@@ -124,17 +126,19 @@ TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc_test pnpm --filter
 | POST | `/v1/avatars/:id/claim` | jogador (Bearer) | Paga no ledger os turnos concluídos e ainda não coletados |
 | POST | `/v1/avatars/:id/meals` | jogador (Bearer) | Come `{food}`: cobra no ledger e aplica os efeitos. Aceita `Idempotency-Key`. Devolve a refeição e o avatar |
 | GET | `/v1/avatars/:id/meals` | jogador (Bearer) | Últimas 20 compras do mercado e da farmácia (`pending`, `eaten`, `failed`) |
+| POST | `/v1/avatars/:id/pantry` | jogador (Bearer) | Compra o pacote `{food}` para a despensa. Aceita `Idempotency-Key`. Devolve a compra e o avatar |
+| POST | `/v1/avatars/:id/consume` | jogador (Bearer) | Come uma unidade `{food}` da despensa, sem cobrar. Devolve o avatar |
 | POST | `/v1/avatars/:id/medicine` | jogador (Bearer) | Compra e toma o remédio `{condition}`. Aceita `Idempotency-Key`. Devolve o remédio, `cured` e o avatar |
 | GET | `/v1/catalog/pharmacy` | público | Preço do remédio, chance de cura e a tabela das doenças |
 | GET | `/v1/avatars/:id/hospital` | jogador (Bearer) | Últimas 20 internações, com motivo, alta e situação da taxa (`pending`, `paid`, `waived`) |
 | POST | `/v1/dev/avatar` | jogador (Bearer) | **Só desenvolvimento** (`DEV_FREE_AVATAR=true`): dá um avatar comum a quem não tem; desligado, 404 |
 | POST | `/internal/v1/avatars` | serviços (`X-Service-Token`) | Cria `{account_id, rarity, job_code}`; na Etapa 2, chamado ao ver o mint da Lucky Box |
 | POST | `/internal/v1/catalog/refresh` | Strapi (webhook, `X-Service-Token`) | Recarrega o catálogo publicado no Strapi; catálogo quebrado ou sem uma profissão em uso é recusado (`422 catalog_rejected`). Com `model: "food"`, recarrega só os alimentos; outros tipos do catálogo são ignorados |
-| GET | `/v1/catalog/foods` | público | Os alimentos do mercado com energia, saúde e o preço de uma unidade, em centavos de THALER |
+| GET | `/v1/catalog/foods` | público | Os alimentos do mercado com energia, saúde, o preço de uma unidade e o do pacote (`pack`, `pack_price`), em centavos de THALER |
 | GET | `/v1/catalog/professions` | público | As 44 profissões com ganho do dia, duração e tarefas; das tarefas, só a direção (+/−) de energia e felicidade (GDD §2.4) |
 | GET | `/healthz` | — | `{status: "ok"}` |
 
-Erros com código estável: `invalid_rarity`, `invalid_job`, `avatar_limit`, `invalid_shift`, `shift_running`, `daily_limit`, `too_tired`, `pool_empty`, `unknown_food`, `not_hungry`, `in_hospital`, `sick`, `not_sick`, `invalid_condition`, `insufficient_thaler`, `ledger_unavailable`, `not_found`, `forbidden`, `missing_credentials`, `invalid_token`, `token_expired`.
+Erros com código estável: `invalid_rarity`, `invalid_job`, `avatar_limit`, `invalid_shift`, `shift_running`, `daily_limit`, `too_tired`, `pool_empty`, `unknown_food`, `not_hungry`, `not_in_pantry`, `in_hospital`, `sick`, `not_sick`, `invalid_condition`, `insufficient_thaler`, `ledger_unavailable`, `not_found`, `forbidden`, `missing_credentials`, `invalid_token`, `token_expired`.
 
 ## Banco
 
@@ -145,6 +149,6 @@ Esquema próprio `game`: tabela `avatar` do doc 06, com os instantes de referên
 - Deslocamento (carro, skate, ônibus, a pé, home office) e as tarefas do minigame de cada profissão (catálogo do Strapi).
 - Bônus de itens, pet, moradia e eventos semanais no ganho.
 - Descansar e atividades (sobem os atributos); as doenças do hospital (febre, enxaqueca, virose: −1 de saúde a cada 15 min).
-- Despensa (comprar pacotes e comer depois) e o tempo de compra do mercado.
+- O tempo de compra do mercado e o limite da despensa pela casa.
 - Fila do BullMQ: o job roda no próprio processo até haver Redis no ambiente.
 - Calibrar as premissas de felicidade e higiene no simulador.
