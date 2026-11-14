@@ -2,6 +2,7 @@ import { AppError } from '@scc/shared';
 
 import { ATTRIBUTE_MAX, type Avatar } from './avatar.js';
 import { type Food, food as findFood } from './foods.js';
+import { CONDITIONS, type ConditionCode, activeConditions, catchCondition, cure, isConditionCode } from './conditions.js';
 import { assertNotInHospital } from './hospital.js';
 
 /**
@@ -24,7 +25,23 @@ export interface MealEffects {
   food: number;
   energy: number;
   health: number;
+  /** Doença que a refeição trouxe (dor de barriga, 3%). Sorteada ao montar a refeição. */
+  condition?: ConditionCode;
+  /** Só remédio: a doença tratada e se curou (70%). */
+  cure?: { code: ConditionCode; success: boolean };
 }
+
+/**
+ * Farmácia (E2.3, GDD §5): o remédio passa pelo mesmo caminho da refeição
+ * (mesma tabela, mesma cobrança em duas fases), com o código `remedio`.
+ * Cura com 70% de chance; sem cura, o THALER não volta. Premissa: 10 THALER
+ * o remédio (o GDD não tem o preço). A exigência de enfermeiro como dono vale
+ * quando as farmácias forem de jogadores; esta é a farmácia do jogo.
+ */
+export const MEDICINE_CODE = 'remedio';
+export const MEDICINE_PRICE_CENTS = 1000n;
+export const CURE_CHANCE = 0.7;
+export const isMedicine = (m: Pick<Meal, 'foodCode'>) => m.foodCode === MEDICINE_CODE;
 
 export interface Meal {
   id: string;
@@ -51,7 +68,7 @@ export const unitPriceCents = (f: Food) =>
 /** Confere e monta a refeição. O avatar já vem travado e com a queda até agora. */
 export function planMeal(
   avatar: Avatar,
-  input: { id: string; foodCode: string; clientKey: string | null },
+  input: { id: string; foodCode: string; clientKey: string | null; roll?: number },
   now: Date,
 ): Meal {
   const f = findFood(input.foodCode);
@@ -67,7 +84,38 @@ export function planMeal(
     accountId: avatar.accountId,
     foodCode: f.code,
     priceCents: unitPriceCents(f),
-    effects: { food: MEAL_FOOD_POINTS, energy: f.energy, health: f.health },
+    effects: {
+      food: MEAL_FOOD_POINTS,
+      energy: f.energy,
+      health: f.health,
+      // GDD: dor de barriga em 3% das refeições.
+      ...((input.roll ?? 1) < CONDITIONS.dor_de_barriga.chance ? { condition: 'dor_de_barriga' as const } : {}),
+    },
+    status: 'pending',
+    clientKey: input.clientKey,
+    createdAt: now,
+    eatenAt: null,
+  };
+}
+
+/** Confere e monta a compra do remédio. `roll` de 0 a 1 decide a cura. */
+export function planMedicine(
+  avatar: Avatar,
+  input: { id: string; condition: string; clientKey: string | null; roll: number },
+  now: Date,
+): Meal {
+  if (!isConditionCode(input.condition)) throw new AppError('invalid_condition', 'Doença desconhecida.', 400);
+  assertNotInHospital(avatar, now);
+  if (!activeConditions(avatar.conditions, now).some((c) => c.code === input.condition)) {
+    throw new AppError('not_sick', 'O avatar não está com essa doença.', 409);
+  }
+  return {
+    id: input.id,
+    avatarId: avatar.id,
+    accountId: avatar.accountId,
+    foodCode: MEDICINE_CODE,
+    priceCents: MEDICINE_PRICE_CENTS,
+    effects: { food: 0, energy: 0, health: 0, cure: { code: input.condition, success: input.roll < CURE_CHANCE } },
     status: 'pending',
     clientKey: input.clientKey,
     createdAt: now,
@@ -84,8 +132,12 @@ const clamp = (n: number) => Math.max(0, Math.min(ATTRIBUTE_MAX, n));
  */
 export function eat(avatar: Avatar, effects: MealEffects, now: Date): Avatar {
   const a = avatar.attributes;
+  let conditions = avatar.conditions;
+  if (effects.condition) conditions = catchCondition(conditions, effects.condition, now);
+  if (effects.cure?.success) conditions = cure(conditions, effects.cure.code);
   return {
     ...avatar,
+    conditions,
     attributes: {
       ...a,
       food: clamp(a.food + effects.food),

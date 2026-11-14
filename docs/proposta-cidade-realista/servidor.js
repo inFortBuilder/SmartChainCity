@@ -236,6 +236,15 @@ export function createServidor(map) {
           <p class="muted pequeno">Energia ou saúde chegou a 0. Alta em ${left(a.hospital_until)}, com energia e saúde cheias.
           Taxa de 30 THALER (perdoada se faltar saldo). Até lá, sem trabalho e sem mercado.</p>`;
       }
+      // Doenças e farmácia do jogo (E2.3): o remédio custa 10 THALER e cura com 70% de chance.
+      if (!internado && a.conditions?.length) {
+        body += `<h3>🤒 Doente</h3>${a.conditions
+          .map(
+            (c) => `<div class="linha"><p class="muted pequeno">${esc(c.label)}${c.blocks_work ? ' · de cama, sem trabalhar' : ` · rendimento ×${c.yield_factor}`} · passa em ${left(c.ends_at)}</p>
+            <button class="btn btn--blue pequeno" type="button" data-s="remedio" data-c="${esc(c.code)}" ${busy ? 'disabled' : ''}>Remédio · 10</button></div>`,
+          )
+          .join('')}<p class="muted pequeno">O remédio cura com 70% de chance; sem cura, o THALER não volta.</p>`;
+      }
       // Mercado do jogo (E2.3): comer custa THALER e sobe a alimentação.
       if (!internado && foods.length && at.food < 10) {
         const options = foods
@@ -289,7 +298,8 @@ export function createServidor(map) {
         body: { food: code },
         headers: { 'idempotency-key': crypto.randomUUID() },
       });
-      message = `${item?.label ?? code}: −${thaler(r.meal.price)} THALER, alimentação ${r.avatar.attributes.food}/10.`;
+      const ill = r.avatar.conditions?.find((c) => c.code === r.meal.effects.condition);
+      message = `${item?.label ?? code}: −${thaler(r.meal.price)} THALER, alimentação ${r.avatar.attributes.food}/10.${ill ? ` Deu ${ill.label.toLowerCase()}.` : ''}`;
       messageOk = true;
     });
   });
@@ -321,6 +331,18 @@ export function createServidor(map) {
       return act(() =>
         call(API.game, `/v1/avatars/${data.avatar.id}/work`, { method: 'POST', token: session.token, body: { shift: Number(b.dataset.h) } }),
       );
+    }
+    if (what === 'remedio') {
+      return act(async () => {
+        const r = await call(API.game, `/v1/avatars/${data.avatar.id}/medicine`, {
+          method: 'POST',
+          token: session.token,
+          body: { condition: b.dataset.c },
+          headers: { 'idempotency-key': crypto.randomUUID() },
+        });
+        message = r.cured ? `Remédio: −${thaler(r.medicine.price)} THALER, curado.` : `Remédio: −${thaler(r.medicine.price)} THALER, mas não curou. Pode tentar de novo.`;
+        messageOk = r.cured;
+      });
     }
     if (what === 'claim') {
       return act(async () => {
