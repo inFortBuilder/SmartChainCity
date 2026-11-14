@@ -177,7 +177,8 @@ Autenticação: `Authorization: Bearer <JWT>`. Toda mutação aceita `Idempotenc
 | POST | `/v1/avatars/:id/meals` | `{food}` — compra uma unidade no mercado do jogo e come (pronto, E2.3) |
 | POST | `/v1/avatars/:id/medicine` | `{condition}` — remédio da farmácia do jogo, cura com 70% (pronto, E2.3) |
 | GET | `/v1/avatars/:id/hospital` | Internações compulsórias (saúde ou energia 0), com a taxa (pronto, E2.3) |
-| POST | `/v1/avatars/:id/consume` | `{itemId}` — item da despensa ou remédio |
+| POST | `/v1/avatars/:id/pantry` | `{food}` — compra o pacote para a despensa (pronto, E2.3) |
+| POST | `/v1/avatars/:id/consume` | `{food}` — come uma unidade da despensa (pronto, E2.3); o remédio é `/medicine` |
 | POST | `/v1/avatars/:id/activities` | `{activityCode, placeId}` — lazer, academia, escola |
 | POST | `/v1/avatars/:id/move-in` | `{propertyId}` ou aluguel/hotel |
 

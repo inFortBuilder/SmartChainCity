@@ -29,7 +29,22 @@ export interface MealEffects {
   condition?: ConditionCode;
   /** Só remédio: a doença tratada e se curou (70%). */
   cure?: { code: ConditionCode; success: boolean };
+  /** Só pacote: as unidades vão para a despensa em vez de serem comidas. */
+  pantry?: { code: string; units: number };
 }
+
+/**
+ * Despensa (E2.3, GDD §4 e §7): o pacote do catálogo (maçã vem em 5) é
+ * comprado de uma vez, pago pelo ledger, e as unidades ficam guardadas no
+ * avatar. Comer da despensa não cobra de novo. Premissas desta etapa: sem
+ * preço no catálogo, o pacote custa as unidades pelo preço provisório (sem
+ * desconto); a despensa não tem limite até existirem casas (E2.5); o tempo de
+ * compra do mercado (4 min + volume) ainda não entra.
+ */
+export const packPriceCents = (f: Food) =>
+  f.price === null ? DEFAULT_UNIT_PRICE_CENTS * BigInt(f.pack) : BigInt(f.price) * 100n;
+
+export const isPack = (m: Pick<Meal, 'effects'>) => m.effects?.pantry !== undefined;
 
 /**
  * Farmácia (E2.3, GDD §5): o remédio passa pelo mesmo caminho da refeição
@@ -98,6 +113,43 @@ export function planMeal(
   };
 }
 
+/** Confere e monta a compra de um pacote para a despensa. Satisfeito também compra. */
+export function planPack(avatar: Avatar, input: { id: string; foodCode: string; clientKey: string | null }, now: Date): Meal {
+  const f = findFood(input.foodCode);
+  if (!f) throw new AppError('unknown_food', 'Alimento não existe no mercado.', 404);
+  assertNotInHospital(avatar, now);
+  return {
+    id: input.id,
+    avatarId: avatar.id,
+    accountId: avatar.accountId,
+    foodCode: f.code,
+    priceCents: packPriceCents(f),
+    effects: { food: 0, energy: 0, health: 0, pantry: { code: f.code, units: f.pack } },
+    status: 'pending',
+    clientKey: input.clientKey,
+    createdAt: now,
+    eatenAt: null,
+  };
+}
+
+/**
+ * Come uma unidade da despensa: as mesmas regras e efeitos da refeição do
+ * mercado (inclusive a dor de barriga), sem cobrança. O avatar já vem travado
+ * e com a queda até agora.
+ */
+export function eatFromPantry(avatar: Avatar, input: { foodCode: string; roll?: number }, now: Date): Avatar {
+  if ((avatar.pantry[input.foodCode] ?? 0) < 1) {
+    throw new AppError('not_in_pantry', 'Esse alimento não está na despensa.', 409);
+  }
+  const meal = planMeal(avatar, { id: 'despensa', foodCode: input.foodCode, clientKey: null, roll: input.roll }, now);
+  const fed = eat(avatar, meal.effects, now);
+  const left = (avatar.pantry[input.foodCode] ?? 0) - 1;
+  const pantry = { ...fed.pantry };
+  if (left > 0) pantry[input.foodCode] = left;
+  else delete pantry[input.foodCode];
+  return { ...fed, pantry };
+}
+
 /** Confere e monta a compra do remédio. `roll` de 0 a 1 decide a cura. */
 export function planMedicine(
   avatar: Avatar,
@@ -135,9 +187,13 @@ export function eat(avatar: Avatar, effects: MealEffects, now: Date): Avatar {
   let conditions = avatar.conditions;
   if (effects.condition) conditions = catchCondition(conditions, effects.condition, now);
   if (effects.cure?.success) conditions = cure(conditions, effects.cure.code);
+  const pantry = effects.pantry
+    ? { ...avatar.pantry, [effects.pantry.code]: (avatar.pantry[effects.pantry.code] ?? 0) + effects.pantry.units }
+    : avatar.pantry;
   return {
     ...avatar,
     conditions,
+    pantry,
     attributes: {
       ...a,
       food: clamp(a.food + effects.food),
@@ -167,5 +223,7 @@ export interface MealStore {
   finishMeal(mealId: string, now: Date): Promise<Meal>;
   /** pending → failed. Repetir não faz nada. */
   failMeal(mealId: string): Promise<Meal>;
+  /** Trava o avatar da conta, aplica o plano (comer da despensa) e grava. */
+  updateAvatar(avatarId: string, accountId: string, now: Date, plan: (avatar: Avatar) => Avatar): Promise<Avatar>;
   listMeals(avatarId: string, limit: number): Promise<Meal[]>;
 }

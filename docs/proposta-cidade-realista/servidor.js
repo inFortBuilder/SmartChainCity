@@ -246,14 +246,25 @@ export function createServidor(map) {
           .join('')}<p class="muted pequeno">O remédio cura com 70% de chance; sem cura, o THALER não volta.</p>`;
       }
       // Mercado do jogo (E2.3): comer custa THALER e sobe a alimentação.
-      if (!internado && foods.length && at.food < 10) {
+      // Despensa: pacotes comprados antes; comer daqui não cobra de novo.
+      const guardados = a.pantry ?? [];
+      if (!internado && guardados.length) {
+        body += `<h3>🧺 Despensa</h3><div class="linha">${guardados
+          .map((p) => {
+            const f = foods.find((x) => x.code === p.food);
+            return `<button class="btn btn--ghost pequeno" type="button" data-s="consumir" data-f="${esc(p.food)}" ${busy || at.food >= 10 ? 'disabled' : ''}>${esc(f?.label ?? p.food)} × ${p.units}</button>`;
+          })
+          .join('')}</div>${at.food >= 10 ? '<p class="muted pequeno">Satisfeito: come da despensa quando a alimentação baixar.</p>' : ''}`;
+      }
+      if (!internado && foods.length) {
         const options = foods
-          .map((f) => `<option value="${esc(f.code)}">${esc(f.label)} · ${thaler(f.price)} · ${sign(f.energy)} energia, ${sign(f.health)} saúde</option>`)
+          .map((f) => `<option value="${esc(f.code)}">${esc(f.label)} · ${thaler(f.price)} (pacote de ${f.pack}: ${thaler(f.pack_price)}) · ${sign(f.energy)} energia, ${sign(f.health)} saúde</option>`)
           .join('');
         body += `<form data-form="comer" class="comer">
           <div class="linha"><select class="campo" name="food" aria-label="Alimento">${options}</select>
-          <button class="btn btn--blue" type="submit" ${busy ? 'disabled' : ''}>Comer</button></div>
-          <p class="muted pequeno">Cada refeição dá +3 de alimentação.${foods.some((f) => f.provisional_price) ? ' Preço provisório até o game designer definir.' : ''}</p>
+          <button class="btn btn--blue" type="submit" name="acao" value="comer" ${busy || at.food >= 10 ? 'disabled' : ''}>Comer</button>
+          <button class="btn btn--ghost" type="submit" name="acao" value="pacote" ${busy ? 'disabled' : ''}>Pacote</button></div>
+          <p class="muted pequeno">Cada refeição dá +3 de alimentação; o pacote vai para a despensa.${foods.some((f) => f.provisional_price) ? ' Preço provisório até o game designer definir.' : ''}</p>
         </form>`;
       }
       if (running) {
@@ -290,6 +301,19 @@ export function createServidor(map) {
     if (!form || busy) return;
     const code = String(new FormData(form).get('food') ?? '');
     const item = foods.find((f) => f.code === code);
+    if (e.submitter?.value === 'pacote') {
+      return act(async () => {
+        const r = await call(API.game, `/v1/avatars/${data.avatar.id}/pantry`, {
+          method: 'POST',
+          token: session.token,
+          body: { food: code },
+          headers: { 'idempotency-key': crypto.randomUUID() },
+        });
+        const guardado = r.avatar.pantry.find((p) => p.food === code)?.units ?? 0;
+        message = `Pacote de ${item?.label ?? code}: −${thaler(r.purchase.price)} THALER, ${guardado} na despensa.`;
+        messageOk = true;
+      });
+    }
     return act(async () => {
       // A chave faz o servidor reconhecer um clique repetido como o mesmo pedido.
       const r = await call(API.game, `/v1/avatars/${data.avatar.id}/meals`, {
@@ -331,6 +355,18 @@ export function createServidor(map) {
       return act(() =>
         call(API.game, `/v1/avatars/${data.avatar.id}/work`, { method: 'POST', token: session.token, body: { shift: Number(b.dataset.h) } }),
       );
+    }
+    if (what === 'consumir') {
+      return act(async () => {
+        const r = await call(API.game, `/v1/avatars/${data.avatar.id}/consume`, {
+          method: 'POST',
+          token: session.token,
+          body: { food: b.dataset.f },
+        });
+        const label = foods.find((f) => f.code === b.dataset.f)?.label ?? b.dataset.f;
+        message = `${label} da despensa: alimentação ${r.avatar.attributes.food}/10.`;
+        messageOk = true;
+      });
     }
     if (what === 'remedio') {
       return act(async () => {

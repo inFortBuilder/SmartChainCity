@@ -1,0 +1,1 @@
+ALTER TABLE "game"."avatar" ADD COLUMN "pantry" jsonb DEFAULT '{}'::jsonb NOT NULL;
