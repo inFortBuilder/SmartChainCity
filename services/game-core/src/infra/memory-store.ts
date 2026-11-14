@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { AppError } from '@scc/shared';
 
 import {
@@ -8,6 +10,7 @@ import {
   decayed,
   tooManyAvatars,
 } from '../domain/avatar.js';
+import { type HospitalStay, type HospitalStore, admit } from '../domain/hospital.js';
 import { type Meal, type MealPlanner, type MealStore, eat } from '../domain/meal.js';
 import { type Shift, type ShiftPlanner, type ShiftStore, hoursSince, settle } from '../domain/shift.js';
 
@@ -22,8 +25,46 @@ const clone = (a: Avatar): Avatar => ({
 });
 
 /** Para testes e desenvolvimento. Uma thread só: cada operação é atômica. */
-export class MemoryAvatarStore implements AvatarStore, ShiftStore, MealStore {
+export class MemoryAvatarStore implements AvatarStore, ShiftStore, MealStore, HospitalStore {
   private readonly avatars = new Map<string, Avatar>();
+  private readonly stays = new Map<string, HospitalStay>();
+
+  async admitDue(now: Date, batch: number, avatarId?: string) {
+    const created: HospitalStay[] = [];
+    for (const [id, stored] of this.avatars) {
+      if (created.length >= batch) break;
+      if (avatarId && id !== avatarId) continue;
+      const working = [...this.shifts.values()].some((s) => s.avatarId === id && s.status === 'running' && s.endsAt > now);
+      if (working) continue;
+      const admitted = admit(decayed(stored, now), randomUUID(), now);
+      if (!admitted) continue;
+      this.avatars.set(id, clone(admitted.avatar));
+      this.stays.set(admitted.stay.id, { ...admitted.stay });
+      created.push({ ...admitted.stay });
+    }
+    return created;
+  }
+
+  async pendingFees(batch: number) {
+    return [...this.stays.values()]
+      .filter((s) => s.feeStatus === 'pending')
+      .sort((a, b) => a.admittedAt.getTime() - b.admittedAt.getTime())
+      .slice(0, batch)
+      .map((s) => ({ ...s }));
+  }
+
+  async settleFee(stayId: string, status: 'paid' | 'waived') {
+    const s = this.stays.get(stayId);
+    if (s?.feeStatus === 'pending') this.stays.set(stayId, { ...s, feeStatus: status });
+  }
+
+  async listStays(avatarId: string, limit: number) {
+    return [...this.stays.values()]
+      .filter((s) => s.avatarId === avatarId)
+      .sort((a, b) => b.admittedAt.getTime() - a.admittedAt.getTime())
+      .slice(0, limit)
+      .map((s) => ({ ...s }));
+  }
   private readonly shifts = new Map<string, Shift>();
   private readonly meals = new Map<string, Meal>();
 

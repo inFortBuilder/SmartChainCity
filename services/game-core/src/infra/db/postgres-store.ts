@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { AppError } from '@scc/shared';
 import { and, asc, desc, eq, lte, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
@@ -13,6 +15,13 @@ import {
   tooManyAvatars,
 } from '../../domain/avatar.js';
 import type { Rarity } from '../../domain/catalog.js';
+import {
+  type FeeStatus,
+  type HospitalReason,
+  type HospitalStay,
+  type HospitalStore,
+  admit,
+} from '../../domain/hospital.js';
 import { type Meal, type MealEffects, type MealPlanner, type MealStatus, type MealStore, eat } from '../../domain/meal.js';
 import {
   type Shift,
@@ -25,7 +34,20 @@ import {
   hoursSince,
   settle,
 } from '../../domain/shift.js';
-import { avatar, meal, workShift } from './schema.js';
+import { avatar, hospitalStay, meal, workShift } from './schema.js';
+
+type StayRow = typeof hospitalStay.$inferSelect;
+
+const toStay = (r: StayRow): HospitalStay => ({
+  id: r.id,
+  avatarId: r.avatarId,
+  accountId: r.accountId,
+  reason: r.reason as HospitalReason,
+  feeCents: BigInt(r.feeCents),
+  feeStatus: r.feeStatus as FeeStatus,
+  admittedAt: r.admittedAt,
+  dischargeAt: r.dischargeAt,
+});
 
 type MealRow = typeof meal.$inferSelect;
 
@@ -86,6 +108,7 @@ const toAvatar = (r: Row): Avatar => ({
     education: r.education,
   },
   anchors: { food: r.foodAt, happiness: r.happinessAt, hygiene: r.hygieneAt },
+  hospitalUntil: r.hospitalUntil,
   createdAt: r.createdAt,
   updatedAt: r.updatedAt,
 });
@@ -99,11 +122,12 @@ const toRow = (a: Avatar) => ({
   foodAt: a.anchors.food,
   happinessAt: a.anchors.happiness,
   hygieneAt: a.anchors.hygiene,
+  hospitalUntil: a.hospitalUntil,
   createdAt: a.createdAt,
   updatedAt: a.updatedAt,
 });
 
-export class PostgresAvatarStore implements AvatarStore, ShiftStore, MealStore {
+export class PostgresAvatarStore implements AvatarStore, ShiftStore, MealStore, HospitalStore {
   private readonly db;
 
   constructor(pool: Pool) {
@@ -314,6 +338,64 @@ export class PostgresAvatarStore implements AvatarStore, ShiftStore, MealStore {
     const [row] = await this.db.select().from(meal).where(eq(meal.id, mealId));
     if (!row) throw new AppError('not_found', 'Refeição não encontrada.', 404);
     return toMeal(row);
+  }
+
+  async admitDue(now: Date, batch: number, avatarId?: string) {
+    return this.db.transaction(async (tx) => {
+      // Energia ou saúde em 0, fora do hospital e sem turno rodando (o que já venceu conta como acabado).
+      const due = sql`(${avatar.energy} = 0 or ${avatar.health} = 0)
+        and (${avatar.hospitalUntil} is null or ${avatar.hospitalUntil} <= ${now})
+        and not exists (
+          select 1 from game.work_shift s where s.avatar_id = ${avatar.id} and s.status = 'running' and s.ends_at > ${now}
+        )`;
+      const query = tx
+        .select()
+        .from(avatar)
+        .where(avatarId ? and(eq(avatar.id, avatarId), due) : due)
+        .limit(batch);
+      // O job pula quem está travado; o pedido de um avatar espera a vez, para a ação seguinte já ver a internação.
+      const rows = await (avatarId ? query.for('update') : query.for('update', { skipLocked: true }));
+      const stays: HospitalStay[] = [];
+      for (const row of rows) {
+        const admitted = admit(decayed(toAvatar(row), now), randomUUID(), now);
+        if (!admitted) continue;
+        await tx.update(avatar).set(toRow(admitted.avatar)).where(eq(avatar.id, row.id));
+        const s = admitted.stay;
+        const [created] = await tx
+          .insert(hospitalStay)
+          .values({ ...s, feeCents: s.feeCents.toString() })
+          .returning();
+        stays.push(toStay(created!));
+      }
+      return stays;
+    });
+  }
+
+  async pendingFees(batch: number) {
+    const rows = await this.db
+      .select()
+      .from(hospitalStay)
+      .where(eq(hospitalStay.feeStatus, 'pending'))
+      .orderBy(asc(hospitalStay.admittedAt))
+      .limit(batch);
+    return rows.map(toStay);
+  }
+
+  async settleFee(stayId: string, status: 'paid' | 'waived') {
+    await this.db
+      .update(hospitalStay)
+      .set({ feeStatus: status })
+      .where(and(eq(hospitalStay.id, stayId), eq(hospitalStay.feeStatus, 'pending')));
+  }
+
+  async listStays(avatarId: string, limit: number) {
+    const rows = await this.db
+      .select()
+      .from(hospitalStay)
+      .where(eq(hospitalStay.avatarId, avatarId))
+      .orderBy(desc(hospitalStay.admittedAt))
+      .limit(limit);
+    return rows.map(toStay);
   }
 
   async listMeals(avatarId: string, limit: number) {

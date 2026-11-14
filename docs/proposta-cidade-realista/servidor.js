@@ -229,8 +229,15 @@ export function createServidor(map) {
       body = `<p><strong>${esc(a.job.label)}</strong> <span class="muted">· ${esc(a.rarity)}</span></p>
         ${bar('Energia', at.energy)}${bar('Saúde', at.health)}${bar('Felicidade', at.happiness)}${bar('Alimentação', at.food)}${bar('Higiene', at.hygiene)}
         <p class="muted pequeno">Educação ${at.education}/100${a.status.earnsReward ? '' : ' · <strong>sem comer há 48 h: o turno não paga</strong>'}</p>`;
+      // Hospital compulsório (E2.3): saúde ou energia em 0 interna por 1 dia, com taxa de 30 THALER.
+      const internado = a.status.inHospital;
+      if (internado) {
+        body += `<h3>🏥 Internado</h3>
+          <p class="muted pequeno">Energia ou saúde chegou a 0. Alta em ${left(a.hospital_until)}, com energia e saúde cheias.
+          Taxa de 30 THALER (perdoada se faltar saldo). Até lá, sem trabalho e sem mercado.</p>`;
+      }
       // Mercado do jogo (E2.3): comer custa THALER e sobe a alimentação.
-      if (foods.length && at.food < 10) {
+      if (!internado && foods.length && at.food < 10) {
         const options = foods
           .map((f) => `<option value="${esc(f.code)}">${esc(f.label)} · ${thaler(f.price)} · ${sign(f.energy)} energia, ${sign(f.health)} saúde</option>`)
           .join('');
@@ -247,7 +254,7 @@ export function createServidor(map) {
           <div class="barra"><span style="width:${pct}%"></span></div>
           <p class="muted pequeno">Falta ${left(running.ends_at)}. Pode fechar o jogo: o servidor conclui o turno.<br>
           Compromisso do sorteio: <code>${running.seed_commit.slice(0, 16)}…</code></p>`;
-      } else {
+      } else if (!internado) {
         body += `<div class="linha">
           <button class="btn btn--blue" type="button" data-s="work" data-h="6" ${busy || !a.status.canWork ? 'disabled' : ''}>Trabalhar 6 h</button>
           <button class="btn btn--blue" type="button" data-s="work" data-h="12" ${busy || !a.status.canWork ? 'disabled' : ''}>Trabalhar 12 h</button></div>`;

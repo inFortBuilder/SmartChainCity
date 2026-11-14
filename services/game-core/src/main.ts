@@ -6,6 +6,7 @@ import { PostgresAvatarStore } from './infra/db/postgres-store.js';
 import { MemoryAvatarStore } from './infra/memory-store.js';
 import { EconomyPayer } from './infra/economy-payer.js';
 import { scheduleDecay } from './jobs/decay.js';
+import { scheduleHospital } from './jobs/hospital.js';
 import { scheduleShifts } from './jobs/shift.js';
 
 const config = loadConfig();
@@ -20,8 +21,8 @@ const store = pool ? new PostgresAvatarStore(pool) : new MemoryAvatarStore();
 const payer =
   config.ECONOMY_URL && config.ECONOMY_TOKEN ? new EconomyPayer(config.ECONOMY_URL, config.ECONOMY_TOKEN) : null;
 
-// O mesmo cliente do ledger paga os turnos e cobra as refeições.
-const app = await buildApp(config, store, undefined, payer, payer);
+// O mesmo cliente do ledger paga os turnos e cobra as refeições e o hospital.
+const app = await buildApp(config, store, undefined, payer, payer, payer);
 app.log.info(`armazenamento: ${pool ? 'postgres' : 'memória'}; pagamento de turnos: ${payer ? config.ECONOMY_URL : 'desligado'}`);
 
 // Catálogo publicado no Strapi; se ele estiver fora, segue o seed e o webhook atualiza depois.
@@ -42,10 +43,12 @@ if (config.CMS_URL) {
 
 const decay = scheduleDecay(store, config.DECAY_EVERY_SECONDS * 1000, (msg) => app.log.info(msg));
 const shifts = scheduleShifts(store, config.SHIFT_CHECK_SECONDS * 1000, (msg) => app.log.info(msg));
+const hospital = scheduleHospital(store, payer, config.HOSPITAL_CHECK_SECONDS * 1000, (msg) => app.log.info(msg));
 
 const shutdown = async () => {
   decay.stop();
   shifts.stop();
+  hospital.stop();
   await app.close();
   await pool?.end();
   process.exit(0);
