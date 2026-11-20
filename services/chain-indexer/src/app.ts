@@ -1,0 +1,124 @@
+import cors from '@fastify/cors';
+import { AppError, observe, requireServiceToken, serverOptions } from '@scc/shared';
+import Fastify from 'fastify';
+import { z } from 'zod';
+
+import type { Config } from './config.js';
+import type { AvatarToken, BoxRequest, LotToken } from './domain/events.js';
+import type { IndexerStore } from './domain/indexer.js';
+
+/** Estado do laço de leitura, para `/v1/chain/status`. */
+export interface IndexerStatus {
+  head: bigint | null;
+  lastTickAt: Date | null;
+  lastError: string | null;
+}
+
+const tokenParam = z.object({ tokenId: z.string().regex(/^[0-9]{1,78}$/) });
+const addressParam = z.object({ address: z.string().regex(/^0x[0-9a-fA-F]{40}$/) });
+
+const lotDto = (l: LotToken) => ({ token_id: l.tokenId, city: l.city, lot: l.lot, owner: l.owner, block: l.block.toString() });
+const avatarDto = (a: AvatarToken) => ({
+  token_id: a.tokenId,
+  owner: a.owner,
+  rarity: a.rarity,
+  profession: a.profession,
+  block: a.block.toString(),
+});
+const boxDto = (b: BoxRequest) => ({
+  request_id: b.requestId,
+  buyer: b.buyer,
+  tier_id: b.tierId,
+  status: b.status,
+  token_id: b.tokenId,
+  block: b.block.toString(),
+});
+
+export async function buildApp(config: Config, store: IndexerStore, status: IndexerStatus = { head: null, lastTickAt: null, lastError: null }) {
+  const app = Fastify({ ...serverOptions({ service: 'chain-indexer', nodeEnv: config.NODE_ENV, logLevel: config.LOG_LEVEL }) });
+  observe(app, { service: 'chain-indexer', nodeEnv: config.NODE_ENV, metricsToken: config.METRICS_TOKEN });
+  await app.register(cors, { origin: config.CORS_ORIGINS });
+
+  app.setErrorHandler((error, request, reply) => {
+    if (error instanceof AppError) {
+      return reply.status(error.status).send({ error: { code: error.code, message: error.message } });
+    }
+    if (error instanceof z.ZodError) {
+      return reply.status(400).send({ error: { code: 'invalid_request', message: 'Requisição inválida.' } });
+    }
+    request.log.error(error);
+    return reply.status(500).send({ error: { code: 'internal_error', message: 'Erro interno.' } });
+  });
+
+  const chainId = config.CHAIN_ID;
+  const notFound = (what: string) => new AppError('not_found', `${what} não encontrado na rede.`, 404);
+
+  app.get('/healthz', async () => ({ status: 'ok' }));
+
+  app.get('/v1/chain/status', async () => {
+    const cursor = await store.cursor(chainId);
+    return {
+      chain_id: chainId,
+      confirmations: config.CONFIRMATIONS,
+      head: status.head?.toString() ?? null,
+      indexed_block: cursor?.block.toString() ?? null,
+      lag_blocks: status.head !== null && cursor ? (status.head - cursor.block).toString() : null,
+      last_tick_at: status.lastTickAt?.toISOString() ?? null,
+      last_error: status.lastError,
+      contracts: config.contracts,
+    };
+  });
+
+  app.get('/v1/chain/lots/:tokenId', async (request) => {
+    const { tokenId } = tokenParam.parse(request.params);
+    const lot = await store.lot(chainId, tokenId);
+    if (!lot) throw notFound('Lote');
+    return { lot: lotDto(lot) };
+  });
+
+  app.get('/v1/chain/avatars/:tokenId', async (request) => {
+    const { tokenId } = tokenParam.parse(request.params);
+    const avatar = await store.avatar(chainId, tokenId);
+    if (!avatar) throw notFound('Avatar');
+    return { avatar: avatarDto(avatar) };
+  });
+
+  app.get('/v1/chain/boxes/:tokenId', async (request) => {
+    const { tokenId } = tokenParam.parse(request.params);
+    const box = await store.box(chainId, tokenId);
+    if (!box) throw notFound('Caixa');
+    return { box: boxDto(box) };
+  });
+
+  app.get('/v1/chain/owners/:address', async (request) => {
+    const { address } = addressParam.parse(request.params);
+    const [lots, avatars] = await Promise.all([store.lotsOf(chainId, address), store.avatarsOf(chainId, address)]);
+    return { lots: lots.map(lotDto), avatars: avatars.map(avatarDto) };
+  });
+
+  // Feed para os outros serviços (world, game-core): eventos confirmados, em ordem.
+  app.get('/internal/v1/chain/events', async (request) => {
+    if (!config.INTERNAL_TOKEN) {
+      throw new AppError('internal_disabled', 'Rotas internas desligadas: defina INTERNAL_TOKEN.', 503);
+    }
+    requireServiceToken(request.headers['x-service-token'], config.INTERNAL_TOKEN);
+    const q = z
+      .object({ after: z.coerce.number().int().nonnegative().default(0), limit: z.coerce.number().int().min(1).max(1000).default(200) })
+      .parse(request.query);
+    const events = await store.eventsAfter(chainId, q.after, q.limit);
+    return {
+      events: events.map((e) => ({
+        id: e.id,
+        block: e.blockNumber.toString(),
+        tx_hash: e.txHash,
+        log_index: e.logIndex,
+        contract: e.contract,
+        event: e.event,
+        args: e.args,
+      })),
+      next_after: events.at(-1)?.id ?? q.after,
+    };
+  });
+
+  return app;
+}

@@ -9,7 +9,7 @@ Serviços de backend em TypeScript (workspace pnpm).
 | [economy](economy/README.md) | `@scc/economy` | Ledger THALER (pronto: dupla entrada, idempotência, extrato), impostos, câmbio, saques |
 | [world](world/README.md) | `@scc/world` | Lotes (pronto: situação, dono e venda primária paga pelo ledger), imóveis, cotações assinadas |
 | [realtime](realtime/README.md) | `@scc/realtime` | Colyseus: presença, chat, eventos |
-| [chain-indexer](chain-indexer/README.md) | `@scc/chain-indexer` | Eventos on-chain, depósitos, vouchers |
+| [chain-indexer](chain-indexer/README.md) | `@scc/chain-indexer` | Eventos on-chain (pronto: confirmações, reorg, posse de lotes, avatares e caixas); depósitos e vouchers |
 | [shared](shared/README.md) | `@scc/shared` | Tipos, erros, validação do token de acesso (`verifyAccessToken`) e da chave de serviço (`requireServiceToken`) |
 
 Caminho de desenvolvimento: [docs/desenvolvimento/trilha-backend.md](../docs/desenvolvimento/trilha-backend.md)
