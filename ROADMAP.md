@@ -68,7 +68,7 @@ O MVP roda inteiro na máquina local, sem serviços pagos. Por isso, publicar o 
    - 🟡 `chain-indexer` (2026-11-20): lê os eventos com confirmações e trata reorganização. Espelha lotes, avatares e caixas, e foi testado no anvil. Falta o depósito creditar o THALER uma única vez, que espera o `GameVault`.
    - 🟡 Validação dos prédios no servidor (E2.10, 2026-11-20). O world manda o polígono e as regras do próprio banco para o SCC Builder, cobra a outorga e guarda o prédio para o alvará; testado com o Builder real. O `BuildingNFT` (E2.11) também está pronto: o prédio aprovado vira NFT na carteira do construtor, testado no anvil.
 4. **Fechar a Etapa 2.**
-   - 🟡 Multiplayer no `realtime` (E2.7, 2026-11-20). Salas por bairro, presença, chat moderado e eventos, com 100 clientes numa sala, p95 de 72 ms e nenhuma queda. Falta mostrar os outros jogadores no mapa.
+   - 🟡 Multiplayer no `realtime` (E2.7, 2026-11-20). Salas por bairro, presença, chat moderado e eventos, com 100 clientes numa sala, p95 de 72 ms e nenhuma queda. O mapa de Pittsburg mostra os outros jogadores do bairro e o chat.
    - Profissões com minigame (E2.2).
    - Antifraude (E2.9).
    - Painel econômico (E2.8).

@@ -20,6 +20,14 @@ Rode na raiz do repositório e abra http://localhost:8081/docs/proposta-cidade-r
 
 **Jogo no servidor (célula jogável, E1.6):** o painel no canto inferior esquerdo liga o mapa aos serviços, sem nada simulado. Você entra com a carteira (SIWE, pelo [gateway](../../services/gateway/README.md)), vê o avatar e os atributos ([game-core](../../services/game-core/README.md)), trabalha um turno de 6 ou 12 h, que o servidor conclui mesmo com a página fechada, e coleta o THALER no [ledger](../../services/economy/README.md). Sem MetaMask, em `localhost`, dá para entrar com uma **carteira de teste** gerada no navegador. Também dá para entrar **com o e-mail**: o gateway manda um código de 6 dígitos, que na máquina local aparece no log do gateway. Com login, a ficha do lote consulta o [world](../../services/world/README.md): situação real, preço em SCITY e **Comprar**, que cobra no ledger; os seus lotes no servidor ficam violeta. Os negócios (barra superior e "Meu patrimônio") continuam simulados, marcados como "simulado".
 
+**Multiplayer (E2.7):** com login, o painel do canto inferior direito põe você na sala do bairro para onde a câmera olha, no serviço [realtime](../../services/realtime/README.md). Ao mudar de bairro, ele troca de sala sozinho.
+- **Outros jogadores:** os do mesmo bairro aparecem como alfinetes laranja com o nome (profissão e final da carteira) e andam conforme a câmera deles.
+- **Chat:** o chat do bairro é moderado; link é recusado, palavrão vira asterisco, e o motivo aparece embaixo.
+- **Eventos:** os da Prefeitura (dirigível) entram no chat em amarelo.
+- **Endereço:** o servidor pode ser trocado com `?realtime=`.
+
+Testado em 2026-11-20 com um bot no bairro 1: o alfinete dele andou no mapa, as mensagens foram nos dois sentidos, e a dele com link foi barrada.
+
 Para subir tudo na sua máquina:
 
 ```bash
