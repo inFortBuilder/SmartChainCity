@@ -1,0 +1,257 @@
+// Multiplayer no mapa (E2.7): quem está no mesmo bairro aparece como um alfinete
+// com o nome, e o chat do bairro fica num painel. A sala é a do serviço realtime
+// (services/realtime, Colyseus): uma por bairro, até 100 jogadores.
+//
+// "Onde estou" é para onde a câmera olha (o alvo dos controles): o mapa ainda não
+// tem um avatar andando. Mudou de bairro, troca de sala sozinho.
+
+const params = new URLSearchParams(location.search);
+const REALTIME = params.get('realtime') ?? 'http://127.0.0.1:8050';
+const SDK = 'https://cdn.jsdelivr.net/npm/@colyseus/sdk@0.18.9/+esm';
+const CITY = 'pittsburg';
+const MOVE_EVERY_MS = 500;
+const MAX_LINES = 40;
+
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+const hhmm = (iso) => new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+const ERRORS = {
+  link: 'Links não são permitidos no chat.',
+  too_long: 'Mensagem longa demais (até 200 caracteres).',
+  empty: 'Mensagem vazia.',
+  too_fast: 'Devagar: uma mensagem por segundo.',
+  muted: 'Você está silenciado por um tempo.',
+};
+
+/**
+ * @param {{ THREE, scene, camera, controls, lotAt: (x:number,z:number)=>number|null,
+ *           getLots: ()=>any, getSession: ()=>({token:string,address?:string}|null),
+ *           getAvatar: ()=>any }} map
+ */
+export function createMultiplayer(map) {
+  const { THREE, scene, controls } = map;
+
+  // ─ Painel do bairro: quantos estão aqui e o chat ─
+  const panel = document.createElement('aside');
+  panel.className = 'multiplayer glass';
+  panel.setAttribute('aria-label', 'Jogadores no bairro');
+  panel.hidden = true;
+  panel.innerHTML = `
+    <div class="linha cab"><h2>💬 Bairro <span data-mp-bairro>—</span></h2><span class="muted pequeno" data-mp-count></span></div>
+    <ol class="mp-chat" data-mp-chat aria-live="polite"></ol>
+    <form class="linha" data-mp-form>
+      <input class="campo" name="text" maxlength="200" autocomplete="off" placeholder="Fale com o bairro…" aria-label="Mensagem para o bairro" />
+      <button class="btn" type="submit">Enviar</button>
+    </form>
+    <p class="muted pequeno" data-mp-status></p>`;
+  document.body.append(panel);
+  const chatEl = panel.querySelector('[data-mp-chat]');
+  const statusEl = panel.querySelector('[data-mp-status]');
+
+  const line = (html, cls = '') => {
+    const li = document.createElement('li');
+    if (cls) li.className = cls;
+    li.innerHTML = html;
+    chatEl.append(li);
+    while (chatEl.children.length > MAX_LINES) chatEl.firstElementChild.remove();
+    chatEl.scrollTop = chatEl.scrollHeight;
+  };
+  const status = (text) => (statusEl.textContent = text);
+
+  // ─ Alfinetes dos outros jogadores ─
+  const group = new THREE.Group();
+  group.name = 'jogadores';
+  scene.add(group);
+  const pins = new Map(); // sessionId → { obj, x, z }
+  const pinGeo = new THREE.CylinderGeometry(4, 0.5, 60, 10);
+  pinGeo.translate(0, 30, 0);
+  const pinMat = new THREE.MeshBasicMaterial({ color: 0xf59e0b });
+
+  function labelSprite(text) {
+    const c = document.createElement('canvas');
+    const ctx = c.getContext('2d');
+    ctx.font = '600 28px system-ui, sans-serif';
+    const w = Math.ceil(ctx.measureText(text).width) + 28;
+    c.width = w;
+    c.height = 44;
+    ctx.font = '600 28px system-ui, sans-serif';
+    ctx.fillStyle = 'rgba(15,23,42,.82)';
+    ctx.beginPath();
+    ctx.roundRect(0, 0, w, 44, 14);
+    ctx.fill();
+    ctx.fillStyle = '#fde68a';
+    ctx.fillText(text, 14, 31);
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, sizeAttenuation: false }));
+    s.scale.set((w / 44) * 0.035, 0.035, 1);
+    s.position.y = 75;
+    s.renderOrder = 10;
+    return s;
+  }
+
+  function makePin(name) {
+    const obj = new THREE.Group();
+    obj.add(new THREE.Mesh(pinGeo, pinMat));
+    obj.add(labelSprite(name));
+    group.add(obj);
+    return obj;
+  }
+
+  function dropPins() {
+    for (const p of pins.values()) {
+      p.obj.traverse((o) => o.material?.map?.dispose?.());
+      group.remove(p.obj);
+    }
+    pins.clear();
+  }
+
+  function syncPins(state) {
+    if (!room) return;
+    const alive = new Set();
+    let count = 0;
+    state.players.forEach((p, id) => {
+      count++;
+      if (id === room.sessionId) return;
+      alive.add(id);
+      let pin = pins.get(id);
+      if (!pin) {
+        pin = { obj: makePin(p.name), x: p.x, z: p.z };
+        pins.set(id, pin);
+      }
+      pin.x = p.x;
+      pin.z = p.z;
+    });
+    for (const [id, pin] of pins) {
+      if (alive.has(id)) continue;
+      group.remove(pin.obj);
+      pins.delete(id);
+    }
+    panel.querySelector('[data-mp-count]').textContent = count === 1 ? 'só você aqui' : `${count} jogadores aqui`;
+  }
+
+  /** Desliza os alfinetes até a posição nova (as mensagens chegam a cada meio segundo). */
+  function tick() {
+    for (const pin of pins.values()) {
+      pin.obj.position.x += (pin.x - pin.obj.position.x) * 0.2;
+      pin.obj.position.z += (pin.z - pin.obj.position.z) * 0.2;
+    }
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+
+  // ─ Sala ─
+  let sdk = null;
+  let room = null;
+  let roomDistrict = null;
+  let joining = false;
+  let token = null;
+  let lastSent = { x: NaN, z: NaN };
+
+  const districtHere = () => {
+    const lots = map.getLots();
+    const t = controls.target;
+    const i = map.lotAt(t.x, t.z);
+    if (i === null || !lots?.district) return null;
+    return lots.district[i];
+  };
+
+  const myName = () => {
+    const job = map.getAvatar()?.job?.label ?? 'Jogador';
+    const addr = map.getSession()?.address;
+    return addr ? `${job} ${addr.slice(-4)}` : job;
+  };
+
+  async function leave() {
+    const r = room;
+    room = null;
+    roomDistrict = null;
+    dropPins();
+    if (r) await r.leave().catch(() => {});
+  }
+
+  async function join(district) {
+    joining = true;
+    try {
+      sdk ??= await import(SDK);
+      const client = new sdk.Client(REALTIME);
+      client.auth.token = token;
+      const t = controls.target;
+      const r = await client.joinOrCreate('district', { city: CITY, district, name: myName(), x: t.x, z: t.z });
+      await leave();
+      room = r;
+      roomDistrict = district;
+      lastSent = { x: t.x, z: t.z };
+      panel.querySelector('[data-mp-bairro]').textContent = String(district + 1);
+      chatEl.innerHTML = '';
+      line(`<span class="muted">Você entrou no bairro ${district + 1}.</span>`);
+      status('');
+      r.onStateChange((s) => syncPins(s));
+      r.onMessage('chat', (m) =>
+        line(`<span class="muted">${hhmm(m.at)}</span> <b>${esc(m.name)}</b> ${esc(m.text)}`, m.from === r.sessionId ? 'meu' : ''),
+      );
+      r.onMessage('chat_error', (e) => status(ERRORS[e.reason] ?? 'Mensagem recusada.'));
+      r.onMessage('event', (e) => line(`📣 <b>${esc(e.text)}</b>`, 'evento'));
+      r.onMessage('report_ok', () => status('Denúncia registrada. Obrigado.'));
+      r.onLeave(() => {
+        if (room === r) {
+          room = null;
+          roomDistrict = null;
+          dropPins();
+          status('Conexão com o bairro caiu; tentando de novo…');
+        }
+      });
+    } catch (error) {
+      status(`Sem conexão com o multiplayer (${REALTIME}).`);
+      console.warn('multiplayer', error);
+    } finally {
+      joining = false;
+    }
+  }
+
+  // Laço: entra, troca de bairro e manda a posição.
+  async function loop() {
+    const session = map.getSession();
+    if (!session) {
+      if (room) await leave();
+      panel.hidden = true;
+      token = null;
+      return;
+    }
+    panel.hidden = false;
+    token = session.token;
+    const district = districtHere() ?? roomDistrict;
+    if (district === null || district === undefined) {
+      status('Aproxime a câmera de um bairro para encontrar outros jogadores.');
+      return;
+    }
+    if (!joining && district !== roomDistrict) {
+      await join(district);
+      return;
+    }
+    const t = controls.target;
+    if (room && Math.hypot(t.x - lastSent.x, t.z - lastSent.z) > 1) {
+      room.send('move', { x: t.x, z: t.z, rot: Math.atan2(map.camera.position.x - t.x, map.camera.position.z - t.z) });
+      lastSent = { x: t.x, z: t.z };
+    }
+  }
+  setInterval(() => loop().catch((e) => console.warn('multiplayer', e)), MOVE_EVERY_MS);
+
+  panel.querySelector('[data-mp-form]').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const input = e.target.elements.text;
+    const text = input.value.trim();
+    if (!text || !room) return;
+    room.send('chat', { text });
+    input.value = '';
+    status('');
+  });
+
+  return {
+    /** Quem está no bairro (para testes e para a tela). */
+    players: () => [...pins.entries()].map(([id, p]) => ({ id, x: p.x, z: p.z })),
+    room: () => room,
+    district: () => roomDistrict,
+    report: (sessionId, reason = '') => room?.send('report', { sessionId, reason }),
+  };
+}

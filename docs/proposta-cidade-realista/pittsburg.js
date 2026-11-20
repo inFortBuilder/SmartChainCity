@@ -11,6 +11,7 @@ import { readChunk } from '../../tools/scc-builder/bin/lib/lot-chunks.js';
 
 import { createGestao } from './gestao.js';
 import { createServidor } from './servidor.js';
+import { createMultiplayer } from './multiplayer.js';
 
 const BASE = '../../.local/cidades/pittsburg';
 const $ = (s) => document.querySelector(s);
@@ -638,7 +639,12 @@ try {
   });
   // Célula jogável (E1.6): login, avatar, THALER e turno pelos serviços.
   servidor = createServidor({ THREE, scene, lotRing, loadLotsFor, showLot });
-  window.__pittsburg = { scene, camera, controls, renderer, buildings, pick, showBuilding, pickLot, showLot, getLots: () => lots, gestao, civicBuilding, progressiveBuilding, loadLotsFor, servidor };
+  // Multiplayer (E2.7): outros jogadores do bairro e o chat, pelo serviço realtime.
+  const multiplayer = createMultiplayer({
+    THREE, scene, camera, controls, lotAt, getLots: () => lots,
+    getSession: () => servidor.getSession(), getAvatar: () => servidor.getData().avatar,
+  });
+  window.__pittsburg = { scene, camera, controls, renderer, buildings, pick, showBuilding, pickLot, showLot, getLots: () => lots, gestao, civicBuilding, progressiveBuilding, loadLotsFor, servidor, multiplayer };
 
   // Spike E0.9: ?spike (ou ?spike=20) mede download, FPS e 20 prédios com LOD.
   const spikeParam = new URLSearchParams(location.search).get('spike');
