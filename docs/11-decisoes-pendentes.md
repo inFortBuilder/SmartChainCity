@@ -26,7 +26,7 @@ Inconsistências ou lacunas encontradas nas fontes. Cada item tem uma **recomend
 | 2 | Distribuição de profissões por raridade (oficial) | "Figura 15 — Whitepaper" | Usar a lista do cap. 4 (doc 02 §3) até confirmar |
 | 3 | Capacidade de moradores e custos por tipo de imóvel | "Figura 16" | Recuperar a figura; enquanto isso, propor no simulador |
 | 4 | Preços de lote por região | — | Definir com o simulador (curva por anel) |
-| 5 | Valores de impostos (IPTU, PT, IPVA), seguros e energia | Texto só descreve mecânicas | Definir com o simulador |
+| 5 | Valores de impostos (IPTU, PT, IPVA), seguros e energia | Texto só descreve mecânicas | Definir com o simulador. Provisório no world (2026-11-20): IPTU de 180 THALER a cada 182 dias (do simulador) e PT de 10 THALER × mês sem uso (sem fonte; o simulador ainda não tem PT) |
 | 6 | Arte das profissões **Raras e Lendárias** e de 13 épicas | Pastas vazias | Produção de arte na fase 1 |
 | 7 | **Projeto-fonte Unity** | Só o build 0.0.23 está na pasta | Localizar repositório (arquivo `Smart-Repositorios.txt`) |
 | 8 | Planilha online citada no tokenomics (Google Sheets) | Link no rodapé do estudo | Pedir acesso e arquivar uma cópia |

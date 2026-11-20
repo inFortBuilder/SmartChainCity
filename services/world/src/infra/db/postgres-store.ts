@@ -113,6 +113,11 @@ export class PostgresWorldStore implements WorldStore {
     return rows.map(toLot);
   }
 
+  async soldLots() {
+    const rows = await this.db.select().from(lotT).where(eq(lotT.status, 'sold')).orderBy(asc(lotT.city), asc(lotT.id));
+    return rows.map(toLot);
+  }
+
   async reserve(
     code: string,
     lotId: number,

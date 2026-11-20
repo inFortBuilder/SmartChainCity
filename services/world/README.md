@@ -73,6 +73,26 @@ O job `properties.settle` (junto do `purchases.settle`) refaz obras e coletas qu
 
 Com isso, uma T1 coletada toda semana rende 455 THALER até o desgaste chegar a 30, em 70 dias, contra 4.000 de obra. Com reparo a cada 30 dias (60 THALER), sobra ~195 THALER por mês, e a obra se paga em ~620 dias. O [simulador](../../tools/econ-sim/README.md), que conta 10 THALER/dia sem desgaste, precisa passar a contar o desgaste, o reparo e os níveis antes de esses números virarem regra.
 
+## Impostos (E2.6)
+
+O job `tax.charge` (a cada `TAX_EVERY_SECONDS`, 1 h) faz duas coisas: gera as contas vencidas de todos os lotes vendidos e tenta o débito automático, em THALER, do jogador para a queima (`burn/tax`).
+
+| Imposto | Quando |
+|---|---|
+| PT (Property Tax) | Lote vendido e sem imóvel: a cada 30 dias desde a compra, 10 THALER × o número do mês. Cresce contra a especulação (doc 03 §4). Para quando a obra começa |
+| IPTU | Lote com imóvel pronto: 180 THALER a cada 182 dias desde o fim da obra |
+| Multa | Sem saldo, a conta ganha 10% de multa, uma vez, e fica pendente. O job tenta de novo a cada rodada, e o jogador pode pagar na hora com `POST /v1/world/me/taxes/pay` |
+| Inadimplência | Conta vencida há mais de 90 dias trava o lote: obra, reparo, upgrade e cotação on-chain respondem `409 tax_default` até o pagamento |
+
+Cada lote, tipo e período gera uma conta só, então repetir o job não cria nem cobra em dobro. A chave do ledger leva a conta e o total; a multa só entra depois de uma recusa definitiva do ledger, então o mesmo total nunca é cobrado duas vezes.
+
+**Premissas** (doc 11, lacuna 5: "definir com o simulador"):
+- **IPTU:** o `iptuSemiannual` do simulador.
+- **PT:** sem fonte, e o simulador ainda não tem PT. Precisa entrar nele antes de virar regra.
+- **Multa e bloqueio:** 10%, e bloqueio depois de 90 dias, o "proposto: 3 meses" do doc 03 §4.
+
+O leilão depois de 3 ciclos (doc 03 §4) ainda não existe.
+
 ## Rodar
 
 ```bash
@@ -107,17 +127,20 @@ TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc_test pnpm --filter
 | POST | `/v1/world/properties/:id/claim` | dono (Bearer) | Coleta a renda acumulada |
 | POST | `/v1/world/properties/:id/repair` | dono (Bearer) | Reparo: desgaste volta a 100 |
 | POST | `/v1/world/properties/:id/upgrade` | dono (Bearer) | Sobe um nível |
+| GET | `/v1/world/me/taxes` | jogador (Bearer) | Contas de imposto: valor, multa, vencimento, situação e dias de atraso; total devido |
+| POST | `/v1/world/me/taxes/pay` | jogador (Bearer) | Paga agora as contas pendentes |
 | GET | `/healthz` | — | `{status: "ok"}` |
 
-Erros com código estável: `lot_not_for_sale`, `lot_reserved`, `district_closed`, `other_district`, `area_cap`, `insufficient_scity`, `reservation_lost`, `ledger_unavailable`, `not_found`, `not_lot_owner`, `wallet_not_linked`, `unknown_property_type`, `zone_not_allowed`, `lot_has_property`, `insufficient_thaler`, `property_not_ready`, `nothing_to_claim`, `claim_in_progress`, `nothing_to_repair`, `max_level`, `work_in_progress`, `pool_empty`, `properties_disabled`, `city_not_onchain`, `onchain_disabled`, `gateway_unavailable`, `missing_credentials`, `invalid_token`, `token_expired`.
+Erros com código estável: `lot_not_for_sale`, `lot_reserved`, `district_closed`, `other_district`, `area_cap`, `insufficient_scity`, `reservation_lost`, `ledger_unavailable`, `not_found`, `not_lot_owner`, `wallet_not_linked`, `unknown_property_type`, `zone_not_allowed`, `lot_has_property`, `insufficient_thaler`, `property_not_ready`, `nothing_to_claim`, `claim_in_progress`, `nothing_to_repair`, `max_level`, `work_in_progress`, `tax_default`, `taxes_disabled`, `pool_empty`, `properties_disabled`, `city_not_onchain`, `onchain_disabled`, `gateway_unavailable`, `missing_credentials`, `invalid_token`, `token_expired`.
 
 ## Banco
 
-Esquema próprio `world`: `city` (zonas, bairros abertos, limiar), `lot` (situação, dono, reserva) e `purchase` (cada compra, com o preço em wei e a situação), `property` (imóvel, obra, desgaste e última coleta; um por lote) e `property_claim` (cada coleta e se já foi paga) e `property_work` (reparos e upgrades; uma pendente por imóvel). Migrações em `drizzle/`, controladas em `drizzle.__world_migrations`.
+Esquema próprio `world`: `city` (zonas, bairros abertos, limiar), `lot` (situação, dono, reserva) e `purchase` (cada compra, com o preço em wei e a situação), `property` (imóvel, obra, desgaste e última coleta; um por lote) e `property_claim` (cada coleta e se já foi paga) `property_work` (reparos e upgrades; uma pendente por imóvel) e `tax_bill` (uma conta por lote, tipo e período). Migrações em `drizzle/`, controladas em `drizzle.__world_migrations`.
 
 ## Ainda não
 
 - Ler a blockchain: transferências do `LandNFT` atualizarem o dono no jogo (chain-indexer).
 - Imóveis: troca de tipo (T1 → T2 → T3), seguro, aluguel e hotel, lote duplo (Residencial 2 e 3), regularização e água/energia; os outros tipos do doc 03 §6; o catálogo vindo do Strapi (hoje fica no código, igual ao seed); o `PropertyNFT`.
+- Impostos: leilão do lote inadimplente; IPTU por unidade dos prédios de construtores (doc 13).
 - Câmbio THALER ↔ SCITY e cotação do dia (passo 11 da trilha); hoje `SCITY_USD` é fixo.
 - Mercado secundário entre jogadores, imóveis e utilidades.

@@ -63,7 +63,7 @@ O MVP roda inteiro na máquina local, sem serviços pagos. Por isso, publicar o 
 2. **Concluir o `world`.**
    - ✅ Cotação EIP-712 aceita pelo `LandNFT` no anvil (E2.4, 2026-11-20). O lote pago no ledger vira NFT na carteira do jogador.
    - 🟡 Imóveis com obra, desgaste e renda (E2.5, 2026-11-20). A Casa T1 está pronta, com reparo e upgrade de nível e valores provisórios; faltam aluguel, os outros tipos e o `PropertyNFT`.
-   - Impostos (E2.6).
+   - 🟡 Impostos (E2.6, 2026-11-20). IPTU e PT com débito automático, multa e bloqueio do lote inadimplente, com valores provisórios; falta o leilão.
 3. **Blockchain e prédios no servidor.**
    - `chain-indexer`: um depósito credita o THALER uma única vez.
    - Validação dos prédios do SCC Builder no servidor, com o `BuildingNFT` (E2.10 e E2.11).

@@ -76,6 +76,10 @@ export class MemoryWorldStore implements WorldStore {
     return [...this.lots.values()].filter((l) => l.ownerAccountId === accountId).map((l) => ({ ...l }));
   }
 
+  async soldLots() {
+    return [...this.lots.values()].filter((l) => l.status === 'sold').map((l) => ({ ...l }));
+  }
+
   async reserve(
     code: string,
     lotId: number,
