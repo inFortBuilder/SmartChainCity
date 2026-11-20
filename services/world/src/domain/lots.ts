@@ -137,6 +137,8 @@ export interface WorldStore {
   lotsOfDistrict(code: string, district: number): Promise<Lot[]>;
   getLot(code: string, id: number): Promise<Lot | null>;
   lotsOf(accountId: string): Promise<Lot[]>;
+  /** Lotes vendidos de todas as cidades (job de impostos). */
+  soldLots(): Promise<Lot[]>;
   /**
    * Trava o lote, confere a compra e reserva para o comprador; devolve a
    * compra pendente. Pedido repetido do mesmo comprador devolve a mesma compra.

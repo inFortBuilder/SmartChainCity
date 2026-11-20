@@ -32,6 +32,8 @@ const schema = z.object({
   SCITY_USD: z.coerce.number().positive().default(1),
   /** Intervalo do job que resolve compras pendentes. */
   SETTLE_EVERY_SECONDS: z.coerce.number().int().positive().default(60),
+  /** Intervalo do job tax.charge (gera contas de IPTU e PT e tenta o débito automático). */
+  TAX_EVERY_SECONDS: z.coerce.number().int().positive().default(3600),
   /**
    * Posse on-chain do lote (LandNFT, doc 07 §2.1). Sem GATEWAY_URL, GATEWAY_TOKEN,
    * LAND_NFT_ADDRESS e LAND_SIGNER_KEY, a rota de cotação responde 503. O gateway confere a carteira do jogador.

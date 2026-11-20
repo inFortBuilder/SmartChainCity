@@ -27,6 +27,7 @@ import {
 } from './domain/properties.js';
 import { type LandPayments, type Lot, type WorldStore, lotCode, priceOf } from './domain/lots.js';
 import { buyLot } from './domain/purchase.js';
+import { type TaxPayments, type TaxStore, assertNotInDefault, payMyTaxes, totalOf } from './domain/taxes.js';
 
 const WEI = 10n ** 18n;
 /** wei → texto em SCITY com até 6 casas, para a tela. */
@@ -48,6 +49,7 @@ export async function buildApp(
   payments: LandPayments | null = null,
   land: { wallets: WalletDirectory; signer: QuoteSigner; contract: string; chainId: number } | null = null,
   properties: { store: PropertyStore; payments: PropertyPayments | null } | null = null,
+  taxes: { store: TaxStore; payments: TaxPayments | null } | null = null,
 ) {
   const app = Fastify({
     ...serverOptions({ service: 'world', nodeEnv: config.NODE_ENV, logLevel: config.LOG_LEVEL }),
@@ -165,6 +167,7 @@ export async function buildApp(
     const { wallet } = z.object({ wallet: z.string() }).parse(request.body);
     if (!land) throw new AppError('onchain_disabled', 'A posse on-chain dos lotes está desligada.', 503);
     await cityOr404(code);
+    await assertNotInDefault(taxes?.store ?? null, code, id, now());
     const { quote, signature, tokenId } = await issueOnchainQuote(
       store,
       land.wallets,
@@ -223,6 +226,8 @@ export async function buildApp(
     const { id } = z.object({ id: z.uuid() }).parse(request.params);
     const { store: propStore, payments: propPayments } = propertiesOn();
     if (!propPayments) throw new AppError('ledger_unavailable', 'As obras estão desligadas.', 503);
+    const target = await propStore.getProperty(id);
+    if (target && target.ownerAccountId === me) await assertNotInDefault(taxes?.store ?? null, target.city, target.lotId, now());
     const { work, property, claim } = await startWork(propStore, propPayments, { propertyId: id, accountId: me, kind, requestId: request.id }, now);
     return {
       work: { id: work.id, kind: work.kind, cost_cents: work.costCents, to_level: work.toLevel },
@@ -257,6 +262,7 @@ export async function buildApp(
     const { store: propStore, payments: propPayments } = propertiesOn();
     if (!propPayments) throw new AppError('ledger_unavailable', 'A construção está desligada.', 503);
     await cityOr404(code);
+    await assertNotInDefault(taxes?.store ?? null, code, id, now());
     const p = await buildProperty(store, propStore, propPayments, { city: code, lotId: id, accountId: me, type, requestId: request.id }, now);
     return reply.status(201).send({ property: propertyDto(p) });
   });
@@ -278,6 +284,45 @@ export async function buildApp(
 
   app.post('/v1/world/properties/:id/repair', workRoute('repair'));
   app.post('/v1/world/properties/:id/upgrade', workRoute('upgrade'));
+
+  // ---------------------------------------------------------------- impostos (E2.6)
+
+  const taxesOn = () => {
+    if (!taxes) throw new AppError('taxes_disabled', 'Os impostos estão desligados.', 503);
+    return taxes;
+  };
+
+  app.get('/v1/world/me/taxes', async (request) => {
+    const me = await player(request);
+    const { store: taxStore } = taxesOn();
+    const bills = await taxStore.billsOf(me, 100);
+    const t = now();
+    const pending = bills.filter((b) => b.status === 'pending');
+    return {
+      due_cents: pending.reduce((s, b) => s + totalOf(b), 0),
+      bills: bills.map((b) => ({
+        id: b.id,
+        city: b.city,
+        lot_id: b.lotId,
+        kind: b.kind,
+        period: b.period,
+        amount_cents: b.amountCents,
+        fine_cents: b.fineCents,
+        total_cents: totalOf(b),
+        due_at: b.dueAt.toISOString(),
+        status: b.status,
+        paid_at: b.paidAt?.toISOString() ?? null,
+        overdue_days: b.status === 'pending' ? Math.max(0, Math.floor((t.getTime() - b.dueAt.getTime()) / 86_400_000)) : 0,
+      })),
+    };
+  });
+
+  app.post('/v1/world/me/taxes/pay', async (request) => {
+    const me = await player(request);
+    const { store: taxStore, payments: taxPayments } = taxesOn();
+    if (!taxPayments) throw new AppError('ledger_unavailable', 'O pagamento de impostos está desligado.', 503);
+    return payMyTaxes(taxStore, taxPayments, me, now(), request.id);
+  });
 
   return app;
 }

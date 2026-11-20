@@ -5,13 +5,17 @@ import { buildApp } from './app.js';
 import { loadConfig } from './config.js';
 import { settleProperties } from './domain/properties.js';
 import { settleStale } from './domain/purchase.js';
+import { chargeTaxes } from './domain/taxes.js';
 import { PostgresPropertyStore } from './infra/db/postgres-property-store.js';
 import { PostgresWorldStore } from './infra/db/postgres-store.js';
+import { PostgresTaxStore } from './infra/db/postgres-tax-store.js';
 import { GatewayWalletDirectory, LocalKeyQuoteSigner } from './infra/land-chain.js';
 import { LedgerLandPayments } from './infra/ledger-payments.js';
 import { LedgerPropertyPayments } from './infra/ledger-property-payments.js';
+import { LedgerTaxPayments } from './infra/ledger-tax-payments.js';
 import { MemoryPropertyStore } from './infra/memory-property-store.js';
 import { MemoryWorldStore } from './infra/memory-store.js';
+import { MemoryTaxStore } from './infra/memory-tax-store.js';
 
 const config = loadConfig();
 
@@ -47,7 +51,20 @@ const propertyStore = pool ? new PostgresPropertyStore(pool) : new MemoryPropert
 const propertyPayments =
   config.ECONOMY_URL && config.ECONOMY_TOKEN ? new LedgerPropertyPayments(config.ECONOMY_URL, config.ECONOMY_TOKEN) : null;
 
-const app = await buildApp(config, store, undefined, payments, land, { store: propertyStore, payments: propertyPayments });
+// Impostos: IPTU e PT em THALER no mesmo ledger.
+const taxStore = pool ? new PostgresTaxStore(pool) : new MemoryTaxStore();
+const taxPayments =
+  config.ECONOMY_URL && config.ECONOMY_TOKEN ? new LedgerTaxPayments(config.ECONOMY_URL, config.ECONOMY_TOKEN) : null;
+
+const app = await buildApp(
+  config,
+  store,
+  undefined,
+  payments,
+  land,
+  { store: propertyStore, payments: propertyPayments },
+  { store: taxStore, payments: taxPayments },
+);
 const onchain = land ? `${land.contract} (chain ${land.chainId}, signer ${land.signer.address})` : 'desligada';
 app.log.info(
   `armazenamento: ${pool ? 'postgres' : 'memória'}; venda de lotes: ${payments ? config.ECONOMY_URL : 'desligada'}; posse on-chain: ${onchain}`,
@@ -74,8 +91,27 @@ const timer = setInterval(async () => {
 }, config.SETTLE_EVERY_SECONDS * 1000);
 timer.unref();
 
+// Job tax.charge: contas de IPTU e PT vencidas e débito automático (doc 03 §4).
+let taxing = false;
+const taxTimer = setInterval(async () => {
+  if (!taxPayments || taxing) return;
+  taxing = true;
+  try {
+    const r = await chargeTaxes(store, propertyStore, taxStore, taxPayments, new Date());
+    if (r.created || r.paid || r.unpaid) {
+      app.log.info(`tax.charge: ${r.created} conta(s) nova(s), ${r.paid} paga(s), ${r.unpaid} sem saldo`);
+    }
+  } catch (error) {
+    app.log.error(error);
+  } finally {
+    taxing = false;
+  }
+}, config.TAX_EVERY_SECONDS * 1000);
+taxTimer.unref();
+
 const shutdown = async () => {
   clearInterval(timer);
+  clearInterval(taxTimer);
   await app.close();
   await pool?.end();
   process.exit(0);

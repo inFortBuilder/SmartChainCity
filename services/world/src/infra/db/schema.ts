@@ -146,3 +146,29 @@ export const propertyWork = world.table(
     check('property_work_status_check', sql`${t.status} in ('pending', 'applied', 'failed')`),
   ],
 );
+
+/** Impostos dos lotes (E2.6): uma conta por lote, tipo e período. */
+export const taxBill = world.table(
+  'tax_bill',
+  {
+    id: uuid('id').primaryKey(),
+    city: text('city').notNull(),
+    lotId: integer('lot_id').notNull(),
+    accountId: uuid('account_id').notNull(),
+    kind: text('kind').notNull(),
+    period: integer('period').notNull(),
+    amountCents: numeric('amount_cents', { precision: 20, scale: 0 }).notNull(),
+    fineCents: numeric('fine_cents', { precision: 20, scale: 0 }).notNull(),
+    dueAt: timestamptz('due_at').notNull(),
+    status: text('status').notNull(),
+    paidAt: timestamptz('paid_at'),
+    createdAt: timestamptz('created_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('tax_bill_period_idx').on(t.city, t.lotId, t.kind, t.period),
+    index('tax_bill_account_idx').on(t.accountId, t.dueAt),
+    index('tax_bill_pending_idx').on(t.status, t.dueAt),
+    check('tax_bill_kind_check', sql`${t.kind} in ('iptu', 'pt')`),
+    check('tax_bill_status_check', sql`${t.status} in ('pending', 'paid')`),
+  ],
+);
