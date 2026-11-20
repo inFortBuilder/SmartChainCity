@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import { AppError } from '@scc/shared';
 
+import type { BuildingStore } from './buildings.js';
 import type { Lot, WorldStore } from './lots.js';
 import { DAY_MS, type Property, type PropertyStore } from './properties.js';
 
@@ -71,13 +72,20 @@ const addDays = (d: Date, days: number) => new Date(d.getTime() + days * DAY_MS)
  * Contas devidas de um lote até `now`. IPTU a partir do fim da obra; PT a partir
  * da compra, enquanto o lote está sem imóvel (a obra começada já conta como uso).
  */
-export function billsDue(lot: Lot, property: Property | null, now: Date): Omit<TaxBill, 'id' | 'createdAt'>[] {
+export function billsDue(
+  lot: Lot,
+  property: Property | null,
+  now: Date,
+  /** Início do prédio de construtor no lote, se houver: também conta como uso. */
+  buildingSince: Date | null = null,
+): Omit<TaxBill, 'id' | 'createdAt'>[] {
   if (lot.status !== 'sold' || !lot.ownerAccountId || !lot.soldAt) return [];
   const out: Omit<TaxBill, 'id' | 'createdAt'>[] = [];
   const base = { city: lot.city, lotId: lot.id, accountId: lot.ownerAccountId, fineCents: 0, status: 'pending' as const, paidAt: null };
 
-  // PT: períodos de 30 dias desde a compra, até a obra começar.
-  const ptEnd = property ? property.createdAt : now;
+  // PT: períodos de 30 dias desde a compra, até a obra (imóvel ou prédio) começar.
+  const starts = [property?.createdAt, buildingSince].filter((d): d is Date => d instanceof Date);
+  const ptEnd = starts.length ? new Date(Math.min(...starts.map((d) => d.getTime()))) : now;
   for (let n = 1; ; n++) {
     const dueAt = addDays(lot.soldAt, n * PT_PERIOD_DAYS);
     if (dueAt > now || dueAt > ptEnd) break;
@@ -122,11 +130,13 @@ export async function chargeTaxes(
   store: TaxStore,
   payments: TaxPayments,
   now: Date,
+  buildings: Pick<BuildingStore, 'buildingOnLot'> | null = null,
 ): Promise<{ created: number; paid: number; unpaid: number }> {
   const bills: TaxBill[] = [];
   for (const lot of await lots.soldLots()) {
     const property = await properties.propertyOnLot(lot.city, lot.id);
-    for (const b of billsDue(lot, property, now)) bills.push({ ...b, id: randomUUID(), createdAt: now });
+    const building = buildings ? await buildings.buildingOnLot(lot.city, lot.id) : null;
+    for (const b of billsDue(lot, property, now, building?.createdAt ?? null)) bills.push({ ...b, id: randomUUID(), createdAt: now });
   }
   const created = bills.length ? await store.upsertBills(bills) : 0;
   let paid = 0;

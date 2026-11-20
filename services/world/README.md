@@ -93,6 +93,28 @@ Cada lote, tipo e período gera uma conta só, então repetir o job não cria ne
 
 O leilão depois de 3 ciclos (doc 03 §4) ainda não existe.
 
+## Prédios de construtores (E2.10)
+
+O construtor converte o modelo no [SCC Builder](../../tools/scc-builder/README.md) e envia o job para o próprio lote com `POST /v1/world/cities/:code/lots/:id/building` e `{job_id, rotation_deg?, units?, position?}`.
+
+**Quem decide é o world.** O world manda ao `validate-lot.php` do Builder o polígono do lote, guardado no próprio banco desde a importação da cidade (`lot.polygon`), e as regras da zona: recuo, gabarito e coeficiente. O jogador não consegue validar contra um lote inventado. O world repassa o token do jogador, e o Builder só valida jobs daquele jogador.
+
+| Etapa | Como |
+|---|---|
+| Validação | No Builder: cabe no lote com recuo, altura até o gabarito, triângulos e escala. Reprovado: `422 building_invalid`, com as checagens, e nada é gravado |
+| Outorga onerosa | Se passar do coeficiente, a outorga que o Builder calculou sai em SCITY do jogador para a Prefeitura (`pool/treasury`), com a chave `building-outorga:<prédio>`. Sem saldo, o prédio não entra |
+| Alvará | O prédio fica em `pending_review` até a moderação (`POST /internal/v1/buildings/:id/review` com `{approve, note}`, `x-service-token` = `INTERNAL_TOKEN`). Recusado, o lote fica livre para outro envio |
+| Exclusividade | Um prédio vigente por lote. Lote com prédio não aceita imóvel do catálogo, e vice-versa |
+| Impostos | O prédio conta como uso: o PT do lote vazio para quando ele é enviado |
+
+Só o prédio aprovado aparece para os outros jogadores (`GET /v1/world/cities/:code/lots/:id/building`), com os artefatos (GLB e LODs) que o mapa desenha.
+
+**Testado com o Builder real em 2026-11-20** (`php -S`, jobs semeados como em `tests/php/test-endpoint.php`):
+- uma caixa de 9 m num lote de 10 m com recuo de 3 m foi recusada (`fits_setback`, 44 de 44 pontos fora);
+- uma de 3 m foi aceita e foi para o alvará com 2 andares, com o GLB no caminho do jogador.
+
+Para o envio funcionar, a cidade precisa ter sido importada de novo, porque é a importação que grava o polígono de cada lote.
+
 ## Rodar
 
 ```bash
@@ -129,18 +151,23 @@ TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc_test pnpm --filter
 | POST | `/v1/world/properties/:id/upgrade` | dono (Bearer) | Sobe um nível |
 | GET | `/v1/world/me/taxes` | jogador (Bearer) | Contas de imposto: valor, multa, vencimento, situação e dias de atraso; total devido |
 | POST | `/v1/world/me/taxes/pay` | jogador (Bearer) | Paga agora as contas pendentes |
+| POST | `/v1/world/cities/:code/lots/:id/building` | dono do lote (Bearer) | Envia o job do SCC Builder; o world valida contra o próprio lote |
+| GET | `/v1/world/me/buildings` | jogador (Bearer) | Prédios do jogador e a situação de cada um |
+| GET | `/v1/world/cities/:code/lots/:id/building` | público | Prédio aprovado do lote, com os artefatos |
+| POST | `/internal/v1/buildings/:id/review` | ferramenta interna (`x-service-token`) | Alvará: aprova ou recusa |
 | GET | `/healthz` | — | `{status: "ok"}` |
 
-Erros com código estável: `lot_not_for_sale`, `lot_reserved`, `district_closed`, `other_district`, `area_cap`, `insufficient_scity`, `reservation_lost`, `ledger_unavailable`, `not_found`, `not_lot_owner`, `wallet_not_linked`, `unknown_property_type`, `zone_not_allowed`, `lot_has_property`, `insufficient_thaler`, `property_not_ready`, `nothing_to_claim`, `claim_in_progress`, `nothing_to_repair`, `max_level`, `work_in_progress`, `tax_default`, `taxes_disabled`, `pool_empty`, `properties_disabled`, `city_not_onchain`, `onchain_disabled`, `gateway_unavailable`, `missing_credentials`, `invalid_token`, `token_expired`.
+Erros com código estável: `lot_not_for_sale`, `lot_reserved`, `district_closed`, `other_district`, `area_cap`, `insufficient_scity`, `reservation_lost`, `ledger_unavailable`, `not_found`, `not_lot_owner`, `wallet_not_linked`, `unknown_property_type`, `zone_not_allowed`, `lot_has_property`, `insufficient_thaler`, `property_not_ready`, `nothing_to_claim`, `claim_in_progress`, `nothing_to_repair`, `max_level`, `work_in_progress`, `tax_default`, `taxes_disabled`, `building_invalid`, `lot_has_building`, `lot_without_polygon`, `building_not_in_review`, `builder_unavailable`, `model_not_found`, `pool_empty`, `properties_disabled`, `city_not_onchain`, `onchain_disabled`, `gateway_unavailable`, `missing_credentials`, `invalid_token`, `token_expired`.
 
 ## Banco
 
-Esquema próprio `world`: `city` (zonas, bairros abertos, limiar), `lot` (situação, dono, reserva) e `purchase` (cada compra, com o preço em wei e a situação), `property` (imóvel, obra, desgaste e última coleta; um por lote) e `property_claim` (cada coleta e se já foi paga) `property_work` (reparos e upgrades; uma pendente por imóvel) e `tax_bill` (uma conta por lote, tipo e período). Migrações em `drizzle/`, controladas em `drizzle.__world_migrations`.
+Esquema próprio `world`: `city` (zonas, bairros abertos, limiar), `lot` (situação, dono, reserva) e `purchase` (cada compra, com o preço em wei e a situação), `property` (imóvel, obra, desgaste e última coleta; um por lote) e `property_claim` (cada coleta e se já foi paga) `property_work` (reparos e upgrades; uma pendente por imóvel), `tax_bill` (uma conta por lote, tipo e período) e `building` (prédio validado, outorga, alvará; um vigente por lote). O `lot` ganhou `polygon`. Migrações em `drizzle/`, controladas em `drizzle.__world_migrations`.
 
 ## Ainda não
 
 - Ler a blockchain: transferências do `LandNFT` atualizarem o dono no jogo (chain-indexer).
 - Imóveis: troca de tipo (T1 → T2 → T3), seguro, aluguel e hotel, lote duplo (Residencial 2 e 3), regularização e água/energia; os outros tipos do doc 03 §6; o catálogo vindo do Strapi (hoje fica no código, igual ao seed); o `PropertyNFT`.
+- Prédios: `BuildingNFT` com o hash do modelo (E2.11), unidades e venda (E3.11), taxa de alvará, prazo de obra proporcional à área, IPTU por unidade.
 - Impostos: leilão do lote inadimplente; IPTU por unidade dos prédios de construtores (doc 13).
 - Câmbio THALER ↔ SCITY e cotação do dia (passo 11 da trilha); hoje `SCITY_USD` é fixo.
 - Mercado secundário entre jogadores, imóveis e utilidades.

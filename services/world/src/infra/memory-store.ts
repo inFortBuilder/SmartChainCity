@@ -5,6 +5,7 @@ import { AppError } from '@scc/shared';
 import {
   type City,
   type Lot,
+  type LotImport,
   type Purchase,
   RESERVATION_MS,
   type WorldStore,
@@ -24,7 +25,7 @@ export class MemoryWorldStore implements WorldStore {
   private key = (code: string, id: number) => `${code}:${id}`;
   private cityLots = (code: string) => [...this.lots.values()].filter((l) => l.city === code);
 
-  async importCity(city: City, lots: Pick<Lot, 'id' | 'district' | 'zone' | 'areaM2' | 'status'>[]) {
+  async importCity(city: City, lots: LotImport[]) {
     this.cities.set(city.code, { ...city });
     for (const l of lots) {
       const k = this.key(city.code, l.id);
@@ -33,6 +34,7 @@ export class MemoryWorldStore implements WorldStore {
       this.lots.set(k, {
         city: city.code,
         ...l,
+        polygon: l.polygon ?? null,
         ownerAccountId: null,
         reservedBy: null,
         reservedUntil: null,

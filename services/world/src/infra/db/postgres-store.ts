@@ -8,7 +8,9 @@ import type { Pool } from 'pg';
 import {
   type City,
   type Lot,
+  type LotImport,
   type LotStatus,
+  type Polygon,
   type Purchase,
   type PurchaseStatus,
   RESERVATION_MS,
@@ -23,7 +25,7 @@ import { city as cityT, lot as lotT, purchase as purchaseT } from './schema.js';
 type Db = ReturnType<typeof drizzle>;
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 
-const toLot = (r: typeof lotT.$inferSelect): Lot => ({ ...r, status: r.status as LotStatus });
+const toLot = (r: typeof lotT.$inferSelect): Lot => ({ ...r, status: r.status as LotStatus, polygon: (r.polygon as Polygon | null) ?? null });
 const toCity = (r: typeof cityT.$inferSelect): City => ({ ...r, zones: r.zones as Zone[] });
 const toPurchase = (r: typeof purchaseT.$inferSelect): Purchase => ({
   ...r,
@@ -57,7 +59,7 @@ export class PostgresWorldStore implements WorldStore {
     this.db = drizzle(pool);
   }
 
-  async importCity(c: City, lots: Pick<Lot, 'id' | 'district' | 'zone' | 'areaM2' | 'status'>[]) {
+  async importCity(c: City, lots: LotImport[]) {
     await this.db.transaction(async (tx) => {
       await tx
         .insert(cityT)
@@ -78,6 +80,7 @@ export class PostgresWorldStore implements WorldStore {
               district: sql`excluded.district`,
               zone: sql`excluded.zone`,
               areaM2: sql`excluded.area_m2`,
+              polygon: sql`coalesce(excluded.polygon, ${lotT.polygon})`,
               status: sql`case when ${lotT.status} in ('sold', 'reserved') then ${lotT.status} else excluded.status end`,
             },
           });

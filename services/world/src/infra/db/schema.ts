@@ -50,6 +50,7 @@ export const lot = world.table(
     reservedUntil: timestamptz('reserved_until'),
     reservationId: uuid('reservation_id'),
     soldAt: timestamptz('sold_at'),
+    polygon: jsonb('polygon'),
   },
   (t) => [
     primaryKey({ columns: [t.city, t.id] }),
@@ -170,5 +171,39 @@ export const taxBill = world.table(
     index('tax_bill_pending_idx').on(t.status, t.dueAt),
     check('tax_bill_kind_check', sql`${t.kind} in ('iptu', 'pt')`),
     check('tax_bill_status_check', sql`${t.status} in ('pending', 'paid')`),
+  ],
+);
+
+/** Prédios de construtores (doc 13 §4, E2.10): validados contra o lote, à espera do alvará. */
+export const building = world.table(
+  'building',
+  {
+    id: uuid('id').primaryKey(),
+    city: text('city').notNull(),
+    lotId: integer('lot_id').notNull(),
+    ownerAccountId: uuid('owner_account_id').notNull(),
+    jobId: text('job_id').notNull(),
+    modelId: text('model_id').notNull(),
+    modelVersion: integer('model_version').notNull(),
+    rotationDeg: real('rotation_deg').notNull(),
+    position: jsonb('position').notNull(),
+    heightM: real('height_m').notNull(),
+    footprintM2: integer('footprint_m2').notNull(),
+    floors: integer('floors').notNull(),
+    gfaM2: integer('gfa_m2').notNull(),
+    outorgaWei: numeric('outorga_wei', { precision: 78, scale: 0 }).notNull(),
+    checks: jsonb('checks').notNull(),
+    artifacts: jsonb('artifacts').notNull(),
+    status: text('status').notNull(),
+    reviewNote: text('review_note'),
+    createdAt: timestamptz('created_at').notNull(),
+    reviewedAt: timestamptz('reviewed_at'),
+  },
+  (t) => [
+    // Um prédio vigente por lote; os recusados ficam no histórico.
+    uniqueIndex('building_lot_active_idx').on(t.city, t.lotId).where(sql`status <> 'rejected'`),
+    index('building_owner_idx').on(t.ownerAccountId),
+    index('building_status_idx').on(t.status, t.createdAt),
+    check('building_status_check', sql`${t.status} in ('pending_payment', 'pending_review', 'approved', 'rejected')`),
   ],
 );

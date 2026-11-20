@@ -3,7 +3,12 @@ import type { Address, Hex } from 'viem';
 
 import { buildApp } from './app.js';
 import { loadConfig } from './config.js';
+import { settleBuildings } from './domain/buildings.js';
 import { settleProperties } from './domain/properties.js';
+import { HttpBuilderClient } from './infra/builder-client.js';
+import { PostgresBuildingStore } from './infra/db/postgres-building-store.js';
+import { LedgerOutorgaPayments } from './infra/ledger-outorga-payments.js';
+import { MemoryBuildingStore } from './infra/memory-building-store.js';
 import { settleStale } from './domain/purchase.js';
 import { chargeTaxes } from './domain/taxes.js';
 import { PostgresPropertyStore } from './infra/db/postgres-property-store.js';
@@ -56,6 +61,12 @@ const taxStore = pool ? new PostgresTaxStore(pool) : new MemoryTaxStore();
 const taxPayments =
   config.ECONOMY_URL && config.ECONOMY_TOKEN ? new LedgerTaxPayments(config.ECONOMY_URL, config.ECONOMY_TOKEN) : null;
 
+// Prédios de construtores: validação no SCC Builder e outorga em SCITY no ledger.
+const buildingStore = pool ? new PostgresBuildingStore(pool) : new MemoryBuildingStore();
+const builder = config.BUILDER_URL ? new HttpBuilderClient(config.BUILDER_URL) : null;
+const outorga =
+  config.ECONOMY_URL && config.ECONOMY_TOKEN ? new LedgerOutorgaPayments(config.ECONOMY_URL, config.ECONOMY_TOKEN) : null;
+
 const app = await buildApp(
   config,
   store,
@@ -64,6 +75,7 @@ const app = await buildApp(
   land,
   { store: propertyStore, payments: propertyPayments },
   { store: taxStore, payments: taxPayments },
+  { store: buildingStore, builder, payments: outorga },
 );
 const onchain = land ? `${land.contract} (chain ${land.chainId}, signer ${land.signer.address})` : 'desligada';
 app.log.info(
@@ -83,6 +95,10 @@ const timer = setInterval(async () => {
       const m = await settleProperties(propertyStore, propertyPayments, new Date());
       if (m) app.log.info(`properties.settle: ${m} obra(s) ou coleta(s) resolvida(s)`);
     }
+    if (outorga) {
+      const k = await settleBuildings(buildingStore, outorga, new Date());
+      if (k) app.log.info(`buildings.settle: ${k} outorga(s) resolvida(s)`);
+    }
   } catch (error) {
     app.log.error(error);
   } finally {
@@ -97,7 +113,7 @@ const taxTimer = setInterval(async () => {
   if (!taxPayments || taxing) return;
   taxing = true;
   try {
-    const r = await chargeTaxes(store, propertyStore, taxStore, taxPayments, new Date());
+    const r = await chargeTaxes(store, propertyStore, taxStore, taxPayments, new Date(), buildingStore);
     if (r.created || r.paid || r.unpaid) {
       app.log.info(`tax.charge: ${r.created} conta(s) nova(s), ${r.paid} paga(s), ${r.unpaid} sem saldo`);
     }
