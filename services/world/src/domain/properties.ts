@@ -24,6 +24,8 @@ export interface PropertyLevel {
   level: number;
   /** Renda por dia com desgaste 100, em centavos de THALER. */
   incomeCentsPerDay: number;
+  /** Custo para subir a este nível (a partir do anterior), em centavos de THALER. */
+  upgradeCostCents?: number;
 }
 
 export interface PropertyType {
@@ -45,8 +47,17 @@ export const PROPERTY_TYPES: PropertyType[] = [
     zones: ['residential', 'mixed'],
     priceCents: 4000_00,
     buildMinutes: 24 * 60,
-    levels: [{ level: 1, incomeCentsPerDay: 10_00 }],
-    provisional: ['preço e renda do simulador econômico', 'obra de 24 h do protótipo'],
+    levels: [
+      { level: 1, incomeCentsPerDay: 10_00 },
+      { level: 2, incomeCentsPerDay: 15_00, upgradeCostCents: 2000_00 },
+      { level: 3, incomeCentsPerDay: 20_00, upgradeCostCents: 4000_00 },
+    ],
+    provisional: [
+      'preço e renda do nível 1 do simulador econômico',
+      'obra de 24 h do protótipo',
+      'renda e custo dos níveis 2 e 3',
+      'custo do reparo',
+    ],
   },
 ];
 
@@ -54,6 +65,8 @@ export const DAY_MS = 24 * 60 * 60 * 1000;
 export const ACCRUAL_CAP_DAYS = 7;
 export const WEAR_PER_DAY = 1;
 export const MIN_WEAR_FOR_INCOME = 30;
+/** Reparo: fração do preço do imóvel por ponto de desgaste recuperado (premissa: T1 = 2 THALER/ponto). */
+export const REPAIR_SHARE_PER_POINT = 0.0005;
 
 /** `pending`: obra criada, esperando a cobrança no ledger. `active`: pago (em obra ou pronto). */
 export type PropertyStatus = 'pending' | 'active';
@@ -104,6 +117,19 @@ export interface PropertyStore {
   startClaim(claim: PropertyClaim, expected: Date, until: Date): Promise<PropertyClaim | null>;
   markClaimPaid(id: string): Promise<void>;
   pendingClaims(olderThan: Date): Promise<PropertyClaim[]>;
+  /** Reparo ou upgrade; `work_in_progress` (409) se o imóvel já tem um pendente. */
+  createWork(w: PropertyWork): Promise<void>;
+  /**
+   * Aplica a obra pendente numa transação, com o imóvel travado: `apply` recebe o
+   * estado atual e devolve o novo imóvel e a coleta da renda até ali. `null` se a
+   * obra não está mais pendente.
+   */
+  applyWork(
+    workId: string,
+    apply: (p: Property) => { property: Property; claim: PropertyClaim | null },
+  ): Promise<{ property: Property; claim: PropertyClaim | null } | null>;
+  failWork(id: string): Promise<void>;
+  pendingWorks(olderThan: Date): Promise<PropertyWork[]>;
 }
 
 export interface PropertyPayments {
@@ -111,6 +137,24 @@ export interface PropertyPayments {
   chargeBuild(p: Property, requestId?: string): Promise<void>;
   /** THALER do pool P2E para o jogador. Idempotente pela coleta. */
   payIncome(c: PropertyClaim, requestId?: string): Promise<void>;
+  /** Reparo ou upgrade: THALER do jogador para a queima. Idempotente pela obra. */
+  chargeWork(w: PropertyWork, requestId?: string): Promise<void>;
+}
+
+/** Obras sobre um imóvel pronto: reparo (desgaste volta a 100) e upgrade (sobe um nível). */
+export type WorkKind = 'repair' | 'upgrade';
+export type WorkStatus = 'pending' | 'applied' | 'failed';
+
+export interface PropertyWork {
+  id: string;
+  propertyId: string;
+  accountId: string;
+  kind: WorkKind;
+  costCents: number;
+  /** Nível de destino do upgrade. */
+  toLevel: number | null;
+  status: WorkStatus;
+  createdAt: Date;
 }
 
 export const typeOf = (code: string) => PROPERTY_TYPES.find((t) => t.code === code);
@@ -255,6 +299,19 @@ export async function settleProperties(store: PropertyStore, payments: PropertyP
       }
     }
   }
+  for (const w of await store.pendingWorks(olderThan)) {
+    try {
+      await payments.chargeWork(w);
+      await finishWork(store, payments, w, () => now);
+      n++;
+    } catch (error) {
+      if (error instanceof AppError && error.code === 'insufficient_thaler') {
+        await store.failWork(w.id);
+        n++;
+      }
+    }
+  }
+  // Por último: as coletas criadas pelas obras acima também entram.
   for (const c of await store.pendingClaims(olderThan)) {
     try {
       await payments.payIncome(c);
@@ -265,4 +322,100 @@ export async function settleProperties(store: PropertyStore, payments: PropertyP
     }
   }
   return n;
+}
+
+// ---------------------------------------------------------------- reparo e upgrade
+
+export function repairCostCents(p: Property, at: Date): number {
+  const type = typeOf(p.type);
+  if (!type) return 0;
+  const lost = 100 - wearAt(p, at);
+  return lost < 0.5 ? 0 : Math.ceil(type.priceCents * REPAIR_SHARE_PER_POINT * lost);
+}
+
+export function nextLevel(p: Property): PropertyLevel | undefined {
+  return typeOf(p.type)?.levels.find((l) => l.level === p.level + 1 && l.upgradeCostCents !== undefined);
+}
+
+/**
+ * Estado depois da obra. A renda até o instante da obra é fechada numa coleta,
+ * com o desgaste e o nível antigos; daí em diante vale o novo estado.
+ */
+export function applyWorkAt(
+  p: Property,
+  w: PropertyWork,
+  at: Date,
+): { property: Property; claim: PropertyClaim | null } {
+  // Nunca antes da última coleta: o período já fechado não se repete.
+  const t = new Date(Math.max(at.getTime(), p.lastClaimAt.getTime()));
+  const { cents } = accrued(p, t);
+  const claim: PropertyClaim | null =
+    cents > 0
+      ? { id: randomUUID(), propertyId: p.id, accountId: p.ownerAccountId, amountCents: cents, status: 'pending', createdAt: t }
+      : null;
+  const property: Property =
+    w.kind === 'repair'
+      ? { ...p, lastClaimAt: t, wearBase: 100, wearSince: t }
+      : { ...p, lastClaimAt: t, level: w.toLevel ?? p.level, wearBase: wearAt(p, t), wearSince: t };
+  return { property, claim };
+}
+
+async function finishWork(store: PropertyStore, payments: PropertyPayments, w: PropertyWork, now: () => Date, requestId?: string) {
+  const result = await store.applyWork(w.id, (p) => applyWorkAt(p, w, now()));
+  if (!result) throw new AppError('work_not_pending', 'Esta obra já foi resolvida.', 409);
+  if (result.claim) {
+    try {
+      await payments.payIncome(result.claim, requestId);
+      await store.markClaimPaid(result.claim.id);
+      result.claim = { ...result.claim, status: 'paid' };
+    } catch {
+      // Pool vazio ou ledger fora: a coleta fica guardada e o job paga depois.
+    }
+  }
+  return result;
+}
+
+export async function startWork(
+  store: PropertyStore,
+  payments: PropertyPayments,
+  input: { propertyId: string; accountId: string; kind: WorkKind; requestId?: string },
+  now: () => Date,
+): Promise<{ work: PropertyWork; property: Property; claim: PropertyClaim | null }> {
+  const p = await store.getProperty(input.propertyId);
+  if (!p || p.ownerAccountId !== input.accountId) throw new AppError('not_found', 'Imóvel não encontrado.', 404);
+  const t = now();
+  if (phaseOf(p, t) !== 'ready') throw new AppError('property_not_ready', 'O imóvel ainda está em obra.', 409);
+
+  let costCents: number;
+  let toLevel: number | null = null;
+  if (input.kind === 'repair') {
+    costCents = repairCostCents(p, t);
+    if (costCents <= 0) throw new AppError('nothing_to_repair', 'O imóvel não precisa de reparo.', 409);
+  } else {
+    const next = nextLevel(p);
+    if (!next) throw new AppError('max_level', 'O imóvel já está no nível máximo.', 409);
+    costCents = next.upgradeCostCents!;
+    toLevel = next.level;
+  }
+
+  const work: PropertyWork = {
+    id: randomUUID(),
+    propertyId: p.id,
+    accountId: input.accountId,
+    kind: input.kind,
+    costCents,
+    toLevel,
+    status: 'pending',
+    createdAt: t,
+  };
+  await store.createWork(work);
+  try {
+    await payments.chargeWork(work, input.requestId);
+  } catch (error) {
+    // Sem saldo: a obra não acontece. Ledger fora: fica pendente e o job tenta de novo.
+    if (error instanceof AppError && error.code === 'insufficient_thaler') await store.failWork(work.id);
+    throw error;
+  }
+  const { property, claim } = await finishWork(store, payments, work, now, input.requestId);
+  return { work: { ...work, status: 'applied' }, property, claim };
 }

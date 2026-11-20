@@ -3,8 +3,24 @@ import { and, asc, eq, lt } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import type { Pool } from 'pg';
 
-import type { ClaimStatus, Property, PropertyClaim, PropertyStatus, PropertyStore } from '../../domain/properties.js';
-import { property as propertyT, propertyClaim as claimT } from './schema.js';
+import type {
+  ClaimStatus,
+  Property,
+  PropertyClaim,
+  PropertyStatus,
+  PropertyStore,
+  PropertyWork,
+  WorkKind,
+  WorkStatus,
+} from '../../domain/properties.js';
+import { property as propertyT, propertyClaim as claimT, propertyWork as workT } from './schema.js';
+
+const toWork = (r: typeof workT.$inferSelect): PropertyWork => ({
+  ...r,
+  kind: r.kind as WorkKind,
+  status: r.status as WorkStatus,
+  costCents: Number(r.costCents),
+});
 
 type Db = ReturnType<typeof drizzle>;
 
@@ -104,5 +120,52 @@ export class PostgresPropertyStore implements PropertyStore {
       .where(and(eq(claimT.status, 'pending'), lt(claimT.createdAt, olderThan)))
       .limit(100);
     return rows.map(toClaim);
+  }
+
+  async createWork(w: PropertyWork) {
+    try {
+      await this.db.insert(workT).values({ ...w, costCents: String(w.costCents) });
+    } catch (error) {
+      if (isUniqueViolation(error)) {
+        throw new AppError('work_in_progress', 'Este imóvel já tem uma obra em andamento.', 409);
+      }
+      throw error;
+    }
+  }
+
+  async applyWork(workId: string, apply: (p: Property) => { property: Property; claim: PropertyClaim | null }) {
+    return this.db.transaction(async (tx) => {
+      const [w] = await tx.select().from(workT).where(eq(workT.id, workId)).for('update');
+      if (!w || w.status !== 'pending') return null;
+      const [row] = await tx.select().from(propertyT).where(eq(propertyT.id, w.propertyId)).for('update');
+      if (!row) return null;
+      const result = apply(toProperty(row));
+      const next = result.property;
+      await tx
+        .update(propertyT)
+        .set({ level: next.level, wearBase: next.wearBase, wearSince: next.wearSince, lastClaimAt: next.lastClaimAt })
+        .where(eq(propertyT.id, next.id));
+      if (result.claim) {
+        await tx.insert(claimT).values({ ...result.claim, amountCents: String(result.claim.amountCents) });
+      }
+      await tx.update(workT).set({ status: 'applied' }).where(eq(workT.id, workId));
+      return result;
+    });
+  }
+
+  async failWork(id: string) {
+    await this.db
+      .update(workT)
+      .set({ status: 'failed' })
+      .where(and(eq(workT.id, id), eq(workT.status, 'pending')));
+  }
+
+  async pendingWorks(olderThan: Date) {
+    const rows = await this.db
+      .select()
+      .from(workT)
+      .where(and(eq(workT.status, 'pending'), lt(workT.createdAt, olderThan)))
+      .limit(100);
+    return rows.map(toWork);
   }
 }

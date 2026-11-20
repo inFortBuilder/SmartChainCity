@@ -9,6 +9,7 @@ import {
   ACCRUAL_CAP_DAYS,
   MIN_WEAR_FOR_INCOME,
   PROPERTY_TYPES,
+  REPAIR_SHARE_PER_POINT,
   type Property,
   type PropertyPayments,
   type PropertyStore,
@@ -17,7 +18,10 @@ import {
   buildProperty,
   claimIncome,
   incomePerDay,
+  nextLevel,
   phaseOf,
+  repairCostCents,
+  startWork,
   typeOf,
   wearAt,
 } from './domain/properties.js';
@@ -206,6 +210,25 @@ export async function buildApp(
       income_cents_per_day: Math.floor((incomePerDay(p) * wear) / 100),
       accrued_cents: income.cents,
       accrual_full: income.capped,
+      repair_cost_cents: phase === 'ready' ? repairCostCents(p, t) : 0,
+      next_level: (() => {
+        const n = nextLevel(p);
+        return n ? { level: n.level, cost_cents: n.upgradeCostCents, income_cents_per_day: n.incomeCentsPerDay } : null;
+      })(),
+    };
+  };
+
+  const workRoute = (kind: 'repair' | 'upgrade') => async (request: FastifyRequest) => {
+    const me = await player(request);
+    const { id } = z.object({ id: z.uuid() }).parse(request.params);
+    const { store: propStore, payments: propPayments } = propertiesOn();
+    if (!propPayments) throw new AppError('ledger_unavailable', 'As obras estão desligadas.', 503);
+    const { work, property, claim } = await startWork(propStore, propPayments, { propertyId: id, accountId: me, kind, requestId: request.id }, now);
+    return {
+      work: { id: work.id, kind: work.kind, cost_cents: work.costCents, to_level: work.toLevel },
+      // Renda acumulada até a obra, fechada e paga antes de o imóvel mudar.
+      claim: claim ? { id: claim.id, amount_cents: claim.amountCents, status: claim.status } : null,
+      property: propertyDto(property),
     };
   };
 
@@ -214,6 +237,7 @@ export async function buildApp(
       accrual_cap_days: ACCRUAL_CAP_DAYS,
       wear_per_day: WEAR_PER_DAY,
       min_wear_for_income: MIN_WEAR_FOR_INCOME,
+      repair_share_per_point: REPAIR_SHARE_PER_POINT,
     },
     types: PROPERTY_TYPES.map((t) => ({
       code: t.code,
@@ -221,7 +245,7 @@ export async function buildApp(
       zones: t.zones,
       price_cents: t.priceCents,
       build_minutes: t.buildMinutes,
-      levels: t.levels.map((l) => ({ level: l.level, income_cents_per_day: l.incomeCentsPerDay })),
+      levels: t.levels.map((l) => ({ level: l.level, income_cents_per_day: l.incomeCentsPerDay, upgrade_cost_cents: l.upgradeCostCents ?? null })),
       provisional: t.provisional,
     })),
   }));
@@ -251,6 +275,9 @@ export async function buildApp(
     const { claim, property } = await claimIncome(propStore, propPayments, { propertyId: id, accountId: me, requestId: request.id }, now);
     return { claim: { id: claim.id, amount_cents: claim.amountCents, status: claim.status }, property: propertyDto(property) };
   });
+
+  app.post('/v1/world/properties/:id/repair', workRoute('repair'));
+  app.post('/v1/world/properties/:id/upgrade', workRoute('upgrade'));
 
   return app;
 }
