@@ -32,6 +32,7 @@ import { fetchCmsFoods, fetchCmsProfessions } from './infra/cms-catalog.js';
 import { type Payer, type Shift, type ShiftStore, startShift } from './domain/shift.js';
 import { chargeStay } from './jobs/hospital.js';
 import { completeShifts } from './jobs/shift.js';
+import { AccountRateLimit, DEVICE_ACCOUNT_LIMIT, RiskGuard, type RiskStore } from './domain/risk.js';
 
 const uuid = z.uuid();
 
@@ -120,15 +121,27 @@ export async function buildApp(
   hospitalPayer: HospitalPayer | null = null,
   /** Sorteio da dor de barriga e da cura do remédio; os testes trocam. */
   random: () => number = Math.random,
+  /** Antifraude (E2.9): sinais por aparelho e rede. Sem ele, só o limite de velocidade vale. */
+  riskStore: RiskStore | null = null,
 ) {
   const app = Fastify({
+    trustProxy: config.TRUST_PROXY,
     ...serverOptions({
       service: 'game-core',
       nodeEnv: config.NODE_ENV,
       logLevel: config.LOG_LEVEL,
     }),
   });
-  observe(app, { service: 'game-core', nodeEnv: config.NODE_ENV, metricsToken: config.METRICS_TOKEN });
+  const metrics = observe(app, { service: 'game-core', nodeEnv: config.NODE_ENV, metricsToken: config.METRICS_TOKEN });
+  const risk = riskStore
+    ? new RiskGuard(riskStore, config.RISK_PEPPER ?? config.JWT_SECRET, metrics, (msg, data) => app.log.warn(data, msg))
+    : null;
+  const p2eRate = new AccountRateLimit(config.RISK_RATE_PER_MINUTE, metrics);
+  /** Antes de emitir P2E: velocidade e, com o store, aparelho e rede. */
+  const guardP2E = async (request: FastifyRequest, accountId: string, action: 'work' | 'claim') => {
+    p2eRate.take(accountId, now().getTime());
+    await risk?.assert({ accountId, deviceHeader: request.headers['x-device-id'], ip: request.ip, action }, now());
+  };
 
   await app.register(cors, { origin: config.CORS_ORIGINS });
 
@@ -224,6 +237,7 @@ export async function buildApp(
     // O turno que já venceu não segura o próximo, mesmo antes da passada do job.
     await completeShifts(store, now());
     const { id, accountId } = await ownAvatar(request);
+    await guardP2E(request, accountId, 'work');
     const started = await store.beginShift(id, accountId, now(), (avatar, context) =>
       startShift(
         avatar,
@@ -378,6 +392,7 @@ export async function buildApp(
   // Coleta: paga pelo ledger cada turno concluído e ainda não coletado.
   app.post('/v1/avatars/:id/claim', async (request) => {
     const avatar = await ownAvatar(request);
+    await guardP2E(request, avatar.accountId, 'claim');
     if (!payer) throw new AppError('ledger_unavailable', 'O pagamento de turnos está desligado.', 503);
     await completeShifts(store, now());
     const done = (await store.listShifts(avatar.id, 50)).filter((s) => s.status === 'done');
@@ -451,6 +466,32 @@ export async function buildApp(
       newAvatar({ id: randomUUID(), accountId: body.account_id, rarity: body.rarity, jobCode: body.job_code }, now()),
     );
     return reply.status(201).send({ avatar: avatarDto(created, now()) });
+  });
+
+  // ---------------------------------------------------------------- antifraude (revisão humana)
+
+  const riskOn = () => {
+    if (!riskStore) throw new AppError('risk_disabled', 'O antifraude está desligado.', 503);
+    return riskStore;
+  };
+
+  // Aparelhos com mais contas que o limite, nos últimos `days` dias (fila da revisão).
+  app.get('/internal/v1/risk/devices', async (request) => {
+    requireServiceToken(request.headers['x-service-token'], config.INTERNAL_TOKEN);
+    const { days } = z.object({ days: z.coerce.number().int().min(1).max(90).default(30) }).parse(request.query);
+    const since = new Date(now().getTime() - days * 86_400_000);
+    const list = await riskOn().sharedDevices(since, DEVICE_ACCOUNT_LIMIT + 1);
+    return { limit: DEVICE_ACCOUNT_LIMIT, devices: list.map((d) => ({ device: d.device, accounts: d.accounts })) };
+  });
+
+  // Decisão da revisão: `allow` libera a conta mesmo no aparelho cheio; `block` barra os ganhos.
+  app.post('/internal/v1/risk/accounts/:accountId', async (request) => {
+    requireServiceToken(request.headers['x-service-token'], config.INTERNAL_TOKEN);
+    const { accountId } = z.object({ accountId: uuid }).parse(request.params);
+    const body = z.object({ decision: z.enum(['allow', 'block']), note: z.string().max(500).optional() }).parse(request.body);
+    await riskOn().decide(accountId, body.decision, body.note ?? null, now());
+    metrics.inc('risk_decisions_total', 'Decisões da revisão do antifraude.', { decision: body.decision });
+    return { account_id: accountId, decision: body.decision };
   });
 
   return app;

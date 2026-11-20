@@ -17,7 +17,7 @@
 | Ameaça | Controle |
 |--------|----------|
 | Cliente adulterado (WebGL é inspecionável) | Servidor autoritativo; nenhuma regra de saldo ou sorteio no cliente |
-| Multi-contas / bots farmando P2E | Limite de 3 avatares por conta; KYC progressivo para saques acima de um limite; detecção de device fingerprint, IP e padrões de comportamento; captcha no cadastro |
+| Multi-contas / bots farmando P2E | Limite de 3 avatares por conta; KYC progressivo para saques acima de um limite; detecção de device fingerprint, IP e padrões de comportamento; captcha no cadastro. 🟡 No game-core desde 2026-11-20: limite de 3 avatares, 3 contas por aparelho, alerta por rede, velocidade e revisão ([antifraude](../services/game-core/README.md#antifraude-e29-passo-15-da-trilha)). Faltam KYC e captcha |
 | Replay de requisições | `Idempotency-Key` e nonces; vouchers EIP-712 com `nonce` e `deadline` |
 | Roubo de chave do signer | KMS, rotação por timelock, limites diários no `GameVault`, alerta de anomalia |
 | Exploit de contrato | Auditoria, fuzzing, pausa por multisig, limites de saída |

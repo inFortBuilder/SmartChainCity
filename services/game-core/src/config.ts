@@ -41,6 +41,12 @@ const schema = z.object({
   CMS_URL: optional(z.url()),
   DEV_FREE_AVATAR: z.stringbool().default(false),
   DEV_SHIFT_MINUTES: optional(z.coerce.number().positive()),
+  /** Segredo do HMAC dos sinais do antifraude (aparelho e rede). Sem ele, usa o JWT_SECRET. */
+  RISK_PEPPER: optional(z.string().min(32, 'RISK_PEPPER precisa de pelo menos 32 caracteres')),
+  /** Pedidos de P2E (turno e coleta) por conta por minuto. */
+  RISK_RATE_PER_MINUTE: z.coerce.number().int().positive().default(20),
+  /** IP do cliente vem do X-Forwarded-For (atrás de proxy). Só ligue atrás de um proxy confiável. */
+  TRUST_PROXY: z.stringbool().default(false),
 });
 
 export type Config = z.infer<typeof schema>;

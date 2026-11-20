@@ -43,6 +43,13 @@
       "when": 1794617141181,
       "tag": "0005_light_stephen_strange",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1795204326507,
+      "tag": "0006_antifraude",
+      "breakpoints": true
     }
   ]
 }

@@ -100,6 +100,24 @@ No mapa de Pittsburg, o painel mostra "🏥 Internado" com o tempo até a alta e
 
 Hoje a saúde não chega a 0 sozinha (nenhum alimento do catálogo tira saúde, e as doenças leves não mexem nela); a energia chega, quando um turno gasta toda a que sobrava. Depois de atualizar o código, rode `pnpm db:migrate`: a tabela `hospital_stay` e a coluna `avatar.hospital_until` são novas.
 
+## Antifraude (E2.9, passo 15 da trilha)
+
+O limite de 3 avatares por conta (ADR-0013) já vale na criação. O resto do doc 10 ("multi-contas / bots farmando P2E") roda nas duas rotas que emitem P2E, começar turno (`/work`) e coletar (`/claim`):
+
+| Regra | Como |
+|---|---|
+| Aparelho (bloqueia) | O cliente manda `x-device-id`: um id aleatório que o mapa guarda no navegador. No máximo 3 contas ganham P2E no mesmo aparelho em 30 dias. As 3 primeiras seguem; da 4ª em diante, `403 risk_review` até a revisão. É o "3 por IP" do GDD, adaptado como pede o doc 02 |
+| Rede (só alerta) | IPv4 /24 ou IPv6 /64. Mais de 10 contas na mesma rede em 24 h viram métrica e log, sem bloquear: lan house, escola e NAT de operadora juntam muita gente |
+| Velocidade | Até `RISK_RATE_PER_MINUTE` (20) pedidos de P2E por conta por minuto; acima disso, `429 too_many_requests` |
+| Revisão | `GET /internal/v1/risk/devices` lista os aparelhos acima do limite. `POST /internal/v1/risk/accounts/:id` com `{decision: allow | block, note}` libera ou bloqueia a conta, acima das regras |
+| Métricas | `risk_signals_total`, `risk_flags_total{rule}`, `risk_blocks_total{rule}` (device, manual, velocity) e `risk_decisions_total`, no `/metrics` |
+
+**Privacidade (LGPD):** o banco guarda só HMAC do aparelho e da rede, com o segredo `RISK_PEPPER` (sem ele, o `JWT_SECRET`). IP e id puros nunca são gravados, e não dá para refazer a tabela a partir de IPs conhecidos sem o segredo. Atrás de proxy, ligue `TRUST_PROXY=true` para o IP vir do `X-Forwarded-For`.
+
+**Premissas, sem dados ainda:** 3 contas por aparelho, 30 dias, 10 contas por rede em 24 h e 20 pedidos por minuto. Calibrar com as métricas do alpha.
+
+Cliente sem `x-device-id` não é bloqueado, só aparece em `risk_signals_total{device="nao"}`. Os clientes oficiais mandam o cabeçalho.
+
 ## Rodar
 
 ```bash
@@ -133,6 +151,8 @@ TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc_test pnpm --filter
 | GET | `/v1/avatars/:id/hospital` | jogador (Bearer) | Últimas 20 internações, com motivo, alta e situação da taxa (`pending`, `paid`, `waived`) |
 | POST | `/v1/dev/avatar` | jogador (Bearer) | **Só desenvolvimento** (`DEV_FREE_AVATAR=true`): dá um avatar comum a quem não tem; desligado, 404 |
 | POST | `/internal/v1/avatars` | serviços (`X-Service-Token`) | Cria `{account_id, rarity, job_code}`; na Etapa 2, chamado ao ver o mint da Lucky Box |
+| GET | `/internal/v1/risk/devices` | revisão (`X-Service-Token`) | Aparelhos com mais contas que o limite (`?days=30`) |
+| POST | `/internal/v1/risk/accounts/:accountId` | revisão (`X-Service-Token`) | `{decision: allow | block, note}`: libera ou bloqueia os ganhos da conta |
 | POST | `/internal/v1/catalog/refresh` | Strapi (webhook, `X-Service-Token`) | Recarrega o catálogo publicado no Strapi; catálogo quebrado ou sem uma profissão em uso é recusado (`422 catalog_rejected`). Com `model: "food"`, recarrega só os alimentos; outros tipos do catálogo são ignorados |
 | GET | `/v1/catalog/foods` | público | Os alimentos do mercado com energia, saúde, o preço de uma unidade e o do pacote (`pack`, `pack_price`), em centavos de THALER |
 | GET | `/v1/catalog/professions` | público | As 44 profissões com ganho do dia, duração e tarefas; das tarefas, só a direção (+/−) de energia e felicidade (GDD §2.4) |

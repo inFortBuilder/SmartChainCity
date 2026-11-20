@@ -113,7 +113,23 @@ export class HttpMetrics {
     out.push('# HELP nodejs_heap_used_bytes Heap do V8 em uso.');
     out.push('# TYPE nodejs_heap_used_bytes gauge');
     out.push(`nodejs_heap_used_bytes{${svc}} ${mem.heapUsed}`);
+    for (const [name, c] of this.counters) {
+      out.push(`# HELP ${name} ${c.help}`);
+      out.push(`# TYPE ${name} counter`);
+      for (const [key, n] of c.values) out.push(`${name}{${svc}${key ? `,${key}` : ''}} ${n}`);
+    }
     return `${out.join('\n')}\n`;
+  }
+
+  private readonly counters = new Map<string, { help: string; values: Map<string, number> }>();
+
+  /** Contador do próprio serviço (ex.: bloqueios do antifraude), exposto no /metrics. */
+  inc(name: string, help: string, l: Record<string, string> = {}, by = 1) {
+    if (!/^[a-z_][a-z0-9_]*$/.test(name)) throw new Error(`Nome de métrica inválido: ${name}`);
+    const c = this.counters.get(name) ?? { help, values: new Map<string, number>() };
+    const key = labels(l);
+    c.values.set(key, (c.values.get(key) ?? 0) + by);
+    this.counters.set(name, c);
   }
 }
 
