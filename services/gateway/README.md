@@ -12,7 +12,7 @@ cp services/gateway/.env.example services/gateway/.env   # preencha JWT_SECRET
 pnpm db:up        # em outro terminal, ou o Docker Compose
 pnpm db:migrate
 pnpm dev
-TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc pnpm --filter @scc/gateway test
+TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc_test pnpm --filter @scc/gateway test
 pnpm --filter @scc/gateway login:dev   # entra com uma carteira descartável e imprime o JWT
 ```
 

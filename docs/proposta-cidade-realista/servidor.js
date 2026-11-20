@@ -9,7 +9,11 @@ const API = {
   gateway: params.get('gateway') ?? 'http://127.0.0.1:8000',
   economy: params.get('economy') ?? 'http://127.0.0.1:8010',
   game: params.get('game') ?? 'http://127.0.0.1:8020',
+  world: params.get('world') ?? 'http://127.0.0.1:8030',
 };
+const CITY = 'pittsburg';
+// Lotes do jogador no servidor ficam violeta; os da gestão simulada, ciano.
+const SERVER_LOT_COLOR = 0x8b5cf6;
 const TOKEN_KEY = 'scc-servidor-token';
 const DEV_WALLET_KEY = 'scc-carteira-de-teste';
 // A carteira de teste guarda a chave no navegador: só serve em máquina local.
@@ -35,6 +39,9 @@ const storage = {
   },
 };
 
+/** wei (18 casas) → SCITY com 2 casas, para a tela. */
+const scity = (wei) =>
+  (Number(BigInt(wei) / 10n ** 14n) / 10_000).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const thaler = (cents) => (Number(cents) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const short = (addr) => `${addr.slice(0, 6)}…${addr.slice(-4)}`;
 const left = (iso) => {
@@ -108,7 +115,7 @@ async function signIn(useTestWallet) {
   return { token: result.access_token, address, expiresAt: Date.now() + result.expires_in * 1000 };
 }
 
-export function createServidor() {
+export function createServidor(map) {
   const panel = document.createElement('aside');
   panel.className = 'servidor glass';
   panel.setAttribute('aria-label', 'Jogo no servidor');
@@ -121,7 +128,7 @@ export function createServidor() {
   } catch {
     session = null;
   }
-  let data = { avatar: null, balance: '0', shifts: [] };
+  let data = { avatar: null, balance: '0', scity: '0', lots: [], shifts: [] };
   let message = '';
   let messageOk = false;
   let busy = false;
@@ -130,7 +137,8 @@ export function createServidor() {
   const logout = (why = '') => {
     session = null;
     storage.set(TOKEN_KEY, null);
-    data = { avatar: null, balance: '0', shifts: [] };
+    data = { avatar: null, balance: '0', scity: '0', lots: [], shifts: [] };
+    drawLots();
     message = why;
     render();
   };
@@ -144,6 +152,12 @@ export function createServidor() {
       ]);
       data.avatar = avatars.avatars[0] ?? null;
       data.balance = balances.balances.find((b) => b.currency === 'THALER')?.amount ?? '0';
+      data.scity = balances.balances.find((b) => b.currency === 'SCITY')?.amount ?? '0';
+      // Lotes do servidor: se o world estiver fora, o resto do painel segue.
+      data.lots = await call(API.world, '/v1/world/me/lots', { token: session.token })
+        .then((r) => r.lots)
+        .catch(() => data.lots);
+      drawLots();
       data.shifts = data.avatar
         ? (await call(API.game, `/v1/avatars/${data.avatar.id}/shifts`, { token: session.token })).shifts
         : [];
@@ -225,7 +239,9 @@ export function createServidor() {
       }
     }
     panel.innerHTML = `${head}
-      <dl class="resumo"><dt>Conta</dt><dd>${short(session.address)}</dd><dt>THALER (ledger)</dt><dd>${thaler(data.balance)}</dd></dl>
+      <dl class="resumo"><dt>Conta</dt><dd>${short(session.address)}</dd><dt>THALER (ledger)</dt><dd>${thaler(data.balance)}</dd><dt>SCITY (ledger)</dt><dd>${scity(data.scity)}</dd><dt>Lotes no servidor</dt><dd>${data.lots.length}</dd></dl>
+      ${data.lots.length ? `<p class="muted pequeno">${data.lots.map((l) => esc(l.code)).join(' · ')} <span class="tag-srv">violeta no mapa</span></p>` : '<p class="muted pequeno">Clique num lote verde e compre pela ficha.</p>'}
+      ${LOCAL ? `<button class="btn btn--ghost pequeno" type="button" data-s="faucet" ${busy ? 'disabled' : ''}>+1.000 SCITY de teste</button>` : ''}
       ${body}${note}
       <button class="btn btn--ghost pequeno" type="button" data-s="sair">Sair</button>`;
   }
@@ -245,6 +261,13 @@ export function createServidor() {
         storage.set(TOKEN_KEY, JSON.stringify(session));
       });
     }
+    if (what === 'faucet') {
+      return act(async () => {
+        await call(API.economy, '/v1/dev/faucet', { method: 'POST', token: session.token });
+        message = '+1.000 SCITY de teste no ledger.';
+        messageOk = true;
+      });
+    }
     if (what === 'avatar') return act(() => call(API.game, '/v1/dev/avatar', { method: 'POST', token: session.token }));
     if (what === 'work') {
       return act(() =>
@@ -260,6 +283,82 @@ export function createServidor() {
     }
   });
 
+  const group = new map.THREE.Group();
+  map.scene.add(group);
+  async function drawLots() {
+    group.children.splice(0).forEach((m) => m.geometry.dispose());
+    if (!data.lots.length) return;
+    await map.loadLotsFor(data.lots.map((l) => l.id));
+    for (const l of data.lots) {
+      const ring = map.lotRing(l.id);
+      const shape = new map.THREE.Shape(ring.map(([x, z]) => new map.THREE.Vector2(x, -z)));
+      const mesh = new map.THREE.Mesh(
+        new map.THREE.ShapeGeometry(shape).rotateX(-Math.PI / 2),
+        new map.THREE.MeshBasicMaterial({ color: SERVER_LOT_COLOR, transparent: true, opacity: 0.85, depthWrite: false }),
+      );
+      mesh.position.y = 3.7;
+      // Depois do preenchimento verde dos lotes, que é translúcido e misturaria as cores.
+      mesh.renderOrder = 10;
+      group.add(mesh);
+    }
+  }
+
+  /**
+   * Ficha do lote com o jogador logado: a situação vem do world. Devolve true
+   * quando assume a compra, para a gestão simulada não mostrar a dela.
+   */
+  function decorateLot(i, ficha) {
+    if (!session) return false;
+    const box = document.createElement('div');
+    box.className = 'gestao srv-lote';
+    box.innerHTML = '<p class="muted pequeno">Consultando o servidor…</p>';
+    ficha.append(box);
+    call(API.world, `/v1/world/cities/${CITY}/lots/${i}`, { token: session.token })
+      .then(({ lot }) => {
+        const price = BigInt(Math.round(Number(lot.price_scity) * 1e6)) * 10n ** 12n;
+        // A linha "Situação" da ficha vem dos arquivos estáticos; com login, vale a do servidor.
+        const situacao = ficha.querySelector('dd');
+        if (situacao) {
+          situacao.textContent = lot.mine
+            ? 'Seu (servidor)'
+            : { civic: 'Da Prefeitura', sold: 'Vendido', reserved: 'Em compra' }[lot.status] ?? (lot.district_open ? 'À venda' : 'Bairro ainda fechado');
+        }
+        let html = '<h3>No servidor</h3>';
+        if (lot.mine) html += '<p><span class="tag tag--srv">Seu</span> Este lote é seu no servidor.</p>';
+        else if (lot.status === 'civic') html += '<p class="muted">Da Prefeitura: não está à venda.</p>';
+        else if (lot.status === 'sold') html += '<p class="muted">Vendido a outro jogador.</p>';
+        else if (lot.status === 'reserved') html += '<p class="muted">Outro jogador está comprando agora.</p>';
+        else if (!lot.district_open) html += '<p class="muted">Bairro ainda fechado para venda.</p>';
+        else {
+          const enough = BigInt(data.scity) >= price;
+          html += `<p class="muted pequeno">US$ ${lot.price_usd.toLocaleString('pt-BR')}, pagos em SCITY pela cotação.</p>
+            <button class="btn btn--primary" type="button" data-buy="${i}" ${enough ? '' : 'disabled'}>Comprar por ${Number(lot.price_scity).toLocaleString('pt-BR')} SCITY</button>
+            ${enough ? '' : '<p class="muted pequeno">SCITY insuficiente: use “+1.000 SCITY de teste” no painel.</p>'}`;
+        }
+        box.innerHTML = html;
+      })
+      .catch((error) => {
+        box.innerHTML = `<p class="aviso-s">${esc(error.code === 'offline' ? 'Serviço world fora do ar.' : error.message)}</p>`;
+      });
+    box.addEventListener('click', async (e) => {
+      const b = e.target.closest('[data-buy]');
+      if (!b || b.disabled) return;
+      b.disabled = true;
+      b.textContent = 'Comprando…';
+      try {
+        const r = await call(API.world, `/v1/world/cities/${CITY}/lots/${i}/buy`, { method: 'POST', token: session.token });
+        message = `${r.lot.code} é seu por ${Number(r.purchase.price_scity).toLocaleString('pt-BR')} SCITY.`;
+        messageOk = true;
+      } catch (error) {
+        message = error.message;
+        messageOk = false;
+      }
+      await refresh();
+      map.showLot(i);
+    });
+    return true;
+  }
+
   render();
   refresh();
   // Atualiza o turno e o saldo enquanto a página está aberta.
@@ -267,5 +366,5 @@ export function createServidor() {
     if (session && !busy && !document.hidden) refresh();
   }, 10_000);
 
-  return { refresh, getSession: () => session, getData: () => data, API };
+  return { refresh, decorateLot, active: () => session !== null, getSession: () => session, getData: () => data, API };
 }

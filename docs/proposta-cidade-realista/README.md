@@ -18,7 +18,7 @@ Rode na raiz do repositório e abra http://localhost:8081/docs/proposta-cidade-r
 
 **Gestão (Pittsburg):** a barra superior vira o HUD do jogador (avatar Comum · Padeiro, bairro onde a câmera está, saldos de SCITY e THALER, velocidade do tempo). Clique num lote verde e compre-o em SCITY. No seu lote (ciano), a ficha lista os negócios que a zona permite, com custo em THALER, obra, lucro por dia e retorno. Os bloqueados mostram o motivo, por exemplo a farmácia, que exige avatar enfermeiro (GDD). A obra sobe como um bloco cinza e, pronta, ganha a cor do negócio. O lucro acumula até 7 dias e é recolhido com **Coletar**. **Meu patrimônio** lista lotes e negócios, com **Coletar tudo** e **Ir até**. O catálogo e as regras ficam em [negocios.js](negocios.js); a tela e o 3D, em [gestao.js](gestao.js).
 
-**Jogo no servidor (célula jogável, E1.6):** o painel no canto inferior esquerdo liga o mapa aos serviços, sem nada simulado. Você entra com a carteira (SIWE, pelo [gateway](../../services/gateway/README.md)), vê o avatar e os atributos ([game-core](../../services/game-core/README.md)), trabalha um turno de 6 ou 12 h, que o servidor conclui mesmo com a página fechada, e coleta o THALER no [ledger](../../services/economy/README.md). Sem MetaMask, em `localhost`, dá para entrar com uma **carteira de teste** gerada no navegador. A gestão de lotes e negócios (barra superior e "Meu patrimônio") continua simulada, marcada como "simulado", até o serviço world.
+**Jogo no servidor (célula jogável, E1.6):** o painel no canto inferior esquerdo liga o mapa aos serviços, sem nada simulado. Você entra com a carteira (SIWE, pelo [gateway](../../services/gateway/README.md)), vê o avatar e os atributos ([game-core](../../services/game-core/README.md)), trabalha um turno de 6 ou 12 h, que o servidor conclui mesmo com a página fechada, e coleta o THALER no [ledger](../../services/economy/README.md). Sem MetaMask, em `localhost`, dá para entrar com uma **carteira de teste** gerada no navegador. Com login, a ficha do lote consulta o [world](../../services/world/README.md): situação real, preço em SCITY e **Comprar**, que cobra no ledger; os seus lotes no servidor ficam violeta. Os negócios (barra superior e "Meu patrimônio") continuam simulados, marcados como "simulado".
 
 Para subir tudo na sua máquina:
 
@@ -28,10 +28,12 @@ pnpm db:migrate
 pnpm --filter @scc/gateway dev
 pnpm --filter @scc/economy dev
 pnpm --filter @scc/game-core dev
+pnpm --filter @scc/world import:city ../../.local/cidades/pittsburg --code pittsburg
+pnpm --filter @scc/world dev
 pnpm dev:fund-pool
 ```
 
-Antes, copie o `.env.example` de cada serviço para `.env` e preencha os segredos. O `JWT_SECRET` é o mesmo nos três. No gateway, `SIWE_DOMAINS` e `CORS_ORIGINS` precisam incluir `localhost:8081`. No game-core, `ECONOMY_TOKEN` é o `INTERNAL_TOKEN` do economy; para testar, `DEV_FREE_AVATAR=true` dá um avatar de teste e `DEV_SHIFT_MINUTES=1` faz o turno durar 1 minuto (pagando como 6 h). Os endereços dos serviços podem ser trocados na URL: `?gateway=`, `?economy=`, `?game=`.
+Antes, copie o `.env.example` de cada serviço para `.env` e preencha os segredos. O `JWT_SECRET` é o mesmo nos três. No gateway, `SIWE_DOMAINS` e `CORS_ORIGINS` precisam incluir `localhost:8081`. No game-core, `ECONOMY_TOKEN` é o `INTERNAL_TOKEN` do economy; para testar, `DEV_FREE_AVATAR=true` dá um avatar de teste e `DEV_SHIFT_MINUTES=1` faz o turno durar 1 minuto (pagando como 6 h). No economy, `DEV_FAUCET=true` liga o botão “+1.000 SCITY de teste” (no jogo, SCITY só entra por depósito da blockchain). Os endereços dos serviços podem ser trocados na URL: `?gateway=`, `?economy=`, `?game=`, `?world=`.
 
 **Carregamento por bairro ([spike E0.9](../desenvolvimento/spike-e0.9-cliente-web.md)):** os lotes chegam um bairro por vez, primeiro os abertos e depois os perto da câmera; antes, gere os blocos com [`bin/city-chunks.js`](../../tools/scc-builder/README.md#lotes-por-bairro). Prédios usam LOD progressivo: o mais leve chega primeiro e os detalhados só de perto. Com `?spike` na URL, o mapa põe 20 prédios de teste e mostra download, FPS e tempo de quadro num painel (o código está em [spike.js](spike.js)).
 

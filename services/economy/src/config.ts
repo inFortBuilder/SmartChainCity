@@ -18,10 +18,19 @@ const schema = z.object({
   CORS_ORIGINS: z.string().default('').transform(list),
   /** Chave dos outros serviços (game-core, world) para lançar no ledger. */
   INTERNAL_TOKEN: z.string().min(32, 'INTERNAL_TOKEN precisa de pelo menos 32 caracteres'),
+  /**
+   * Só desenvolvimento: torneira de SCITY de teste para o jogador logado,
+   * enquanto não existe depósito pela blockchain (Etapa 2). Recusada em produção.
+   */
+  DEV_FAUCET: z.stringbool().default(false),
 });
 
 export type Config = z.infer<typeof schema>;
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
-  return schema.parse(env);
+  const config = schema.parse(env);
+  if (config.NODE_ENV === 'production' && config.DEV_FAUCET) {
+    throw new Error('DEV_FAUCET é só para desenvolvimento.');
+  }
+  return config;
 }
