@@ -56,7 +56,8 @@ describe('API do game-core', () => {
     const [avatar] = list.json().avatars;
     expect(avatar.attributes.food).toBe(5);
     expect(avatar.attributes.happiness).toBe(8);
-    expect(avatar.status).toEqual({ earnsReward: true, canWork: true, canLeisure: true });
+    expect(avatar.status).toEqual({ earnsReward: true, canWork: true, canLeisure: true, inHospital: false });
+    expect(avatar.hospital_until).toBeNull();
   });
 
   it('avatar de outra conta é 404, e sem token é 401', async () => {
@@ -112,5 +113,15 @@ describe('ferramentas de desenvolvimento', () => {
     expect(ok.headers['access-control-allow-origin']).toBe('http://localhost:8081');
     const other = await web.inject({ method: 'OPTIONS', url: '/v1/avatars', headers: { origin: 'https://site-estranho.example', 'access-control-request-method': 'GET' } });
     expect(other.headers['access-control-allow-origin']).toBeUndefined();
+  });
+});
+
+describe('catálogo na API', () => {
+  it('lista as 44 profissões, sem o valor exato de atributo por tarefa', async () => {
+    const r = (await app.inject({ method: 'GET', url: '/v1/catalog/professions' })).json();
+    expect(r.professions).toHaveLength(44);
+    const padeiro = r.professions.find((p: { code: string }) => p.code === 'padeiro');
+    expect(padeiro).toMatchObject({ label: 'Padeiro', rarity: 'common', thaler_per_day: 125 });
+    expect(padeiro.tasks.every((t: { energy: number }) => [-1, 0, 1].includes(t.energy))).toBe(true);
   });
 });

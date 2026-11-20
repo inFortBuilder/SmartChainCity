@@ -3,7 +3,9 @@ import { createHash, createHmac, randomBytes } from 'node:crypto';
 import { AppError } from '@scc/shared';
 
 import { type Attributes, type Avatar, status } from './avatar.js';
-import type { Rarity } from './catalog.js';
+import { BASE_RANGE, profession } from './catalog.js';
+import { CONDITIONS, assertCanWorkHealthy, catchCondition, yieldFactor } from './conditions.js';
+import { assertNotInHospital } from './hospital.js';
 
 /**
  * Turno de trabalho (E1.4; doc 02 §3.2, doc 04 §4). O ganho segue a mesma
@@ -17,16 +19,15 @@ export type ShiftHours = (typeof SHIFT_HOURS)[number];
 /** No máximo 12 h por dia: um turno de 12 h ou dois de 6 h (GDD §3.2). */
 export const MAX_HOURS_PER_DAY = 12;
 
-/** Energia gasta no turno. Premissa: o GDD dá o custo por tarefa, não por turno. */
+/**
+ * Energia gasta no turno. Premissa: o minigame de cada profissão no GDD gasta
+ * de 5 a 20 de energia, mas o atributo vai só de 0 a 10; até o game designer
+ * acertar isso no catálogo, o turno usa um custo fixo.
+ */
 export const ENERGY_COST: Record<ShiftHours, number> = { 6: 3, 12: 6 };
 
-/** Ganho base por dia (THALER), da tabela de atributos (doc 02 §2.2). */
-export const BASE_RANGE: Record<Rarity, [number, number]> = {
-  common: [100, 125],
-  rare: [140, 165],
-  epic: [180, 205],
-  legendary: [225, 250],
-};
+/** Faixa de ganho por raridade (doc 02 §2.2): o catálogo confere cada profissão contra ela. */
+export { BASE_RANGE };
 
 /** doc 02 §2.4, índice = nível 0..10 (nível 0 tratado como 1), como no simulador. */
 export const HEALTH_MULT = [0.5, 0.5, 0.55, 0.6, 0.7, 0.8, 0.9, 1, 1.2, 1.4, 1.5];
@@ -39,13 +40,13 @@ export const DAMAGE_CHANCE = 0.05;
 export const DAMAGE_FRACTION = 0.3;
 
 /**
- * Base do avatar dentro da faixa da raridade. O simulador sorteia uma base por
- * avatar; aqui ela sai do id, então é sempre a mesma para o mesmo avatar.
+ * Ganho base do dia: o da profissão no catálogo do GDD (Padeiro 125, Pedreiro
+ * 100…), sempre dentro da faixa da raridade que o simulador usa.
  */
-export function baseOf(avatarId: string, rarity: Rarity): number {
-  const [min, max] = BASE_RANGE[rarity];
-  const n = createHash('sha256').update(`base:${avatarId}`).digest().readUInt32BE(0);
-  return min + (n % (max - min + 1));
+export function baseOf(jobCode: string): number {
+  const p = profession(jobCode);
+  if (!p) throw new AppError('invalid_job', `Profissão ${jobCode} não está no catálogo.`, 500);
+  return p.tokens;
 }
 
 export const expMultiplier = (education: number) => 1 + Math.min(100, Math.max(0, education)) / 50;
@@ -53,6 +54,8 @@ export const expMultiplier = (education: number) => 1 + Math.min(100, Math.max(0
 export interface Snapshot {
   /** Atributos no começo do turno: o resultado não muda se a queda continuar durante o turno. */
   health: number;
+  /** Fator das doenças em curso no começo (dor de cabeça: 0,9). Turnos antigos não têm: vale 1. */
+  illness?: number;
   happiness: number;
   education: number;
   earnsReward: boolean;
@@ -64,7 +67,7 @@ export interface ShiftResult {
   /** Valor do turno em centavos de THALER. */
   thalerCents: bigint;
   /** Fatores usados, para a tela e para auditoria. */
-  factors: { base: number; hours: number; health: number; happiness: number; expPet: number; damage: number };
+  factors: { base: number; hours: number; health: number; happiness: number; expPet: number; damage: number; illness: number };
 }
 
 export type ShiftStatus = 'running' | 'done' | 'claimed';
@@ -107,13 +110,17 @@ export function startShift(
   if (input.hoursToday + hours > MAX_HOURS_PER_DAY) {
     throw new AppError('daily_limit', `No máximo ${MAX_HOURS_PER_DAY} h de trabalho por dia.`, 409);
   }
+  // Primeiro as regras do turno; depois o estado do avatar.
+  assertNotInHospital(avatar, now);
+  assertCanWorkHealthy(avatar.conditions, now);
   const cost = ENERGY_COST[hours];
   const a = avatar.attributes;
-  if (!status(avatar).canWork || a.energy < cost) {
+  if (!status(avatar, now).canWork || a.energy < cost) {
     throw new AppError('too_tired', `Energia ou saúde insuficiente: o turno de ${hours} h gasta ${cost} de energia.`, 409);
   }
 
   const seed = randomBytes(32).toString('hex');
+  const id = input.id;
   const shift: Shift = {
     id: input.id,
     avatarId: avatar.id,
@@ -128,14 +135,20 @@ export function startShift(
       health: a.health,
       happiness: a.happiness,
       education: a.education,
-      earnsReward: status(avatar).earnsReward,
-      base: baseOf(avatar.id, avatar.rarity),
+      earnsReward: status(avatar, now).earnsReward,
+      base: baseOf(avatar.jobCode),
+      illness: yieldFactor(avatar.conditions, now),
     },
     result: null,
     status: 'running',
   };
   const attributes: Attributes = { ...a, energy: a.energy - cost };
-  return { shift, avatar: { ...avatar, attributes, updatedAt: now } };
+  // Gripe e dor de cabeça saem da semente do turno (premissa, doc do domínio) e começam quando ele acaba.
+  let conditions = avatar.conditions;
+  for (const code of ['gripe', 'dor_de_cabeca'] as const) {
+    if (draw(seed, id, code) < CONDITIONS[code].chance) conditions = catchCondition(conditions, code, shift.endsAt);
+  }
+  return { shift, avatar: { ...avatar, attributes, conditions, updatedAt: now } };
 }
 
 /** Número de 0 a 1 tirado da semente e do turno: quem tem a semente revelada refaz a conta. */
@@ -155,11 +168,12 @@ export function settle(shift: Pick<Shift, 'id' | 'hours' | 'seed' | 'snapshot'>)
   const damage = damaged ? 1 - DAMAGE_FRACTION : 1;
   const dayShare = shift.hours / MAX_HOURS_PER_DAY;
   // GDD: 48 h sem comer não gera recompensa.
-  const thaler = s.earnsReward ? s.base * dayShare * health * happiness * expPet * damage : 0;
+  const illness = s.illness ?? 1;
+  const thaler = s.earnsReward ? s.base * dayShare * health * happiness * expPet * damage * illness : 0;
   return {
     damaged,
     thalerCents: BigInt(Math.round(thaler * 100)),
-    factors: { base: s.base, hours: shift.hours, health, happiness, expPet, damage },
+    factors: { base: s.base, hours: shift.hours, health, happiness, expPet, damage, illness },
   };
 }
 

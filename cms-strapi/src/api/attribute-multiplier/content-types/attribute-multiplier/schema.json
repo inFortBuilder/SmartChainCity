@@ -1,0 +1,18 @@
+{
+  "kind": "collectionType",
+  "collectionName": "attribute_multipliers",
+  "info": {
+    "singularName": "attribute-multiplier",
+    "pluralName": "attribute-multipliers",
+    "displayName": "Multiplicador",
+    "description": "Multiplicador do ganho do turno por nível de saúde, felicidade, experiência e pet (Tabela de Atributos, doc 02 §2.4)."
+  },
+  "options": { "draftAndPublish": true },
+  "pluginOptions": {},
+  "attributes": {
+    "attribute": { "type": "enumeration", "enum": ["health", "happiness", "experience", "pet"], "required": true },
+    "level": { "type": "integer", "required": true, "min": 0, "max": 100 },
+    "factor": { "type": "decimal", "required": true, "min": 0 },
+    "conferir": { "type": "json" }
+  }
+}

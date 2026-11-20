@@ -1,0 +1,3308 @@
+{
+  "fonte": "GDD original (FGV Jr.), capítulo 4 — Atividades dos minigames das profissões",
+  "gerado_por": "cms-strapi/scripts/gdd-profissoes.mjs",
+  "unidades": {
+    "tokens": "THALER por dia de trabalho",
+    "minutos": "duração do minigame"
+  },
+  "profissoes": [
+    {
+      "code": "pedreiro",
+      "label": "Pedreiro",
+      "rarity": "common",
+      "tokens": 100,
+      "minutes": 265,
+      "tasks": [
+        {
+          "name": "Analisar quais máquinas e materiais devem ser comprados",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 30,
+          "tokens": 0
+        },
+        {
+          "name": "Comprar equipamentos",
+          "energy": -1,
+          "happiness": 1,
+          "minutes": 10,
+          "tokens": 0
+        },
+        {
+          "name": "Comprar os materiais",
+          "energy": -1,
+          "happiness": 1,
+          "minutes": 10,
+          "tokens": 0
+        },
+        {
+          "name": "Se desloca ao local de trabalho",
+          "energy": -1,
+          "happiness": 1,
+          "minutes": 30,
+          "tokens": 0
+        },
+        {
+          "name": "Recebe as ordens do seu chefe",
+          "energy": 0,
+          "happiness": 0,
+          "minutes": 10,
+          "tokens": 0
+        },
+        {
+          "name": "Construir a casa",
+          "energy": -2,
+          "happiness": 3,
+          "minutes": 160,
+          "tokens": 0
+        },
+        {
+          "name": "Recebe o pagamento",
+          "energy": 0,
+          "happiness": 2,
+          "minutes": 15,
+          "tokens": 100
+        },
+        {
+          "name": "Volta a sua casa",
+          "energy": 0,
+          "happiness": 0,
+          "minutes": 0,
+          "tokens": 0
+        }
+      ],
+      "totals": {
+        "energy": -6,
+        "happiness": 8,
+        "minutes": 265,
+        "tokens": 100
+      }
+    },
+    {
+      "code": "alfaiate",
+      "label": "Alfaiate",
+      "rarity": "common",
+      "tokens": 120,
+      "minutes": 240,
+      "tasks": [
+        {
+          "name": "Analisar quais máquinas e materiais devem ser comprados",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 15,
+          "tokens": 0
+        },
+        {
+          "name": "Comprar de maquinário",
+          "energy": -1,
+          "happiness": 1,
+          "minutes": 5,
+          "tokens": 0
+        },
+        {
+          "name": "Comprar de tecidos",
+          "energy": -1,
+          "happiness": 1,
+          "minutes": 10,
+          "tokens": 0
+        },
+        {
+          "name": "Receber o cliente",
+          "energy": -1,
+          "happiness": 2,
+          "minutes": 10,
+          "tokens": 0
+        },
+        {
+          "name": "Receber o pedido do Cliente",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 15,
+          "tokens": 0
+        },
+        {
+          "name": "Medir o cliente",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 40,
+          "tokens": 0
+        },
+        {
+          "name": "Construir a peça de roupa",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 130,
+          "tokens": 0
+        },
+        {
+          "name": "Vender a peça para o cliente",
+          "energy": 0,
+          "happiness": 2,
+          "minutes": 10,
+          "tokens": 120
+        },
+        {
+          "name": "Fechar o estabelecimento",
+          "energy": 0,
+          "happiness": 0,
+          "minutes": 0,
+          "tokens": 0
+        },
+        {
+          "name": "Volta a sua casa",
+          "energy": 0,
+          "happiness": 0,
+          "minutes": 0,
+          "tokens": 0
+        }
+      ],
+      "totals": {
+        "energy": -9,
+        "happiness": 6,
+        "minutes": 235,
+        "tokens": 120
+      },
+      "conferir": [
+        "tarefas somam 235 minutos; o cabeçalho diz 240"
+      ]
+    },
+    {
+      "code": "padeiro",
+      "label": "Padeiro",
+      "rarity": "common",
+      "tokens": 125,
+      "minutes": 260,
+      "tasks": [
+        {
+          "name": "Ir ao supermercado",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 10,
+          "tokens": 0
+        },
+        {
+          "name": "Comprar os produtos",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 25,
+          "tokens": 0
+        },
+        {
+          "name": "Atender os clientes",
+          "energy": -2,
+          "happiness": 1,
+          "minutes": 35,
+          "tokens": 0
+        },
+        {
+          "name": "Anotar o pedido do cliente",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 25,
+          "tokens": 0
+        },
+        {
+          "name": "Começar o preparo dos produtos",
+          "energy": -2,
+          "happiness": 1,
+          "minutes": 140,
+          "tokens": 0
+        },
+        {
+          "name": "Vender os produtos para o mercado",
+          "energy": 0,
+          "happiness": 2,
+          "minutes": 25,
+          "tokens": 125
+        },
+        {
+          "name": "Voltar para casa",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 0,
+          "tokens": 0
+        }
+      ],
+      "totals": {
+        "energy": -8,
+        "happiness": 4,
+        "minutes": 260,
+        "tokens": 125
+      }
+    },
+    {
+      "code": "agricultor",
+      "label": "Agricultor",
+      "rarity": "common",
+      "tokens": 125,
+      "minutes": 225,
+      "tasks": [
+        {
+          "name": "Sair de casa para o sítio",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 5,
+          "tokens": 0
+        },
+        {
+          "name": "Recolher as frutas/legumes",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 20,
+          "tokens": 0
+        },
+        {
+          "name": "Adubar os alimentos",
+          "energy": -1,
+          "happiness": 1,
+          "minutes": 30,
+          "tokens": 0
+        },
+        {
+          "name": "Por comida para os animais",
+          "energy": -1,
+          "happiness": 1,
+          "minutes": 20,
+          "tokens": 0
+        },
+        {
+          "name": "Abater animais",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 30,
+          "tokens": 0
+        },
+        {
+          "name": "Recolher os ovos",
+          "energy": -1,
+          "happiness": 1,
+          "minutes": 30,
+          "tokens": 0
+        },
+        {
+          "name": "Armazenar os ovos",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 30,
+          "tokens": 0
+        },
+        {
+          "name": "Retirar o leite das vacas",
+          "energy": -1,
+          "happiness": 2,
+          "minutes": 30,
+          "tokens": 0
+        },
+        {
+          "name": "Armazenar o leite",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 15,
+          "tokens": 0
+        },
+        {
+          "name": "Contabilizar a quantidade de produtos recolhidos",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 15,
+          "tokens": 0
+        },
+        {
+          "name": "Receber pagamento",
+          "energy": 0,
+          "happiness": 0,
+          "minutes": 1,
+          "tokens": 125
+        },
+        {
+          "name": "Voltar para casa",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 0,
+          "tokens": 0
+        }
+      ],
+      "totals": {
+        "energy": -12,
+        "happiness": 5,
+        "minutes": 226,
+        "tokens": 125
+      },
+      "conferir": [
+        "tarefas somam 226 minutos; o cabeçalho diz 225"
+      ]
+    },
+    {
+      "code": "enfermeira",
+      "label": "Enfermeira",
+      "rarity": "common",
+      "tokens": 100,
+      "minutes": 280,
+      "tasks": [
+        {
+          "name": "Ir ao hospital",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 15,
+          "tokens": 0
+        },
+        {
+          "name": "Colocar sua roupa de trabalho",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 5,
+          "tokens": 0
+        },
+        {
+          "name": "Fazer curativo",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 120,
+          "tokens": 0
+        },
+        {
+          "name": "Auxiliar na cirurgia",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 120,
+          "tokens": 0
+        },
+        {
+          "name": "Dar alta em paciente",
+          "energy": 0,
+          "happiness": 3,
+          "minutes": 15,
+          "tokens": 0
+        },
+        {
+          "name": "Receber Pagamento",
+          "energy": 0,
+          "happiness": 0,
+          "minutes": 0,
+          "tokens": 100
+        },
+        {
+          "name": "Colocar a roupa despojada",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 5,
+          "tokens": 0
+        },
+        {
+          "name": "Voltar para casa",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 0,
+          "tokens": 0
+        }
+      ],
+      "totals": {
+        "energy": -8,
+        "happiness": 3,
+        "minutes": 280,
+        "tokens": 100
+      }
+    },
+    {
+      "code": "professor",
+      "label": "Professor",
+      "rarity": "common",
+      "tokens": 110,
+      "minutes": 235,
+      "tasks": [
+        {
+          "name": "Preparar a aula",
+          "energy": -2,
+          "happiness": 1,
+          "minutes": 50,
+          "tokens": 0
+        },
+        {
+          "name": "Revisar a aula",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 30,
+          "tokens": 0
+        },
+        {
+          "name": "Ir à escola",
+          "energy": 0,
+          "happiness": 0,
+          "minutes": 10,
+          "tokens": 0
+        },
+        {
+          "name": "Lecionar a aula",
+          "energy": -2,
+          "happiness": 3,
+          "minutes": 120,
+          "tokens": 0
+        },
+        {
+          "name": "Passar dever",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 10,
+          "tokens": 0
+        },
+        {
+          "name": "Brigar com alunos",
+          "energy": -2,
+          "happiness": -1,
+          "minutes": 0,
+          "tokens": 0
+        },
+        {
+          "name": "Receber Pagamento",
+          "energy": 0,
+          "happiness": 0,
+          "minutes": 0,
+          "tokens": 110
+        },
+        {
+          "name": "Voltar para casa",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 0,
+          "tokens": 0
+        }
+      ],
+      "totals": {
+        "energy": -9,
+        "happiness": 3,
+        "minutes": 220,
+        "tokens": 110
+      },
+      "conferir": [
+        "tarefas somam 220 minutos; o cabeçalho diz 235"
+      ]
+    },
+    {
+      "code": "bombeiro",
+      "label": "Bombeiro",
+      "rarity": "common",
+      "tokens": 115,
+      "minutes": 245,
+      "tasks": [
+        {
+          "name": "Ir ao posto de bombeiros",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 10,
+          "tokens": 0
+        },
+        {
+          "name": "Colocar a roupa de trabalho",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 5,
+          "tokens": 0
+        },
+        {
+          "name": "Recolher seus adereços de trabalho",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 5,
+          "tokens": 0
+        },
+        {
+          "name": "Ir ao local do incêndio",
+          "energy": -1,
+          "happiness": 1,
+          "minutes": 20,
+          "tokens": 0
+        },
+        {
+          "name": "Apagar o incêndio",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 90,
+          "tokens": 0
+        },
+        {
+          "name": "Salvar as vítimas",
+          "energy": 0,
+          "happiness": 3,
+          "minutes": 90,
+          "tokens": 0
+        },
+        {
+          "name": "Voltar ao posto de bombeiros",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 10,
+          "tokens": 0
+        },
+        {
+          "name": "Receber Pagamento",
+          "energy": 0,
+          "happiness": 0,
+          "minutes": 0,
+          "tokens": 115
+        },
+        {
+          "name": "Colocar sua roupa casual",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 5,
+          "tokens": 0
+        },
+        {
+          "name": "Voltar para casa",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 0,
+          "tokens": 0
+        }
+      ],
+      "totals": {
+        "energy": -9,
+        "happiness": 4,
+        "minutes": 235,
+        "tokens": 115
+      },
+      "conferir": [
+        "tarefas somam 235 minutos; o cabeçalho diz 245"
+      ]
+    },
+    {
+      "code": "motorista",
+      "label": "Motorista",
+      "rarity": "common",
+      "tokens": 110,
+      "minutes": 285,
+      "tasks": [
+        {
+          "name": "Pegar seu carro",
+          "energy": 0,
+          "happiness": 0,
+          "minutes": 0,
+          "tokens": 0
+        },
+        {
+          "name": "Começar o trabalho",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 5,
+          "tokens": 0
+        },
+        {
+          "name": "Encontrar o passageiro",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 15,
+          "tokens": 0
+        },
+        {
+          "name": "Levar ele a seu destino",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 60,
+          "tokens": 0
+        },
+        {
+          "name": "Receber o pagamento",
+          "energy": -1,
+          "happiness": 3,
+          "minutes": 15,
+          "tokens": 110
+        },
+        {
+          "name": "Repetir essas ações",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 95,
+          "tokens": 0
+        },
+        {
+          "name": "Repetir essas ações",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 95,
+          "tokens": 0
+        },
+        {
+          "name": "Voltar para casa",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 0,
+          "tokens": 0
+        }
+      ],
+      "totals": {
+        "energy": -7,
+        "happiness": 3,
+        "minutes": 285,
+        "tokens": 110
+      }
+    },
+    {
+      "code": "tosador",
+      "label": "Tosador",
+      "rarity": "common",
+      "tokens": 100,
+      "minutes": 210,
+      "tasks": [
+        {
+          "name": "Ir ao local de trabalho",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 10,
+          "tokens": 0
+        },
+        {
+          "name": "Colocar sua vestimenta de trabalho",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 10,
+          "tokens": 0
+        },
+        {
+          "name": "Tosar os pets",
+          "energy": -2,
+          "happiness": 4,
+          "minutes": 150,
+          "tokens": 0
+        },
+        {
+          "name": "Ser mordido por um Pet",
+          "energy": -2,
+          "happiness": -2,
+          "minutes": 10,
+          "tokens": 0
+        },
+        {
+          "name": "Ir ao hospital",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 10,
+          "tokens": 0
+        },
+        {
+          "name": "Voltar ao Petshop",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 10,
+          "tokens": 0
+        },
+        {
+          "name": "Fechar o Petshop",
+          "energy": 0,
+          "happiness": 0,
+          "minutes": 10,
+          "tokens": 0
+        },
+        {
+          "name": "Voltar para casa",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 0,
+          "tokens": 0
+        }
+      ],
+      "totals": {
+        "energy": -9,
+        "happiness": 2,
+        "minutes": 210,
+        "tokens": 0
+      },
+      "conferir": [
+        "tarefas somam 0 tokens; o cabeçalho diz 100"
+      ]
+    },
+    {
+      "code": "corretor_imoveis",
+      "label": "Corretor de Imóveis",
+      "rarity": "common",
+      "tokens": 100,
+      "minutes": 225,
+      "tasks": [
+        {
+          "name": "Pesquisa possíveis imóveis para venda",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 45,
+          "tokens": 0
+        },
+        {
+          "name": "Negocia imóveis",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 60,
+          "tokens": 0
+        },
+        {
+          "name": "Pesquisa novo clientes para venda",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 15,
+          "tokens": 0
+        },
+        {
+          "name": "Negociar com novo clientes a venda de imóveis",
+          "energy": -1,
+          "happiness": 1,
+          "minutes": 60,
+          "tokens": 0
+        },
+        {
+          "name": "Vende imóvel",
+          "energy": 0,
+          "happiness": 1,
+          "minutes": 30,
+          "tokens": 0
+        },
+        {
+          "name": "Receber o pagamento e a comissão dos imóveis",
+          "energy": 0,
+          "happiness": 2,
+          "minutes": 15,
+          "tokens": 0
+        },
+        {
+          "name": "Voltar para casa",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 0,
+          "tokens": 0
+        }
+      ],
+      "totals": {
+        "energy": -5,
+        "happiness": 4,
+        "minutes": 225,
+        "tokens": 0
+      },
+      "conferir": [
+        "tarefas somam 0 tokens; o cabeçalho diz 100"
+      ]
+    },
+    {
+      "code": "recepcionista",
+      "label": "Recepcionista",
+      "rarity": "common",
+      "tokens": 100,
+      "minutes": 220,
+      "tasks": [
+        {
+          "name": "Ir ao emprego",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 10,
+          "tokens": 0
+        },
+        {
+          "name": "Colocar sua roupa de trabalho",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 10,
+          "tokens": 0
+        },
+        {
+          "name": "Recepcionar os clientes",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 60,
+          "tokens": 0
+        },
+        {
+          "name": "Direcionar os clientes a seus quartos",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 20,
+          "tokens": 0
+        },
+        {
+          "name": "Receber reclamações e resolve elas",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 60,
+          "tokens": 0
+        },
+        {
+          "name": "Repete ação anterior",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 60,
+          "tokens": 0
+        },
+        {
+          "name": "Receber pagamento",
+          "energy": 0,
+          "happiness": 0,
+          "minutes": 0,
+          "tokens": 100
+        },
+        {
+          "name": "Voltar para casa",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 0,
+          "tokens": 0
+        }
+      ],
+      "totals": {
+        "energy": -7,
+        "happiness": 0,
+        "minutes": 220,
+        "tokens": 100
+      }
+    },
+    {
+      "code": "construtor",
+      "label": "Construtor",
+      "rarity": "rare",
+      "tokens": 140,
+      "minutes": 250,
+      "tasks": [
+        {
+          "name": "Comprar maquinário",
+          "energy": -1,
+          "happiness": 1,
+          "minutes": 3,
+          "tokens": 0
+        },
+        {
+          "name": "Comprar materiais",
+          "energy": -1,
+          "happiness": 1,
+          "minutes": 2,
+          "tokens": 0
+        },
+        {
+          "name": "Analisar a planta",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 35,
+          "tokens": 15
+        },
+        {
+          "name": "Construir pilastras",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 45,
+          "tokens": 20
+        },
+        {
+          "name": "Construir paredes",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 45,
+          "tokens": 25
+        },
+        {
+          "name": "Colocar telhado",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 30,
+          "tokens": 20
+        },
+        {
+          "name": "Entregar imóvel",
+          "energy": -1,
+          "happiness": 1,
+          "minutes": 75,
+          "tokens": 60
+        },
+        {
+          "name": "Faltar material",
+          "energy": -1,
+          "happiness": -1,
+          "minutes": 15,
+          "tokens": 0
+        }
+      ],
+      "totals": {
+        "energy": -10,
+        "happiness": 2,
+        "minutes": 250,
+        "tokens": 140
+      }
+    },
+    {
+      "code": "modelista",
+      "label": "Modelista",
+      "rarity": "rare",
+      "tokens": 140,
+      "minutes": 255,
+      "tasks": [
+        {
+          "name": "Comprar equipamentos",
+          "energy": -1,
+          "happiness": 1,
+          "minutes": 3,
+          "tokens": 0
+        },
+        {
+          "name": "Comprar tecido",
+          "energy": -1,
+          "happiness": 1,
+          "minutes": 2,
+          "tokens": 0
+        },
+        {
+          "name": "Tirar medidas",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 40,
+          "tokens": 15
+        },
+        {
+          "name": "Cortar tecido",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 30,
+          "tokens": 20
+        },
+        {
+          "name": "Costurar",
+          "energy": -2,
+          "happiness": 1,
+          "minutes": 50,
+          "tokens": 20
+        },
+        {
+          "name": "Terminar peça",
+          "energy": -1,
+          "happiness": 1,
+          "minutes": 25,
+          "tokens": 15
+        },
+        {
+          "name": "Embalar peça",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 25,
+          "tokens": 15
+        },
+        {
+          "name": "Vender peça",
+          "energy": 0,
+          "happiness": 1,
+          "minutes": 25,
+          "tokens": 25
+        },
+        {
+          "name": "Entregar ao cliente",
+          "energy": 0,
+          "happiness": 1,
+          "minutes": 25,
+          "tokens": 25
+        },
+        {
+          "name": "Errar molde",
+          "energy": -1,
+          "happiness": -1,
+          "minutes": 15,
+          "tokens": 0
+        },
+        {
+          "name": "Rasgar molde",
+          "energy": -1,
+          "happiness": -1,
+          "minutes": 15,
+          "tokens": 0
+        }
+      ],
+      "totals": {
+        "energy": -10,
+        "happiness": 4,
+        "minutes": 255,
+        "tokens": 135
+      },
+      "conferir": [
+        "tarefas somam 135 tokens; o cabeçalho diz 140"
+      ]
+    },
+    {
+      "code": "confeiteiro",
+      "label": "Confeiteiro",
+      "rarity": "rare",
+      "tokens": 160,
+      "minutes": 265,
+      "tasks": [
+        {
+          "name": "Comprar os ingredientes",
+          "energy": -1,
+          "happiness": 1,
+          "minutes": 2,
+          "tokens": 0
+        },
+        {
+          "name": "Comprar os utensílios",
+          "energy": -1,
+          "happiness": 1,
+          "minutes": 3,
+          "tokens": 0
+        },
+        {
+          "name": "Comprar os maquinários",
+          "energy": -1,
+          "happiness": 1,
+          "minutes": 5,
+          "tokens": 0
+        },
+        {
+          "name": "Testar receita",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 40,
+          "tokens": 20
+        },
+        {
+          "name": "Fazer a massa do bolo",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 40,
+          "tokens": 20
+        },
+        {
+          "name": "Colocar bolo no forno",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 15,
+          "tokens": 10
+        },
+        {
+          "name": "Decorar bolo",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 35,
+          "tokens": 25
+        },
+        {
+          "name": "Experimentar bolo",
+          "energy": 1,
+          "happiness": 1,
+          "minutes": 10,
+          "tokens": 10
+        },
+        {
+          "name": "Vender bolo",
+          "energy": 0,
+          "happiness": 1,
+          "minutes": 35,
+          "tokens": 25
+        },
+        {
+          "name": "Embalar bolo",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 30,
+          "tokens": 20
+        },
+        {
+          "name": "Entregar bolo",
+          "energy": 0,
+          "happiness": 1,
+          "minutes": 35,
+          "tokens": 30
+        }
+      ],
+      "totals": {
+        "energy": -9,
+        "happiness": 6,
+        "minutes": 250,
+        "tokens": 160
+      },
+      "conferir": [
+        "tarefas somam 250 minutos; o cabeçalho diz 265"
+      ]
+    },
+    {
+      "code": "pescador",
+      "label": "Pescador",
+      "rarity": "rare",
+      "tokens": 165,
+      "minutes": 260,
+      "tasks": [
+        {
+          "name": "Comprar rede de pesca",
+          "energy": -1,
+          "happiness": 1,
+          "minutes": 3,
+          "tokens": 0
+        },
+        {
+          "name": "Comprar iscas",
+          "energy": -1,
+          "happiness": 1,
+          "minutes": 2,
+          "tokens": 0
+        },
+        {
+          "name": "Comprar barco",
+          "energy": -1,
+          "happiness": 1,
+          "minutes": 5,
+          "tokens": 0
+        },
+        {
+          "name": "Contratar ajudante",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 35,
+          "tokens": 10
+        },
+        {
+          "name": "Ir ao porto",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 5,
+          "tokens": 5
+        },
+        {
+          "name": "Encher embarcação de suprimentos",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 25,
+          "tokens": 10
+        },
+        {
+          "name": "Ir para alto mar",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 5,
+          "tokens": 10
+        },
+        {
+          "name": "Pescar",
+          "energy": 0,
+          "happiness": 0,
+          "minutes": 0,
+          "tokens": 0
+        },
+        {
+          "name": "Preparar vara de pesca com anzol",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 30,
+          "tokens": 10
+        },
+        {
+          "name": "Colocar isca",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 30,
+          "tokens": 15
+        },
+        {
+          "name": "Pescar um peixe",
+          "energy": -1,
+          "happiness": 2,
+          "minutes": 50,
+          "tokens": 30
+        },
+        {
+          "name": "Guardar peixes arrecadados do dia",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 25,
+          "tokens": 20
+        },
+        {
+          "name": "Chegar no porto",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 5,
+          "tokens": 10
+        },
+        {
+          "name": "Dirigir até a feira",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 5,
+          "tokens": 10
+        },
+        {
+          "name": "Vender peixes na feira",
+          "energy": 0,
+          "happiness": 1,
+          "minutes": 40,
+          "tokens": 35
+        },
+        {
+          "name": "Jogar fora peixe estragado",
+          "energy": -1,
+          "happiness": -1,
+          "minutes": 5,
+          "tokens": 5
+        }
+      ],
+      "totals": {
+        "energy": -17,
+        "happiness": 5,
+        "minutes": 270,
+        "tokens": 170
+      },
+      "conferir": [
+        "tarefas somam 170 tokens; o cabeçalho diz 165",
+        "tarefas somam 270 minutos; o cabeçalho diz 260"
+      ]
+    },
+    {
+      "code": "dentista",
+      "label": "Dentista",
+      "rarity": "rare",
+      "tokens": 165,
+      "minutes": 200,
+      "tasks": [
+        {
+          "name": "Comprar os equipamentos",
+          "energy": -1,
+          "happiness": 1,
+          "minutes": 2,
+          "tokens": 0
+        },
+        {
+          "name": "Comprar os móveis",
+          "energy": -1,
+          "happiness": 1,
+          "minutes": 3,
+          "tokens": 0
+        },
+        {
+          "name": "Contratar recepcionista",
+          "energy": -3,
+          "happiness": 0,
+          "minutes": 35,
+          "tokens": 15
+        },
+        {
+          "name": "Fazer molde",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 15,
+          "tokens": 20
+        },
+        {
+          "name": "Colocar aparelho",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 30,
+          "tokens": 25
+        },
+        {
+          "name": "Fazer limpeza dos dentes",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 30,
+          "tokens": 25
+        },
+        {
+          "name": "Tratar de problemas dentários",
+          "energy": -3,
+          "happiness": 0,
+          "minutes": 25,
+          "tokens": 15
+        },
+        {
+          "name": "Estudar casos",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 50,
+          "tokens": 45
+        }
+      ],
+      "totals": {
+        "energy": -16,
+        "happiness": 2,
+        "minutes": 190,
+        "tokens": 145
+      },
+      "conferir": [
+        "tarefas somam 145 tokens; o cabeçalho diz 165",
+        "tarefas somam 190 minutos; o cabeçalho diz 200"
+      ]
+    },
+    {
+      "code": "orientador_escolar",
+      "label": "Orientador escolar",
+      "rarity": "rare",
+      "tokens": 160,
+      "minutes": 270,
+      "tasks": [
+        {
+          "name": "Criar lista de exigência",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 30,
+          "tokens": 10
+        },
+        {
+          "name": "Ensinar tarefas",
+          "energy": -3,
+          "happiness": 0,
+          "minutes": 40,
+          "tokens": 20
+        },
+        {
+          "name": "Passar tarefas",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 25,
+          "tokens": 10
+        },
+        {
+          "name": "Fazer acompanhamento",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 20,
+          "tokens": 10
+        },
+        {
+          "name": "Criar um regulamento",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 25,
+          "tokens": 10
+        },
+        {
+          "name": "Dar bronca",
+          "energy": -2,
+          "happiness": -1,
+          "minutes": 15,
+          "tokens": 10
+        },
+        {
+          "name": "Passar feedback positivo",
+          "energy": 0,
+          "happiness": 1,
+          "minutes": 15,
+          "tokens": 25
+        },
+        {
+          "name": "Montar planejamento",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 25,
+          "tokens": 25
+        },
+        {
+          "name": "Organizar reunião geral",
+          "energy": -3,
+          "happiness": 0,
+          "minutes": 20,
+          "tokens": 30
+        }
+      ],
+      "totals": {
+        "energy": -17,
+        "happiness": 0,
+        "minutes": 215,
+        "tokens": 150
+      },
+      "conferir": [
+        "tarefas somam 150 tokens; o cabeçalho diz 160",
+        "tarefas somam 215 minutos; o cabeçalho diz 270"
+      ]
+    },
+    {
+      "code": "policial",
+      "label": "Policial",
+      "rarity": "rare",
+      "tokens": 160,
+      "minutes": 185,
+      "tasks": [
+        {
+          "name": "Realizar investigação",
+          "energy": -3,
+          "happiness": 0,
+          "minutes": 30,
+          "tokens": 15
+        },
+        {
+          "name": "Perseguir criminoso",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 40,
+          "tokens": 20
+        },
+        {
+          "name": "Levar um tiro",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 5,
+          "tokens": 0
+        },
+        {
+          "name": "Algemar suspeito",
+          "energy": -1,
+          "happiness": 1,
+          "minutes": 10,
+          "tokens": 15
+        },
+        {
+          "name": "Fazer mandado de apreensão",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 20,
+          "tokens": 10
+        },
+        {
+          "name": "Encontrar suspeito",
+          "energy": -1,
+          "happiness": 1,
+          "minutes": 10,
+          "tokens": 20
+        },
+        {
+          "name": "Treinamento de tiro",
+          "energy": -3,
+          "happiness": 0,
+          "minutes": 30,
+          "tokens": 30
+        },
+        {
+          "name": "Treinamento de primeiros socorros",
+          "energy": -3,
+          "happiness": 0,
+          "minutes": 30,
+          "tokens": 20
+        },
+        {
+          "name": "Soltar inocente",
+          "energy": -1,
+          "happiness": 1,
+          "minutes": 10,
+          "tokens": 20
+        },
+        {
+          "name": "Fazer boletim de ocorrência",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 20,
+          "tokens": 15
+        }
+      ],
+      "totals": {
+        "energy": -18,
+        "happiness": 3,
+        "minutes": 205,
+        "tokens": 165
+      },
+      "conferir": [
+        "tarefas somam 165 tokens; o cabeçalho diz 160",
+        "tarefas somam 205 minutos; o cabeçalho diz 185"
+      ]
+    },
+    {
+      "code": "mecanico",
+      "label": "Mecânico",
+      "rarity": "rare",
+      "tokens": 155,
+      "minutes": 195,
+      "tasks": [
+        {
+          "name": "Trocar pneu",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 30,
+          "tokens": 30
+        },
+        {
+          "name": "Trocar peças do transporte",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 40,
+          "tokens": 30
+        },
+        {
+          "name": "Pintar transporte",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 30,
+          "tokens": 25
+        },
+        {
+          "name": "Colocar água e óleo",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 30,
+          "tokens": 30
+        },
+        {
+          "name": "Comprar peças para o transporte",
+          "energy": -1,
+          "happiness": 1,
+          "minutes": 3,
+          "tokens": 0
+        },
+        {
+          "name": "Comprar equipamento",
+          "energy": -1,
+          "happiness": 1,
+          "minutes": 2,
+          "tokens": 0
+        },
+        {
+          "name": "Conferir sistemas de transporte",
+          "energy": -3,
+          "happiness": 0,
+          "minutes": 60,
+          "tokens": 40
+        }
+      ],
+      "totals": {
+        "energy": -11,
+        "happiness": 2,
+        "minutes": 195,
+        "tokens": 155
+      }
+    },
+    {
+      "code": "pet_sitter",
+      "label": "Pet Sitter",
+      "rarity": "rare",
+      "tokens": 160,
+      "minutes": 245,
+      "tasks": [
+        {
+          "name": "Passear com animal",
+          "energy": -2,
+          "happiness": 1,
+          "minutes": 40,
+          "tokens": 20
+        },
+        {
+          "name": "Brincar com animal",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 20,
+          "tokens": 15
+        },
+        {
+          "name": "Treinar animal",
+          "energy": -3,
+          "happiness": 0,
+          "minutes": 40,
+          "tokens": 30
+        },
+        {
+          "name": "Fazer curso de treinamento",
+          "energy": -3,
+          "happiness": 0,
+          "minutes": 30,
+          "tokens": 25
+        },
+        {
+          "name": "Dar banho no animal",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 20,
+          "tokens": 15
+        },
+        {
+          "name": "Alimentar animal",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 20,
+          "tokens": 10
+        },
+        {
+          "name": "Dar carinho ao animal",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 15,
+          "tokens": 10
+        },
+        {
+          "name": "Tosar pet",
+          "energy": -3,
+          "happiness": 0,
+          "minutes": 30,
+          "tokens": 20
+        },
+        {
+          "name": "Enfeitar pet",
+          "energy": -2,
+          "happiness": 1,
+          "minutes": 30,
+          "tokens": 15
+        }
+      ],
+      "totals": {
+        "energy": -19,
+        "happiness": 2,
+        "minutes": 245,
+        "tokens": 160
+      }
+    },
+    {
+      "code": "consultor_imoveis",
+      "label": "Consultor de Imóveis",
+      "rarity": "rare",
+      "tokens": 150,
+      "minutes": 215,
+      "tasks": [
+        {
+          "name": "Vender imóvel",
+          "energy": -1,
+          "happiness": 1,
+          "minutes": 35,
+          "tokens": 25
+        },
+        {
+          "name": "Fazer catálogo de imóveis",
+          "energy": -3,
+          "happiness": 0,
+          "minutes": 30,
+          "tokens": 25
+        },
+        {
+          "name": "Pesquisa possíveis clientes",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 20,
+          "tokens": 15
+        },
+        {
+          "name": "Se comunica com clientes",
+          "energy": -1,
+          "happiness": 1,
+          "minutes": 35,
+          "tokens": 25
+        },
+        {
+          "name": "Divulgar trabalho",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 20,
+          "tokens": 15
+        },
+        {
+          "name": "Mostrar catálogo de imóveis",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 40,
+          "tokens": 20
+        },
+        {
+          "name": "Recepcionar clientes",
+          "energy": -1,
+          "happiness": 1,
+          "minutes": 35,
+          "tokens": 25
+        }
+      ],
+      "totals": {
+        "energy": -12,
+        "happiness": 3,
+        "minutes": 215,
+        "tokens": 150
+      }
+    },
+    {
+      "code": "garcom",
+      "label": "Garçom",
+      "rarity": "rare",
+      "tokens": 150,
+      "minutes": 240,
+      "tasks": [
+        {
+          "name": "Anotar pedidos",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 15,
+          "tokens": 10
+        },
+        {
+          "name": "Servir comida",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 15,
+          "tokens": 15
+        },
+        {
+          "name": "Trazer a conta",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 15,
+          "tokens": 10
+        },
+        {
+          "name": "Limpar a mesa",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 20,
+          "tokens": 20
+        },
+        {
+          "name": "Trazer temperos",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 35,
+          "tokens": 25
+        },
+        {
+          "name": "Apresentar cardápio",
+          "energy": -1,
+          "happiness": 1,
+          "minutes": 35,
+          "tokens": 10
+        },
+        {
+          "name": "Recolher travessas, talheres e outros recipientes desocupados",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 40,
+          "tokens": 20
+        },
+        {
+          "name": "Organizar restaurante",
+          "energy": -3,
+          "happiness": 0,
+          "minutes": 30,
+          "tokens": 20
+        },
+        {
+          "name": "Preparar mesa de refeições",
+          "energy": -1,
+          "happiness": 1,
+          "minutes": 35,
+          "tokens": 20
+        }
+      ],
+      "totals": {
+        "energy": -14,
+        "happiness": 2,
+        "minutes": 240,
+        "tokens": 150
+      }
+    },
+    {
+      "code": "arquiteto",
+      "label": "Arquiteto",
+      "rarity": "epic",
+      "tokens": 190,
+      "minutes": 250,
+      "tasks": [
+        {
+          "name": "Analisa o imóvel",
+          "energy": 0,
+          "happiness": 1,
+          "minutes": 10,
+          "tokens": 10
+        },
+        {
+          "name": "Faz a lista de materiais a serem adquiridos pelo pedreiro",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 20,
+          "tokens": 20
+        },
+        {
+          "name": "Faz a planta",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 60,
+          "tokens": 45
+        },
+        {
+          "name": "Gerencia os pedreiros",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 20,
+          "tokens": 25
+        },
+        {
+          "name": "Revisa o trabalho dos pedreiros",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 20,
+          "tokens": 40
+        },
+        {
+          "name": "Entrega o projeto para o cliente",
+          "energy": 0,
+          "happiness": 2,
+          "minutes": 120,
+          "tokens": 50
+        }
+      ],
+      "totals": {
+        "energy": -6,
+        "happiness": 3,
+        "minutes": 250,
+        "tokens": 190
+      }
+    },
+    {
+      "code": "designer_acessorios",
+      "label": "Designer de Acessórios",
+      "rarity": "epic",
+      "tokens": 195,
+      "minutes": 280,
+      "tasks": [
+        {
+          "name": "compra equipamentos",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 20,
+          "tokens": 10
+        },
+        {
+          "name": "encomenda os materiais na indústria",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 10,
+          "tokens": 20
+        },
+        {
+          "name": "projeta designs",
+          "energy": 0,
+          "happiness": 1,
+          "minutes": 60,
+          "tokens": 40
+        },
+        {
+          "name": "define estampas diferentes",
+          "energy": 0,
+          "happiness": 1,
+          "minutes": 10,
+          "tokens": 20
+        },
+        {
+          "name": "estuda pontos de distribuição",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 60,
+          "tokens": 25
+        },
+        {
+          "name": "desenha a embalagem do produto",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 40,
+          "tokens": 30
+        },
+        {
+          "name": "vende para os donos de loja",
+          "energy": 0,
+          "happiness": 1,
+          "minutes": 80,
+          "tokens": 50
+        }
+      ],
+      "totals": {
+        "energy": -6,
+        "happiness": 3,
+        "minutes": 280,
+        "tokens": 195
+      }
+    },
+    {
+      "code": "cozinheiro",
+      "label": "Cozinheiro",
+      "rarity": "epic",
+      "tokens": 180,
+      "minutes": 270,
+      "tasks": [
+        {
+          "name": "compra os ingredientes",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 30,
+          "tokens": 10
+        },
+        {
+          "name": "compra o maquinário",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 30,
+          "tokens": 10
+        },
+        {
+          "name": "organiza e delega para os funcionários",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 50,
+          "tokens": 40
+        },
+        {
+          "name": "coloca a carne na grelha",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 40,
+          "tokens": 30
+        },
+        {
+          "name": "tempera a carne",
+          "energy": 0,
+          "happiness": 1,
+          "minutes": 40,
+          "tokens": 30
+        },
+        {
+          "name": "enfeita o prato",
+          "energy": 0,
+          "happiness": 1,
+          "minutes": 40,
+          "tokens": 30
+        },
+        {
+          "name": "adicionar os complementos",
+          "energy": 0,
+          "happiness": 1,
+          "minutes": 40,
+          "tokens": 10
+        },
+        {
+          "name": "entrega para o cliente",
+          "energy": 0,
+          "happiness": 1,
+          "minutes": 40,
+          "tokens": 20
+        }
+      ],
+      "totals": {
+        "energy": -6,
+        "happiness": 4,
+        "minutes": 310,
+        "tokens": 180
+      },
+      "conferir": [
+        "tarefas somam 310 minutos; o cabeçalho diz 270"
+      ]
+    },
+    {
+      "code": "fazendeiro",
+      "label": "Fazendeiro",
+      "rarity": "epic",
+      "tokens": 185,
+      "minutes": 240,
+      "tasks": [
+        {
+          "name": "adquire os grãos, sementes e adubo",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 30,
+          "tokens": 10
+        },
+        {
+          "name": "checa as plantações",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 30,
+          "tokens": 35
+        },
+        {
+          "name": "plantar mais sementes",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 60,
+          "tokens": 35
+        },
+        {
+          "name": "aciona os regadores da colheita",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 30,
+          "tokens": 35
+        },
+        {
+          "name": "repõe os comedouros",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 30,
+          "tokens": 30
+        },
+        {
+          "name": "colhe o leite das vacas",
+          "energy": 0,
+          "happiness": 1,
+          "minutes": 60,
+          "tokens": 50
+        }
+      ],
+      "totals": {
+        "energy": -6,
+        "happiness": 1,
+        "minutes": 240,
+        "tokens": 195
+      },
+      "conferir": [
+        "tarefas somam 195 tokens; o cabeçalho diz 185"
+      ]
+    },
+    {
+      "code": "farmaceutico",
+      "label": "Farmacêutico",
+      "rarity": "epic",
+      "tokens": 185,
+      "minutes": 230,
+      "tasks": [
+        {
+          "name": "organiza o estoque de remédios",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 60,
+          "tokens": 25
+        },
+        {
+          "name": "organizar as gôndolas da farmácia",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 40,
+          "tokens": 35
+        },
+        {
+          "name": "oferece conselho de medicamentos",
+          "energy": 0,
+          "happiness": 1,
+          "minutes": 20,
+          "tokens": 35
+        },
+        {
+          "name": "checa as receitas médicas",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 20,
+          "tokens": 40
+        },
+        {
+          "name": "realiza as vendas de remédios",
+          "energy": 0,
+          "happiness": 1,
+          "minutes": 60,
+          "tokens": 20
+        },
+        {
+          "name": "registra no sistema os remédios vendidos",
+          "energy": 0,
+          "happiness": 1,
+          "minutes": 30,
+          "tokens": 10
+        }
+      ],
+      "totals": {
+        "energy": -6,
+        "happiness": 3,
+        "minutes": 230,
+        "tokens": 165
+      },
+      "conferir": [
+        "tarefas somam 165 tokens; o cabeçalho diz 185"
+      ]
+    },
+    {
+      "code": "coordenador_escolar",
+      "label": "Coordenador Escolar",
+      "rarity": "epic",
+      "tokens": 190,
+      "minutes": 230,
+      "tasks": [
+        {
+          "name": "entra na sala",
+          "energy": 0,
+          "happiness": 1,
+          "minutes": 20,
+          "tokens": 20
+        },
+        {
+          "name": "conversa com alunos",
+          "energy": 0,
+          "happiness": 1,
+          "minutes": 30,
+          "tokens": 25
+        },
+        {
+          "name": "conversa com professores",
+          "energy": 0,
+          "happiness": 1,
+          "minutes": 30,
+          "tokens": 25
+        },
+        {
+          "name": "programa passeio de escolas",
+          "energy": 0,
+          "happiness": 1,
+          "minutes": 30,
+          "tokens": 35
+        },
+        {
+          "name": "confere o funcionamento da escola",
+          "energy": -3,
+          "happiness": 0,
+          "minutes": 60,
+          "tokens": 50
+        },
+        {
+          "name": "da advertência nos alunos que não realizam tarefas",
+          "energy": -2,
+          "happiness": -1,
+          "minutes": 30,
+          "tokens": 20
+        },
+        {
+          "name": "fala nos eventos da escola",
+          "energy": -1,
+          "happiness": 1,
+          "minutes": 30,
+          "tokens": 15
+        }
+      ],
+      "totals": {
+        "energy": -6,
+        "happiness": 4,
+        "minutes": 230,
+        "tokens": 190
+      }
+    },
+    {
+      "code": "perito",
+      "label": "Perito",
+      "rarity": "epic",
+      "tokens": 180,
+      "minutes": 240,
+      "tasks": [
+        {
+          "name": "entra na cena do crime",
+          "energy": 0,
+          "happiness": -1,
+          "minutes": 30,
+          "tokens": 35
+        },
+        {
+          "name": "fecha o perímetro",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 30,
+          "tokens": 40
+        },
+        {
+          "name": "colhe o sangue",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 30,
+          "tokens": 40
+        },
+        {
+          "name": "retira a digital da arma do crime",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 30,
+          "tokens": 25
+        },
+        {
+          "name": "pesquisa no laboratório o DNA do criminoso",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 30,
+          "tokens": 15
+        },
+        {
+          "name": "organiza as evidências em um quadro",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 30,
+          "tokens": 15
+        },
+        {
+          "name": "entrega lista de suspeitos para a polícia",
+          "energy": 0,
+          "happiness": 2,
+          "minutes": 30,
+          "tokens": 15
+        },
+        {
+          "name": "observa suspeitos para coletar evidências",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 30,
+          "tokens": 15
+        }
+      ],
+      "totals": {
+        "energy": -6,
+        "happiness": 1,
+        "minutes": 240,
+        "tokens": 200
+      },
+      "conferir": [
+        "tarefas somam 200 tokens; o cabeçalho diz 180"
+      ]
+    },
+    {
+      "code": "piloto",
+      "label": "Piloto",
+      "rarity": "epic",
+      "tokens": 185,
+      "minutes": 230,
+      "tasks": [
+        {
+          "name": "entra no avião",
+          "energy": 0,
+          "happiness": 1,
+          "minutes": 10,
+          "tokens": 20
+        },
+        {
+          "name": "checa os motores",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 50,
+          "tokens": 35
+        },
+        {
+          "name": "checa o combustível",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 50,
+          "tokens": 40
+        },
+        {
+          "name": "entra em contato com o aeroporto no qual vai decolar",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 20,
+          "tokens": 25
+        },
+        {
+          "name": "entra em contato com o ponto de descida para checar as condições",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 30,
+          "tokens": 20
+        },
+        {
+          "name": "passa os procedimentos de segurança para os passageiros",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 40,
+          "tokens": 25
+        },
+        {
+          "name": "decola",
+          "energy": 0,
+          "happiness": 1,
+          "minutes": 30,
+          "tokens": 20
+        },
+        {
+          "name": "realiza treinamentos junto à equipe do vôo",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 230,
+          "tokens": 130
+        }
+      ],
+      "totals": {
+        "energy": -6,
+        "happiness": 2,
+        "minutes": 460,
+        "tokens": 315
+      },
+      "conferir": [
+        "tarefas somam 315 tokens; o cabeçalho diz 185",
+        "tarefas somam 460 minutos; o cabeçalho diz 230"
+      ]
+    },
+    {
+      "code": "adestrador",
+      "label": "Adestrador",
+      "rarity": "epic",
+      "tokens": 180,
+      "minutes": 240,
+      "tasks": [
+        {
+          "name": "leva o cão para passear",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 60,
+          "tokens": 35
+        },
+        {
+          "name": "ensina o cachorro de passeio a sentar",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 40,
+          "tokens": 30
+        },
+        {
+          "name": "ensina o cachorro de fazenda a ir atrás de raposas",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 40,
+          "tokens": 25
+        },
+        {
+          "name": "treina o cachorro com comida",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 40,
+          "tokens": 25
+        },
+        {
+          "name": "coloca o cachorro para dormir",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 40,
+          "tokens": 15
+        },
+        {
+          "name": "faz carinho no cachorro quando ele acerta o que deveria fazer",
+          "energy": 0,
+          "happiness": 3,
+          "minutes": 20,
+          "tokens": 10
+        }
+      ],
+      "totals": {
+        "energy": -6,
+        "happiness": 3,
+        "minutes": 240,
+        "tokens": 140
+      },
+      "conferir": [
+        "tarefas somam 140 tokens; o cabeçalho diz 180"
+      ]
+    },
+    {
+      "code": "administrador_condominio",
+      "label": "Administrador de Condomínio",
+      "rarity": "epic",
+      "tokens": 185,
+      "minutes": 230,
+      "tasks": [
+        {
+          "name": "organiza as reuniões de condomínio",
+          "energy": 0,
+          "happiness": 1,
+          "minutes": 20,
+          "tokens": 20
+        },
+        {
+          "name": "avalia as instalações do prédio",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 50,
+          "tokens": 30
+        },
+        {
+          "name": "planeja os eventos que irão ocorrer no edifício residencial",
+          "energy": 0,
+          "happiness": 1,
+          "minutes": 30,
+          "tokens": 35
+        },
+        {
+          "name": "faz o planejamento de mudanças dos novos moradores",
+          "energy": 0,
+          "happiness": 1,
+          "minutes": 30,
+          "tokens": 30
+        },
+        {
+          "name": "limpa a rua em frente ao prédio",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 50,
+          "tokens": 35
+        },
+        {
+          "name": "checa o relógio de luz",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 50,
+          "tokens": 35
+        }
+      ],
+      "totals": {
+        "energy": -6,
+        "happiness": 3,
+        "minutes": 230,
+        "tokens": 185
+      }
+    },
+    {
+      "code": "concierge",
+      "label": "Concierge",
+      "rarity": "epic",
+      "tokens": 205,
+      "minutes": 250,
+      "tasks": [
+        {
+          "name": "abre o portão",
+          "energy": 0,
+          "happiness": 1,
+          "minutes": 20,
+          "tokens": 35
+        },
+        {
+          "name": "interfone quando chega delivery",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 40,
+          "tokens": 20
+        },
+        {
+          "name": "rega as plantas do hotel",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 40,
+          "tokens": 25
+        },
+        {
+          "name": "recolhe o lixo da portaria",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 40,
+          "tokens": 25
+        },
+        {
+          "name": "limpa a rua em frente do prédio",
+          "energy": -2,
+          "happiness": 1,
+          "minutes": 60,
+          "tokens": 55
+        },
+        {
+          "name": "observa as câmeras do hotel",
+          "energy": 0,
+          "happiness": 1,
+          "minutes": 20,
+          "tokens": 15
+        },
+        {
+          "name": "confere o relógio de luz",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 40,
+          "tokens": 30
+        }
+      ],
+      "totals": {
+        "energy": -6,
+        "happiness": 3,
+        "minutes": 260,
+        "tokens": 205
+      },
+      "conferir": [
+        "tarefas somam 260 minutos; o cabeçalho diz 250"
+      ]
+    },
+    {
+      "code": "veterinario",
+      "label": "Veterinário",
+      "rarity": "epic",
+      "tokens": 200,
+      "minutes": 240,
+      "tasks": [
+        {
+          "name": "Chega ao consultório",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 20,
+          "tokens": 30
+        },
+        {
+          "name": "Coloca o pet na cama para examiná-lo",
+          "energy": -1,
+          "happiness": 2,
+          "minutes": 20,
+          "tokens": 35
+        },
+        {
+          "name": "da vacina para os pets",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 50,
+          "tokens": 40
+        },
+        {
+          "name": "coloca curativos nos pets",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 50,
+          "tokens": 40
+        },
+        {
+          "name": "prescreve remédios para os pets",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 50,
+          "tokens": 40
+        },
+        {
+          "name": "dar banho no pet",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 30,
+          "tokens": 15
+        }
+      ],
+      "totals": {
+        "energy": -6,
+        "happiness": 2,
+        "minutes": 220,
+        "tokens": 200
+      },
+      "conferir": [
+        "tarefas somam 220 minutos; o cabeçalho diz 240"
+      ]
+    },
+    {
+      "code": "incorporador",
+      "label": "Incorporador",
+      "rarity": "epic",
+      "tokens": 190,
+      "minutes": 240,
+      "tasks": [
+        {
+          "name": "Discute com acionistas estratégias de incorporação",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 60,
+          "tokens": 40
+        },
+        {
+          "name": "Visita edifícios para verificar qualidade",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 40,
+          "tokens": 25
+        },
+        {
+          "name": "Negocia com os donos do edifício",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 40,
+          "tokens": 35
+        },
+        {
+          "name": "Promove divulgação dos edifícios incorporados",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 40,
+          "tokens": 35
+        },
+        {
+          "name": "Junto ao advogado, redige o contrato de incorporação",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 40,
+          "tokens": 30
+        },
+        {
+          "name": "Realiza a incorporação",
+          "energy": 0,
+          "happiness": 3,
+          "minutes": 30,
+          "tokens": 25
+        }
+      ],
+      "totals": {
+        "energy": -6,
+        "happiness": 3,
+        "minutes": 250,
+        "tokens": 190
+      },
+      "conferir": [
+        "tarefas somam 250 minutos; o cabeçalho diz 240"
+      ]
+    },
+    {
+      "code": "hoteleiro",
+      "label": "Hoteleiro",
+      "rarity": "epic",
+      "tokens": 180,
+      "minutes": 225,
+      "tasks": [
+        {
+          "name": "Recebe novos hóspedes",
+          "energy": 0,
+          "happiness": 1,
+          "minutes": 15,
+          "tokens": 20
+        },
+        {
+          "name": "Organiza os quartos dentro do hotel",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 50,
+          "tokens": 30
+        },
+        {
+          "name": "Treina a equipe do hotel para melhorar a qualidade do serviço",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 50,
+          "tokens": 25
+        },
+        {
+          "name": "pergunta para os hóspedes se a estadia está boa",
+          "energy": 0,
+          "happiness": 1,
+          "minutes": 15,
+          "tokens": 35
+        },
+        {
+          "name": "atende telefonemas",
+          "energy": 0,
+          "happiness": 1,
+          "minutes": 30,
+          "tokens": 25
+        },
+        {
+          "name": "visita a cozinha para verificar o andamento das refeições",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 50,
+          "tokens": 30
+        },
+        {
+          "name": "realiza o checkout",
+          "energy": 0,
+          "happiness": 1,
+          "minutes": 15,
+          "tokens": 15
+        }
+      ],
+      "totals": {
+        "energy": -6,
+        "happiness": 4,
+        "minutes": 225,
+        "tokens": 180
+      }
+    },
+    {
+      "code": "engenheiro_civil",
+      "label": "Engenheiro Civil",
+      "rarity": "legendary",
+      "tokens": 225,
+      "minutes": 230,
+      "tasks": [
+        {
+          "name": "Fazer a planta do edifício",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 40,
+          "tokens": 0
+        },
+        {
+          "name": "Analisar os materiais necessários",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 20,
+          "tokens": 0
+        },
+        {
+          "name": "Calcular os materiais necessários",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 30,
+          "tokens": 0
+        },
+        {
+          "name": "Calcular o número de empregados e o tempo de construção",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 100,
+          "tokens": 0
+        },
+        {
+          "name": "Calcular o custo total do projeto",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 30,
+          "tokens": 0
+        },
+        {
+          "name": "Receber o pagamento",
+          "energy": 0,
+          "happiness": 0,
+          "minutes": 0,
+          "tokens": 225
+        }
+      ],
+      "totals": {
+        "energy": -6,
+        "happiness": 0,
+        "minutes": 220,
+        "tokens": 225
+      },
+      "conferir": [
+        "tarefas somam 220 minutos; o cabeçalho diz 230"
+      ]
+    },
+    {
+      "code": "estilista",
+      "label": "Estilista",
+      "rarity": "legendary",
+      "tokens": 230,
+      "minutes": 230,
+      "tasks": [
+        {
+          "name": "Ir ao atelier",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 10,
+          "tokens": 0
+        },
+        {
+          "name": "Realizar o esboço da roupa",
+          "energy": -1,
+          "happiness": 1,
+          "minutes": 80,
+          "tokens": 0
+        },
+        {
+          "name": "Projetar a roupa que será construída",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 90,
+          "tokens": 0
+        },
+        {
+          "name": "Realizar a medição do cliente",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 20,
+          "tokens": 0
+        },
+        {
+          "name": "Passar para o alfaiate construir",
+          "energy": -1,
+          "happiness": 2,
+          "minutes": 10,
+          "tokens": 0
+        },
+        {
+          "name": "Receber a roupa do alfaiate",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 10,
+          "tokens": 0
+        },
+        {
+          "name": "Entregar a roupa do cliente",
+          "energy": -1,
+          "happiness": 2,
+          "minutes": 10,
+          "tokens": 0
+        },
+        {
+          "name": "Receber o pagamento do cliente",
+          "energy": 0,
+          "happiness": 0,
+          "minutes": 0,
+          "tokens": 230
+        },
+        {
+          "name": "Volta para casa",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 0,
+          "tokens": 0
+        }
+      ],
+      "totals": {
+        "energy": -9,
+        "happiness": 5,
+        "minutes": 230,
+        "tokens": 230
+      }
+    },
+    {
+      "code": "chef",
+      "label": "Chef",
+      "rarity": "legendary",
+      "tokens": 240,
+      "minutes": 190,
+      "tasks": [
+        {
+          "name": "Ir ao restaurante",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 10,
+          "tokens": 0
+        },
+        {
+          "name": "Organizar o cardápio do restaurante/evento",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 20,
+          "tokens": 0
+        },
+        {
+          "name": "Preparar a comida do cardápio para teste",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 30,
+          "tokens": 0
+        },
+        {
+          "name": "Provar os pratos",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 10,
+          "tokens": 0
+        },
+        {
+          "name": "Aprimorar o prato",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 20,
+          "tokens": 0
+        },
+        {
+          "name": "Repetir até o ponto ideal",
+          "energy": 0,
+          "happiness": 2,
+          "minutes": 30,
+          "tokens": 0
+        },
+        {
+          "name": "Coordenar o restaurante",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 70,
+          "tokens": 0
+        },
+        {
+          "name": "Receber pagamento",
+          "energy": 0,
+          "happiness": 0,
+          "minutes": 0,
+          "tokens": 240
+        },
+        {
+          "name": "Voltar para casa",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 0,
+          "tokens": 0
+        }
+      ],
+      "totals": {
+        "energy": -9,
+        "happiness": 2,
+        "minutes": 190,
+        "tokens": 240
+      }
+    },
+    {
+      "code": "agronomo",
+      "label": "Agrônomo",
+      "rarity": "legendary",
+      "tokens": 245,
+      "minutes": 195,
+      "tasks": [
+        {
+          "name": "Fiscalizar o agricultor",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 15,
+          "tokens": 0
+        },
+        {
+          "name": "Comprar novas sementes",
+          "energy": -1,
+          "happiness": 1,
+          "minutes": 10,
+          "tokens": 0
+        },
+        {
+          "name": "Comprar novas máquinas",
+          "energy": -1,
+          "happiness": 1,
+          "minutes": 15,
+          "tokens": 0
+        },
+        {
+          "name": "Fiscalizar o alimento dos animais",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 60,
+          "tokens": 0
+        },
+        {
+          "name": "Fiscalizar a saúde dos animais",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 40,
+          "tokens": 0
+        },
+        {
+          "name": "Fiscalizar a produção de leite",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 20,
+          "tokens": 0
+        },
+        {
+          "name": "Fiscalizar a produção de ovos",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 35,
+          "tokens": 0
+        },
+        {
+          "name": "Receber pagamento",
+          "energy": 0,
+          "happiness": 0,
+          "minutes": 0,
+          "tokens": 245
+        },
+        {
+          "name": "Voltar para casa",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 0,
+          "tokens": 0
+        }
+      ],
+      "totals": {
+        "energy": -8,
+        "happiness": 2,
+        "minutes": 195,
+        "tokens": 245
+      }
+    },
+    {
+      "code": "medico",
+      "label": "Médico",
+      "rarity": "legendary",
+      "tokens": 250,
+      "minutes": 235,
+      "tasks": [
+        {
+          "name": "Fazer diagnóstico",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 30,
+          "tokens": 30
+        },
+        {
+          "name": "Usar estetoscópio",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 20,
+          "tokens": 30
+        },
+        {
+          "name": "Passar receita",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 10,
+          "tokens": 20
+        },
+        {
+          "name": "Realizar cirurgia",
+          "energy": -3,
+          "happiness": 0,
+          "minutes": 45,
+          "tokens": 30
+        },
+        {
+          "name": "Aplicar anestesia",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 30,
+          "tokens": 20
+        },
+        {
+          "name": "Pedir exames",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 10,
+          "tokens": 25
+        },
+        {
+          "name": "Dar alta em paciente",
+          "energy": 0,
+          "happiness": 1,
+          "minutes": 10,
+          "tokens": 30
+        },
+        {
+          "name": "Fazer raio-x",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 30,
+          "tokens": 10
+        },
+        {
+          "name": "Internar paciente",
+          "energy": -2,
+          "happiness": -1,
+          "minutes": 10,
+          "tokens": 35
+        },
+        {
+          "name": "Imobilizar paciente",
+          "energy": -3,
+          "happiness": 0,
+          "minutes": 40,
+          "tokens": 20
+        }
+      ],
+      "totals": {
+        "energy": -18,
+        "happiness": 0,
+        "minutes": 235,
+        "tokens": 250
+      }
+    },
+    {
+      "code": "diretor",
+      "label": "Diretor",
+      "rarity": "legendary",
+      "tokens": 250,
+      "minutes": 265,
+      "tasks": [
+        {
+          "name": "Delegar tarefas",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 25,
+          "tokens": 35
+        },
+        {
+          "name": "Revisar tarefas",
+          "energy": -3,
+          "happiness": 0,
+          "minutes": 40,
+          "tokens": 30
+        },
+        {
+          "name": "Criar um regulamento",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 30,
+          "tokens": 40
+        },
+        {
+          "name": "Dar bronca",
+          "energy": -2,
+          "happiness": -1,
+          "minutes": 20,
+          "tokens": 35
+        },
+        {
+          "name": "Passar feedback positivo",
+          "energy": 0,
+          "happiness": 1,
+          "minutes": 25,
+          "tokens": 35
+        },
+        {
+          "name": "Montar planejamento",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 30,
+          "tokens": 30
+        },
+        {
+          "name": "Organizar reunião geral",
+          "energy": -3,
+          "happiness": 0,
+          "minutes": 45,
+          "tokens": 35
+        }
+      ],
+      "totals": {
+        "energy": -13,
+        "happiness": 0,
+        "minutes": 215,
+        "tokens": 240
+      },
+      "conferir": [
+        "tarefas somam 240 tokens; o cabeçalho diz 250",
+        "tarefas somam 215 minutos; o cabeçalho diz 265"
+      ]
+    },
+    {
+      "code": "delegado",
+      "label": "Delegado",
+      "rarity": "legendary",
+      "tokens": 240,
+      "minutes": 240,
+      "tasks": [
+        {
+          "name": "Investigar o caso",
+          "energy": -3,
+          "happiness": 0,
+          "minutes": 30,
+          "tokens": 40
+        },
+        {
+          "name": "Fazer mandado de apreensão",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 20,
+          "tokens": 15
+        },
+        {
+          "name": "Identificação de criminosos",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 40,
+          "tokens": 25
+        },
+        {
+          "name": "Coordenar atividades policiais",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 30,
+          "tokens": 30
+        },
+        {
+          "name": "Encontrar suspeito",
+          "energy": -1,
+          "happiness": 1,
+          "minutes": 10,
+          "tokens": 30
+        },
+        {
+          "name": "Treinamento de tiro",
+          "energy": -3,
+          "happiness": 0,
+          "minutes": 30,
+          "tokens": 25
+        },
+        {
+          "name": "Treinamento de primeiros socorros",
+          "energy": -3,
+          "happiness": 0,
+          "minutes": 30,
+          "tokens": 10
+        },
+        {
+          "name": "Soltar inocente",
+          "energy": -1,
+          "happiness": 1,
+          "minutes": 10,
+          "tokens": 15
+        },
+        {
+          "name": "Levar para prisão",
+          "energy": -1,
+          "happiness": 1,
+          "minutes": 10,
+          "tokens": 10
+        },
+        {
+          "name": "Amparar vítima",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 30,
+          "tokens": 20
+        },
+        {
+          "name": "Fazer boletim de ocorrência",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 20,
+          "tokens": 10
+        }
+      ],
+      "totals": {
+        "energy": -20,
+        "happiness": 3,
+        "minutes": 260,
+        "tokens": 230
+      },
+      "conferir": [
+        "tarefas somam 230 tokens; o cabeçalho diz 240",
+        "tarefas somam 260 minutos; o cabeçalho diz 240"
+      ]
+    },
+    {
+      "code": "astronauta",
+      "label": "Astronauta",
+      "rarity": "legendary",
+      "tokens": 235,
+      "minutes": 230,
+      "tasks": [
+        {
+          "name": "Treinamento físico",
+          "energy": -3,
+          "happiness": 0,
+          "minutes": 30,
+          "tokens": 35
+        },
+        {
+          "name": "Simulação ida espaço",
+          "energy": -1,
+          "happiness": 1,
+          "minutes": 10,
+          "tokens": 20
+        },
+        {
+          "name": "Ir ao espaço",
+          "energy": -1,
+          "happiness": 1,
+          "minutes": 20,
+          "tokens": 20
+        },
+        {
+          "name": "Coleta de informações",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 40,
+          "tokens": 30
+        },
+        {
+          "name": "Preparo psicológico",
+          "energy": -3,
+          "happiness": 0,
+          "minutes": 30,
+          "tokens": 20
+        },
+        {
+          "name": "Pilotar a nave espacial",
+          "energy": -1,
+          "happiness": 1,
+          "minutes": 35,
+          "tokens": 15
+        },
+        {
+          "name": "Organizar a nave espacial",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 10,
+          "tokens": 10
+        },
+        {
+          "name": "Comunicar com a torre de comando",
+          "energy": -1,
+          "happiness": 0,
+          "minutes": 20,
+          "tokens": 10
+        },
+        {
+          "name": "Aterrissar em outro planeta",
+          "energy": -1,
+          "happiness": 1,
+          "minutes": 20,
+          "tokens": 15
+        },
+        {
+          "name": "Decolar",
+          "energy": -2,
+          "happiness": 0,
+          "minutes": 30,
+          "tokens": 20
+        },
+        {
+          "name": "Pousar na Terra",
+          "energy": -1,
+          "happiness": 1,
+          "minutes": 20,
+          "tokens": 25
+        }
+      ],
+      "totals": {
+        "energy": -18,
+        "happiness": 5,
+        "minutes": 265,
+        "tokens": 220
+      },
+      "conferir": [
+        "tarefas somam 220 tokens; o cabeçalho diz 235",
+        "tarefas somam 265 minutos; o cabeçalho diz 230"
+      ]
+    }
+  ]
+}

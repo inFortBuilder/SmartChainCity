@@ -76,11 +76,11 @@ describe('settle', () => {
 });
 
 describe('baseOf', () => {
-  it('fica na faixa da raridade e é sempre a mesma para o mesmo avatar', () => {
-    const id = randomUUID();
-    const b = baseOf(id, 'legendary');
+  it('é o ganho da profissão no catálogo, dentro da faixa da raridade', () => {
+    expect(baseOf('padeiro')).toBe(125);
+    expect(baseOf('pedreiro')).toBe(100);
+    const b = baseOf('medico');
     expect(b).toBeGreaterThanOrEqual(BASE_RANGE.legendary[0]);
     expect(b).toBeLessThanOrEqual(BASE_RANGE.legendary[1]);
-    expect(baseOf(id, 'legendary')).toBe(b);
   });
 });

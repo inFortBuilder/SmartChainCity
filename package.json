@@ -10,7 +10,7 @@
     "lint": "pnpm -r lint",
     "test": "pnpm -r test",
     "db:up": "node infra/dev/postgres.mjs",
-    "db:migrate": "pnpm -r --if-present db:migrate",
+    "db:migrate": "pnpm -r --workspace-concurrency=1 --if-present db:migrate",
     "dev:fund-pool": "node infra/dev/fund-pool.mjs"
   },
   "devDependencies": {

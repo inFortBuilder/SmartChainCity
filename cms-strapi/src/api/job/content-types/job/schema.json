@@ -1,0 +1,21 @@
+{
+  "kind": "collectionType",
+  "collectionName": "jobs",
+  "info": {
+    "singularName": "job",
+    "pluralName": "jobs",
+    "displayName": "Profissão",
+    "description": "As profissões do jogo: ganho do dia, duração e tarefas do minigame (GDD, capítulo 4). O game-core lê as publicadas."
+  },
+  "options": { "draftAndPublish": true },
+  "pluginOptions": {},
+  "attributes": {
+    "code": { "type": "uid", "required": true },
+    "label": { "type": "string", "required": true },
+    "rarity": { "type": "enumeration", "enum": ["common", "rare", "epic", "legendary"], "required": true },
+    "tokens": { "type": "integer", "required": true, "min": 0 },
+    "minutes": { "type": "integer", "required": true, "min": 0 },
+    "tasks": { "type": "component", "repeatable": true, "component": "game.job-task" },
+    "conferir": { "type": "json" }
+  }
+}

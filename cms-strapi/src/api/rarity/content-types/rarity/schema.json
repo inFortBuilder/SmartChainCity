@@ -1,0 +1,19 @@
+{
+  "kind": "collectionType",
+  "collectionName": "rarities",
+  "info": {
+    "singularName": "rarity",
+    "pluralName": "rarities",
+    "displayName": "Raridade",
+    "description": "Raridades do avatar e a faixa de ganho por dia de cada uma (doc 02 §2.2), aprovada no simulador econômico."
+  },
+  "options": { "draftAndPublish": true },
+  "pluginOptions": {},
+  "attributes": {
+    "code": { "type": "enumeration", "enum": ["common", "rare", "epic", "legendary"], "required": true, "unique": true },
+    "label": { "type": "string", "required": true },
+    "baseMin": { "type": "integer", "required": true, "min": 0 },
+    "baseMax": { "type": "integer", "required": true, "min": 0 },
+    "comboPriceUsd": { "type": "decimal", "min": 0 }
+  }
+}

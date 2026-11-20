@@ -1,0 +1,42 @@
+{
+  "fonte": "Tabela de Atributos (planilha), transcrita no doc 02 §7; nível de fazenda do doc 02 §6",
+  "gerado_por": "à mão, a partir de docs/02-game-design.md",
+  "unidades": {
+    "energy": "pontos de energia ao comer (0–10)",
+    "health": "pontos de saúde ao comer (0–10)",
+    "pack": "unidades por pacote",
+    "farmLevel": "nível da fazenda que produz o alimento (1–3); vazio quando não vem da lavoura",
+    "price": "THALER por pacote; vazio até o game designer definir (o simulador conta 12 THALER/dia de alimentação)"
+  },
+  "regras": [
+    "Pets recebem 50% do efeito do alimento; animais de fazenda, 50% da energia"
+  ],
+  "alimentos": [
+    { "code": "milho", "label": "Milho", "group": "grao_legume", "energy": 1, "health": 1, "pack": 5, "farmLevel": 2 },
+    {
+      "code": "tomate",
+      "label": "Tomate",
+      "group": "grao_legume",
+      "energy": 1,
+      "health": 2,
+      "pack": 5,
+      "farmLevel": 1,
+      "conferir": ["A planilha tem o tomate duas vezes, com +2 e +3 de saúde; um deles deve ser outro alimento (doc 11, conflito 4)"]
+    },
+    { "code": "beterraba", "label": "Beterraba", "group": "grao_legume", "energy": 1, "health": 2, "pack": 5, "farmLevel": 2 },
+    { "code": "cenoura", "label": "Cenoura", "group": "grao_legume", "energy": 1, "health": 3, "pack": 5, "farmLevel": 1 },
+    { "code": "trigo", "label": "Trigo (pão)", "group": "grao_legume", "energy": 2, "health": 2, "pack": 5, "farmLevel": 3 },
+    { "code": "batata", "label": "Batata", "group": "grao_legume", "energy": 2, "health": 2, "pack": 5, "farmLevel": 3 },
+    { "code": "maca", "label": "Maçã", "group": "fruta", "energy": 3, "health": 1, "pack": 5, "farmLevel": 3 },
+    { "code": "laranja", "label": "Laranja", "group": "fruta", "energy": 2, "health": 1, "pack": 5, "farmLevel": 2 },
+    { "code": "uva", "label": "Uva", "group": "fruta", "energy": 1, "health": 1, "pack": 5, "farmLevel": 1 },
+    { "code": "morango", "label": "Morango", "group": "fruta", "energy": 1, "health": 1, "pack": 5, "farmLevel": 1 },
+    { "code": "carne_crua", "label": "Carne crua (vaca, porco ou frango)", "group": "proteina", "energy": 1, "health": -1, "pack": 3 },
+    { "code": "carne_cozida", "label": "Carne cozida", "group": "proteina", "energy": 3, "health": 0, "pack": 3 },
+    { "code": "ovos", "label": "Ovos", "group": "proteina", "energy": 1, "health": 0, "pack": 3 },
+    { "code": "leite", "label": "Leite", "group": "proteina", "energy": 1, "health": 0, "pack": 3 },
+    { "code": "algodao_doce", "label": "Algodão-doce", "group": "lanche", "energy": 1, "health": -1, "pack": 1 },
+    { "code": "pipoca", "label": "Pipoca", "group": "lanche", "energy": 1, "health": -1, "pack": 1 },
+    { "code": "milk_shake", "label": "Milk-shake", "group": "lanche", "energy": 1, "health": -1, "pack": 1 }
+  ]
+}
