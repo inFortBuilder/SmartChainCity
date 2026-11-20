@@ -1,0 +1,1 @@
+ALTER TABLE "game"."avatar" ADD COLUMN "conditions" jsonb DEFAULT '[]'::jsonb NOT NULL;

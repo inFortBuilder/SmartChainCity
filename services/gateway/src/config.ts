@@ -8,6 +8,9 @@ const list = (value: string) =>
 
 const schema = z.object({
   NODE_ENV: z.string().default('development'),
+  LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
+  /** Token do Prometheus para ler /metrics; sem ele, /metrics fica desligado em produção. */
+  METRICS_TOKEN: z.string().min(32, 'METRICS_TOKEN precisa de pelo menos 32 caracteres').optional(),
   PORT: z.coerce.number().int().positive().default(8000),
   HOST: z.string().default('127.0.0.1'),
   DATABASE_URL: z.string().optional(),
@@ -24,6 +27,14 @@ const schema = z.object({
   RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(120),
   AUTH_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(20),
   TRUST_PROXY: z.stringbool().default(false),
+  /**
+   * Como o código de login por e-mail chega: 'log' escreve no log do gateway
+   * (MVP local, sem provedor pago; recusado em produção). 'off' desliga a rota.
+   */
+  EMAIL_LOGIN: z.enum(['log', 'off']).default('log'),
+  EMAIL_CODE_TTL_SECONDS: z.coerce.number().int().positive().default(600),
+  EMAIL_CODE_RESEND_SECONDS: z.coerce.number().int().nonnegative().default(60),
+  EMAIL_CODE_MAX_ATTEMPTS: z.coerce.number().int().positive().default(5),
 });
 
 export type Config = z.infer<typeof schema>;

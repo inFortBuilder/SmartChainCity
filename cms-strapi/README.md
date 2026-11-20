@@ -18,7 +18,7 @@ O Strapi 5.62 (TypeScript) fica nesta pasta, com npm próprio, fora do workspace
 | Tipo **Multiplicador** (`api::attribute-multiplier.attribute-multiplier`) | 36 linhas: multiplicador do ganho por nível de saúde, felicidade, experiência e pet (doc 02 §2.4) |
 | Tipo **Tipo de imóvel** (`api::property-type.property-type`) | 26 tipos (6 residenciais, 12 comerciais, 3 industriais, 5 rurais, doc 03 §6) com os níveis no componente `game.property-level` (renda máxima e custo de upgrade) |
 | Leitura pública | Na inicialização, o papel público ganha `find` e `findOne` de todos os tipos do catálogo: é dado público do jogo. Só o publicado aparece |
-| Webhook para o game-core | Na inicialização, se o `.env` tiver `CATALOG_WEBHOOK_URL` e `CATALOG_WEBHOOK_TOKEN`, o Strapi registra o webhook "game-core: atualizar catálogo" (publicar, despublicar, apagar). O game-core recarrega as profissões sem deploy (trilha, passo 6); aviso de outro tipo é ignorado (`{ ignored: "food" }`) até o game-core usar esse tipo |
+| Webhook para o game-core | Na inicialização, se o `.env` tiver `CATALOG_WEBHOOK_URL` e `CATALOG_WEBHOOK_TOKEN`, o Strapi registra o webhook "game-core: atualizar catálogo" (publicar, despublicar, apagar). O game-core recarrega as profissões e os alimentos sem deploy (trilha, passo 6); aviso de outro tipo é ignorado (`{ ignored: "property-type" }`) até o game-core usar esse tipo |
 | Seed | `npm run seed` carrega e publica tudo o que está em `seed/`. Pode rodar de novo: atualiza pela chave (código, ou atributo e nível), não duplica. `npm run seed -- food` carrega só um tipo |
 
 ```bash
