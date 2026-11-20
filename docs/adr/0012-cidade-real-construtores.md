@@ -21,5 +21,5 @@ Opção 2. O lote é um polígono em metros (GeoJSON) com área calculada, e a p
 ## Consequências
 - O serviço World guarda `lot.polygon` (jsonb) e as regras da zona; a grade deixa de ser a fonte da verdade.
 - O cliente é o web nativo ([ADR-0009](0009-cliente-web-nativo.md)), que compartilha validação e LOD com o SCC Builder.
-- Continuam abertos (doc 13 §11): cidade de referência definitiva (Pittsburg é cidade de teste; a licença do modelo usado não foi confirmada), unidades como ERC-721 ou ERC-1155, royalty, alvará e outorga, quem pode ser construtor, titularidade do código do Convert3D.
+- Continuam abertos (doc 13 §11): cidade de referência definitiva (Pittsburg é cidade de teste; a licença do modelo usado não foi confirmada), unidades como ERC-721 ou ERC-1155, royalty, alvará e outorga e quem pode ser construtor. A titularidade do Convert3D foi confirmada em 2026-11-20: o código é próprio da equipe.
 - Atribuição ODbL ("© OpenStreetMap contributors") obrigatória onde o traçado aparecer.
