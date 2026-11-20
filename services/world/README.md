@@ -56,6 +56,10 @@ O dono do lote constrói, espera a obra e coleta a renda (doc 03 §6.3). O dinhe
 | Desgaste | Começa em 100 quando a obra termina e cai 1 ponto por dia |
 | Renda | Renda do nível × desgaste/100. Abaixo de 30 de desgaste, o imóvel para de render. Acumula até 7 dias sem coletar |
 | Coleta | `POST /v1/world/properties/:id/claim` fecha o período e paga do pool P2E para o jogador, com a chave da coleta. Duas coletas ao mesmo tempo: só uma fecha o período. Com o pool vazio, a coleta fica guardada (`503 pool_empty`), e o job paga depois |
+| Reparo | `POST /v1/world/properties/:id/repair` cobra pelo desgaste perdido (burn/repair) e volta o desgaste a 100 |
+| Upgrade | `POST /v1/world/properties/:id/upgrade` cobra o custo do próximo nível (burn/construction) e sobe o nível; a renda passa a ser a do nível novo, e o desgaste segue de onde estava |
+
+Reparo e upgrade cobram antes e só depois mudam o imóvel. Na mudança, que roda numa transação com o imóvel travado, a renda acumulada até ali é fechada numa coleta e paga, com o desgaste e o nível antigos. Assim a obra nunca recalcula para trás um período que já rendeu. Cada imóvel tem no máximo uma obra pendente (`409 work_in_progress`). Sem THALER, a obra não acontece; com o ledger fora, ela fica pendente e o job a termina depois.
 
 O job `properties.settle` (junto do `purchases.settle`) refaz obras e coletas que ficaram pendentes. As chaves do ledger são as mesmas, então nada é cobrado nem pago duas vezes.
 
@@ -64,8 +68,10 @@ O job `properties.settle` (junto do `purchases.settle`) refaz obras e coletas qu
 - **Obra:** 24 h, do protótipo de gestão.
 - **Acúmulo:** até 7 dias.
 - **Desgaste:** 1 ponto por dia.
+- **Reparo:** 0,05% do preço por ponto recuperado; na T1, 2 THALER por ponto.
+- **Upgrade da T1:** nível 2 custa 2.000 THALER e rende 15/dia; nível 3 custa 4.000 e rende 20/dia.
 
-Com isso, uma T1 coletada toda semana rende 455 THALER até o desgaste chegar a 30, em 70 dias, contra 4.000 de obra. Sem reparo, ela não se paga. O reparo é o próximo passo, e o [simulador](../../tools/econ-sim/README.md), que conta 10 THALER/dia sem desgaste, precisa passar a contar o desgaste e o reparo.
+Com isso, uma T1 coletada toda semana rende 455 THALER até o desgaste chegar a 30, em 70 dias, contra 4.000 de obra. Com reparo a cada 30 dias (60 THALER), sobra ~195 THALER por mês, e a obra se paga em ~620 dias. O [simulador](../../tools/econ-sim/README.md), que conta 10 THALER/dia sem desgaste, precisa passar a contar o desgaste, o reparo e os níveis antes de esses números virarem regra.
 
 ## Rodar
 
@@ -99,17 +105,19 @@ TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc_test pnpm --filter
 | POST | `/v1/world/cities/:code/lots/:id/property` | dono do lote (Bearer) | Constrói (corpo: `{type}`) pagando THALER |
 | GET | `/v1/world/me/properties` | jogador (Bearer) | Imóveis do jogador: fase (`pending_payment`, `building`, `ready`), progresso da obra, desgaste, renda por dia e acumulada |
 | POST | `/v1/world/properties/:id/claim` | dono (Bearer) | Coleta a renda acumulada |
+| POST | `/v1/world/properties/:id/repair` | dono (Bearer) | Reparo: desgaste volta a 100 |
+| POST | `/v1/world/properties/:id/upgrade` | dono (Bearer) | Sobe um nível |
 | GET | `/healthz` | — | `{status: "ok"}` |
 
-Erros com código estável: `lot_not_for_sale`, `lot_reserved`, `district_closed`, `other_district`, `area_cap`, `insufficient_scity`, `reservation_lost`, `ledger_unavailable`, `not_found`, `not_lot_owner`, `wallet_not_linked`, `unknown_property_type`, `zone_not_allowed`, `lot_has_property`, `insufficient_thaler`, `property_not_ready`, `nothing_to_claim`, `claim_in_progress`, `pool_empty`, `properties_disabled`, `city_not_onchain`, `onchain_disabled`, `gateway_unavailable`, `missing_credentials`, `invalid_token`, `token_expired`.
+Erros com código estável: `lot_not_for_sale`, `lot_reserved`, `district_closed`, `other_district`, `area_cap`, `insufficient_scity`, `reservation_lost`, `ledger_unavailable`, `not_found`, `not_lot_owner`, `wallet_not_linked`, `unknown_property_type`, `zone_not_allowed`, `lot_has_property`, `insufficient_thaler`, `property_not_ready`, `nothing_to_claim`, `claim_in_progress`, `nothing_to_repair`, `max_level`, `work_in_progress`, `pool_empty`, `properties_disabled`, `city_not_onchain`, `onchain_disabled`, `gateway_unavailable`, `missing_credentials`, `invalid_token`, `token_expired`.
 
 ## Banco
 
-Esquema próprio `world`: `city` (zonas, bairros abertos, limiar), `lot` (situação, dono, reserva) e `purchase` (cada compra, com o preço em wei e a situação), `property` (imóvel, obra, desgaste e última coleta; um por lote) e `property_claim` (cada coleta e se já foi paga). Migrações em `drizzle/`, controladas em `drizzle.__world_migrations`.
+Esquema próprio `world`: `city` (zonas, bairros abertos, limiar), `lot` (situação, dono, reserva) e `purchase` (cada compra, com o preço em wei e a situação), `property` (imóvel, obra, desgaste e última coleta; um por lote) e `property_claim` (cada coleta e se já foi paga) e `property_work` (reparos e upgrades; uma pendente por imóvel). Migrações em `drizzle/`, controladas em `drizzle.__world_migrations`.
 
 ## Ainda não
 
 - Ler a blockchain: transferências do `LandNFT` atualizarem o dono no jogo (chain-indexer).
-- Imóveis: reparo, upgrade de nível (T1 → T2 → T3), seguro, aluguel e hotel, lote duplo (Residencial 2 e 3), regularização e água/energia; os outros tipos do doc 03 §6; o catálogo vindo do Strapi (hoje fica no código, igual ao seed); o `PropertyNFT`.
+- Imóveis: troca de tipo (T1 → T2 → T3), seguro, aluguel e hotel, lote duplo (Residencial 2 e 3), regularização e água/energia; os outros tipos do doc 03 §6; o catálogo vindo do Strapi (hoje fica no código, igual ao seed); o `PropertyNFT`.
 - Câmbio THALER ↔ SCITY e cotação do dia (passo 11 da trilha); hoje `SCITY_USD` é fixo.
 - Mercado secundário entre jogadores, imóveis e utilidades.

@@ -1,6 +1,6 @@
 import { AppError, forwardRequestId } from '@scc/shared';
 
-import type { Property, PropertyClaim, PropertyPayments } from '../domain/properties.js';
+import type { Property, PropertyClaim, PropertyPayments, PropertyWork } from '../domain/properties.js';
 
 type Leg = { owner_type: string; owner_id: string; currency: 'THALER'; amount: string };
 
@@ -51,6 +51,26 @@ export class LedgerPropertyPayments implements PropertyPayments {
     );
     if (!code) return;
     if (code === 'insufficient_funds') throw new AppError('insufficient_thaler', 'THALER insuficiente para a obra.', 409);
+    throw new AppError('ledger_unavailable', 'O ledger recusou o lançamento.', 502);
+  }
+
+  async chargeWork(w: PropertyWork, requestId?: string) {
+    const amount = String(w.costCents);
+    const code = await this.post(
+      `property-work:${w.id}`,
+      w.kind === 'repair' ? 'property_repair' : 'property_upgrade',
+      w.propertyId,
+      [
+        { owner_type: 'player', owner_id: w.accountId, currency: 'THALER', amount: `-${amount}` },
+        // Reparo é sink de "reparos"; upgrade, de "upgrades de imóvel" (doc 04 §7).
+        { owner_type: 'burn', owner_id: w.kind === 'repair' ? 'repair' : 'construction', currency: 'THALER', amount },
+      ],
+      requestId,
+    );
+    if (!code) return;
+    if (code === 'insufficient_funds') {
+      throw new AppError('insufficient_thaler', `THALER insuficiente para o ${w.kind === 'repair' ? 'reparo' : 'upgrade'}.`, 409);
+    }
     throw new AppError('ledger_unavailable', 'O ledger recusou o lançamento.', 502);
   }
 
