@@ -167,6 +167,9 @@ Autenticação: `Authorization: Bearer <JWT>`. Toda mutação aceita `Idempotenc
 | POST | `/v1/auth/email/start` | Manda um código de 6 dígitos para o e-mail (no MVP local, no log do gateway) |
 | POST | `/v1/auth/email/verify` | Código → JWT. A carteira embutida fica para depois |
 | GET | `/v1/me` | Conta, carteiras, avatares, saldos |
+| POST | `/v1/me/wallets` | Liga mais uma carteira à conta logada (assinatura SIWE) |
+| POST | `/v1/me/email/start` | Código para pôr e-mail na conta logada (só se ela não tiver) |
+| POST | `/v1/me/email/verify` | Código → e-mail gravado na conta |
 
 ### Avatares e trabalho
 | Método | Rota | Descrição |

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import type { Account, AuthStore, WalletLink } from '../domain/ports.js';
+import type { Account, AuthStore, LinkWalletResult, SetEmailResult, WalletLink } from '../domain/ports.js';
 
 /**
  * Development and test store. Everything is lost on restart, and main.ts refuses
@@ -62,6 +62,23 @@ export class MemoryAuthStore implements AuthStore {
     }
     current.attempts++;
     return false;
+  }
+
+  async linkWallet(accountId: string, address: string, chainId: number, now: Date): Promise<LinkWalletResult> {
+    const link = this.wallets.get(address);
+    if (link) return link.accountId === accountId ? 'already_linked' : 'taken';
+    this.wallets.set(address, { accountId, address, chainId, verifiedAt: now });
+    return 'linked';
+  }
+
+  async setAccountEmail(accountId: string, email: string): Promise<SetEmailResult> {
+    const target = this.accounts.get(accountId);
+    if (!target) throw new Error(`conta ${accountId} não existe`);
+    if (target.email === email) return 'already_set';
+    if (target.email !== null) return 'has_other';
+    if ([...this.accounts.values()].some((a) => a.email === email)) return 'taken';
+    target.email = email;
+    return 'set';
   }
 
   async findAccount(id: string) {

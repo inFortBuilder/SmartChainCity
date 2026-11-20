@@ -2,7 +2,7 @@ import { createHmac, randomInt } from 'node:crypto';
 
 import { AppError } from '@scc/shared';
 
-import type { AuthStore } from './ports.js';
+import type { Account, AuthStore } from './ports.js';
 import { issueToken, type TokenOptions } from './token.js';
 
 /** Quem entrega o código. No MVP local, o log do gateway (sem provedor pago). */
@@ -54,10 +54,38 @@ export class EmailLogin {
   async verify(rawEmail: string, code: string) {
     const email = normalizeEmail(rawEmail);
     const now = this.now();
-    const ok = await this.store.consumeEmailCode(email, this.hash(email, code), now, this.options.maxAttempts);
-    if (!ok) throw new AppError('invalid_code', 'Código inválido, vencido ou já usado.', 401);
+    await this.consume(email, code, now);
     const account = await this.store.findOrCreateAccountByEmail(email, now);
     if (account.status !== 'active') throw new AppError('account_blocked', 'Conta bloqueada.', 403);
     return { account, ...(await issueToken(account.id, this.options.token, now)) };
+  }
+
+  /**
+   * Põe o e-mail na conta logada (a de carteira, por exemplo): manda o código
+   * como no login. Conta que já tem e-mail não troca por aqui.
+   */
+  async startLink(account: Account, rawEmail: string) {
+    if (account.email !== null) {
+      throw new AppError('email_already_set', 'Esta conta já tem e-mail.', 409);
+    }
+    return this.start(rawEmail);
+  }
+
+  /**
+   * Confere o código e grava o e-mail. Só aqui, depois de provar que o e-mail é
+   * dele, o jogador fica sabendo se outra conta já usa o endereço.
+   */
+  async verifyLink(accountId: string, rawEmail: string, code: string) {
+    const email = normalizeEmail(rawEmail);
+    await this.consume(email, code, this.now());
+    const result = await this.store.setAccountEmail(accountId, email);
+    if (result === 'taken') throw new AppError('email_in_use', 'Este e-mail já é de outra conta.', 409);
+    if (result === 'has_other') throw new AppError('email_already_set', 'Esta conta já tem e-mail.', 409);
+    return { linked: result === 'set' };
+  }
+
+  private async consume(email: string, code: string, now: Date) {
+    const ok = await this.store.consumeEmailCode(email, this.hash(email, code), now, this.options.maxAttempts);
+    if (!ok) throw new AppError('invalid_code', 'Código inválido, vencido ou já usado.', 401);
   }
 }
