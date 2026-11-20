@@ -211,3 +211,40 @@ describe('pôr e-mail na conta de carteira', () => {
     expect(r.statusCode).toBe(404);
   });
 });
+
+describe('rota interna de carteiras (para o world)', () => {
+  const INTERNAL = 'token-interno-de-teste-com-32-caracteres!'; // gitleaks:allow (só no teste)
+  const wallets = (target: typeof app, id: string, token?: string) =>
+    target.inject({
+      method: 'GET',
+      url: `/internal/v1/accounts/${id}/wallets`,
+      headers: token ? { 'x-service-token': token } : {},
+    });
+
+  it('lista as carteiras da conta com o token interno', async () => {
+    const internal = await buildApp(loadConfig({ ...env, INTERNAL_TOKEN: INTERNAL }), store, () => clock, inbox);
+    const wallet = newWallet();
+    const session = (
+      await internal.inject({ method: 'POST', url: '/v1/auth/siwe/verify', payload: await siwe(wallet) })
+    ).json() as { account: { id: string } };
+    const r = await wallets(internal, session.account.id, INTERNAL);
+    expect(r.statusCode).toBe(200);
+    const list = r.json().wallets as { address: string; chain_id: number }[];
+    expect(list).toHaveLength(1);
+    expect(list[0]!.address.toLowerCase()).toBe(wallet.address.toLowerCase());
+    expect(list[0]!.chain_id).toBe(97);
+  });
+
+  it('recusa sem o token certo', async () => {
+    const internal = await buildApp(loadConfig({ ...env, INTERNAL_TOKEN: INTERNAL }), store, () => clock, inbox);
+    const id = crypto.randomUUID();
+    expect((await wallets(internal, id)).statusCode).toBe(403);
+    expect((await wallets(internal, id, `${INTERNAL}x`)).statusCode).toBe(403);
+  });
+
+  it('sem INTERNAL_TOKEN a rota responde 503', async () => {
+    const r = await wallets(app, crypto.randomUUID(), INTERNAL);
+    expect(r.statusCode).toBe(503);
+    expect(errorCode(r)).toBe('internal_disabled');
+  });
+});

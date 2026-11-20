@@ -1,9 +1,11 @@
 import { Pool } from 'pg';
+import type { Address, Hex } from 'viem';
 
 import { buildApp } from './app.js';
 import { loadConfig } from './config.js';
 import { settleStale } from './domain/purchase.js';
 import { PostgresWorldStore } from './infra/db/postgres-store.js';
+import { GatewayWalletDirectory, LocalKeyQuoteSigner } from './infra/land-chain.js';
 import { LedgerLandPayments } from './infra/ledger-payments.js';
 import { MemoryWorldStore } from './infra/memory-store.js';
 
@@ -18,8 +20,29 @@ const store = pool ? new PostgresWorldStore(pool) : new MemoryWorldStore();
 const payments =
   config.ECONOMY_URL && config.ECONOMY_TOKEN ? new LedgerLandPayments(config.ECONOMY_URL, config.ECONOMY_TOKEN) : null;
 
-const app = await buildApp(config, store, undefined, payments);
-app.log.info(`armazenamento: ${pool ? 'postgres' : 'memória'}; venda de lotes: ${payments ? config.ECONOMY_URL : 'desligada'}`);
+// Posse on-chain do lote: só com o gateway (carteiras) e a chave do SIGNER do LandNFT.
+const land =
+  config.GATEWAY_URL && config.GATEWAY_TOKEN && config.LAND_NFT_ADDRESS && config.LAND_SIGNER_KEY
+    ? {
+        wallets: new GatewayWalletDirectory(config.GATEWAY_URL, config.GATEWAY_TOKEN),
+        signer: new LocalKeyQuoteSigner(
+          config.LAND_SIGNER_KEY as Hex,
+          config.CHAIN_ID,
+          config.LAND_NFT_ADDRESS as Address,
+        ),
+        contract: config.LAND_NFT_ADDRESS,
+        chainId: config.CHAIN_ID,
+      }
+    : null;
+if (land && config.NODE_ENV === 'production') {
+  throw new Error('LAND_SIGNER_KEY no .env é só para o MVP local: em produção a chave fica num KMS.');
+}
+
+const app = await buildApp(config, store, undefined, payments, land);
+const onchain = land ? `${land.contract} (chain ${land.chainId}, signer ${land.signer.address})` : 'desligada';
+app.log.info(
+  `armazenamento: ${pool ? 'postgres' : 'memória'}; venda de lotes: ${payments ? config.ECONOMY_URL : 'desligada'}; posse on-chain: ${onchain}`,
+);
 
 // Job purchases.settle: compras que ficaram pendentes (resposta do ledger perdida, por exemplo).
 let settling = false;

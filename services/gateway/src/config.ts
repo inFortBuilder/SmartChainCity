@@ -35,6 +35,14 @@ const schema = z.object({
   EMAIL_CODE_TTL_SECONDS: z.coerce.number().int().positive().default(600),
   EMAIL_CODE_RESEND_SECONDS: z.coerce.number().int().nonnegative().default(60),
   EMAIL_CODE_MAX_ATTEMPTS: z.coerce.number().int().positive().default(5),
+  /**
+   * Token dos outros serviços para as rotas /internal (ex.: o world confere a
+   * carteira de quem pede a cotação do lote). Sem ele, as rotas respondem 503.
+   */
+  INTERNAL_TOKEN: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().min(32, 'INTERNAL_TOKEN precisa de pelo menos 32 caracteres').optional(),
+  ),
 });
 
 export type Config = z.infer<typeof schema>;

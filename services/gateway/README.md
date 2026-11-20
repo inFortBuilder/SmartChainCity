@@ -22,6 +22,7 @@ pnpm --filter @scc/gateway login:dev   # entra com uma carteira descartável e i
 |---|---|
 | `POST /v1/auth/siwe/nonce` e `/verify`, conta criada no primeiro login | ✅ |
 | `GET /v1/me` (conta e carteiras) | ✅ avatares e saldos entram com game-core e economy |
+| `GET /internal/v1/accounts/:id/wallets`: carteiras da conta para outros serviços, com `x-service-token` igual ao `INTERNAL_TOKEN` | ✅ o world usa para a cotação on-chain do lote. Sem `INTERNAL_TOKEN`, responde 503 |
 | JWT HS256 aceito pelo SCC Builder | ✅ testado com a API PHP real |
 | Rate limit, CORS por lista, logs sem token nem assinatura | ✅ |
 | Armazenamento em Postgres (Drizzle) | ✅ sem `DATABASE_URL` usa memória, e em produção recusa subir |

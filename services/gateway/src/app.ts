@@ -1,6 +1,6 @@
 import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
-import { AppError, observe, serverOptions } from '@scc/shared';
+import { AppError, observe, requireServiceToken, serverOptions } from '@scc/shared';
 import Fastify, { type FastifyRequest } from 'fastify';
 import { z } from 'zod';
 
@@ -188,6 +188,17 @@ export async function buildApp(config: Config, store: AuthStore, now?: () => Dat
     await auth.me(accountId);
     await emailLogin.verifyLink(accountId, body.email, body.code);
     return meDto(await auth.me(accountId));
+  });
+
+  // Carteiras de uma conta, para os outros serviços (world: cotação on-chain do lote).
+  app.get('/internal/v1/accounts/:id/wallets', async (request) => {
+    if (!config.INTERNAL_TOKEN) {
+      throw new AppError('internal_disabled', 'Rotas internas desligadas: defina INTERNAL_TOKEN.', 503);
+    }
+    requireServiceToken(request.headers['x-service-token'], config.INTERNAL_TOKEN);
+    const { id } = z.object({ id: z.uuid() }).parse(request.params);
+    const { wallets } = await auth.me(id);
+    return { wallets: wallets.map((w) => ({ address: w.address, chain_id: w.chainId })) };
   });
 
   return app;
