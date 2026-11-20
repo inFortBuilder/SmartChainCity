@@ -15,6 +15,7 @@ import {
   tooManyAvatars,
 } from '../../domain/avatar.js';
 import type { Rarity } from '../../domain/catalog.js';
+import type { Condition, ConditionCode } from '../../domain/conditions.js';
 import {
   type FeeStatus,
   type HospitalReason,
@@ -94,6 +95,14 @@ const resultJson = (result: ShiftResult) => ({ damaged: result.damaged, factors:
 
 type Row = typeof avatar.$inferSelect;
 
+/** No jsonb as datas vão como texto ISO. */
+const toConditions = (value: unknown): Condition[] =>
+  ((value ?? []) as { code: string; startsAt: string; endsAt: string }[]).map((c) => ({
+    code: c.code as ConditionCode,
+    startsAt: new Date(c.startsAt),
+    endsAt: new Date(c.endsAt),
+  }));
+
 const toAvatar = (r: Row): Avatar => ({
   id: r.id,
   accountId: r.accountId,
@@ -109,6 +118,8 @@ const toAvatar = (r: Row): Avatar => ({
   },
   anchors: { food: r.foodAt, happiness: r.happinessAt, hygiene: r.hygieneAt },
   hospitalUntil: r.hospitalUntil,
+  conditions: toConditions(r.conditions),
+  pantry: (r.pantry ?? {}) as Record<string, number>,
   createdAt: r.createdAt,
   updatedAt: r.updatedAt,
 });
@@ -123,6 +134,8 @@ const toRow = (a: Avatar) => ({
   happinessAt: a.anchors.happiness,
   hygieneAt: a.anchors.hygiene,
   hospitalUntil: a.hospitalUntil,
+  conditions: a.conditions.map((c) => ({ code: c.code, startsAt: c.startsAt.toISOString(), endsAt: c.endsAt.toISOString() })),
+  pantry: a.pantry,
   createdAt: a.createdAt,
   updatedAt: a.updatedAt,
 });
@@ -327,6 +340,16 @@ export class PostgresAvatarStore implements AvatarStore, ShiftStore, MealStore, 
         .where(eq(meal.id, mealId))
         .returning();
       return toMeal(done!);
+    });
+  }
+
+  async updateAvatar(avatarId: string, accountId: string, now: Date, plan: (avatar: Avatar) => Avatar) {
+    return this.db.transaction(async (tx) => {
+      const [row] = await tx.select().from(avatar).where(eq(avatar.id, avatarId)).for('update');
+      if (!row || row.accountId !== accountId) throw new AppError('not_found', 'Avatar não encontrado.', 404);
+      const next = plan(decayed(toAvatar(row), now));
+      const [saved] = await tx.update(avatar).set(toRow(next)).where(eq(avatar.id, avatarId)).returning();
+      return toAvatar(saved!);
     });
   }
 

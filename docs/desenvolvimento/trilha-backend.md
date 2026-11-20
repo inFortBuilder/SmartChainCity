@@ -9,7 +9,7 @@ Pasta: [`services/`](../../services/README.md) · Especificação: [doc 05 §4](
 | 1 | 0 | todos | Workspace pnpm, pacote `@scc/shared` (tipos, erros, logger, config), modelo de serviço com healthcheck | `pnpm dev` sobe um serviço de exemplo |
 | 2 | 0 | — | Escolher ORM e framework (ADR), esquema inicial do [doc 06 §2](../06-modelo-dados-api.md#2-esquema-proposto-postgresql) | Migração roda no Postgres do Compose |
 | 3 | 1 | gateway | JWT, rate limit, `openapi.yaml`, roteamento | Contrato publicado e gerando o cliente Unity |
-| 4 | 1 | gateway (auth) | SIWE (`nonce` → `verify`), login por e-mail, vínculo de carteira | `GET /v1/me` autenticado |
+| 4 | 1 | gateway (auth) | SIWE (`nonce` → `verify`) ✅, login por e-mail com código ✅ ([README](../../services/gateway/README.md#login-por-e-mail)), vínculo de carteira e e-mail ✅ ([README](../../services/gateway/README.md#vincular-carteira-e-e-mail)); falta a carteira embutida | `GET /v1/me` autenticado |
 | 5 | 1 | economy | ✅ Ledger de dupla entrada, contas `player/system/pool/burn/escrow`, extrato, idempotência ([README](../../services/economy/README.md)) | Invariante do ledger em teste de propriedade: 10 mil transações em memória e no Postgres |
 | 6 | 1 | game-core | ✅ Avatar, atributos, decaimento agendado ([README](../../services/game-core/README.md)) | Atributos decaem por job (`attributes.decay`, em lotes, com o mesmo resultado da leitura) |
 | 7 | 1 | game-core | ✅ **Turno de trabalho**: validações, seed commit-reveal, job `shift.complete`, coleta paga pelo ledger ([README](../../services/game-core/README.md#turno-de-trabalho-e14-passo-7-da-trilha)) | Turno de 6 h conclui sem cliente (teste de ponta a ponta com o economy) |
@@ -17,7 +17,7 @@ Pasta: [`services/`](../../services/README.md) · Especificação: [doc 05 §4](
 | 9 | 2 | world | 🟡 Lotes no Postgres, venda primária paga pelo ledger com regras de bairro ([README](../../services/world/README.md)); falta a cotação assinada (EIP-712) e o cerco | Cotação aceita pelo `LandNFT` na testnet |
 | 10 | 2 | world | Imóveis: obra, desgaste, renda, upgrade, regularização, utilidades | Fluxo de imóvel completo |
 | 11 | 2 | economy | Impostos (IPTU, PT), aluguel, hotel; câmbio de teste | Cobrança agendada e auditável |
-| 12 | 2 | game-core | 🟡 Alimentação no mercado do jogo, paga pelo ledger ([README](../../services/game-core/README.md#alimentação-e23-passo-12-da-trilha)), e hospital compulsório com taxa ([README](../../services/game-core/README.md#hospital-e23-passo-12-da-trilha)); faltam despensa, farmácia e doenças | Fluxos do GDD §5 da fase 1 |
+| 12 | 2 | game-core | 🟡 Alimentação no mercado do jogo, paga pelo ledger ([README](../../services/game-core/README.md#alimentação-e23-passo-12-da-trilha)), hospital compulsório com taxa ([README](../../services/game-core/README.md#hospital-e23-passo-12-da-trilha)) e doenças leves com a farmácia do jogo ([README](../../services/game-core/README.md#doenças-e-farmácia-e23-passo-12-da-trilha)), com despensa; faltam as doenças do hospital e o tempo de compra do mercado | Fluxos do GDD §5 da fase 1 |
 | 13 | 2 | chain-indexer | Leitura de eventos com confirmações, idempotência por `tx_hash + log_index`, reorg | Depósito na testnet credita THALER uma vez |
 | 14 | 2 | realtime | Colyseus com salas por célula, presença, chat moderado | 100 clientes simulados por sala |
 | 15 | 2 | game-core | Antifraude v1 (limite de avatares, fingerprint, velocidade) | Regras com métricas |

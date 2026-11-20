@@ -4,6 +4,7 @@ import { AppError } from '@scc/shared';
 
 import { type Attributes, type Avatar, status } from './avatar.js';
 import { BASE_RANGE, profession } from './catalog.js';
+import { CONDITIONS, assertCanWorkHealthy, catchCondition, yieldFactor } from './conditions.js';
 import { assertNotInHospital } from './hospital.js';
 
 /**
@@ -53,6 +54,8 @@ export const expMultiplier = (education: number) => 1 + Math.min(100, Math.max(0
 export interface Snapshot {
   /** Atributos no começo do turno: o resultado não muda se a queda continuar durante o turno. */
   health: number;
+  /** Fator das doenças em curso no começo (dor de cabeça: 0,9). Turnos antigos não têm: vale 1. */
+  illness?: number;
   happiness: number;
   education: number;
   earnsReward: boolean;
@@ -64,7 +67,7 @@ export interface ShiftResult {
   /** Valor do turno em centavos de THALER. */
   thalerCents: bigint;
   /** Fatores usados, para a tela e para auditoria. */
-  factors: { base: number; hours: number; health: number; happiness: number; expPet: number; damage: number };
+  factors: { base: number; hours: number; health: number; happiness: number; expPet: number; damage: number; illness: number };
 }
 
 export type ShiftStatus = 'running' | 'done' | 'claimed';
@@ -104,10 +107,12 @@ export function startShift(
   }
   const hours = input.hours as ShiftHours;
   if (input.running) throw new AppError('shift_running', 'O avatar já está trabalhando.', 409);
-  assertNotInHospital(avatar, now);
   if (input.hoursToday + hours > MAX_HOURS_PER_DAY) {
     throw new AppError('daily_limit', `No máximo ${MAX_HOURS_PER_DAY} h de trabalho por dia.`, 409);
   }
+  // Primeiro as regras do turno; depois o estado do avatar.
+  assertNotInHospital(avatar, now);
+  assertCanWorkHealthy(avatar.conditions, now);
   const cost = ENERGY_COST[hours];
   const a = avatar.attributes;
   if (!status(avatar, now).canWork || a.energy < cost) {
@@ -115,6 +120,7 @@ export function startShift(
   }
 
   const seed = randomBytes(32).toString('hex');
+  const id = input.id;
   const shift: Shift = {
     id: input.id,
     avatarId: avatar.id,
@@ -131,12 +137,18 @@ export function startShift(
       education: a.education,
       earnsReward: status(avatar, now).earnsReward,
       base: baseOf(avatar.jobCode),
+      illness: yieldFactor(avatar.conditions, now),
     },
     result: null,
     status: 'running',
   };
   const attributes: Attributes = { ...a, energy: a.energy - cost };
-  return { shift, avatar: { ...avatar, attributes, updatedAt: now } };
+  // Gripe e dor de cabeça saem da semente do turno (premissa, doc do domínio) e começam quando ele acaba.
+  let conditions = avatar.conditions;
+  for (const code of ['gripe', 'dor_de_cabeca'] as const) {
+    if (draw(seed, id, code) < CONDITIONS[code].chance) conditions = catchCondition(conditions, code, shift.endsAt);
+  }
+  return { shift, avatar: { ...avatar, attributes, conditions, updatedAt: now } };
 }
 
 /** Número de 0 a 1 tirado da semente e do turno: quem tem a semente revelada refaz a conta. */
@@ -156,11 +168,12 @@ export function settle(shift: Pick<Shift, 'id' | 'hours' | 'seed' | 'snapshot'>)
   const damage = damaged ? 1 - DAMAGE_FRACTION : 1;
   const dayShare = shift.hours / MAX_HOURS_PER_DAY;
   // GDD: 48 h sem comer não gera recompensa.
-  const thaler = s.earnsReward ? s.base * dayShare * health * happiness * expPet * damage : 0;
+  const illness = s.illness ?? 1;
+  const thaler = s.earnsReward ? s.base * dayShare * health * happiness * expPet * damage * illness : 0;
   return {
     damaged,
     thalerCents: BigInt(Math.round(thaler * 100)),
-    factors: { base: s.base, hours: shift.hours, health, happiness, expPet, damage },
+    factors: { base: s.base, hours: shift.hours, health, happiness, expPet, damage, illness },
   };
 }
 

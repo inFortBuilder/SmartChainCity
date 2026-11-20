@@ -164,8 +164,12 @@ Autenticação: `Authorization: Bearer <JWT>`. Toda mutação aceita `Idempotenc
 |--------|------|-----------|
 | POST | `/v1/auth/siwe/nonce` | Nonce para assinatura |
 | POST | `/v1/auth/siwe/verify` | Verifica assinatura → JWT |
-| POST | `/v1/auth/email/login` | Login por e-mail (carteira embutida) |
+| POST | `/v1/auth/email/start` | Manda um código de 6 dígitos para o e-mail (no MVP local, no log do gateway) |
+| POST | `/v1/auth/email/verify` | Código → JWT. A carteira embutida fica para depois |
 | GET | `/v1/me` | Conta, carteiras, avatares, saldos |
+| POST | `/v1/me/wallets` | Liga mais uma carteira à conta logada (assinatura SIWE) |
+| POST | `/v1/me/email/start` | Código para pôr e-mail na conta logada (só se ela não tiver) |
+| POST | `/v1/me/email/verify` | Código → e-mail gravado na conta |
 
 ### Avatares e trabalho
 | Método | Rota | Descrição |
@@ -175,8 +179,10 @@ Autenticação: `Authorization: Bearer <JWT>`. Toda mutação aceita `Idempotenc
 | POST | `/v1/avatars/:id/work` | `{shift: 6|12, commute: "car"|"skate"|"walk"|"bus"|"home"}` |
 | POST | `/v1/avatars/:id/claim` | Coletar turno concluído |
 | POST | `/v1/avatars/:id/meals` | `{food}` — compra uma unidade no mercado do jogo e come (pronto, E2.3) |
+| POST | `/v1/avatars/:id/medicine` | `{condition}` — remédio da farmácia do jogo, cura com 70% (pronto, E2.3) |
 | GET | `/v1/avatars/:id/hospital` | Internações compulsórias (saúde ou energia 0), com a taxa (pronto, E2.3) |
-| POST | `/v1/avatars/:id/consume` | `{itemId}` — item da despensa ou remédio |
+| POST | `/v1/avatars/:id/pantry` | `{food}` — compra o pacote para a despensa (pronto, E2.3) |
+| POST | `/v1/avatars/:id/consume` | `{food}` — come uma unidade da despensa (pronto, E2.3); o remédio é `/medicine` |
 | POST | `/v1/avatars/:id/activities` | `{activityCode, placeId}` — lazer, academia, escola |
 | POST | `/v1/avatars/:id/move-in` | `{propertyId}` ou aluguel/hotel |
 
