@@ -12,6 +12,11 @@ if (config.NODE_ENV === 'production' && !config.DATABASE_URL) {
   throw new Error('Defina DATABASE_URL: em produção o gateway não roda em memória.');
 }
 
+// O código no log é só para a máquina local: em produção, quem lê o log entraria em qualquer conta.
+if (config.NODE_ENV === 'production' && config.EMAIL_LOGIN === 'log') {
+  throw new Error('EMAIL_LOGIN=log é só para desenvolvimento: em produção use off até existir um provedor de e-mail.');
+}
+
 const pool = config.DATABASE_URL ? new Pool({ connectionString: config.DATABASE_URL }) : null;
 const store = pool ? new PostgresAuthStore(pool) : new MemoryAuthStore();
 
