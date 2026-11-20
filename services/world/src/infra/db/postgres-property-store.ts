@@ -1,0 +1,108 @@
+import { AppError } from '@scc/shared';
+import { and, asc, eq, lt } from 'drizzle-orm';
+import { drizzle } from 'drizzle-orm/node-postgres';
+import type { Pool } from 'pg';
+
+import type { ClaimStatus, Property, PropertyClaim, PropertyStatus, PropertyStore } from '../../domain/properties.js';
+import { property as propertyT, propertyClaim as claimT } from './schema.js';
+
+type Db = ReturnType<typeof drizzle>;
+
+const toProperty = (r: typeof propertyT.$inferSelect): Property => ({
+  ...r,
+  status: r.status as PropertyStatus,
+  priceCents: Number(r.priceCents),
+});
+const toClaim = (r: typeof claimT.$inferSelect): PropertyClaim => ({
+  ...r,
+  status: r.status as ClaimStatus,
+  amountCents: Number(r.amountCents),
+});
+
+const isUniqueViolation = (error: unknown) => {
+  const e = error as { code?: string; cause?: { code?: string } };
+  return e?.code === '23505' || e?.cause?.code === '23505';
+};
+
+export class PostgresPropertyStore implements PropertyStore {
+  private readonly db: Db;
+
+  constructor(pool: Pool) {
+    this.db = drizzle(pool);
+  }
+
+  async createProperty(p: Property) {
+    try {
+      await this.db.insert(propertyT).values({ ...p, priceCents: String(p.priceCents) });
+    } catch (error) {
+      if (isUniqueViolation(error)) throw new AppError('lot_has_property', 'Este lote já tem um imóvel.', 409);
+      throw error;
+    }
+  }
+
+  async getProperty(id: string) {
+    const [r] = await this.db.select().from(propertyT).where(eq(propertyT.id, id));
+    return r ? toProperty(r) : null;
+  }
+
+  async propertyOnLot(city: string, lotId: number) {
+    const [r] = await this.db
+      .select()
+      .from(propertyT)
+      .where(and(eq(propertyT.city, city), eq(propertyT.lotId, lotId)));
+    return r ? toProperty(r) : null;
+  }
+
+  async propertiesOf(accountId: string) {
+    const rows = await this.db
+      .select()
+      .from(propertyT)
+      .where(eq(propertyT.ownerAccountId, accountId))
+      .orderBy(asc(propertyT.createdAt));
+    return rows.map(toProperty);
+  }
+
+  async activateProperty(id: string) {
+    await this.db.update(propertyT).set({ status: 'active' }).where(eq(propertyT.id, id));
+  }
+
+  async dropPendingProperty(id: string) {
+    await this.db.delete(propertyT).where(and(eq(propertyT.id, id), eq(propertyT.status, 'pending')));
+  }
+
+  async pendingProperties(olderThan: Date) {
+    const rows = await this.db
+      .select()
+      .from(propertyT)
+      .where(and(eq(propertyT.status, 'pending'), lt(propertyT.createdAt, olderThan)))
+      .limit(100);
+    return rows.map(toProperty);
+  }
+
+  async startClaim(claim: PropertyClaim, expected: Date, until: Date) {
+    return this.db.transaction(async (tx) => {
+      // Só fecha o período se ninguém coletou desde a leitura.
+      const moved = await tx
+        .update(propertyT)
+        .set({ lastClaimAt: until })
+        .where(and(eq(propertyT.id, claim.propertyId), eq(propertyT.lastClaimAt, expected)))
+        .returning({ id: propertyT.id });
+      if (moved.length === 0) return null;
+      await tx.insert(claimT).values({ ...claim, amountCents: String(claim.amountCents) });
+      return claim;
+    });
+  }
+
+  async markClaimPaid(id: string) {
+    await this.db.update(claimT).set({ status: 'paid' }).where(eq(claimT.id, id));
+  }
+
+  async pendingClaims(olderThan: Date) {
+    const rows = await this.db
+      .select()
+      .from(claimT)
+      .where(and(eq(claimT.status, 'pending'), lt(claimT.createdAt, olderThan)))
+      .limit(100);
+    return rows.map(toClaim);
+  }
+}

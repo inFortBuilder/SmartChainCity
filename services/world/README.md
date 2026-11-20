@@ -1,6 +1,6 @@
 # services/world
 
-Cidade, bairros e lotes: situação, dono, preço e a venda primária (doc 03 §5, doc 13 §3, [ADR-0012](../../docs/adr/0012-cidade-real-construtores.md)). Também emite a cotação EIP-712 que leva o lote ao `LandNFT`. Depois virão imóveis e regras de cerco.
+Cidade, bairros e lotes: situação, dono, preço e a venda primária (doc 03 §5, doc 13 §3, [ADR-0012](../../docs/adr/0012-cidade-real-construtores.md)). Também emite a cotação EIP-712 que leva o lote ao `LandNFT`. Também cuida dos imóveis: obra, desgaste e renda. Depois virão as regras de cerco.
 
 - Guia: [trilha-backend.md](../../docs/desenvolvimento/trilha-backend.md)
 - Modelo de dados e API: [docs/06](../../docs/06-modelo-dados-api.md)
@@ -46,6 +46,27 @@ Em produção a chave fica num KMS, e o world não sobe com `LAND_SIGNER_KEY`.
 
 Ainda não: o world não lê a blockchain. Quando o lote for transferido on-chain, quem atualiza o dono no jogo é o chain-indexer (passo 13 da trilha).
 
+## Imóveis (E2.5)
+
+O dono do lote constrói, espera a obra e coleta a renda (doc 03 §6.3). O dinheiro é THALER em centavos, no ledger do economy:
+
+| Etapa | Como |
+|---|---|
+| Obra | `POST /v1/world/cities/:code/lots/:id/property` com `{type}`. O world confere que a conta é dona do lote, que a zona aceita o tipo e que o lote não tem outro imóvel. Cobra o preço do jogador para a queima (`burn/construction`), com a chave `property-build:<imóvel>`. Sem THALER, a obra não existe (`409 insufficient_thaler`) |
+| Desgaste | Começa em 100 quando a obra termina e cai 1 ponto por dia |
+| Renda | Renda do nível × desgaste/100. Abaixo de 30 de desgaste, o imóvel para de render. Acumula até 7 dias sem coletar |
+| Coleta | `POST /v1/world/properties/:id/claim` fecha o período e paga do pool P2E para o jogador, com a chave da coleta. Duas coletas ao mesmo tempo: só uma fecha o período. Com o pool vazio, a coleta fica guardada (`503 pool_empty`), e o job paga depois |
+
+O job `properties.settle` (junto do `purchases.settle`) refaz obras e coletas que ficaram pendentes. As chaves do ledger são as mesmas, então nada é cobrado nem pago duas vezes.
+
+**Premissas, sem fonte no GDD** (a "Figura 16" não veio no texto; doc 11). A API marca cada uma em `provisional`:
+- **Casa T1:** 4.000 THALER e 10 THALER/dia, do seed do CMS, que copiou o simulador.
+- **Obra:** 24 h, do protótipo de gestão.
+- **Acúmulo:** até 7 dias.
+- **Desgaste:** 1 ponto por dia.
+
+Com isso, uma T1 coletada toda semana rende 455 THALER até o desgaste chegar a 30, em 70 dias, contra 4.000 de obra. Sem reparo, ela não se paga. O reparo é o próximo passo, e o [simulador](../../tools/econ-sim/README.md), que conta 10 THALER/dia sem desgaste, precisa passar a contar o desgaste e o reparo.
+
 ## Rodar
 
 ```bash
@@ -74,16 +95,21 @@ TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc_test pnpm --filter
 | GET | `/v1/world/me/lots` | jogador (Bearer) | Lotes do jogador |
 | POST | `/v1/world/cities/:code/lots/:id/buy` | jogador (Bearer) | Compra pagando SCITY no ledger |
 | POST | `/v1/world/cities/:code/lots/:id/onchain-quote` | dono do lote (Bearer) | Cotação assinada para o `LandNFT` (corpo: `{wallet}`) |
+| GET | `/v1/world/property-types` | público | Tipos de imóvel, preço, obra, renda por nível e regras de desgaste e acúmulo |
+| POST | `/v1/world/cities/:code/lots/:id/property` | dono do lote (Bearer) | Constrói (corpo: `{type}`) pagando THALER |
+| GET | `/v1/world/me/properties` | jogador (Bearer) | Imóveis do jogador: fase (`pending_payment`, `building`, `ready`), progresso da obra, desgaste, renda por dia e acumulada |
+| POST | `/v1/world/properties/:id/claim` | dono (Bearer) | Coleta a renda acumulada |
 | GET | `/healthz` | — | `{status: "ok"}` |
 
-Erros com código estável: `lot_not_for_sale`, `lot_reserved`, `district_closed`, `other_district`, `area_cap`, `insufficient_scity`, `reservation_lost`, `ledger_unavailable`, `not_found`, `not_lot_owner`, `wallet_not_linked`, `city_not_onchain`, `onchain_disabled`, `gateway_unavailable`, `missing_credentials`, `invalid_token`, `token_expired`.
+Erros com código estável: `lot_not_for_sale`, `lot_reserved`, `district_closed`, `other_district`, `area_cap`, `insufficient_scity`, `reservation_lost`, `ledger_unavailable`, `not_found`, `not_lot_owner`, `wallet_not_linked`, `unknown_property_type`, `zone_not_allowed`, `lot_has_property`, `insufficient_thaler`, `property_not_ready`, `nothing_to_claim`, `claim_in_progress`, `pool_empty`, `properties_disabled`, `city_not_onchain`, `onchain_disabled`, `gateway_unavailable`, `missing_credentials`, `invalid_token`, `token_expired`.
 
 ## Banco
 
-Esquema próprio `world`: `city` (zonas, bairros abertos, limiar), `lot` (situação, dono, reserva) e `purchase` (cada compra, com o preço em wei e a situação). Migrações em `drizzle/`, controladas em `drizzle.__world_migrations`.
+Esquema próprio `world`: `city` (zonas, bairros abertos, limiar), `lot` (situação, dono, reserva) e `purchase` (cada compra, com o preço em wei e a situação), `property` (imóvel, obra, desgaste e última coleta; um por lote) e `property_claim` (cada coleta e se já foi paga). Migrações em `drizzle/`, controladas em `drizzle.__world_migrations`.
 
 ## Ainda não
 
 - Ler a blockchain: transferências do `LandNFT` atualizarem o dono no jogo (chain-indexer).
+- Imóveis: reparo, upgrade de nível (T1 → T2 → T3), seguro, aluguel e hotel, lote duplo (Residencial 2 e 3), regularização e água/energia; os outros tipos do doc 03 §6; o catálogo vindo do Strapi (hoje fica no código, igual ao seed); o `PropertyNFT`.
 - Câmbio THALER ↔ SCITY e cotação do dia (passo 11 da trilha); hoje `SCITY_USD` é fixo.
 - Mercado secundário entre jogadores, imóveis e utilidades.

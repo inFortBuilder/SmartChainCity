@@ -5,6 +5,22 @@ import { z } from 'zod';
 
 import type { Config } from './config.js';
 import { type QuoteSigner, type WalletDirectory, issueOnchainQuote } from './domain/land-quote.js';
+import {
+  ACCRUAL_CAP_DAYS,
+  MIN_WEAR_FOR_INCOME,
+  PROPERTY_TYPES,
+  type Property,
+  type PropertyPayments,
+  type PropertyStore,
+  WEAR_PER_DAY,
+  accrued,
+  buildProperty,
+  claimIncome,
+  incomePerDay,
+  phaseOf,
+  typeOf,
+  wearAt,
+} from './domain/properties.js';
 import { type LandPayments, type Lot, type WorldStore, lotCode, priceOf } from './domain/lots.js';
 import { buyLot } from './domain/purchase.js';
 
@@ -27,6 +43,7 @@ export async function buildApp(
   now: () => Date = () => new Date(),
   payments: LandPayments | null = null,
   land: { wallets: WalletDirectory; signer: QuoteSigner; contract: string; chainId: number } | null = null,
+  properties: { store: PropertyStore; payments: PropertyPayments | null } | null = null,
 ) {
   const app = Fastify({
     ...serverOptions({ service: 'world', nodeEnv: config.NODE_ENV, logLevel: config.LOG_LEVEL }),
@@ -158,6 +175,81 @@ export async function buildApp(
       quote: { ...quote, price: quote.price.toString(), nonce: quote.nonce.toString(), deadline: quote.deadline.toString() },
       signature,
     };
+  });
+
+  // ---------------------------------------------------------------- imóveis (E2.5)
+
+  const propertiesOn = () => {
+    if (!properties) throw new AppError('properties_disabled', 'Os imóveis estão desligados.', 503);
+    return properties;
+  };
+
+  const propertyDto = (p: Property) => {
+    const t = now();
+    const type = typeOf(p.type);
+    const phase = phaseOf(p, t);
+    const wear = wearAt(p, t);
+    const income = accrued(p, t);
+    const buildMs = p.readyAt.getTime() - p.createdAt.getTime();
+    return {
+      id: p.id,
+      city: p.city,
+      lot_id: p.lotId,
+      type: p.type,
+      label: type?.label ?? p.type,
+      level: p.level,
+      phase,
+      build_progress: phase === 'building' ? Math.min(1, (t.getTime() - p.createdAt.getTime()) / buildMs) : phase === 'ready' ? 1 : 0,
+      ready_at: p.readyAt.toISOString(),
+      wear: Math.round(wear * 10) / 10,
+      producing: phase === 'ready' && wear >= MIN_WEAR_FOR_INCOME,
+      income_cents_per_day: Math.floor((incomePerDay(p) * wear) / 100),
+      accrued_cents: income.cents,
+      accrual_full: income.capped,
+    };
+  };
+
+  app.get('/v1/world/property-types', async () => ({
+    rules: {
+      accrual_cap_days: ACCRUAL_CAP_DAYS,
+      wear_per_day: WEAR_PER_DAY,
+      min_wear_for_income: MIN_WEAR_FOR_INCOME,
+    },
+    types: PROPERTY_TYPES.map((t) => ({
+      code: t.code,
+      label: t.label,
+      zones: t.zones,
+      price_cents: t.priceCents,
+      build_minutes: t.buildMinutes,
+      levels: t.levels.map((l) => ({ level: l.level, income_cents_per_day: l.incomeCentsPerDay })),
+      provisional: t.provisional,
+    })),
+  }));
+
+  app.post('/v1/world/cities/:code/lots/:id/property', async (request, reply) => {
+    const me = await player(request);
+    const { code, id } = lotParams.parse(request.params);
+    const { type } = z.object({ type: z.string().min(1).max(40) }).parse(request.body);
+    const { store: propStore, payments: propPayments } = propertiesOn();
+    if (!propPayments) throw new AppError('ledger_unavailable', 'A construção está desligada.', 503);
+    await cityOr404(code);
+    const p = await buildProperty(store, propStore, propPayments, { city: code, lotId: id, accountId: me, type, requestId: request.id }, now);
+    return reply.status(201).send({ property: propertyDto(p) });
+  });
+
+  app.get('/v1/world/me/properties', async (request) => {
+    const me = await player(request);
+    const list = await propertiesOn().store.propertiesOf(me);
+    return { properties: list.map(propertyDto) };
+  });
+
+  app.post('/v1/world/properties/:id/claim', async (request) => {
+    const me = await player(request);
+    const { id } = z.object({ id: z.uuid() }).parse(request.params);
+    const { store: propStore, payments: propPayments } = propertiesOn();
+    if (!propPayments) throw new AppError('ledger_unavailable', 'A coleta está desligada.', 503);
+    const { claim, property } = await claimIncome(propStore, propPayments, { propertyId: id, accountId: me, requestId: request.id }, now);
+    return { claim: { id: claim.id, amount_cents: claim.amountCents, status: claim.status }, property: propertyDto(property) };
   });
 
   return app;
