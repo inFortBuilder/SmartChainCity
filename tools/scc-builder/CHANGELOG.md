@@ -46,6 +46,15 @@ Chain City (doc 13 §5), sem vínculo com a aplicação de origem.
 - `tests/php/`: JWT, autenticação, layout do bucket, versões, validate-lot e
   o endpoint por HTTP (`npm run test:php`). `tests/footprint.test.js`.
 
+### Corrigido
+
+- **Importar FBX (e DAE, OBJ, STL, PLY) no editor em `npm run dev`** falhava
+  com "Failed to fetch dynamically imported module". Os loaders entram por
+  `import()` dinâmico, e o Vite só os descobria no primeiro uso, reotimizava as
+  dependências e trocava o `?v=` dos arquivos com a página já aberta. Agora os
+  loaders e exportadores do Three.js ficam em `optimizeDeps.include`
+  (`vite.config.js`) e são empacotados quando o servidor sobe.
+
 ### Removido
 
 - Guarda de sessão e SSO da plataforma de origem, o modo

@@ -51,7 +51,26 @@ export default defineConfig(({ mode }) => {
       },
     },
     optimizeDeps: {
-      include: ['three'],
+      // Os loaders entram por import() dinâmico. Fora desta lista, o Vite só os
+      // descobre no primeiro uso, reotimiza as dependências e troca o ?v= dos
+      // arquivos: a página aberta falha com "Failed to fetch dynamically imported
+      // module" (ex.: ao importar o primeiro .fbx). Pré-empacotados, o hash não muda.
+      include: [
+        'three',
+        'three/examples/jsm/loaders/GLTFLoader.js',
+        'three/examples/jsm/loaders/OBJLoader.js',
+        'three/examples/jsm/loaders/MTLLoader.js',
+        'three/examples/jsm/loaders/FBXLoader.js',
+        'three/examples/jsm/loaders/ColladaLoader.js',
+        'three/examples/jsm/loaders/STLLoader.js',
+        'three/examples/jsm/loaders/PLYLoader.js',
+        'three/examples/jsm/loaders/DRACOLoader.js',
+        'three/examples/jsm/loaders/KTX2Loader.js',
+        'three/examples/jsm/exporters/GLTFExporter.js',
+        'three/examples/jsm/exporters/OBJExporter.js',
+        'three/examples/jsm/exporters/PLYExporter.js',
+        'three/examples/jsm/exporters/STLExporter.js',
+      ],
     },
   };
 });
