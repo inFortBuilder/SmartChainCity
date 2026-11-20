@@ -50,6 +50,13 @@
       "when": 1795190376860,
       "tag": "0006_hash_modelo",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1795217763449,
+      "tag": "0007_leilao",
+      "breakpoints": true
     }
   ]
 }

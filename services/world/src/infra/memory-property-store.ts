@@ -34,6 +34,11 @@ export class MemoryPropertyStore implements PropertyStore {
       .map((p) => ({ ...p }));
   }
 
+  async transferProperty(id: string, from: string, to: string) {
+    const p = this.properties.get(id);
+    if (p && p.ownerAccountId === from) p.ownerAccountId = to;
+  }
+
   async activateProperty(id: string) {
     const p = this.properties.get(id);
     if (p) p.status = 'active';

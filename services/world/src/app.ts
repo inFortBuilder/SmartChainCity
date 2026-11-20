@@ -39,6 +39,7 @@ import {
   submitBuilding,
 } from './domain/buildings.js';
 import { type TaxPayments, type TaxStore, assertNotInDefault, payMyTaxes, totalOf } from './domain/taxes.js';
+import { type Auction, type AuctionStore, minBid, placeBid } from './domain/auctions.js';
 
 const WEI = 10n ** 18n;
 /** wei → texto em SCITY com até 6 casas, para a tela. */
@@ -65,7 +66,12 @@ export async function buildApp(
     /** PropertyNFT (E2.5): vouchers de mint e de nível do imóvel pronto. */
     onchain?: { wallets: WalletDirectory; signer: PropertyVoucherSigner; contract: string; chainId: number } | null;
   } | null = null,
-  taxes: { store: TaxStore; payments: TaxPayments | null } | null = null,
+  taxes: {
+    store: TaxStore;
+    payments: TaxPayments | null;
+    /** Leilão do lote inadimplente (E2.6). */
+    auctions?: AuctionStore | null;
+  } | null = null,
   buildings: {
     store: BuildingStore;
     builder: BuilderClient | null;
@@ -402,6 +408,57 @@ export async function buildApp(
         overdue_days: b.status === 'pending' ? Math.max(0, Math.floor((t.getTime() - b.dueAt.getTime()) / 86_400_000)) : 0,
       })),
     };
+  });
+
+  // Leilão do lote inadimplente (E2.6): lances abertos em THALER; o job fecha e passa o lote.
+  const auctionsOn = () => {
+    const a = taxes?.auctions;
+    if (!a) throw new AppError('auctions_disabled', 'Os leilões estão desligados.', 503);
+    return a;
+  };
+
+  const auctionDto = async (a: Auction, me: string | null) => {
+    const bids = await auctionsOn().bidsOf(a.id);
+    const top = bids[0] ?? null;
+    return {
+      id: a.id,
+      city: a.city,
+      lot_id: a.lotId,
+      status: a.status,
+      debt_cents: a.debtCents,
+      starts_at: a.startsAt.toISOString(),
+      ends_at: a.endsAt.toISOString(),
+      bids: bids.length,
+      top_bid_cents: top?.amountCents ?? null,
+      min_bid_cents: minBid(a, top),
+      // Sem expor as contas dos outros jogadores: só se o lance mais alto é seu.
+      you_lead: me !== null && top?.accountId === me,
+      you_are_seller: me !== null && a.sellerAccountId === me,
+      price_cents: a.priceCents,
+      you_won: me !== null && a.winnerAccountId === me,
+    };
+  };
+
+  app.get('/v1/world/auctions', async (request) => {
+    const me = await maybePlayer(request);
+    const list = await auctionsOn().listOpen(100);
+    return { auctions: await Promise.all(list.map((a) => auctionDto(a, me))) };
+  });
+
+  app.get('/v1/world/auctions/:id', async (request) => {
+    const me = await maybePlayer(request);
+    const { id } = z.object({ id: z.uuid() }).parse(request.params);
+    const a = await auctionsOn().getAuction(id);
+    if (!a) throw new AppError('not_found', 'Leilão não encontrado.', 404);
+    return { auction: await auctionDto(a, me) };
+  });
+
+  app.post('/v1/world/auctions/:id/bids', async (request, reply) => {
+    const me = await player(request);
+    const { id } = z.object({ id: z.uuid() }).parse(request.params);
+    const { amount_cents } = z.object({ amount_cents: z.number().int().positive().max(1e12) }).parse(request.body);
+    const { auction } = await placeBid(auctionsOn(), store, { auctionId: id, accountId: me, amountCents: amount_cents }, now());
+    return reply.status(201).send({ auction: await auctionDto(auction, me) });
   });
 
   app.post('/v1/world/me/taxes/pay', async (request) => {

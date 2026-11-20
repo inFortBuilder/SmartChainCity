@@ -114,6 +114,11 @@ export class MemoryWorldStore implements WorldStore {
     return { ...purchase };
   }
 
+  async transferLot(code: string, lotId: number, from: string, to: string) {
+    const lot = this.lots.get(this.key(code, lotId));
+    if (lot && lot.status === 'sold' && lot.ownerAccountId === from) lot.ownerAccountId = to;
+  }
+
   async confirm(purchaseId: string, now: Date) {
     const p = this.purchases.get(purchaseId);
     if (!p) return false;

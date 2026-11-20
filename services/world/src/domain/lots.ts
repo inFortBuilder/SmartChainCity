@@ -147,6 +147,8 @@ export interface WorldStore {
   lotsOf(accountId: string): Promise<Lot[]>;
   /** Lotes vendidos de todas as cidades (job de impostos). */
   soldLots(): Promise<Lot[]>;
+  /** Leilão (E2.6): passa o lote vendido de `from` para `to`. Repetir não faz nada. */
+  transferLot(code: string, lotId: number, from: string, to: string): Promise<void>;
   /**
    * Trava o lote, confere a compra e reserva para o comprador; devolve a
    * compra pendente. Pedido repetido do mesmo comprador devolve a mesma compra.
