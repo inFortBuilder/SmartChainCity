@@ -42,6 +42,17 @@ Cada atributo que cai guarda o **instante de referência** (`food_at`, `happines
 
 Moradia irregular (×0,5) e evento semanal (×1,15) ficam em 1 até existirem imóveis e eventos. O pet entra no teto de 2,5× quando existir.
 
+## Minigame do turno (E2.2)
+
+O turno percorre as tarefas da profissão, no servidor e sem o jogo aberto (doc 02 §3.2). Cada tarefa ocupa uma parte do turno proporcional à duração dela no GDD. No Pedreiro, por exemplo, "Construir a casa" leva 160 de 265 min, então 60% do turno. Cada turno em `GET /v1/avatars/:id/shifts` e `POST /work` traz `minigame`:
+- `tasks`: nome, início, fim, situação (`done`, `current`, `next`) e a direção da energia e da felicidade (`+`/`-`);
+- `current` e `progress`;
+- `damage`: depois do fim, a tarefa e o motivo do dano (ferramenta quebrada, roubo no trajeto…), tirados da mesma semente do sorteio. Durante o turno fica `null`, para não revelar nada antes da hora (commit-reveal).
+
+**O minigame não muda a economia.** O ganho e a energia seguem a fórmula do simulador (ADR-0010). O GDD dá custos de energia por tarefa (5 a 20 no turno) que não cabem no atributo de 0 a 10, e por isso as tarefas mostram só a direção dos efeitos até o game designer acertar o catálogo.
+
+**Profissões do MVP:** as 12 do ROADMAP, as 11 comuns e o Cozinheiro, vêm com `mvp: true` em `GET /v1/catalog/professions`. No mapa de Pittsburg, o painel mostra a lista de tarefas do turno, com a atual em destaque, e o motivo do dano no último turno.
+
 ## Alimentação (E2.3, passo 12 da trilha)
 
 O avatar come no **mercado do jogo**: compra uma unidade do alimento e come na hora.
@@ -166,7 +177,7 @@ Esquema próprio `game`: tabela `avatar` do doc 06, com os instantes de referên
 
 ## Ainda não
 
-- Deslocamento (carro, skate, ônibus, a pé, home office) e as tarefas do minigame de cada profissão (catálogo do Strapi).
+- Deslocamento (carro, skate, ônibus, a pé, home office). Efeito real de energia e felicidade por tarefa, que depende do game designer acertar os números do catálogo. Cards de arte das 12 profissões do MVP.
 - Bônus de itens, pet, moradia e eventos semanais no ganho.
 - Descansar e atividades (sobem os atributos); as doenças do hospital (febre, enxaqueca, virose: −1 de saúde a cada 15 min).
 - O tempo de compra do mercado e o limite da despensa pela casa.
