@@ -61,6 +61,20 @@ export const avatarToken = indexer.table(
   (t) => [primaryKey({ columns: [t.chainId, t.tokenId] }), index('avatar_token_owner_idx').on(t.chainId, t.owner)],
 );
 
+export const propertyToken = indexer.table(
+  'property_token',
+  {
+    chainId: integer('chain_id').notNull(),
+    tokenId: text('token_id').notNull(),
+    owner: text('owner').notNull(),
+    lotId: text('lot_id'),
+    typeCode: text('type_code'),
+    level: smallint('level'),
+    block: block('block').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.chainId, t.tokenId] }), index('property_token_owner_idx').on(t.chainId, t.owner)],
+);
+
 export const boxRequest = indexer.table(
   'box_request',
   {

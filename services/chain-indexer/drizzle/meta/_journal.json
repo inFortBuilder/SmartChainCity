@@ -8,6 +8,13 @@
       "when": 1795188378177,
       "tag": "0000_indexer",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1795210318424,
+      "tag": "0001_imoveis",
+      "breakpoints": true
     }
   ]
 }

@@ -40,8 +40,8 @@ function buyPrimary(LotQuote calldata q, bytes calldata sig) external payable;
 - **Transferências secundárias** são livres no padrão ERC-721: a regra de bairro vale só no jogo (opção (b), decidida na [ADR-0014](adr/0014-decisoes-produto-mvp.md)).
 
 ### 2.2 `PropertyNFT`
-- `mint(voucher)` com `{owner, typeCode, level, anchorLotId}` assinado pelo servidor.
-- `upgrade(tokenId, level, sig)` — nível no contrato; desgaste e renda ficam off-chain.
+- `mint(voucher)` com `{tokenId, owner, lotId, typeCode, level, deadline}` assinado pelo servidor. O `tokenId` é o id do imóvel no world, e a carteira precisa ser dona do lote no mint. Um imóvel por lote. **Pronto (2026-11-20).**
+- `upgrade(voucher)` com `{tokenId, level, deadline}`: nível no contrato, só para cima; desgaste e renda ficam off-chain.
 - Regra "não pode haver imóvel de terceiro no meu lote": no jogo, um imóvel só **rende** se o dono do imóvel for dono do lote âncora (ou tiver contrato de arrendamento). Venda em **combo** = transação atômica no `Marketplace` com dois NFTs.
 
 ### 2.3 `LuckyBox`

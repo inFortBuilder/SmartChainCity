@@ -12,6 +12,7 @@ import {
   type EventArgs,
   type LotToken,
   type ProjectionOp,
+  type PropertyToken,
   byChainOrder,
   projectionOps,
 } from '../../domain/events.js';
@@ -22,6 +23,7 @@ import {
   chainEvent as eventT,
   cursor as cursorT,
   lotToken as lotT,
+  propertyToken as propT,
 } from './schema.js';
 
 type Db = ReturnType<typeof drizzle>;
@@ -61,6 +63,27 @@ async function apply(tx: Tx, chainId: number, op: ProjectionOp) {
           target: [avatarT.chainId, avatarT.tokenId],
           set: { rarity: op.rarity, profession: op.profession, block: op.block },
         });
+      return;
+    case 'property_owner':
+      await tx
+        .insert(propT)
+        .values({ chainId, tokenId: op.tokenId, owner: op.owner, block: op.block })
+        .onConflictDoUpdate({ target: [propT.chainId, propT.tokenId], set: { owner: op.owner, block: op.block } });
+      return;
+    case 'property_traits':
+      await tx
+        .insert(propT)
+        .values({ chainId, tokenId: op.tokenId, owner: op.owner, lotId: op.lotId, typeCode: op.typeCode, level: op.level, block: op.block })
+        .onConflictDoUpdate({
+          target: [propT.chainId, propT.tokenId],
+          set: { lotId: op.lotId, typeCode: op.typeCode, level: op.level, block: op.block },
+        });
+      return;
+    case 'property_level':
+      await tx
+        .update(propT)
+        .set({ level: op.level, block: op.block })
+        .where(and(eq(propT.chainId, chainId), eq(propT.tokenId, op.tokenId)));
       return;
     case 'box_opened':
       await tx
@@ -139,6 +162,7 @@ export class PostgresIndexerStore implements IndexerStore {
       await tx.delete(lotT).where(eq(lotT.chainId, chainId));
       await tx.delete(avatarT).where(eq(avatarT.chainId, chainId));
       await tx.delete(boxT).where(eq(boxT.chainId, chainId));
+      await tx.delete(propT).where(eq(propT.chainId, chainId));
       const keep = await tx
         .select()
         .from(eventT)
@@ -176,6 +200,20 @@ export class PostgresIndexerStore implements IndexerStore {
       .where(and(eq(avatarT.chainId, chainId), eq(avatarT.owner, owner.toLowerCase())))
       .orderBy(asc(sql`${avatarT.tokenId}::numeric`));
     return rows.map(({ chainId: _c, ...rest }) => rest as AvatarToken);
+  }
+
+  async property(chainId: number, tokenId: string) {
+    const [r] = await this.db.select().from(propT).where(and(eq(propT.chainId, chainId), eq(propT.tokenId, tokenId)));
+    return r ? (({ chainId: _c, ...rest }) => rest as PropertyToken)(r) : null;
+  }
+
+  async propertiesOf(chainId: number, owner: string) {
+    const rows = await this.db
+      .select()
+      .from(propT)
+      .where(and(eq(propT.chainId, chainId), eq(propT.owner, owner.toLowerCase())))
+      .orderBy(asc(sql`${propT.tokenId}::numeric`));
+    return rows.map(({ chainId: _c, ...rest }) => rest as PropertyToken);
   }
 
   async box(chainId: number, requestId: string) {

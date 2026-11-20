@@ -5,6 +5,7 @@ import {
   type Cursor,
   type LotToken,
   type ProjectionOp,
+  type PropertyToken,
   byChainOrder,
   projectionOps,
 } from '../domain/events.js';
@@ -17,6 +18,7 @@ interface ChainState {
   lots: Map<string, LotToken>;
   avatars: Map<string, AvatarToken>;
   boxes: Map<string, BoxRequest>;
+  properties: Map<string, PropertyToken>;
 }
 
 /** Para testes e desenvolvimento. Uma thread só: cada operação é atômica. */
@@ -27,7 +29,7 @@ export class MemoryIndexerStore implements IndexerStore {
   private state(chainId: number): ChainState {
     let s = this.chains.get(chainId);
     if (!s) {
-      s = { cursor: null, events: [], keys: new Set(), lots: new Map(), avatars: new Map(), boxes: new Map() };
+      s = { cursor: null, events: [], keys: new Set(), lots: new Map(), avatars: new Map(), boxes: new Map(), properties: new Map() };
       this.chains.set(chainId, s);
     }
     return s;
@@ -46,6 +48,35 @@ export class MemoryIndexerStore implements IndexerStore {
       case 'avatar_traits': {
         const cur = s.avatars.get(op.tokenId);
         s.avatars.set(op.tokenId, { tokenId: op.tokenId, owner: cur?.owner ?? op.owner, rarity: op.rarity, profession: op.profession, block: op.block });
+        break;
+      }
+      case 'property_owner': {
+        const cur = s.properties.get(op.tokenId);
+        s.properties.set(op.tokenId, {
+          tokenId: op.tokenId,
+          owner: op.owner,
+          lotId: cur?.lotId ?? null,
+          typeCode: cur?.typeCode ?? null,
+          level: cur?.level ?? null,
+          block: op.block,
+        });
+        break;
+      }
+      case 'property_traits': {
+        const cur = s.properties.get(op.tokenId);
+        s.properties.set(op.tokenId, {
+          tokenId: op.tokenId,
+          owner: cur?.owner ?? op.owner,
+          lotId: op.lotId,
+          typeCode: op.typeCode,
+          level: op.level,
+          block: op.block,
+        });
+        break;
+      }
+      case 'property_level': {
+        const cur = s.properties.get(op.tokenId);
+        if (cur) s.properties.set(op.tokenId, { ...cur, level: op.level, block: op.block });
         break;
       }
       case 'box_opened':
@@ -95,6 +126,7 @@ export class MemoryIndexerStore implements IndexerStore {
     s.lots.clear();
     s.avatars.clear();
     s.boxes.clear();
+    s.properties.clear();
     for (const e of [...keep].sort(byChainOrder)) for (const op of projectionOps(e)) this.apply(s, op);
     s.cursor = cursor ? { ...cursor } : null;
     return dropped;
@@ -116,6 +148,15 @@ export class MemoryIndexerStore implements IndexerStore {
 
   async avatarsOf(chainId: number, owner: string) {
     return [...this.state(chainId).avatars.values()].filter((a) => a.owner === owner.toLowerCase()).map((a) => ({ ...a }));
+  }
+
+  async property(chainId: number, tokenId: string) {
+    const p = this.state(chainId).properties.get(tokenId);
+    return p ? { ...p } : null;
+  }
+
+  async propertiesOf(chainId: number, owner: string) {
+    return [...this.state(chainId).properties.values()].filter((p) => p.owner === owner.toLowerCase()).map((p) => ({ ...p }));
   }
 
   async box(chainId: number, requestId: string) {

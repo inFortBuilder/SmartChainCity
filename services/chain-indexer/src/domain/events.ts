@@ -13,6 +13,11 @@ export const CONTRACT_ABIS = {
     'event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)',
     'event AvatarMinted(uint256 indexed tokenId, address indexed to, uint8 rarity, bytes32 profession)',
   ]),
+  PropertyNFT: parseAbi([
+    'event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)',
+    'event PropertyMinted(uint256 indexed tokenId, uint256 indexed lotId, address indexed owner, bytes32 typeCode, uint16 level)',
+    'event PropertyUpgraded(uint256 indexed tokenId, uint16 level)',
+  ]),
   LuckyBox: parseAbi([
     'event BoxOpened(uint256 indexed requestId, address indexed buyer, uint32 indexed tierId)',
     'event AvatarRevealed(uint256 indexed requestId, address indexed buyer, uint256 tokenId, uint8 rarity, bytes32 profession)',
@@ -53,7 +58,7 @@ export function normalizeArgs(args: Record<string, unknown>): EventArgs {
   return out;
 }
 
-/** `bytes32` de profissão ("padeiro" com zeros à direita) → texto. */
+/** `bytes32` de profissão ("padeiro") ou de tipo de imóvel ("t1"), com zeros à direita → texto. */
 export const professionText = (b: string) => hexToString(b as Hex, { size: 32 }).replace(/\0+$/, '');
 
 /** O `tokenId` do LandNFT é cidade << 32 | lote. */
@@ -80,6 +85,17 @@ export interface AvatarToken {
   block: bigint;
 }
 
+/** Imóvel (PropertyNFT): o dono vem do Transfer; lote, tipo e nível, do mint e do upgrade. */
+export interface PropertyToken {
+  tokenId: string;
+  owner: string;
+  /** `tokenId` do lote âncora no LandNFT. */
+  lotId: string | null;
+  typeCode: string | null;
+  level: number | null;
+  block: bigint;
+}
+
 export interface BoxRequest {
   requestId: string;
   buyer: string;
@@ -97,6 +113,9 @@ export type ProjectionOp =
   | { kind: 'lot'; value: LotToken }
   | { kind: 'avatar_owner'; tokenId: string; owner: string; block: bigint }
   | { kind: 'avatar_traits'; tokenId: string; owner: string; rarity: number; profession: string; block: bigint }
+  | { kind: 'property_owner'; tokenId: string; owner: string; block: bigint }
+  | { kind: 'property_traits'; tokenId: string; owner: string; lotId: string; typeCode: string; level: number; block: bigint }
+  | { kind: 'property_level'; tokenId: string; level: number; block: bigint }
   | { kind: 'box_opened'; value: BoxRequest }
   | { kind: 'box_revealed'; requestId: string; buyer: string; tokenId: string; block: bigint };
 
@@ -120,6 +139,25 @@ export function projectionOps(e: ChainEvent): ProjectionOp[] {
         block: e.blockNumber,
       },
     ];
+  }
+  if (e.contract === 'PropertyNFT' && e.event === 'Transfer') {
+    return [{ kind: 'property_owner', tokenId: a.tokenId as string, owner: a.to as string, block: e.blockNumber }];
+  }
+  if (e.contract === 'PropertyNFT' && e.event === 'PropertyMinted') {
+    return [
+      {
+        kind: 'property_traits',
+        tokenId: a.tokenId as string,
+        owner: a.owner as string,
+        lotId: a.lotId as string,
+        typeCode: professionText(a.typeCode as string),
+        level: Number(a.level),
+        block: e.blockNumber,
+      },
+    ];
+  }
+  if (e.contract === 'PropertyNFT' && e.event === 'PropertyUpgraded') {
+    return [{ kind: 'property_level', tokenId: a.tokenId as string, level: Number(a.level), block: e.blockNumber }];
   }
   if (e.contract === 'LuckyBox' && e.event === 'BoxOpened') {
     return [

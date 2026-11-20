@@ -6,6 +6,7 @@ import {
   type ChainEvent,
   type Cursor,
   type LotToken,
+  type PropertyToken,
   byChainOrder,
 } from './events.js';
 
@@ -36,6 +37,8 @@ export interface IndexerStore {
   lotsOf(chainId: number, owner: string): Promise<LotToken[]>;
   avatar(chainId: number, tokenId: string): Promise<AvatarToken | null>;
   avatarsOf(chainId: number, owner: string): Promise<AvatarToken[]>;
+  property(chainId: number, tokenId: string): Promise<PropertyToken | null>;
+  propertiesOf(chainId: number, owner: string): Promise<PropertyToken[]>;
   box(chainId: number, requestId: string): Promise<BoxRequest | null>;
   /** Eventos em ordem de gravação, depois de `afterId` (feed para os outros serviços). */
   eventsAfter(chainId: number, afterId: number, limit: number): Promise<(ChainEvent & { id: number })[]>;

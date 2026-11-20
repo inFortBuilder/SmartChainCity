@@ -177,6 +177,30 @@ describe.each([
     expect((await store.lot(id, mintLot(ALICE, 1, 1).tokenId))?.owner).toBe(ALICE);
   });
 
+  it.skipIf(!enabled)('imóvel: mint com lote, tipo e nível; upgrade, venda e reorganização', async () => {
+    const id = newChainId();
+    const chain = new FakeChain(id);
+    const store = make();
+    const opt = options(id, { confirmations: 0, reorgDepth: 3 });
+    const lotId = mintLot(ALICE, 1, 42).tokenId;
+    const tokenId = '147735337091412453395938540624009591403';
+    chain.mine(1);
+    chain.emit('PropertyNFT', 'Transfer', { from: ZERO, to: ALICE, tokenId });
+    chain.emit('PropertyNFT', 'PropertyMinted', { tokenId, lotId, owner: ALICE, typeCode: stringToHex('t1', { size: 32 }), level: 1 });
+    chain.mine(1);
+    chain.emit('PropertyNFT', 'PropertyUpgraded', { tokenId, level: 2 });
+    chain.mine(3);
+    chain.emit('PropertyNFT', 'Transfer', { from: ALICE, to: BOB, tokenId }, 5);
+    await drain(chain, store, opt);
+    expect(await store.property(id, tokenId)).toMatchObject({ owner: BOB, lotId, typeCode: 't1', level: 2 });
+    expect((await store.propertiesOf(id, BOB)).map((p) => p.tokenId)).toEqual([tokenId]);
+
+    // A venda some numa reorganização; o nível, que veio antes, fica.
+    chain.fork(5n);
+    await tick(chain, store, opt);
+    expect(await store.property(id, tokenId)).toMatchObject({ owner: ALICE, level: 2 });
+  });
+
   it.skipIf(!enabled)('lê em lotes de no máximo `batchBlocks`', async () => {
     const id = newChainId();
     const chain = new FakeChain(id);
@@ -213,6 +237,8 @@ describe('API', () => {
     expect(owner.lots).toEqual([{ token_id: '4294967373', city: 1, lot: 77, owner: ALICE, block: '1' }]);
     expect((await app.inject({ method: 'GET', url: '/v1/chain/lots/4294967373' })).json().lot.owner).toBe(ALICE);
     expect((await app.inject({ method: 'GET', url: '/v1/chain/lots/1' })).statusCode).toBe(404);
+    expect(owner.properties).toEqual([]);
+    expect((await app.inject({ method: 'GET', url: '/v1/chain/properties/1' })).statusCode).toBe(404);
     expect((await app.inject({ method: 'GET', url: '/v1/chain/status' })).json()).toMatchObject({ chain_id: 31337, indexed_block: '2' });
 
     expect((await app.inject({ method: 'GET', url: '/internal/v1/chain/events' })).statusCode).toBe(403);
