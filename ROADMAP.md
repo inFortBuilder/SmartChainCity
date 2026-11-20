@@ -52,7 +52,7 @@ O MVP roda inteiro na máquina local, sem serviços pagos. Por isso, publicar o 
 |------|----------|
 | `contracts/` | Desde 2026-11-20: `LandNFT`, `AvatarNFT`, `LuckyBox` e `SCityToken` no anvil. Faltam `PropertyNFT`, `GameVault`, `Marketplace`, vesting e a reserva da auditoria (E3.8) |
 | `services/world` | Faltam imóveis, impostos, regras de cerco e a cotação EIP-712 |
-| `services/realtime`, `services/chain-indexer` | Não começados |
+| `services/realtime` | Não começado. O `services/chain-indexer` começou em 2026-11-20 e espera o `GameVault` para os depósitos |
 | Etapa 0 sem código | E0.2 (trocar as credenciais legadas), E0.8 (parecer jurídico), o tomate duplicado e a calibração da elasticidade e do dinheiro novo no simulador |
 | `client-unity/` | Plano B ([ADR-0009](docs/adr/0009-cliente-web-nativo.md)): E0.3 e E0.6 saíram do caminho crítico |
 
@@ -65,7 +65,7 @@ O MVP roda inteiro na máquina local, sem serviços pagos. Por isso, publicar o 
    - 🟡 Imóveis com obra, desgaste e renda (E2.5, 2026-11-20). A Casa T1 está pronta, com reparo e upgrade de nível e valores provisórios; faltam aluguel, os outros tipos e o `PropertyNFT`.
    - 🟡 Impostos (E2.6, 2026-11-20). IPTU e PT com débito automático, multa e bloqueio do lote inadimplente, com valores provisórios; falta o leilão.
 3. **Blockchain e prédios no servidor.**
-   - `chain-indexer`: um depósito credita o THALER uma única vez.
+   - 🟡 `chain-indexer` (2026-11-20): lê os eventos com confirmações e trata reorganização. Espelha lotes, avatares e caixas, e foi testado no anvil. Falta o depósito creditar o THALER uma única vez, que espera o `GameVault`.
    - Validação dos prédios do SCC Builder no servidor, com o `BuildingNFT` (E2.10 e E2.11).
 4. **Fechar a Etapa 2.**
    - Multiplayer no `realtime` (E2.7).
