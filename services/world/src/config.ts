@@ -32,6 +32,32 @@ const schema = z.object({
   SCITY_USD: z.coerce.number().positive().default(1),
   /** Intervalo do job que resolve compras pendentes. */
   SETTLE_EVERY_SECONDS: z.coerce.number().int().positive().default(60),
+  /**
+   * Posse on-chain do lote (LandNFT, doc 07 §2.1). Sem GATEWAY_URL, GATEWAY_TOKEN,
+   * LAND_NFT_ADDRESS e LAND_SIGNER_KEY, a rota de cotação responde 503. O gateway confere a carteira do jogador.
+   */
+  GATEWAY_URL: optional(z.url()),
+  GATEWAY_TOKEN: optional(z.string().min(32, 'GATEWAY_TOKEN precisa de pelo menos 32 caracteres')),
+  CHAIN_ID: z.coerce.number().int().positive().default(31337),
+  LAND_NFT_ADDRESS: optional(z.string().regex(/^0x[0-9a-fA-F]{40}$/, 'LAND_NFT_ADDRESS precisa ser um endereço')),
+  /** Chave do papel SIGNER do LandNFT. Só no MVP local; na rede pública, KMS. */
+  LAND_SIGNER_KEY: optional(z.string().regex(/^0x[0-9a-fA-F]{64}$/, 'LAND_SIGNER_KEY precisa ser uma chave privada hex')),
+  /** Id numérico de cada cidade no contrato: "pittsburg=1,outra=2". */
+  LAND_CITY_IDS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      Object.fromEntries(
+        list(value).map((pair) => {
+          const [code, id] = pair.split('=').map((s) => s.trim());
+          const n = Number(id);
+          if (!code || !Number.isInteger(n) || n < 1 || n > 2 ** 32 - 1) throw new Error(`LAND_CITY_IDS inválido: ${pair}`);
+          return [code, n];
+        }),
+      ) as Record<string, number>,
+    ),
+  /** Validade da cotação assinada. */
+  QUOTE_TTL_SECONDS: z.coerce.number().int().positive().default(600),
 });
 
 export type Config = z.infer<typeof schema>;

@@ -61,7 +61,7 @@ O MVP roda inteiro na máquina local, sem serviços pagos. Por isso, publicar o 
    - o world assinar a cotação, que entra no passo 2;
    - a assinatura do VRF da Chainlink na testnet.
 2. **Concluir o `world`.**
-   - Cotação EIP-712 aceita pelo `LandNFT` (E2.4).
+   - ✅ Cotação EIP-712 aceita pelo `LandNFT` no anvil (E2.4, 2026-11-20). O lote pago no ledger vira NFT na carteira do jogador.
    - Imóveis com obra, desgaste e renda (E2.5).
    - Impostos (E2.6).
 3. **Blockchain e prédios no servidor.**

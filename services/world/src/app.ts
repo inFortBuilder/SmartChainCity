@@ -4,6 +4,7 @@ import Fastify, { type FastifyRequest } from 'fastify';
 import { z } from 'zod';
 
 import type { Config } from './config.js';
+import { type QuoteSigner, type WalletDirectory, issueOnchainQuote } from './domain/land-quote.js';
 import { type LandPayments, type Lot, type WorldStore, lotCode, priceOf } from './domain/lots.js';
 import { buyLot } from './domain/purchase.js';
 
@@ -25,6 +26,7 @@ export async function buildApp(
   store: WorldStore,
   now: () => Date = () => new Date(),
   payments: LandPayments | null = null,
+  land: { wallets: WalletDirectory; signer: QuoteSigner; contract: string; chainId: number } | null = null,
 ) {
   const app = Fastify({
     ...serverOptions({ service: 'world', nodeEnv: config.NODE_ENV, logLevel: config.LOG_LEVEL }),
@@ -132,6 +134,30 @@ export async function buildApp(
       lot: lotDto(lot, me, lot.district < c.openCount, c.zones),
       city: { open_count: c.openCount },
     });
+  });
+
+  // Cotação assinada para levar o lote (já pago no ledger) ao LandNFT. O jogador
+  // chama buyPrimary(quote, signature) com a própria carteira.
+  app.post('/v1/world/cities/:code/lots/:id/onchain-quote', async (request) => {
+    const me = await player(request);
+    const { code, id } = lotParams.parse(request.params);
+    const { wallet } = z.object({ wallet: z.string() }).parse(request.body);
+    if (!land) throw new AppError('onchain_disabled', 'A posse on-chain dos lotes está desligada.', 503);
+    await cityOr404(code);
+    const { quote, signature, tokenId } = await issueOnchainQuote(
+      store,
+      land.wallets,
+      land.signer,
+      { city: code, lotId: id, accountId: me, wallet, cityNftId: config.LAND_CITY_IDS[code], ttlSeconds: config.QUOTE_TTL_SECONDS, requestId: request.id },
+      now,
+    );
+    return {
+      contract: land.contract,
+      chain_id: land.chainId,
+      token_id: tokenId.toString(),
+      quote: { ...quote, price: quote.price.toString(), nonce: quote.nonce.toString(), deadline: quote.deadline.toString() },
+      signature,
+    };
   });
 
   return app;
