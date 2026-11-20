@@ -52,7 +52,7 @@ O MVP roda inteiro na máquina local, sem serviços pagos. Por isso, publicar o 
 |------|----------|
 | `contracts/` | Desde 2026-11-20: `LandNFT`, `AvatarNFT`, `LuckyBox` e `SCityToken` no anvil. Faltam `PropertyNFT`, `GameVault`, `Marketplace`, vesting e a reserva da auditoria (E3.8) |
 | `services/world` | Faltam imóveis, impostos, regras de cerco e a cotação EIP-712 |
-| `services/realtime` | Não começado. O `services/chain-indexer` começou em 2026-11-20 e espera o `GameVault` para os depósitos |
+| `services/chain-indexer` | Começou em 2026-11-20; espera o `GameVault` para os depósitos. O `services/realtime` também começou nesse dia |
 | Etapa 0 sem código | E0.2 (trocar as credenciais legadas), E0.8 (parecer jurídico), o tomate duplicado e a calibração da elasticidade e do dinheiro novo no simulador |
 | `client-unity/` | Plano B ([ADR-0009](docs/adr/0009-cliente-web-nativo.md)): E0.3 e E0.6 saíram do caminho crítico |
 
@@ -68,7 +68,7 @@ O MVP roda inteiro na máquina local, sem serviços pagos. Por isso, publicar o 
    - 🟡 `chain-indexer` (2026-11-20): lê os eventos com confirmações e trata reorganização. Espelha lotes, avatares e caixas, e foi testado no anvil. Falta o depósito creditar o THALER uma única vez, que espera o `GameVault`.
    - 🟡 Validação dos prédios no servidor (E2.10, 2026-11-20). O world manda o polígono e as regras do próprio banco para o SCC Builder, cobra a outorga e guarda o prédio para o alvará; testado com o Builder real. O `BuildingNFT` (E2.11) também está pronto: o prédio aprovado vira NFT na carteira do construtor, testado no anvil.
 4. **Fechar a Etapa 2.**
-   - Multiplayer no `realtime` (E2.7).
+   - 🟡 Multiplayer no `realtime` (E2.7, 2026-11-20). Salas por bairro, presença, chat moderado e eventos, com 100 clientes numa sala, p95 de 72 ms e nenhuma queda. Falta mostrar os outros jogadores no mapa.
    - Profissões com minigame (E2.2).
    - Antifraude (E2.9).
    - Painel econômico (E2.8).

@@ -8,7 +8,7 @@ Serviços de backend em TypeScript (workspace pnpm).
 | [game-core](game-core/README.md) | `@scc/game-core` | Avatares e atributos (pronto: queda por job, até 3 por conta), turnos (pronto: commit-reveal, pago pelo ledger), negócios, fazenda, pets |
 | [economy](economy/README.md) | `@scc/economy` | Ledger THALER (pronto: dupla entrada, idempotência, extrato), impostos, câmbio, saques |
 | [world](world/README.md) | `@scc/world` | Lotes (pronto: situação, dono e venda primária paga pelo ledger), imóveis, cotações assinadas |
-| [realtime](realtime/README.md) | `@scc/realtime` | Colyseus: presença, chat, eventos |
+| [realtime](realtime/README.md) | `@scc/realtime` | Colyseus (pronto: salas por bairro, presença, chat moderado, eventos da Prefeitura) |
 | [chain-indexer](chain-indexer/README.md) | `@scc/chain-indexer` | Eventos on-chain (pronto: confirmações, reorg, posse de lotes, avatares e caixas); depósitos e vouchers |
 | [shared](shared/README.md) | `@scc/shared` | Tipos, erros, validação do token de acesso (`verifyAccessToken`) e da chave de serviço (`requireServiceToken`) |
 
