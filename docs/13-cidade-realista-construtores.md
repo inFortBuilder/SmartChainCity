@@ -121,7 +121,7 @@ O Convert3D (v2.8.0, `C:\Projeto-Git\SmartChainCity\Convert3D`) já faz o mais d
 
 No monorepo, em `tools/scc-builder/` (editor + CLI) e `services/builder/` (API PHP e worker). O serviço `world` chama o builder pela API e guarda só o resultado validado. O Convert3D original continua no EventosWeb: o fork é **independente**, sem código compartilhado em tempo de execução.
 
-> **Antes do fork:** confirmar por escrito que a Smart Chain City / UZAACOM pode usar e modificar o código do Convert3D fora do EventosWeb. A licença no repositório é MIT, mas a titularidade e o histórico de contribuição precisam estar claros.
+> **Titularidade confirmada (2026-11-20):** o Convert3D é código próprio da equipe. Foi feito para o EventosWeb já pensando no uso na Smart Chain City, então o fork pode usar e modificar o código livremente. Os ajustes da versão SCC ficam neste fork.
 
 ### 5.3 Contrato entre o SCC Builder e o jogo
 
@@ -229,7 +229,7 @@ O protótipo usa **Three.js** (o mesmo motor do editor do Convert3D) e já carre
 3. Unidades como ERC-721 por unidade (recomendado) ou ERC-1155.
 4. Royalty do construtor, taxa de alvará e valor da outorga por m² (calibrar no simulador).
 5. Quem pode ser construtor: qualquer jogador com lote, ou só contas com verificação (KYC) e depósito?
-6. Titularidade do código do Convert3D para o fork.
+6. ~~Titularidade do código do Convert3D para o fork.~~ Resolvida em 2026-11-20: o código é próprio da equipe (§5.2).
 
 ## 12. Impacto no roadmap
 

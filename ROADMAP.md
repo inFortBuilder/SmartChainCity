@@ -31,6 +31,53 @@ S1–S4            S5–S8              S9–S14              S15–S22         
 
 > **Aprovada em 2026-11-12 — Cidade realista e construtores** ([doc 13](docs/13-cidade-realista-construtores.md), [ADR-0012](docs/adr/0012-cidade-real-construtores.md)): cidade em formato real, prédios de jogadores enviados pelo SCC Builder (Convert3D sem vínculo com o EventosWeb) e unidades vendáveis, com cliente web nativo ([ADR-0009](docs/adr/0009-cliente-web-nativo.md)). Entram os épicos E0.9 (spike do cliente web nativo), E0.10 (fork SCC Builder), E1.8 (lote poligonal), E2.10–E2.11 (validação e prédios na testnet) e E3.11–E3.12 (unidades, UnitMarket e moderação).
 
+## Situação e sequência (2026-11-20)
+
+O MVP roda inteiro na máquina local, sem serviços pagos. Por isso, publicar o ambiente `dev` e ligar o Sentry ficam fora do MVP.
+
+**Na `main`:**
+- **Etapa 1 concluída no ambiente local.**
+  - Login por carteira (SIWE) e por e-mail, com vínculo entre os dois.
+  - Avatar, atributos e turno de trabalho.
+  - Ledger do THALER.
+  - Catálogo no Strapi 5, com webhook para o game-core.
+  - Observabilidade local.
+  - Lotes no serviço world, com venda primária paga pelo ledger.
+- **Primeira parte da E2.3:** comer, despensa, hospital compulsório, farmácia e doenças leves.
+- **Fila de PRs zerada.** Os 13 PRs que esperavam merge entraram em 20/11, depois de testados juntos: 243 testes e o CI verde.
+
+**O que falta:**
+
+| Área | Situação |
+|------|----------|
+| `contracts/` | Vazio. É o item mais atrasado: a Etapa 2 depende de `LandNFT`, `AvatarNFT` e `LuckyBox`, e a auditoria (E3.8) precisa ser reservada |
+| `services/world` | Faltam imóveis, impostos, regras de cerco e a cotação EIP-712 |
+| `services/realtime`, `services/chain-indexer` | Não começados |
+| Etapa 0 sem código | E0.2 (trocar as credenciais legadas), E0.8 (parecer jurídico), o tomate duplicado e a calibração da elasticidade e do dinheiro novo no simulador |
+| `client-unity/` | Plano B ([ADR-0009](docs/adr/0009-cliente-web-nativo.md)): E0.3 e E0.6 saíram do caminho crítico |
+
+**Sequência:**
+1. **Contratos de lote e avatar:** `LandNFT`, `AvatarNFT` e `LuckyBox` com Foundry, na rede local (Anvil).
+2. **Concluir o `world`.**
+   - Cotação EIP-712 aceita pelo `LandNFT` (E2.4).
+   - Imóveis com obra, desgaste e renda (E2.5).
+   - Impostos (E2.6).
+3. **Blockchain e prédios no servidor.**
+   - `chain-indexer`: um depósito credita o THALER uma única vez.
+   - Validação dos prédios do SCC Builder no servidor, com o `BuildingNFT` (E2.10 e E2.11).
+4. **Fechar a Etapa 2.**
+   - Multiplayer no `realtime` (E2.7).
+   - Profissões com minigame (E2.2).
+   - Antifraude (E2.9).
+   - Painel econômico (E2.8).
+   - O resto da E2.3.
+5. **Em paralelo, desde já:** reservar o auditor, obter o parecer jurídico (E0.8) e calibrar a economia. São o caminho crítico até o TGE e não dependem de código.
+
+**Regra para não acumular PRs:**
+- No máximo 3 PRs empilhados por cadeia.
+- O merge acontece em até 2 dias depois de o CI ficar verde.
+- Antes de abrir uma nova cadeia, a anterior precisa ter entrado na `main`.
+
 ---
 
 ## Etapa 0 — Fundação (S1–S4)
@@ -50,6 +97,18 @@ S1–S4            S5–S8              S9–S14              S15–S22         
 
 **Dependências:** E0.3 → E0.6 → E0.7 · E0.4 → E0.5.
 
+> **Situação em 2026-11-20:**
+> - ✅ **Prontos:**
+>   - E0.1;
+>   - E0.4, exceto o tomate duplicado;
+>   - E0.5, aprovado em 9 de 9 cenários, mas com premissas ainda sem dados;
+>   - E0.9, o spike do cliente web;
+>   - E0.10, o SCC Builder. O Convert3D é código próprio da equipe, feito para o EventosWeb já pensando na Smart Chain City, e a titularidade foi confirmada em 2026-11-20.
+> - ↪ **Substituídos:**
+>   - E0.3 e E0.6, pelo cliente web nativo ([ADR-0009](docs/adr/0009-cliente-web-nativo.md));
+>   - E0.7, pela importação da cidade inteira no [SCC Builder](tools/scc-builder/README.md#cidade-inteira-em-obj).
+> - ⏳ **Abertos:** E0.2 e E0.8.
+
 ---
 
 ## Etapa 1 — Vertical Slice (S5–S8)
@@ -66,9 +125,11 @@ S1–S4            S5–S8              S9–S14              S15–S22         
 | E1.6 Célula jogável | client · art | 1 célula com lotes, 1 casa T1, câmera isométrica | Célula carrega por Addressables com dados de `/world/cells` |
 | E1.7 Observabilidade | infra | Logs estruturados, métricas, Sentry, ambiente `dev` | Painel mostra requisições e erros por serviço |
 
-> **Situação em 2026-11-12:** o critério de saída foi demonstrado localmente. No mapa de Pittsburg (cliente web, [ADR-0009](docs/adr/0009-cliente-web-nativo.md)), o jogador entra com a carteira, trabalha um turno e coleta THALER no ledger, tudo pelo servidor. Prontos: E1.1 (login SIWE e, desde 2026-11-13, por código no e-mail, que no MVP local sai no log do gateway; a conta pode ligar carteira e e-mail e entrar por qualquer um), E1.3, E1.4, E1.5 e E1.6, com os lotes no serviço world e a compra paga em SCITY pelo ledger (a geometria segue em arquivos estáticos por bairro). E1.2 pronto no catálogo: Strapi 5 com profissões, atividades, alimentos, raridades, multiplicadores e tipos de imóvel publicados; o game-core lê as profissões e os alimentos sem deploy. Os números que o GDD não tem (efeito exato das atividades, preço dos alimentos, renda dos imóveis) esperam o game designer. Faltam E1.7 (observabilidade) e o ambiente `dev` publicado.
+> **Situação em 2026-11-12:** o critério de saída foi demonstrado localmente. No mapa de Pittsburg (cliente web, [ADR-0009](docs/adr/0009-cliente-web-nativo.md)), o jogador entra com a carteira, trabalha um turno e coleta THALER no ledger, tudo pelo servidor. Prontos: E1.1 (login SIWE e, desde 2026-11-13, por código no e-mail, que no MVP local sai no log do gateway; a conta pode ligar carteira e e-mail e entrar por qualquer um), E1.3, E1.4, E1.5 e E1.6, com os lotes no serviço world e a compra paga em SCITY pelo ledger (a geometria segue em arquivos estáticos por bairro). E1.2 pronto no catálogo: Strapi 5 com profissões, atividades, alimentos, raridades, multiplicadores e tipos de imóvel publicados; o game-core lê as profissões e os alimentos sem deploy. Os números que o GDD não tem (efeito exato das atividades, preço dos alimentos, renda dos imóveis) esperam o game designer.
 >
-> **E1.7 em 2026-11-13:** logs JSON com o serviço e o id da requisição, métricas em `/metrics` e painel local (Prometheus + Grafana) com requisições, erros e latência por serviço ([infra/observability](infra/observability/README.md)). Faltam o Sentry, que precisa de uma conta, e o ambiente `dev` publicado.
+> **E1.7 em 2026-11-13:** logs JSON com o serviço e o id da requisição, métricas em `/metrics` e painel local (Prometheus + Grafana) com requisições, erros e latência por serviço ([infra/observability](infra/observability/README.md)).
+>
+> **Etapa 1 concluída em 2026-11-20, no ambiente local:** tudo acima está na `main`. O Sentry e o ambiente `dev` publicado ficam fora do MVP, que roda sem serviços pagos.
 
 ---
 
@@ -142,18 +203,20 @@ Liberada em ondas; cada onda só abre quando o painel econômico estiver saudáv
 ## Caminho crítico
 
 ```
-Recuperar Unity (E0.3) ─► Protótipo WebGL (E0.6) ─► Célula jogável (E1.6) ─► Região A1 (E2.4) ─► Imóveis (E2.5)
-Decisões (E0.4) ─► Simulador (E0.5) ─► Ledger (E1.5) ─► GameVault (E3.7) ─► Auditoria (E3.8) ─► TGE (E4.2)
-Parecer jurídico (E0.8) ───────────────────────────────────────────────────────────────────────► TGE (E4.2)
+Cliente web (E0.9 ✅) ─► Célula jogável (E1.6 ✅) ─► LandNFT + cotação (E2.4) ─► Imóveis (E2.5) ─► Prédios de construtores (E2.10–E2.11)
+Simulador (E0.5 ✅) ─► Ledger (E1.5 ✅) ─► Contratos (E2.1, E2.5) ─► GameVault (E3.7) ─► Auditoria (E3.8) ─► TGE (E4.2)
+Parecer jurídico (E0.8) ──────────────────────────────────────────────────────────────────────────────────► TGE (E4.2)
 ```
 
-Atraso em **E0.3** (projeto-fonte Unity) ou **E3.8** (auditoria) desloca o lançamento inteiro; os dois devem começar o quanto antes.
+Desde 2026-11-20, os gargalos são os **contratos** (pasta vazia), a **auditoria** (E3.8) e o **parecer jurídico** (E0.8). Os três precisam começar agora. O projeto Unity (E0.3) saiu do caminho crítico pela [ADR-0009](docs/adr/0009-cliente-web-nativo.md).
 
 ## Riscos do roadmap
 
 | Risco | Impacto | Mitigação |
 |-------|---------|-----------|
-| Projeto-fonte Unity não recuperado | Refazer o cliente (+6 a 8 sprints) | Começar E0.3 no dia 1; plano B: refazer a partir do build e da arte |
+| ~~Projeto-fonte Unity não recuperado~~ | Resolvido pela [ADR-0009](docs/adr/0009-cliente-web-nativo.md): o cliente web nativo é o principal | Unity fica como plano B |
+| PRs acumulados sem merge | Revisão difícil, conflitos entre trilhas (em 2026-11-20 eram 13 abertos em 3 cadeias) | Máximo de 3 PRs empilhados por cadeia; merge em até 2 dias com o CI verde |
+| Contratos atrasados | Etapa 2 e auditoria deslizam | Começar `LandNFT`/`AvatarNFT` já, na rede local (Anvil) |
 | Economia não fecha no simulador | Redesenho do GDD | Rodar o simulador antes de qualquer contrato |
 | Parecer jurídico desfavorável a token/boxes | Mudança de modelo | Manter o jogo funcional só com THALER; boxes vendidas em moeda fiduciária ou desativadas por região |
 | Desempenho do WebGL no celular | Perda de público | Perfil "Low", testes em aparelhos reais desde a Etapa 1 |
