@@ -31,6 +31,31 @@ export class AuthService {
    * before the signature check, so a failed attempt cannot be retried with it.
    */
   async verifySiwe(message: string, signature: Hex) {
+    const { address, chainId, now } = await this.checkSiwe(message, signature);
+    const account = await this.store.findOrCreateAccountByWallet(address, chainId, now);
+    if (account.status !== 'active') {
+      throw new AppError('account_blocked', 'Conta bloqueada.', 403);
+    }
+
+    return { account, ...(await issueToken(account.id, this.options.token, now)) };
+  }
+
+  /**
+   * Liga mais uma carteira à conta logada (a de e-mail, por exemplo), provada
+   * pela mesma assinatura SIWE do login. Uma carteira pertence a uma conta só.
+   */
+  async linkWallet(accountId: string, message: string, signature: Hex) {
+    await this.me(accountId);
+    const { address, chainId, now } = await this.checkSiwe(message, signature);
+    const result = await this.store.linkWallet(accountId, address, chainId, now);
+    if (result === 'taken') {
+      throw new AppError('wallet_in_use', 'Esta carteira já está ligada a outra conta.', 409);
+    }
+    return { linked: result === 'linked', ...(await this.me(accountId)) };
+  }
+
+  /** Confere a mensagem e a assinatura SIWE e queima o nonce. */
+  private async checkSiwe(message: string, signature: Hex) {
     const now = this.now();
     const siwe = parseSiweMessage(message);
 
@@ -54,12 +79,7 @@ export class AuthService {
     const valid = await verifyMessage({ address, message, signature }).catch(() => false);
     if (!valid) throw new AppError('invalid_signature', 'Assinatura inválida.', 401);
 
-    const account = await this.store.findOrCreateAccountByWallet(address, siwe.chainId, now);
-    if (account.status !== 'active') {
-      throw new AppError('account_blocked', 'Conta bloqueada.', 403);
-    }
-
-    return { account, ...(await issueToken(account.id, this.options.token, now)) };
+    return { address, chainId: siwe.chainId, now };
   }
 
   async me(accountId: string) {

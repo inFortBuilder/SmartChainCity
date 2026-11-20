@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { check, index, jsonb, numeric, pgSchema, smallint, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { check, index, jsonb, numeric, pgSchema, smallint, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 
 /**
  * Esquema próprio `game` (o serviço não toca o banco dos outros). Tabela
@@ -31,6 +31,16 @@ export const avatar = game.table(
     hygieneAt: timestamptz('hygiene_at').notNull(),
     employmentStatus: text('employment_status').notNull().default('employed'),
     lastWorkedAt: timestamptz('last_worked_at'),
+    /** Internado até este instante (E2.3); null fora do hospital. */
+    hospitalUntil: timestamptz('hospital_until'),
+    /**
+     * Doenças leves em curso ou marcadas para o fim do turno (E2.3): a
+     * `avatar_condition` do doc 06 §2, guardada no próprio avatar porque é
+     * sempre lida e gravada junto com ele. [{code, startsAt, endsAt}]
+     */
+    conditions: jsonb('conditions').notNull().default([]),
+    /** Despensa (E2.3): unidades por alimento, {codigo: unidades}. */
+    pantry: jsonb('pantry').notNull().default({}),
     createdAt: timestamptz('created_at').notNull(),
     updatedAt: timestamptz('updated_at').notNull(),
   },
@@ -74,5 +84,63 @@ export const workShift = game.table(
     index('work_shift_due_idx').on(t.status, t.endsAt),
     check('work_shift_hours_check', sql`${t.shiftHours} in (6, 12)`),
     check('work_shift_status_check', sql`${t.status} in ('running', 'done', 'claimed')`),
+  ],
+);
+
+/**
+ * Refeição no mercado do jogo (E2.3). Nasce `pending`, antes da cobrança no
+ * ledger; vira `eaten` com os efeitos aplicados ao avatar, ou `failed` se o
+ * ledger recusar. A chave do cliente (Idempotency-Key) é única por conta.
+ */
+export const meal = game.table(
+  'meal',
+  {
+    id: uuid('id').primaryKey(),
+    avatarId: uuid('avatar_id')
+      .notNull()
+      .references(() => avatar.id),
+    accountId: uuid('account_id').notNull(),
+    foodCode: text('food_code').notNull(),
+    priceCents: numeric('price_cents', { precision: 38, scale: 0 }).notNull(),
+    effects: jsonb('effects').notNull(),
+    status: text('status').notNull(),
+    clientKey: text('client_key'),
+    createdAt: timestamptz('created_at').notNull(),
+    eatenAt: timestamptz('eaten_at'),
+  },
+  (t) => [
+    index('meal_avatar_idx').on(t.avatarId, t.createdAt),
+    uniqueIndex('meal_client_key_unique').on(t.accountId, t.clientKey),
+    check('meal_status_check', sql`${t.status} in ('pending', 'eaten', 'failed')`),
+    check('meal_price_check', sql`${t.priceCents} > 0`),
+  ],
+);
+
+/**
+ * Internação compulsória (E2.3): saúde 0 ou energia 0. A taxa nasce
+ * `pending` e vira `paid` quando o ledger cobra, ou `waived` se o jogador
+ * não tem THALER.
+ */
+export const hospitalStay = game.table(
+  'hospital_stay',
+  {
+    id: uuid('id').primaryKey(),
+    avatarId: uuid('avatar_id')
+      .notNull()
+      .references(() => avatar.id),
+    accountId: uuid('account_id').notNull(),
+    reason: text('reason').notNull(),
+    feeCents: numeric('fee_cents', { precision: 38, scale: 0 }).notNull(),
+    feeStatus: text('fee_status').notNull(),
+    admittedAt: timestamptz('admitted_at').notNull(),
+    dischargeAt: timestamptz('discharge_at').notNull(),
+  },
+  (t) => [
+    index('hospital_stay_avatar_idx').on(t.avatarId, t.admittedAt),
+    index('hospital_stay_fee_idx').on(t.feeStatus, t.admittedAt),
+    check('hospital_stay_reason_check', sql`${t.reason} in ('health', 'energy')`),
+    check('hospital_stay_fee_status_check', sql`${t.feeStatus} in ('pending', 'paid', 'waived')`),
+    check('hospital_stay_fee_check', sql`${t.feeCents} > 0`),
+    check('hospital_stay_period_check', sql`${t.dischargeAt} > ${t.admittedAt}`),
   ],
 );

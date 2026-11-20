@@ -1,6 +1,7 @@
 import { AppError } from '@scc/shared';
 
 import { type Rarity, isRarity, professionFits } from './catalog.js';
+import { CONDITIONS, type Condition, activeConditions } from './conditions.js';
 
 /**
  * Avatar e atributos (doc 02 §2.3, doc 06 §2). Atributos de 0 a 10, educação
@@ -46,6 +47,12 @@ export interface Avatar {
    * leitura e o job concordarem sem perder frações de tempo.
    */
   anchors: Record<DecayingAttribute, Date>;
+  /** Internado até este instante (hospital compulsório, E2.3); null fora do hospital. */
+  hospitalUntil: Date | null;
+  /** Doenças leves (farmácia), inclusive a que começa quando o turno acabar. */
+  conditions: Condition[];
+  /** Despensa: unidades guardadas de cada alimento, compradas em pacote. */
+  pantry: Record<string, number>;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -71,15 +78,23 @@ export function decayed(avatar: Avatar, now: Date): Avatar {
 export const decayDue = (avatar: Avatar, now: Date) =>
   DECAYING.some((name) => avatar.attributes[name] > 0 && now.getTime() - avatar.anchors[name].getTime() >= DECAY[name].everyMs);
 
+/** Internado agora? A alta é pelo relógio: passou de `hospitalUntil`, está livre. */
+export const inHospital = (avatar: Avatar, now: Date) =>
+  avatar.hospitalUntil !== null && avatar.hospitalUntil.getTime() > now.getTime();
+
 /** Situação que a tela mostra e que o turno de trabalho vai consultar. */
-export function status(avatar: Avatar) {
+export function status(avatar: Avatar, now: Date = new Date()) {
   const a = avatar.attributes;
+  // De cama ou isolado (dor de barriga, gripe) também não trabalha nem sai para o lazer.
+  const bedridden = activeConditions(avatar.conditions, now).some((c) => CONDITIONS[c.code].blocksWork);
+  const free = !inHospital(avatar, now) && !bedridden;
   return {
     // GDD: 48 h sem comer não gera recompensa.
     earnsReward: a.food > 0,
-    // GDD: 1 nível de energia = só trabalhar; 2 = trabalhar e lazer.
-    canWork: a.energy >= 1 && a.health >= 1,
-    canLeisure: a.energy >= 2 && a.health >= 1,
+    // GDD: 1 nível de energia = só trabalhar; 2 = trabalhar e lazer. No hospital, nenhum dos dois.
+    canWork: free && a.energy >= 1 && a.health >= 1,
+    canLeisure: free && a.energy >= 2 && a.health >= 1,
+    inHospital: inHospital(avatar, now),
   };
 }
 
@@ -95,6 +110,9 @@ export function newAvatar(input: { id: string; accountId: string; rarity: string
     jobCode: input.jobCode,
     attributes: { energy: 10, health: 10, happiness: 10, food: 10, hygiene: 10, education: 0 },
     anchors: { food: now, happiness: now, hygiene: now },
+    hospitalUntil: null,
+    conditions: [],
+    pantry: {},
     createdAt: now,
     updatedAt: now,
   };

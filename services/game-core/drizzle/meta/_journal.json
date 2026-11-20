@@ -15,6 +15,34 @@
       "when": 1794528982195,
       "tag": "0001_pink_synch",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794600772473,
+      "tag": "0002_lonely_night_thrasher",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1794615026319,
+      "tag": "0003_loose_bastion",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1794616233011,
+      "tag": "0004_mature_bloodstorm",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1794617141181,
+      "tag": "0005_light_stephen_strange",
+      "breakpoints": true
     }
   ]
 }

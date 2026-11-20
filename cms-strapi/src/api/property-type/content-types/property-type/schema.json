@@ -1,0 +1,25 @@
+{
+  "kind": "collectionType",
+  "collectionName": "property_types",
+  "info": {
+    "singularName": "property-type",
+    "pluralName": "property-types",
+    "displayName": "Tipo de imóvel",
+    "description": "Tipos de imóvel (residencial, comercial, industrial, rural) e os níveis de cada um, com renda e custo de upgrade (doc 03 §6). Posse e desgaste ficam no world e no game-core."
+  },
+  "options": { "draftAndPublish": true },
+  "pluginOptions": {},
+  "attributes": {
+    "code": { "type": "uid", "required": true },
+    "label": { "type": "string", "required": true },
+    "zone": { "type": "enumeration", "enum": ["residential", "commercial", "industrial", "rural"], "required": true },
+    "lots": { "type": "integer", "required": true, "default": 1, "min": 1 },
+    "availability": { "type": "enumeration", "enum": ["always", "events"], "required": true, "default": "always" },
+    "upgradesFrom": { "type": "string" },
+    "description": { "type": "text" },
+    "price": { "type": "integer", "min": 0 },
+    "buildMinutes": { "type": "integer", "min": 0 },
+    "levels": { "type": "component", "repeatable": true, "component": "game.property-level" },
+    "conferir": { "type": "json" }
+  }
+}

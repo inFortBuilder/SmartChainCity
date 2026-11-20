@@ -114,3 +114,16 @@ describe('API do economy', () => {
     expect((await payShift(randomUUID(), '11.85')).statusCode).toBe(400);
   });
 });
+
+describe('torneira de SCITY de teste', () => {
+  it('desligada é 404; ligada credita 1.000 SCITY; em produção não sobe', async () => {
+    const id = randomUUID();
+    const headers = { authorization: `Bearer ${await tokenFor(id)}` };
+    expect((await app.inject({ method: 'POST', url: '/v1/dev/faucet', headers })).statusCode).toBe(404);
+    const dev = await buildApp({ ...config, DEV_FAUCET: true }, new MemoryLedgerStore());
+    expect((await dev.inject({ method: 'POST', url: '/v1/dev/faucet', headers })).statusCode).toBe(200);
+    const balances = (await dev.inject({ method: 'GET', url: '/v1/economy/balances', headers })).json().balances;
+    expect(balances).toContainEqual({ currency: 'SCITY', amount: `${1000n * 10n ** 18n}`, decimals: 18 });
+    expect(() => loadConfig({ JWT_SECRET: SECRET, INTERNAL_TOKEN: INTERNAL, NODE_ENV: 'production', DEV_FAUCET: 'true' })).toThrow();
+  });
+});

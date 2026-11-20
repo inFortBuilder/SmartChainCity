@@ -1,0 +1,959 @@
+{
+  "fonte": "GDD original (FGV Jr.), seção 4.5 — Atividades extras",
+  "gerado_por": "cms-strapi/scripts/gdd-atividades.mjs",
+  "unidades": {
+    "efeitos": "pontos no atributo do avatar (0–10). O GDD só dá a direção: 1 e -1 são provisórios, para o game designer definir"
+  },
+  "atividades": [
+    {
+      "code": "transportes_dirigir_o_transporte",
+      "label": "Dirigir o transporte",
+      "group": "transportes",
+      "energy": -1,
+      "health": 0,
+      "happiness": 1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "transportes_contratar_seguro",
+      "label": "Contratar seguro",
+      "group": "transportes",
+      "energy": -1,
+      "health": 0,
+      "happiness": -1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "transportes_ir_na_oficina",
+      "label": "Ir na oficina",
+      "group": "transportes",
+      "energy": -1,
+      "health": 0,
+      "happiness": 0,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "transportes_colocar_gasolina",
+      "label": "Colocar gasolina",
+      "group": "transportes",
+      "energy": -1,
+      "health": 0,
+      "happiness": 0,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "transportes_tirar_carteira_de_motorista",
+      "label": "Tirar Carteira de motorista",
+      "group": "transportes",
+      "energy": -1,
+      "health": 0,
+      "happiness": 1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "transportes_trocar_pneu",
+      "label": "Trocar pneu",
+      "group": "transportes",
+      "energy": -1,
+      "health": 0,
+      "happiness": 0,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "transportes_bater_o_carro",
+      "label": "Bater o carro",
+      "group": "transportes",
+      "energy": -1,
+      "health": 0,
+      "happiness": 0,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "transportes_atropelar_pedestre",
+      "label": "Atropelar pedestre",
+      "group": "transportes",
+      "energy": -1,
+      "health": 0,
+      "happiness": 0,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "transportes_ir_aos_lugares_ginasio_escola_trabalho",
+      "label": "Ir aos lugares (Ginásio, escola, trabalho)",
+      "group": "transportes",
+      "energy": -1,
+      "health": 0,
+      "happiness": 0,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "transportes_assistir_aula_da_autoescola",
+      "label": "Assistir aula da autoescola",
+      "group": "transportes",
+      "energy": -1,
+      "health": 0,
+      "happiness": 0,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "transportes_fazer_aula_pratica_da_autoescola",
+      "label": "Fazer aula prática da autoescola",
+      "group": "transportes",
+      "energy": -1,
+      "health": 0,
+      "happiness": 0,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "transportes_fazer_prova_autoescola",
+      "label": "Fazer prova autoescola",
+      "group": "transportes",
+      "energy": -1,
+      "health": 0,
+      "happiness": 0,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "pets_passear_com_pet",
+      "label": "Passear com pet",
+      "group": "pets",
+      "energy": -1,
+      "health": 0,
+      "happiness": 1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "pets_dar_carinho_no_pet",
+      "label": "Dar carinho no pet",
+      "group": "pets",
+      "energy": -1,
+      "health": 0,
+      "happiness": 1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "pets_dar_banho_no_pet",
+      "label": "Dar banho no pet",
+      "group": "pets",
+      "energy": -1,
+      "health": 0,
+      "happiness": 0,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "pets_tosar_pet",
+      "label": "Tosar pet",
+      "group": "pets",
+      "energy": -1,
+      "health": 0,
+      "happiness": 0,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "pets_alimentar_pet",
+      "label": "Alimentar pet",
+      "group": "pets",
+      "energy": -1,
+      "health": 0,
+      "happiness": 0,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "pets_brincar_com_pet",
+      "label": "Brincar com pet",
+      "group": "pets",
+      "energy": -1,
+      "health": 0,
+      "happiness": 1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "educacao_assistir_aula",
+      "label": "Assistir aula",
+      "group": "educacao",
+      "energy": -1,
+      "health": 0,
+      "happiness": -1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "educacao_entregar_tarefas",
+      "label": "Entregar tarefas",
+      "group": "educacao",
+      "energy": -1,
+      "health": 0,
+      "happiness": 0,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "educacao_levar_bronca_do_diretor",
+      "label": "Levar bronca do diretor",
+      "group": "educacao",
+      "energy": -1,
+      "health": 0,
+      "happiness": -1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "educacao_se_matricular",
+      "label": "Se matricular",
+      "group": "educacao",
+      "energy": -1,
+      "health": 0,
+      "happiness": 1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "educacao_pedir_ajuda_ao_orientador",
+      "label": "Pedir ajuda ao orientador",
+      "group": "educacao",
+      "energy": -1,
+      "health": 0,
+      "happiness": 0,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "educacao_tirar_duvidas_com_professor",
+      "label": "Tirar dúvidas com professor",
+      "group": "educacao",
+      "energy": -1,
+      "health": 0,
+      "happiness": 1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "alimentacao_comprar_comida",
+      "label": "Comprar comida",
+      "group": "alimentacao",
+      "energy": -1,
+      "health": 0,
+      "happiness": 1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "alimentacao_ir_em_restaurante",
+      "label": "Ir em restaurante",
+      "group": "alimentacao",
+      "energy": -1,
+      "health": 0,
+      "happiness": 1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "alimentacao_ir_na_fazenda",
+      "label": "Ir na fazenda",
+      "group": "alimentacao",
+      "energy": -1,
+      "health": 0,
+      "happiness": 1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "alimentacao_plantar_horta",
+      "label": "Plantar horta",
+      "group": "alimentacao",
+      "energy": -1,
+      "health": 0,
+      "happiness": 1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "alimentacao_cozinhar_comida",
+      "label": "Cozinhar comida",
+      "group": "alimentacao",
+      "energy": -1,
+      "health": 1,
+      "happiness": 1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "alimentacao_limpar_utensilios",
+      "label": "Limpar utensílios",
+      "group": "alimentacao",
+      "energy": -1,
+      "health": 0,
+      "happiness": 0,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "alimentacao_preparar_a_mesa",
+      "label": "Preparar a mesa",
+      "group": "alimentacao",
+      "energy": -1,
+      "health": 0,
+      "happiness": 0,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "alimentacao_comer",
+      "label": "Comer",
+      "group": "alimentacao",
+      "energy": 1,
+      "health": 0,
+      "happiness": 1,
+      "food": 1,
+      "hygiene": 0
+    },
+    {
+      "code": "alimentacao_pedir_para_cozinheiro_comida",
+      "label": "Pedir para cozinheiro comida",
+      "group": "alimentacao",
+      "energy": 0,
+      "health": 0,
+      "happiness": 1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "alimentacao_esquentar_comida",
+      "label": "Esquentar comida",
+      "group": "alimentacao",
+      "energy": -1,
+      "health": -1,
+      "happiness": 0,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "alimentacao_comprar_bebidas",
+      "label": "Comprar bebidas",
+      "group": "alimentacao",
+      "energy": -1,
+      "health": 0,
+      "happiness": 0,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "parque_comprar_ingressos",
+      "label": "Comprar ingressos",
+      "group": "parque",
+      "energy": -1,
+      "health": 0,
+      "happiness": 1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "parque_chamar_amigos",
+      "label": "Chamar amigos",
+      "group": "parque",
+      "energy": 0,
+      "health": 0,
+      "happiness": 1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "parque_ir_na_montanha_russa",
+      "label": "Ir na montanha-russa",
+      "group": "parque",
+      "energy": -1,
+      "health": 0,
+      "happiness": 1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "parque_ir_no_carrossel",
+      "label": "Ir no carrossel",
+      "group": "parque",
+      "energy": -1,
+      "health": 0,
+      "happiness": 1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "parque_ir_na_pista_de_kart",
+      "label": "Ir na pista de kart",
+      "group": "parque",
+      "energy": -1,
+      "health": 0,
+      "happiness": 1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "parque_comprar_skate",
+      "label": "Comprar skate",
+      "group": "parque",
+      "energy": -1,
+      "health": 0,
+      "happiness": 1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "parque_andar_de_skate",
+      "label": "Andar de skate",
+      "group": "parque",
+      "energy": -1,
+      "health": 1,
+      "happiness": 1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "parque_jogar_basquete",
+      "label": "Jogar basquete",
+      "group": "parque",
+      "energy": -1,
+      "health": 1,
+      "happiness": 1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "parque_comprar_itens_de_basquete",
+      "label": "Comprar itens de basquete",
+      "group": "parque",
+      "energy": -1,
+      "health": 0,
+      "happiness": 1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "ginasio_comprar_ticket_jogo",
+      "label": "Comprar ticket jogo",
+      "group": "ginasio",
+      "energy": -1,
+      "health": 0,
+      "happiness": 1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "ginasio_jogar_partida",
+      "label": "Jogar partida",
+      "group": "ginasio",
+      "energy": -1,
+      "health": 1,
+      "happiness": 1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "ginasio_entrar_em_partida",
+      "label": "Entrar em partida",
+      "group": "ginasio",
+      "energy": -1,
+      "health": 0,
+      "happiness": 1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "ginasio_treinar_futebol",
+      "label": "Treinar futebol",
+      "group": "ginasio",
+      "energy": -1,
+      "health": 1,
+      "happiness": 1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "ginasio_se_machucar",
+      "label": "Se machucar",
+      "group": "ginasio",
+      "energy": -1,
+      "health": -1,
+      "happiness": -1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "ginasio_treinar_baseball",
+      "label": "Treinar baseball",
+      "group": "ginasio",
+      "energy": -1,
+      "health": 1,
+      "happiness": 1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "galeria_apreciar_obras_de_arte",
+      "label": "Apreciar obras de arte",
+      "group": "galeria",
+      "energy": -1,
+      "health": 0,
+      "happiness": 1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "galeria_analisar_pinturas",
+      "label": "Analisar pinturas",
+      "group": "galeria",
+      "energy": -1,
+      "health": 0,
+      "happiness": 1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "galeria_comprar_quadros",
+      "label": "Comprar quadros",
+      "group": "galeria",
+      "energy": -1,
+      "health": 0,
+      "happiness": 1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "galeria_participar_de_um_leilao",
+      "label": "Participar de um leilão",
+      "group": "galeria",
+      "energy": -1,
+      "health": 0,
+      "happiness": 1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "galeria_discutir_sobre_uma_obra_abstrata",
+      "label": "Discutir sobre uma obra abstrata",
+      "group": "galeria",
+      "energy": -1,
+      "health": 1,
+      "happiness": 1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "galeria_participar_de_aula_de_artes",
+      "label": "Participar de aula de artes",
+      "group": "galeria",
+      "energy": -1,
+      "health": 1,
+      "happiness": 1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "galeria_comprar_entrada",
+      "label": "Comprar entrada",
+      "group": "galeria",
+      "energy": -1,
+      "health": 0,
+      "happiness": 1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "galeria_elogiar_artista",
+      "label": "Elogiar artista",
+      "group": "galeria",
+      "energy": -1,
+      "health": 0,
+      "happiness": 1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "hospital_fazer_raio_x",
+      "label": "Fazer raio-x",
+      "group": "hospital",
+      "energy": -1,
+      "health": 0,
+      "happiness": 0,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "hospital_fazer_exame",
+      "label": "Fazer exame",
+      "group": "hospital",
+      "energy": -1,
+      "health": 0,
+      "happiness": 0,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "hospital_ser_diagnosticado",
+      "label": "Ser diagnosticado",
+      "group": "hospital",
+      "energy": 0,
+      "health": -1,
+      "happiness": 0,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "hospital_comprar_plano_de_saude",
+      "label": "Comprar plano de saúde",
+      "group": "hospital",
+      "energy": 0,
+      "health": 0,
+      "happiness": 1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "hospital_ser_vacinado",
+      "label": "Ser vacinado",
+      "group": "hospital",
+      "energy": 0,
+      "health": 1,
+      "happiness": 1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "hospital_comprar_remedio",
+      "label": "Comprar remédio",
+      "group": "hospital",
+      "energy": -1,
+      "health": 0,
+      "happiness": 0,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "hospital_tomar_remedio",
+      "label": "Tomar remédio",
+      "group": "hospital",
+      "energy": 0,
+      "health": 1,
+      "happiness": 0,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "hospital_sofrer_cirurgia",
+      "label": "Sofrer cirurgia",
+      "group": "hospital",
+      "energy": -1,
+      "health": 1,
+      "happiness": 0,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "hospital_ir_para_a_emergencia",
+      "label": "Ir para a emergência",
+      "group": "hospital",
+      "energy": -1,
+      "health": -1,
+      "happiness": 0,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "hospital_sofrer_acidente",
+      "label": "Sofrer acidente",
+      "group": "hospital",
+      "energy": -1,
+      "health": -1,
+      "happiness": -1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "hospital_ter_doenca",
+      "label": "Ter doença",
+      "group": "hospital",
+      "energy": -1,
+      "health": -1,
+      "happiness": -1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "academia_fazer_exercicios_de_musculacao",
+      "label": "Fazer exercícios de musculação",
+      "group": "academia",
+      "energy": -1,
+      "health": 1,
+      "happiness": 1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "academia_tomar_banho",
+      "label": "Tomar banho",
+      "group": "academia",
+      "energy": 1,
+      "health": 0,
+      "happiness": 1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "academia_fazer_aulas_de_danca",
+      "label": "Fazer aulas de dança",
+      "group": "academia",
+      "energy": -1,
+      "health": 1,
+      "happiness": 1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "academia_fazer_treinos_de_luta",
+      "label": "Fazer treinos de luta",
+      "group": "academia",
+      "energy": -1,
+      "health": 1,
+      "happiness": 1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "academia_fazer_aerobico",
+      "label": "Fazer aeróbico",
+      "group": "academia",
+      "energy": -1,
+      "health": 1,
+      "happiness": 1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "academia_usar_esteira",
+      "label": "Usar esteira",
+      "group": "academia",
+      "energy": -1,
+      "health": 1,
+      "happiness": 1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "academia_usar_bicicleta",
+      "label": "Usar bicicleta",
+      "group": "academia",
+      "energy": -1,
+      "health": 1,
+      "happiness": 1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "academia_fazer_aquecimento",
+      "label": "Fazer aquecimento",
+      "group": "academia",
+      "energy": -1,
+      "health": 1,
+      "happiness": 1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "academia_fazer_yoga",
+      "label": "Fazer yoga",
+      "group": "academia",
+      "energy": -1,
+      "health": 1,
+      "happiness": 1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "lojas_comprar_roupas",
+      "label": "Comprar roupas",
+      "group": "lojas",
+      "energy": -1,
+      "health": 0,
+      "happiness": 1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "lojas_comprar_acessorios_para_o_trabalho",
+      "label": "Comprar acessórios para o trabalho",
+      "group": "lojas",
+      "energy": -1,
+      "health": 0,
+      "happiness": 1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "lojas_comprar_moveis",
+      "label": "Comprar móveis",
+      "group": "lojas",
+      "energy": -1,
+      "health": 0,
+      "happiness": 1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "lojas_comprar_sapatos",
+      "label": "Comprar sapatos",
+      "group": "lojas",
+      "energy": -1,
+      "health": 0,
+      "happiness": 1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "lojas_comprar_loja",
+      "label": "Comprar loja",
+      "group": "lojas",
+      "energy": -1,
+      "health": 0,
+      "happiness": 1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "lojas_assaltar_loja",
+      "label": "Assaltar loja",
+      "group": "lojas",
+      "energy": -1,
+      "health": -1,
+      "happiness": 1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "lojas_destruir_loja",
+      "label": "Destruir loja",
+      "group": "lojas",
+      "energy": -1,
+      "health": -1,
+      "happiness": 1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "moradia_visitar_lotes_disponiveis",
+      "label": "Visitar lotes disponíveis",
+      "group": "moradia",
+      "energy": -1,
+      "health": 0,
+      "happiness": 0,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "moradia_comprar_lote",
+      "label": "Comprar lote",
+      "group": "moradia",
+      "energy": 0,
+      "health": 0,
+      "happiness": 1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "moradia_comprar_casa",
+      "label": "Comprar casa",
+      "group": "moradia",
+      "energy": 0,
+      "health": 0,
+      "happiness": 1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "moradia_alugar_casa",
+      "label": "Alugar casa",
+      "group": "moradia",
+      "energy": 0,
+      "health": 0,
+      "happiness": 1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "moradia_reservar_hotel",
+      "label": "Reservar hotel",
+      "group": "moradia",
+      "energy": 0,
+      "health": 0,
+      "happiness": 1,
+      "food": 0,
+      "hygiene": 0
+    },
+    {
+      "code": "higiene_tomar_banho",
+      "label": "Tomar banho",
+      "group": "higiene",
+      "energy": 0,
+      "health": 1,
+      "happiness": 0,
+      "food": 0,
+      "hygiene": 1
+    },
+    {
+      "code": "higiene_ir_na_piscina",
+      "label": "Ir na piscina",
+      "group": "higiene",
+      "energy": -1,
+      "health": 1,
+      "happiness": 1,
+      "food": 0,
+      "hygiene": 1
+    },
+    {
+      "code": "higiene_escovar_os_dentes",
+      "label": "Escovar os dentes",
+      "group": "higiene",
+      "energy": 0,
+      "health": 1,
+      "happiness": 0,
+      "food": 0,
+      "hygiene": 1
+    },
+    {
+      "code": "higiene_usar_ducha",
+      "label": "Usar ducha",
+      "group": "higiene",
+      "energy": 0,
+      "health": 1,
+      "happiness": 0,
+      "food": 0,
+      "hygiene": 1
+    },
+    {
+      "code": "higiene_lavar_mao",
+      "label": "Lavar mão",
+      "group": "higiene",
+      "energy": 0,
+      "health": 1,
+      "happiness": 0,
+      "food": 0,
+      "hygiene": 1
+    }
+  ]
+}

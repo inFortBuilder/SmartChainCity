@@ -1,7 +1,10 @@
 import type { Core } from '@strapi/strapi';
 
-/** O catálogo é público no jogo: qualquer um lê as profissões publicadas. */
-const PUBLIC_ACTIONS = ['api::job.job.find', 'api::job.job.findOne'];
+import { CATALOG_TYPES, syncRoles } from './papeis';
+
+/** O catálogo é público no jogo: qualquer um lê o que está publicado. */
+const CATALOG = CATALOG_TYPES;
+const PUBLIC_ACTIONS = CATALOG.flatMap((uid) => [`${uid}.find`, `${uid}.findOne`]);
 
 /** Avisa o game-core a cada publicação, para o jogo mudar sem deploy (trilha do CMS, passo 6). */
 const WEBHOOK_NAME = 'game-core: atualizar catálogo';
@@ -53,5 +56,6 @@ export default {
   async bootstrap({ strapi }: { strapi: Core.Strapi }) {
     await allowPublicRead(strapi);
     await registerWebhook(strapi);
+    await syncRoles(strapi);
   },
 };
