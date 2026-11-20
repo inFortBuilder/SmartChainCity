@@ -39,6 +39,8 @@ export const avatar = game.table(
      * sempre lida e gravada junto com ele. [{code, startsAt, endsAt}]
      */
     conditions: jsonb('conditions').notNull().default([]),
+    /** Despensa (E2.3): unidades por alimento, {codigo: unidades}. */
+    pantry: jsonb('pantry').notNull().default({}),
     createdAt: timestamptz('created_at').notNull(),
     updatedAt: timestamptz('updated_at').notNull(),
   },

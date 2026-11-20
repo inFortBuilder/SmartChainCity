@@ -1,7 +1,7 @@
 import { AppError, forwardRequestId } from '@scc/shared';
 
 import type { HospitalPayer, HospitalStay } from '../domain/hospital.js';
-import { type Meal, type MealPayer, isMedicine } from '../domain/meal.js';
+import { type Meal, type MealPayer, isMedicine, isPack } from '../domain/meal.js';
 import type { Payer, Shift } from '../domain/shift.js';
 
 /**
@@ -68,7 +68,7 @@ export class EconomyPayer implements Payer, MealPayer, HospitalPayer {
     const error = await this.post(
       `meal:${meal.id}`,
       {
-        kind: medicine ? 'medicine_buy' : 'meal_buy',
+        kind: medicine ? 'medicine_buy' : isPack(meal) ? 'pack_buy' : 'meal_buy',
         ref_type: 'meal',
         ref_id: meal.id,
         legs: [
@@ -80,7 +80,7 @@ export class EconomyPayer implements Payer, MealPayer, HospitalPayer {
     );
     if (error === null) return;
     if (error === 'insufficient_funds') {
-      throw new AppError('insufficient_thaler', `THALER insuficiente para ${medicine ? 'o remédio' : 'esta refeição'}.`, 409);
+      throw new AppError('insufficient_thaler', `THALER insuficiente para ${medicine ? 'o remédio' : isPack(meal) ? 'o pacote' : 'esta refeição'}.`, 409);
     }
     throw new AppError('ledger_unavailable', 'O ledger recusou a cobrança.', 502);
   }

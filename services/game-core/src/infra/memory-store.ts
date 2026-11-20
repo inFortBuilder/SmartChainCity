@@ -23,6 +23,7 @@ const clone = (a: Avatar): Avatar => ({
   attributes: { ...a.attributes },
   anchors: { ...a.anchors },
   conditions: a.conditions.map((c) => ({ ...c })),
+  pantry: { ...a.pantry },
 });
 
 /** Para testes e desenvolvimento. Uma thread só: cada operação é atômica. */
@@ -90,6 +91,14 @@ export class MemoryAvatarStore implements AvatarStore, ShiftStore, MealStore, Ho
     const done: Meal = { ...meal, status: 'eaten', eatenAt: now };
     this.meals.set(mealId, done);
     return cloneMeal(done);
+  }
+
+  async updateAvatar(avatarId: string, accountId: string, now: Date, plan: (avatar: Avatar) => Avatar) {
+    const stored = this.avatars.get(avatarId);
+    if (!stored || stored.accountId !== accountId) throw new AppError('not_found', 'Avatar não encontrado.', 404);
+    const next = plan(decayed(stored, now));
+    this.avatars.set(avatarId, clone(next));
+    return clone(next);
   }
 
   async failMeal(mealId: string) {

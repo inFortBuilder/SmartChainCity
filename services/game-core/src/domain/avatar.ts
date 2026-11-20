@@ -51,6 +51,8 @@ export interface Avatar {
   hospitalUntil: Date | null;
   /** Doenças leves (farmácia), inclusive a que começa quando o turno acabar. */
   conditions: Condition[];
+  /** Despensa: unidades guardadas de cada alimento, compradas em pacote. */
+  pantry: Record<string, number>;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -110,6 +112,7 @@ export function newAvatar(input: { id: string; accountId: string; rarity: string
     anchors: { food: now, happiness: now, hygiene: now },
     hospitalUntil: null,
     conditions: [],
+    pantry: {},
     createdAt: now,
     updatedAt: now,
   };

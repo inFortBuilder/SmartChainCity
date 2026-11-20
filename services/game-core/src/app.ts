@@ -19,9 +19,13 @@ import {
   type MealPayer,
   type MealPlanner,
   type MealStore,
+  eatFromPantry,
   isMedicine,
+  isPack,
+  packPriceCents,
   planMedicine,
   planMeal,
+  planPack,
   unitPriceCents,
 } from './domain/meal.js';
 import { fetchCmsFoods, fetchCmsProfessions } from './infra/cms-catalog.js';
@@ -54,6 +58,7 @@ const avatarDto = (a: Avatar, at: Date) => ({
   attributes: a.attributes,
   status: status(a, at),
   hospital_until: status(a, at).inHospital ? a.hospitalUntil!.toISOString() : null,
+  pantry: Object.entries(a.pantry).map(([code, units]) => ({ food: code, units })),
   // Só as que estão em curso: a sorteada no turno aparece quando o turno acaba.
   conditions: activeConditions(a.conditions, at).map((c) => ({
     code: c.code,
@@ -252,6 +257,8 @@ export async function buildApp(
       health: f.health,
       food: MEAL_FOOD_POINTS,
       price: unitPriceCents(f).toString(),
+      pack: f.pack,
+      pack_price: packPriceCents(f).toString(),
       decimals: 2,
       provisional_price: f.price === null,
     })),
@@ -294,7 +301,8 @@ export async function buildApp(
     const meal = await store.beginMeal(avatar.id, avatar.accountId, clientKey, now(), plan(clientKey));
     const done = await settleMeal(meal, request.id);
     if (done.status === 'failed') {
-      throw new AppError('insufficient_thaler', `THALER insuficiente para ${isMedicine(done) ? 'o remédio' : 'esta refeição'}.`, 409);
+      const what = isMedicine(done) ? 'o remédio' : isPack(done) ? 'o pacote' : 'esta refeição';
+      throw new AppError('insufficient_thaler', `THALER insuficiente para ${what}.`, 409);
     }
     return { avatar, done };
   };
@@ -309,6 +317,29 @@ export async function buildApp(
     const fresh = await hospitalize((await store.get(avatar.id))!, request);
     const at = now();
     return reply.status(201).send({ meal: mealDto(done), avatar: avatarDto(decayed(fresh, at), at) });
+  });
+
+  // Despensa: compra o pacote inteiro do alimento e guarda as unidades.
+  app.post('/v1/avatars/:id/pantry', async (request, reply) => {
+    const { food: foodCode } = mealBody.parse(request.body);
+    const { avatar, done } = await purchase(request, (clientKey) => (current) =>
+      planPack(current, { id: randomUUID(), foodCode, clientKey }, now()),
+    );
+    const fresh = (await store.get(avatar.id))!;
+    const at = now();
+    return reply.status(201).send({ purchase: mealDto(done), avatar: avatarDto(decayed(fresh, at), at) });
+  });
+
+  // Come uma unidade guardada na despensa (doc 06: consume), sem cobrar de novo.
+  app.post('/v1/avatars/:id/consume', async (request) => {
+    const { food: foodCode } = mealBody.parse(request.body);
+    const avatar = await ownAvatar(request);
+    const fed = await store.updateAvatar(avatar.id, avatar.accountId, now(), (current) =>
+      eatFromPantry(current, { foodCode, roll: random() }, now()),
+    );
+    const fresh = await hospitalize(fed, request);
+    const at = now();
+    return { avatar: avatarDto(decayed(fresh, at), at) };
   });
 
   // Farmácia do jogo: compra o remédio da doença e toma na hora (cura com 70%).
