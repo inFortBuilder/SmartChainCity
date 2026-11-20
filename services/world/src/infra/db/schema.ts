@@ -12,6 +12,7 @@ import {
   smallint,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
 
@@ -75,5 +76,50 @@ export const purchase = world.table(
   (t) => [
     index('purchase_pending_idx').on(t.status, t.createdAt),
     check('purchase_status_check', sql`${t.status} in ('pending', 'paid', 'failed', 'refunded')`),
+  ],
+);
+
+/** Imóveis sobre os lotes (doc 03 §6, E2.5). Um por lote, por enquanto. */
+export const property = world.table(
+  'property',
+  {
+    id: uuid('id').primaryKey(),
+    city: text('city').notNull(),
+    lotId: integer('lot_id').notNull(),
+    ownerAccountId: uuid('owner_account_id').notNull(),
+    type: text('type').notNull(),
+    level: smallint('level').notNull(),
+    status: text('status').notNull(),
+    priceCents: numeric('price_cents', { precision: 20, scale: 0 }).notNull(),
+    createdAt: timestamptz('created_at').notNull(),
+    readyAt: timestamptz('ready_at').notNull(),
+    wearBase: real('wear_base').notNull(),
+    wearSince: timestamptz('wear_since').notNull(),
+    lastClaimAt: timestamptz('last_claim_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('property_lot_idx').on(t.city, t.lotId),
+    index('property_owner_idx').on(t.ownerAccountId),
+    index('property_pending_idx').on(t.status, t.createdAt),
+    check('property_status_check', sql`${t.status} in ('pending', 'active')`),
+  ],
+);
+
+/** Cada coleta de renda: fecha o período e é paga pelo ledger com a chave da coleta. */
+export const propertyClaim = world.table(
+  'property_claim',
+  {
+    id: uuid('id').primaryKey(),
+    propertyId: uuid('property_id')
+      .notNull()
+      .references(() => property.id),
+    accountId: uuid('account_id').notNull(),
+    amountCents: numeric('amount_cents', { precision: 20, scale: 0 }).notNull(),
+    status: text('status').notNull(),
+    createdAt: timestamptz('created_at').notNull(),
+  },
+  (t) => [
+    index('property_claim_pending_idx').on(t.status, t.createdAt),
+    check('property_claim_status_check', sql`${t.status} in ('pending', 'paid')`),
   ],
 );
