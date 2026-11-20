@@ -69,7 +69,7 @@ O MVP roda inteiro na máquina local, sem serviços pagos. Por isso, publicar o 
    - 🟡 Validação dos prédios no servidor (E2.10, 2026-11-20). O world manda o polígono e as regras do próprio banco para o SCC Builder, cobra a outorga e guarda o prédio para o alvará; testado com o Builder real. O `BuildingNFT` (E2.11) também está pronto: o prédio aprovado vira NFT na carteira do construtor, testado no anvil.
 4. **Fechar a Etapa 2.**
    - 🟡 Multiplayer no `realtime` (E2.7, 2026-11-20). Salas por bairro, presença, chat moderado e eventos, com 100 clientes numa sala, p95 de 72 ms e nenhuma queda. O mapa de Pittsburg mostra os outros jogadores do bairro e o chat.
-   - Profissões com minigame (E2.2).
+   - 🟡 Profissões com minigame (E2.2, 2026-11-20). O turno percorre as tarefas da profissão e o mapa mostra a tarefa atual e o motivo do dano; as 12 do MVP estão marcadas no catálogo. Faltam o efeito real de energia por tarefa, que depende do game designer, e os cards de arte.
    - 🟡 Antifraude (E2.9, 2026-11-20). Até 3 contas ganhando P2E por aparelho, alerta por rede, limite de velocidade, revisão manual e métricas; os números são premissas. Faltam KYC para saque e captcha no cadastro.
    - 🟡 Painel econômico (E2.8, 2026-11-20). Emissão × dreno por tipo em 24 h e 7 dias, razão contra a meta de 55%, THALER por jogador, duração do pool P2E, alertas e painel "Economia" no Grafana. Os limites dos alertas são de partida.
    - O resto da E2.3.
