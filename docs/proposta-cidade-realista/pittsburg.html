@@ -53,6 +53,18 @@
   .modelo h3 { margin: 0 0 4px; }
   .gestao .motivo { color: #fca5a5; }
   .toast { position: fixed; left: 50%; top: calc(var(--topbar-h, 64px) + 40px); transform: translateX(-50%); padding: 12px 18px; z-index: 8; font-weight: 600; max-width: 90vw; }
+  /* Multiplayer (E2.7): chat e jogadores do bairro, no canto inferior direito. */
+  .multiplayer { position: fixed; right: 16px; bottom: 40px; z-index: 6; width: 300px; padding: 12px 14px; border-radius: var(--radius); font-size: 13px; }
+  .multiplayer .cab { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .multiplayer h2 { margin: 0; font-size: 15px; }
+  .multiplayer .mp-chat { list-style: none; margin: 8px 0; padding: 0; max-height: 22vh; overflow-y: auto; display: grid; gap: 4px; }
+  .multiplayer .mp-chat li { line-height: 1.35; overflow-wrap: anywhere; }
+  .multiplayer .mp-chat li.meu b { color: #a5f3fc; }
+  .multiplayer .mp-chat li.evento { color: #fde68a; }
+  .multiplayer form { display: flex; gap: 6px; margin: 0; }
+  .multiplayer form .campo { flex: 1; min-width: 0; background: rgba(0,0,0,.25); border: 1px solid rgba(255,255,255,.14); border-radius: 8px; padding: 7px 9px; color: var(--text); }
+  .multiplayer [data-mp-status]:empty { display: none; }
+  @media (max-width: 640px) { .multiplayer { right: 8px; left: 8px; width: auto; bottom: 8px; } }
   .servidor { position: fixed; left: 16px; bottom: 40px; z-index: 6; width: 300px; max-height: 48vh; overflow-y: auto; padding: 12px 14px; border-radius: var(--radius); font-size: 13px; }
   .servidor h2 { margin: 0; font-size: 15px; }
   .servidor h3 { margin: 10px 0 4px; font-size: 13px; }

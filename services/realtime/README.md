@@ -65,7 +65,7 @@ pnpm --filter @scc/realtime test
 
 ## Ainda não
 
-- Mostrar os outros jogadores e o chat no mapa de Pittsburg (cliente web).
+- Avatar andando no mapa: hoje a posição é para onde a câmera olha ([mapa de Pittsburg](../../docs/proposta-cidade-realista/README.md), que já mostra os outros jogadores e o chat).
 - Redis presence para mais de um processo (doc 05 §4); hoje o matchmaker é local.
 - Silenciamentos guardados em banco: hoje ficam na memória do processo.
 - Corridas e eventos com agenda (o dirigível 3×/dia chama o broadcast, mas ainda não tem agendador).
