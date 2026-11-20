@@ -1,15 +1,16 @@
 import { AppError, forwardRequestId } from '@scc/shared';
 
-import type { Meal, MealPayer } from '../domain/meal.js';
+import type { HospitalPayer, HospitalStay } from '../domain/hospital.js';
+import { type Meal, type MealPayer, isMedicine, isPack } from '../domain/meal.js';
 import type { Payer, Shift } from '../domain/shift.js';
 
 /**
  * Lança no ledger do economy o que o game-core paga e cobra. A chave de
- * idempotência é a própria entidade (`shift:<id>`, `meal:<id>`): se a resposta
+ * idempotência é a própria entidade (`shift:<id>`, `meal:<id>`, `hospital:<id>`): se a resposta
  * se perder no caminho e o lançamento for repetido, o ledger devolve a mesma
  * transação em vez de lançar duas vezes.
  */
-export class EconomyPayer implements Payer, MealPayer {
+export class EconomyPayer implements Payer, MealPayer, HospitalPayer {
   constructor(
     private readonly baseUrl: string,
     private readonly token: string,
@@ -61,25 +62,48 @@ export class EconomyPayer implements Payer, MealPayer {
     throw new AppError('ledger_unavailable', 'O ledger recusou o pagamento do turno.', 502);
   }
 
-  /** Refeição: comida é sink (doc 04 §7), o THALER do jogador vai para a queima. */
+  /** Refeição ou remédio: os dois são sink (doc 04 §7), o THALER do jogador vai para a queima. */
   async chargeMeal(meal: Meal, requestId?: string) {
+    const medicine = isMedicine(meal);
     const error = await this.post(
       `meal:${meal.id}`,
       {
-        kind: 'meal_buy',
+        kind: medicine ? 'medicine_buy' : isPack(meal) ? 'pack_buy' : 'meal_buy',
         ref_type: 'meal',
         ref_id: meal.id,
         legs: [
           { owner_type: 'player', owner_id: meal.accountId, currency: 'THALER', amount: `-${meal.priceCents}` },
-          { owner_type: 'burn', owner_id: 'food', currency: 'THALER', amount: `${meal.priceCents}` },
+          { owner_type: 'burn', owner_id: medicine ? 'pharmacy' : 'food', currency: 'THALER', amount: `${meal.priceCents}` },
         ],
       },
       requestId,
     );
     if (error === null) return;
     if (error === 'insufficient_funds') {
-      throw new AppError('insufficient_thaler', 'THALER insuficiente para esta refeição.', 409);
+      throw new AppError('insufficient_thaler', `THALER insuficiente para ${medicine ? 'o remédio' : isPack(meal) ? 'o pacote' : 'esta refeição'}.`, 409);
     }
-    throw new AppError('ledger_unavailable', 'O ledger recusou a cobrança da refeição.', 502);
+    throw new AppError('ledger_unavailable', 'O ledger recusou a cobrança.', 502);
+  }
+
+  /** Taxa do hospital: sink, como a comida. */
+  async chargeHospital(stay: HospitalStay, requestId?: string) {
+    const error = await this.post(
+      `hospital:${stay.id}`,
+      {
+        kind: 'hospital_fee',
+        ref_type: 'hospital_stay',
+        ref_id: stay.id,
+        legs: [
+          { owner_type: 'player', owner_id: stay.accountId, currency: 'THALER', amount: `-${stay.feeCents}` },
+          { owner_type: 'burn', owner_id: 'hospital', currency: 'THALER', amount: `${stay.feeCents}` },
+        ],
+      },
+      requestId,
+    );
+    if (error === null) return;
+    if (error === 'insufficient_funds') {
+      throw new AppError('insufficient_thaler', 'THALER insuficiente para a taxa do hospital.', 409);
+    }
+    throw new AppError('ledger_unavailable', 'O ledger recusou a taxa do hospital.', 502);
   }
 }

@@ -56,7 +56,8 @@ describe('API do game-core', () => {
     const [avatar] = list.json().avatars;
     expect(avatar.attributes.food).toBe(5);
     expect(avatar.attributes.happiness).toBe(8);
-    expect(avatar.status).toEqual({ earnsReward: true, canWork: true, canLeisure: true });
+    expect(avatar.status).toEqual({ earnsReward: true, canWork: true, canLeisure: true, inHospital: false });
+    expect(avatar.hospital_until).toBeNull();
   });
 
   it('avatar de outra conta é 404, e sem token é 401', async () => {
