@@ -4,6 +4,7 @@ import Fastify, { type FastifyRequest } from 'fastify';
 import { z } from 'zod';
 
 import type { Config } from './config.js';
+import { type PanelStore, buildPanel, panelGauges } from './domain/panel.js';
 import {
   CURRENCIES,
   type Currency,
@@ -54,7 +55,7 @@ const txDto = (tx: PostedTx) => ({
   })),
 });
 
-export async function buildApp(config: Config, store: LedgerStore, now: () => Date = () => new Date()) {
+export async function buildApp(config: Config, store: LedgerStore & Partial<PanelStore>, now: () => Date = () => new Date()) {
   const app = Fastify({
     ...serverOptions({
       service: 'economy',
@@ -62,7 +63,7 @@ export async function buildApp(config: Config, store: LedgerStore, now: () => Da
       logLevel: config.LOG_LEVEL,
     }),
   });
-  observe(app, { service: 'economy', nodeEnv: config.NODE_ENV, metricsToken: config.METRICS_TOKEN });
+  const metrics = observe(app, { service: 'economy', nodeEnv: config.NODE_ENV, metricsToken: config.METRICS_TOKEN });
 
   await app.register(cors, { origin: config.CORS_ORIGINS });
 
@@ -169,6 +170,40 @@ export async function buildApp(config: Config, store: LedgerStore, now: () => Da
     );
     return reply.status(result.replayed ? 200 : 201).send({ transaction: txDto(result.tx), replayed: result.replayed });
   });
+
+  // ---------------------------------------------------------------- painel econômico (E2.8)
+
+  const panelStore = store.flows && store.snapshot ? (store as PanelStore) : null;
+
+  app.get('/internal/v1/economy/panel', async (request) => {
+    requireServiceToken(request.headers['x-service-token'], config.INTERNAL_TOKEN);
+    if (!panelStore) throw new AppError('panel_disabled', 'Este armazenamento não tem painel.', 503);
+    const { currency } = z.object({ currency: z.enum(['THALER', 'SCITY']).default('THALER') }).parse(request.query);
+    return buildPanel(panelStore, currency, now());
+  });
+
+  // Job economy.panel: recalcula os indicadores e os põe no /metrics (Grafana e alertas).
+  let lastAlerts = '';
+  const refreshPanel = async () => {
+    if (!panelStore) return;
+    for (const currency of ['THALER', 'SCITY'] as const) {
+      const p = await buildPanel(panelStore, currency, now());
+      panelGauges(p, (name, help, labels, value) => metrics.set(name, help, labels, value));
+      const alerts = JSON.stringify(p.alerts);
+      if (currency === 'THALER' && alerts !== lastAlerts) {
+        lastAlerts = alerts;
+        for (const a of p.alerts) app.log.warn({ code: a.code, severity: a.severity }, a.message);
+      }
+    }
+  };
+  if (config.PANEL_EVERY_SECONDS > 0) {
+    const timer = setInterval(() => refreshPanel().catch((e) => app.log.error(e)), config.PANEL_EVERY_SECONDS * 1000);
+    timer.unref();
+    app.addHook('onReady', async () => {
+      await refreshPanel().catch((e) => app.log.error(e));
+    });
+    app.addHook('onClose', async () => clearInterval(timer));
+  }
 
   return app;
 }

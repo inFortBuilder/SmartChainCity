@@ -113,12 +113,27 @@ export class HttpMetrics {
     out.push('# HELP nodejs_heap_used_bytes Heap do V8 em uso.');
     out.push('# TYPE nodejs_heap_used_bytes gauge');
     out.push(`nodejs_heap_used_bytes{${svc}} ${mem.heapUsed}`);
-    for (const [name, c] of this.counters) {
-      out.push(`# HELP ${name} ${c.help}`);
-      out.push(`# TYPE ${name} counter`);
-      for (const [key, n] of c.values) out.push(`${name}{${svc}${key ? `,${key}` : ''}} ${n}`);
+    for (const [kind, map] of [
+      ['counter', this.counters],
+      ['gauge', this.gauges],
+    ] as const) {
+      for (const [name, c] of map) {
+        out.push(`# HELP ${name} ${c.help}`);
+        out.push(`# TYPE ${name} ${kind}`);
+        for (const [key, n] of c.values) out.push(`${name}{${svc}${key ? `,${key}` : ''}} ${n}`);
+      }
     }
     return `${out.join('\n')}\n`;
+  }
+
+  private readonly gauges = new Map<string, { help: string; values: Map<string, number> }>();
+
+  /** Medidor do próprio serviço (ex.: saldo do pool P2E), exposto no /metrics. */
+  set(name: string, help: string, l: Record<string, string>, value: number) {
+    if (!/^[a-z_][a-z0-9_]*$/.test(name)) throw new Error(`Nome de métrica inválido: ${name}`);
+    const g = this.gauges.get(name) ?? { help, values: new Map<string, number>() };
+    g.values.set(labels(l), value);
+    this.gauges.set(name, g);
   }
 
   private readonly counters = new Map<string, { help: string; values: Map<string, number> }>();

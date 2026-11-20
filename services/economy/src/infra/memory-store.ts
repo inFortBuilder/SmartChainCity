@@ -17,6 +17,7 @@ import {
   idempotencyConflict,
   validatePosting,
 } from '../domain/ledger.js';
+import { type FlowRow, type PanelStore, type Snapshot, aggregate } from '../domain/panel.js';
 
 interface Row {
   ref: AccountRef;
@@ -24,7 +25,7 @@ interface Row {
 }
 
 /** Para testes e desenvolvimento. O JavaScript é de uma thread só: cada post é atômico. */
-export class MemoryLedgerStore implements LedgerStore {
+export class MemoryLedgerStore implements LedgerStore, PanelStore {
   private readonly accounts = new Map<string, Row>();
   private readonly txs: PostedTx[] = [];
   private readonly byKey = new Map<string, { tx: PostedTx; hash: string }>();
@@ -121,5 +122,24 @@ export class MemoryLedgerStore implements LedgerStore {
       if (row.balance < 0n && !canGoNegative(row.ref.ownerType)) negatives++;
     }
     return { sums, mismatches, negatives, unbalancedTx };
+  }
+
+  async flows(currency: Currency, since: Date): Promise<FlowRow[]> {
+    return aggregate(this.txs, currency, since);
+  }
+
+  async snapshot(currency: Currency): Promise<Snapshot> {
+    let playerTotal = 0n;
+    let players = 0;
+    const pools: Snapshot['pools'] = [];
+    for (const row of this.accounts.values()) {
+      if (row.ref.currency !== currency) continue;
+      if (row.ref.ownerType === 'player' && row.balance > 0n) {
+        playerTotal += row.balance;
+        players++;
+      }
+      if (row.ref.ownerType === 'pool') pools.push({ ownerId: row.ref.ownerId, balance: row.balance });
+    }
+    return { playerTotal, players, pools: pools.sort((a, b) => a.ownerId.localeCompare(b.ownerId)) };
   }
 }

@@ -28,6 +28,15 @@ O painel mostra serviços no ar, requisições por segundo, erros 4xx e 5xx, lat
 
 [`alertas.yml`](alertas.yml) traz três alertas de base: serviço fora por 1 minuto, mais de 2% de 5xx em 5 minutos e p95 acima de 1 s por 10 minutos. Os limites são de partida.
 
+**Economia (E2.8):** o painel **Smart Chain City — Economia** mostra os indicadores que o economy recalcula a cada minuto:
+- dreno ÷ emissão de THALER em 7 dias, com a meta de 55% do doc 04;
+- quantos dias o pool P2E dura;
+- THALER por jogador e jogadores com saldo;
+- emissão × dreno em 24 h e em 7 dias;
+- saldo dos pools e o SCITY.
+
+O painel é gerado por [`grafana/gerar-painel-economia.mjs`](grafana/gerar-painel-economia.mjs). Os alertas estão no grupo `economia` do `alertas.yml`: dreno abaixo da meta por 6 h, pool P2E acabando em menos de 30 dias e crítico abaixo de 7. Os detalhes estão no [economy](../../services/economy/README.md#painel-econômico-e28).
+
 ## Ainda falta
 
 | Item | Por quê |

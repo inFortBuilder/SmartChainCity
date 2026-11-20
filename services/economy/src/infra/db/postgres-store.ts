@@ -17,6 +17,7 @@ import {
   idempotencyConflict,
   validatePosting,
 } from '../../domain/ledger.js';
+import { type FlowRow, type PanelStore, type Snapshot } from '../../domain/panel.js';
 import { ledgerAccount, ledgerEntry, ledgerTx } from './schema.js';
 
 type Db = ReturnType<typeof drizzle>;
@@ -34,7 +35,7 @@ const isUniqueViolation = (error: unknown) => {
   return e?.code === '23505' || e?.cause?.code === '23505';
 };
 
-export class PostgresLedgerStore implements LedgerStore {
+export class PostgresLedgerStore implements LedgerStore, PanelStore {
   private readonly db: Db;
 
   constructor(pool: Pool) {
@@ -217,6 +218,53 @@ export class PostgresLedgerStore implements LedgerStore {
       mismatches: Number(counts!.mismatches),
       negatives: Number(counts!.negatives),
       unbalancedTx: Number(counts!.unbalanced),
+    };
+  }
+
+  /** Mesma regra do `aggregate`: a parte dos jogadores em cada transação decide o fluxo. */
+  async flows(currency: Currency, since: Date): Promise<FlowRow[]> {
+    const rows = await this.db.execute<{ kind: string; counterpart: string | null; faucet: string; sink: string; transfers: string; txs: string }>(sql`
+      with tx as (
+        select t.id, t.kind,
+          coalesce(sum(e.amount) filter (where a.owner_type = 'player'), 0) as player,
+          count(*) filter (where a.owner_type = 'player') as player_legs,
+          string_agg(distinct a.owner_type || '/' || a.owner_id, ',' order by a.owner_type || '/' || a.owner_id)
+            filter (where a.owner_type <> 'player') as counterpart
+        from economy.ledger_tx t
+        join economy.ledger_entry e on e.tx_id = t.id
+        join economy.ledger_account a on a.id = e.account_id
+        where t.created_at >= ${since} and a.currency = ${currency}
+        group by t.id, t.kind)
+      select kind, coalesce(counterpart, '') as counterpart,
+        coalesce(sum(player) filter (where player > 0), 0)::text as faucet,
+        coalesce(-sum(player) filter (where player < 0), 0)::text as sink,
+        count(*) filter (where player = 0)::text as transfers,
+        count(*)::text as txs
+      from tx where player_legs > 0
+      group by kind, coalesce(counterpart, '')`);
+    return rows.rows.map((r) => ({
+      kind: r.kind,
+      counterpart: r.counterpart ?? '',
+      faucet: BigInt(r.faucet),
+      sink: BigInt(r.sink),
+      transfers: Number(r.transfers),
+      txs: Number(r.txs),
+    }));
+  }
+
+  async snapshot(currency: Currency): Promise<Snapshot> {
+    const [p] = (
+      await this.db.execute<{ total: string; players: string }>(sql`
+        select coalesce(sum(balance), 0)::text as total, count(*)::text as players
+        from economy.ledger_account where owner_type = 'player' and currency = ${currency} and balance > 0`)
+    ).rows;
+    const pools = await this.db.execute<{ owner_id: string; balance: string }>(sql`
+      select owner_id, balance::text as balance from economy.ledger_account
+      where owner_type = 'pool' and currency = ${currency} order by owner_id`);
+    return {
+      playerTotal: BigInt(p!.total),
+      players: Number(p!.players),
+      pools: pools.rows.map((r) => ({ ownerId: r.owner_id, balance: BigInt(r.balance) })),
     };
   }
 }

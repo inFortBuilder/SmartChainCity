@@ -71,7 +71,7 @@ O MVP roda inteiro na máquina local, sem serviços pagos. Por isso, publicar o 
    - 🟡 Multiplayer no `realtime` (E2.7, 2026-11-20). Salas por bairro, presença, chat moderado e eventos, com 100 clientes numa sala, p95 de 72 ms e nenhuma queda. O mapa de Pittsburg mostra os outros jogadores do bairro e o chat.
    - Profissões com minigame (E2.2).
    - 🟡 Antifraude (E2.9, 2026-11-20). Até 3 contas ganhando P2E por aparelho, alerta por rede, limite de velocidade, revisão manual e métricas; os números são premissas. Faltam KYC para saque e captcha no cadastro.
-   - Painel econômico (E2.8).
+   - 🟡 Painel econômico (E2.8, 2026-11-20). Emissão × dreno por tipo em 24 h e 7 dias, razão contra a meta de 55%, THALER por jogador, duração do pool P2E, alertas e painel "Economia" no Grafana. Os limites dos alertas são de partida.
    - O resto da E2.3.
 5. **Em paralelo, desde já:** reservar o auditor, obter o parecer jurídico (E0.8) e calibrar a economia. São o caminho crítico até o TGE e não dependem de código.
 

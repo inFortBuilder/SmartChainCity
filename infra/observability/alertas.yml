@@ -20,3 +20,25 @@ groups:
         labels: { severity: warning }
         annotations:
           summary: '{{ $labels.service }} com p95 acima de 1 s'
+
+  # Economia (E2.8): medidores do economy, recalculados a cada minuto (job economy.panel).
+  - name: economia
+    rules:
+      - alert: DrenoAbaixoDaMeta
+        expr: economy_sink_ratio{currency="THALER",window="7d"} < 0.55 and economy_faucet_units{currency="THALER",window="7d"} >= 1000
+        for: 6h
+        labels: { severity: warning }
+        annotations:
+          summary: 'Dreno de THALER abaixo de 55% da emissão em 7 dias (meta do doc 04)'
+      - alert: PoolP2EAcabando
+        expr: economy_p2e_runway_days{currency="THALER"} < 30
+        for: 1h
+        labels: { severity: warning }
+        annotations:
+          summary: 'Pool P2E acaba em {{ $value }} dias no ritmo da última semana'
+      - alert: PoolP2ECritico
+        expr: economy_p2e_runway_days{currency="THALER"} < 7
+        for: 10m
+        labels: { severity: critical }
+        annotations:
+          summary: 'Pool P2E acaba em menos de 7 dias ({{ $value }})'

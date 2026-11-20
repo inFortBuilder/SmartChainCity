@@ -20,6 +20,29 @@ Ledger de dupla entrada do THALER e do SCITY dentro do jogo (épico **E1.5**, pa
 
 **Teste de propriedade** (critério do E1.5 no [ROADMAP](../../ROADMAP.md)): 10 mil transações aleatórias de 8 tipos (emissão, pagamento pelo pool, transferência, gasto, escrow, taxa de três pernas), com 5% de pedidos repetidos. No fim, a soma de todas as entradas é zero por moeda, o saldo de cada conta é igual à soma das suas entradas e nenhuma conta fica negativa. Roda em memória e no Postgres (cerca de 70 s).
 
+## Painel econômico (E2.8)
+
+Cada transação do ledger vira um fluxo, olhando a parte dos jogadores (doc 04 §7):
+- **emissão** (faucet): os jogadores recebem de um pool ou do sistema, como turno, renda de imóvel ou crédito da ponte;
+- **dreno** (sink): os jogadores pagam para a queima ou para um pool, como comida, imposto, obra ou lote;
+- **circulação**: entre jogadores, soma zero.
+
+O SQL agrupa por tipo e pela conta do outro lado (`pool/p2e`, `burn/food`…), em 24 h e em 7 dias.
+
+| Indicador | Para quê |
+|---|---|
+| Dreno ÷ emissão (7 dias) | O doc 04 §6 pede um dreno-alvo de 55% da renda. Abaixo disso, o THALER se acumula e pressiona o saque |
+| THALER por jogador | Saldo médio de quem tem saldo |
+| Pool P2E: saldo e duração | Quantos dias o pool aguenta no ritmo de emissão da última semana |
+| Por tipo | De onde vem e para onde vai o dinheiro |
+
+- **Rota:** `GET /internal/v1/economy/panel?currency=THALER` (`x-service-token`) devolve tudo, com os `alerts`.
+- **Job `economy.panel`:** roda a cada `PANEL_EVERY_SECONDS` (60) e põe os indicadores no `/metrics` como `economy_*`. É o que o painel "Economia" do Grafana e os alertas do Prometheus leem ([infra/observability](../../infra/observability/README.md)).
+
+**Alertas, com limites de partida:**
+- `sink_ratio_low`: dreno abaixo de 55% em 7 dias, com pelo menos 1.000 THALER emitidos;
+- `p2e_runway_short`: pool P2E acabando em menos de 30 dias; crítico abaixo de 7.
+
 ## Rodar
 
 ```bash
@@ -44,6 +67,7 @@ TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc_test pnpm --filter
 | GET | `/v1/economy/balances` | jogador (Bearer) | Saldos: `{balances: [{currency, amount, decimals}]}` |
 | GET | `/v1/economy/ledger?currency=&cursor=&limit=` | jogador (Bearer) | Extrato do mais recente para o mais antigo; `next_cursor` para a próxima página |
 | POST | `/internal/v1/ledger/transactions` | serviços (`X-Service-Token` + `Idempotency-Key`) | Lança `{kind, ref_type, ref_id, legs: [{owner_type, owner_id, currency, amount}]}`: 201 novo, 200 repetido |
+| GET | `/internal/v1/economy/panel` | serviços (`X-Service-Token`) | Painel econômico (`?currency=THALER` ou `SCITY`): emissão, dreno, razão, por tipo, pools, duração do P2E e alertas |
 | POST | `/v1/dev/faucet` | jogador (Bearer) | **Só desenvolvimento** (`DEV_FAUCET=true`, recusado em produção): +1.000 SCITY de teste, como um depósito simulado da ponte |
 | GET | `/healthz` | — | `{status: "ok"}` |
 

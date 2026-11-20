@@ -21,6 +21,8 @@ const schema = z.object({
   CORS_ORIGINS: z.string().default('').transform(list),
   /** Chave dos outros serviços (game-core, world) para lançar no ledger. */
   INTERNAL_TOKEN: z.string().min(32, 'INTERNAL_TOKEN precisa de pelo menos 32 caracteres'),
+  /** Intervalo do job economy.panel (indicadores no /metrics). 0 desliga (testes). */
+  PANEL_EVERY_SECONDS: z.coerce.number().int().nonnegative().default(60),
   /**
    * Só desenvolvimento: torneira de SCITY de teste para o jogador logado,
    * enquanto não existe depósito pela blockchain (Etapa 2). Recusada em produção.
