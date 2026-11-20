@@ -41,10 +41,11 @@ const schema = z.object({
   LAND_NFT_ADDRESS: address,
   AVATAR_NFT_ADDRESS: address,
   LUCKY_BOX_ADDRESS: address,
+  PROPERTY_NFT_ADDRESS: address,
 });
 
 export type Config = z.infer<typeof schema> & {
-  contracts: { LandNFT?: `0x${string}`; AvatarNFT?: `0x${string}`; LuckyBox?: `0x${string}` };
+  contracts: { LandNFT?: `0x${string}`; AvatarNFT?: `0x${string}`; LuckyBox?: `0x${string}`; PropertyNFT?: `0x${string}` };
 };
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -58,6 +59,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       LandNFT: pick(c.LAND_NFT_ADDRESS, 'LandNFT'),
       AvatarNFT: pick(c.AVATAR_NFT_ADDRESS, 'AvatarNFT'),
       LuckyBox: pick(c.LUCKY_BOX_ADDRESS, 'LuckyBox'),
+      PropertyNFT: pick(c.PROPERTY_NFT_ADDRESS, 'PropertyNFT'),
     },
   };
 }

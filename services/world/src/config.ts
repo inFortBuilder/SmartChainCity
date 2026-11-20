@@ -64,6 +64,8 @@ const schema = z.object({
     ),
   /** BuildingNFT: com ele (e o resto da posse on-chain acima), o world emite o voucher do prédio aprovado. */
   BUILDING_NFT_ADDRESS: optional(z.string().regex(/^0x[0-9a-fA-F]{40}$/, 'BUILDING_NFT_ADDRESS precisa ser um endereço')),
+  /** PropertyNFT: com ele (e o resto da posse on-chain acima), o world emite o voucher do imóvel pronto. */
+  PROPERTY_NFT_ADDRESS: optional(z.string().regex(/^0x[0-9a-fA-F]{40}$/, 'PROPERTY_NFT_ADDRESS precisa ser um endereço')),
   /** Validade da cotação assinada. */
   QUOTE_TTL_SECONDS: z.coerce.number().int().positive().default(600),
 });

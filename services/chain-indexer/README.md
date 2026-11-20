@@ -15,6 +15,7 @@ Lê os eventos dos contratos na rede (anvil, BSC Testnet ou BSC). Espera as conf
 | Reorganização | A cada rodada, confere se o bloco do cursor ainda tem o mesmo hash. Se mudou, volta `REORG_DEPTH` blocos (64), apaga os eventos depois disso, refaz as projeções a partir dos eventos que sobraram e lê de novo |
 | Lotes | `Transfer` do `LandNFT`: dono de cada lote. O `tokenId` vira (cidade, lote) |
 | Avatares | `Transfer` e `AvatarMinted` do `AvatarNFT`: dono, raridade e profissão |
+| Imóveis | `Transfer`, `PropertyMinted` e `PropertyUpgraded` do `PropertyNFT`: dono, lote âncora, tipo e nível |
 | Caixas | `BoxOpened` e `AvatarRevealed` da `LuckyBox`: quem abriu, situação e avatar sorteado |
 | Feed | `GET /internal/v1/chain/events?after=<id>` entrega os eventos confirmados, em ordem, para os outros serviços (com `x-service-token`) |
 
@@ -23,7 +24,8 @@ Lê os eventos dos contratos na rede (anvil, BSC Testnet ou BSC). Espera as conf
 **Testado no anvil em 2026-11-20, de ponta a ponta.** Com os contratos do `DeployLocal`:
 - uma caixa foi aberta e sorteada, e o avatar 1 (Comum · enfermeira) apareceu com o jogador;
 - um lote foi comprado com cotação assinada e depois transferido;
-- só depois de 1 confirmação o espelho passou o lote para o novo dono.
+- só depois de 1 confirmação o espelho passou o lote para o novo dono;
+- uma Casa T1 mintada e levada ao nível 2 apareceu com o dono, o lote, o tipo `t1` e o nível 2.
 
 ## Rodar
 
@@ -60,8 +62,9 @@ TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc_test pnpm --filter
 | GET | `/v1/chain/status` | público | Rede, confirmações, último bloco da rede e o lido, atraso, último erro, contratos |
 | GET | `/v1/chain/lots/:tokenId` | público | Dono on-chain do lote, com cidade e número |
 | GET | `/v1/chain/avatars/:tokenId` | público | Dono, raridade e profissão do avatar |
+| GET | `/v1/chain/properties/:tokenId` | público | Dono, lote âncora, tipo e nível do imóvel |
 | GET | `/v1/chain/boxes/:requestId` | público | Caixa aberta: comprador, tier, situação e avatar sorteado |
-| GET | `/v1/chain/owners/:address` | público | Lotes e avatares de uma carteira |
+| GET | `/v1/chain/owners/:address` | público | Lotes, avatares e imóveis de uma carteira |
 | GET | `/internal/v1/chain/events?after=&limit=` | serviços (`x-service-token`) | Feed de eventos confirmados, em ordem; `next_after` para a próxima página |
 | GET | `/healthz`, `/metrics` | — | Saúde e métricas ([infra/observability](../../infra/observability/README.md)) |
 
@@ -70,7 +73,7 @@ TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc_test pnpm --filter
 O esquema próprio `indexer` tem:
 - `chain_event`: cada evento, com bloco, hash, transação, log, contrato e argumentos;
 - `cursor`: último bloco lido e o hash dele, por rede;
-- as projeções `lot_token`, `avatar_token` e `box_request`, que podem ser refeitas a partir dos eventos.
+- as projeções `lot_token`, `avatar_token`, `property_token` e `box_request`, que podem ser refeitas a partir dos eventos.
 
 As migrações ficam em `drizzle/`, controladas em `drizzle.__indexer_migrations`.
 

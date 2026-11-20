@@ -8,6 +8,14 @@ import {
   type BuildingVoucherSigner,
   buildingDomain,
 } from '../domain/building-voucher.js';
+import {
+  LEVEL_VOUCHER_TYPES,
+  type LevelVoucher,
+  PROPERTY_VOUCHER_TYPES,
+  type PropertyVoucher,
+  type PropertyVoucherSigner,
+  propertyDomain,
+} from '../domain/property-voucher.js';
 import { LOT_QUOTE_TYPES, type LotQuote, type QuoteSigner, type WalletDirectory, landDomain } from '../domain/land-quote.js';
 
 /**
@@ -56,6 +64,39 @@ export class LocalKeyBuildingSigner implements BuildingVoucherSigner {
       domain: buildingDomain(this.chainId, this.contract),
       types: BUILDING_VOUCHER_TYPES,
       primaryType: 'BuildingVoucher',
+      message: voucher,
+    });
+  }
+}
+
+/** Assina os vouchers do `PropertyNFT` (mint e nível) com a mesma chave do world. */
+export class LocalKeyPropertySigner implements PropertyVoucherSigner {
+  private readonly account;
+  readonly address: Address;
+
+  constructor(
+    privateKey: Hex,
+    private readonly chainId: number,
+    private readonly contract: Address,
+  ) {
+    this.account = privateKeyToAccount(privateKey);
+    this.address = this.account.address;
+  }
+
+  signProperty(voucher: PropertyVoucher): Promise<Hex> {
+    return this.account.signTypedData({
+      domain: propertyDomain(this.chainId, this.contract),
+      types: PROPERTY_VOUCHER_TYPES,
+      primaryType: 'PropertyVoucher',
+      message: voucher,
+    });
+  }
+
+  signLevel(voucher: LevelVoucher): Promise<Hex> {
+    return this.account.signTypedData({
+      domain: propertyDomain(this.chainId, this.contract),
+      types: LEVEL_VOUCHER_TYPES,
+      primaryType: 'LevelVoucher',
       message: voucher,
     });
   }

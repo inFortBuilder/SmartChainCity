@@ -15,6 +15,7 @@ Mudanças aqui exigem 2 aprovações. Os endereços implantados ficam em `deploy
 | [`AvatarNFT`](src/AvatarNFT.sol) | Smartcityano (ERC-721 com royalties EIP-2981, 2,5% para a tesouraria). Raridade (0 a 3) e profissão ficam gravadas no mint. A profissão é o código do catálogo em `bytes32` (ex.: `padeiro`), o mesmo do Strapi. Só quem tem o papel `MINTER` cria avatares |
 | [`LuckyBox`](src/LuckyBox.sol) | Caixas por tier: moeda, preço e tabela de probabilidades por raridade, pública on-chain. `open` cobra e pede um número ao Chainlink VRF v2.5; o callback sorteia a raridade e a profissão e cria o avatar. A tabela vale como estava no momento da compra |
 | [`BuildingNFT`](src/BuildingNFT.sol) | Prédio de construtor (doc 13 §7). Guarda o lote, o hash do GLB aprovado (`modelHash`), os andares e o construtor. O mint usa o voucher EIP-712 do world, dado só a prédio com alvará. O construtor precisa ser dono do lote no `LandNFT`, e cada lote tem no máximo um prédio vigente. `demolish` (dono do prédio e do lote) libera o lote |
+| [`PropertyNFT`](src/PropertyNFT.sol) | Imóvel do catálogo (Casa T1 e os próximos) sobre um lote âncora (doc 07 §2.2). Guarda o lote, o tipo (`bytes32`, ex.: `t1`) e o nível; desgaste e renda ficam no world. O id do token é o id do imóvel no world (os 128 bits do UUID), então o mesmo imóvel não vira dois tokens. O mint usa o voucher do world, dado só a imóvel pronto, e exige que a carteira seja dona do lote no `LandNFT`; um imóvel por lote. `upgrade` leva o nível novo com outro voucher e só aceita nível maior. Depois do mint, a transferência é livre |
 | [`SCityToken`](src/SCityToken.sol) | SCITY: ERC-20 com Permit e oferta fixa de 1 bilhão, criada uma única vez no deploy. Não tem função de mint |
 | [`LocalVRFCoordinator`](src/dev/LocalVRFCoordinator.sol) | Coordenador VRF **só para o anvil e os testes**: qualquer um entrega o sorteio. Na BSC entra o coordenador real da Chainlink |
 
@@ -61,7 +62,7 @@ forge script script/DeployLocal.s.sol --rpc-url http://127.0.0.1:8545 --broadcas
 ```
 
 O script:
-- sobe os seis contratos (o `BuildingNFT` por último, para os outros endereços não mudarem);
+- sobe os sete contratos (o `BuildingNFT` e o `PropertyNFT` por último, para os outros endereços não mudarem);
 - dá ao `LuckyBox` o papel de criar avatares;
 - carrega as 44 profissões do seed do CMS (`cms-strapi/seed/profissoes.json`), separadas por raridade;
 - cria o tier 1 (0,05 BNB);
@@ -128,3 +129,23 @@ Os campos:
 - `nonce`: único por prédio.
 
 Testado no anvil em 2026-11-20: o world assinou a cotação do lote e o voucher; a carteira do jogador comprou o lote e mintou o prédio, e o mesmo voucher foi recusado na segunda vez.
+
+## Vouchers de imóvel (para o serviço world)
+
+Domínio EIP-712: `name` `SCC PropertyNFT`, `version` `1`, `chainId` da rede e o endereço do `PropertyNFT`.
+
+```
+PropertyVoucher(uint256 tokenId,address owner,uint256 lotId,bytes32 typeCode,uint16 level,uint256 deadline)
+LevelVoucher(uint256 tokenId,uint16 level,uint256 deadline)
+```
+
+Os campos:
+- `tokenId`: o id do imóvel no world, os 128 bits do UUID.
+- `owner`: carteira do dono; precisa ser quem chama `mint` e o dono do lote.
+- `lotId`: o `tokenId` do lote no `LandNFT`.
+- `typeCode`: código do tipo no catálogo, com zeros à direita.
+- `level`: no mint, o nível atual; no `upgrade`, o nível novo, maior que o gravado.
+
+Não há nonce: o mint não se repete porque o token já existe, e o upgrade não se repete porque o nível só sobe.
+
+Testado no anvil em 2026-11-20: o world assinou o lote e o imóvel; a carteira comprou o lote, mintou a Casa T1, teve o mesmo voucher recusado e subiu para o nível 2.

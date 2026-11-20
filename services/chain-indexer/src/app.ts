@@ -4,7 +4,7 @@ import Fastify from 'fastify';
 import { z } from 'zod';
 
 import type { Config } from './config.js';
-import type { AvatarToken, BoxRequest, LotToken } from './domain/events.js';
+import type { AvatarToken, BoxRequest, LotToken, PropertyToken } from './domain/events.js';
 import type { IndexerStore } from './domain/indexer.js';
 
 /** Estado do laço de leitura, para `/v1/chain/status`. */
@@ -24,6 +24,14 @@ const avatarDto = (a: AvatarToken) => ({
   rarity: a.rarity,
   profession: a.profession,
   block: a.block.toString(),
+});
+const propertyDto = (p: PropertyToken) => ({
+  token_id: p.tokenId,
+  owner: p.owner,
+  lot_token_id: p.lotId,
+  type: p.typeCode,
+  level: p.level,
+  block: p.block.toString(),
 });
 const boxDto = (b: BoxRequest) => ({
   request_id: b.requestId,
@@ -83,6 +91,13 @@ export async function buildApp(config: Config, store: IndexerStore, status: Inde
     return { avatar: avatarDto(avatar) };
   });
 
+  app.get('/v1/chain/properties/:tokenId', async (request) => {
+    const { tokenId } = tokenParam.parse(request.params);
+    const property = await store.property(chainId, tokenId);
+    if (!property) throw notFound('Imóvel');
+    return { property: propertyDto(property) };
+  });
+
   app.get('/v1/chain/boxes/:tokenId', async (request) => {
     const { tokenId } = tokenParam.parse(request.params);
     const box = await store.box(chainId, tokenId);
@@ -92,8 +107,12 @@ export async function buildApp(config: Config, store: IndexerStore, status: Inde
 
   app.get('/v1/chain/owners/:address', async (request) => {
     const { address } = addressParam.parse(request.params);
-    const [lots, avatars] = await Promise.all([store.lotsOf(chainId, address), store.avatarsOf(chainId, address)]);
-    return { lots: lots.map(lotDto), avatars: avatars.map(avatarDto) };
+    const [lots, avatars, properties] = await Promise.all([
+      store.lotsOf(chainId, address),
+      store.avatarsOf(chainId, address),
+      store.propertiesOf(chainId, address),
+    ]);
+    return { lots: lots.map(lotDto), avatars: avatars.map(avatarDto), properties: properties.map(propertyDto) };
   });
 
   // Feed para os outros serviços (world, game-core): eventos confirmados, em ordem.

@@ -50,7 +50,7 @@ O MVP roda inteiro na máquina local, sem serviços pagos. Por isso, publicar o 
 
 | Área | Situação |
 |------|----------|
-| `contracts/` | Desde 2026-11-20: `LandNFT`, `AvatarNFT`, `LuckyBox` e `SCityToken` no anvil. Faltam `PropertyNFT`, `GameVault`, `Marketplace`, vesting e a reserva da auditoria (E3.8) |
+| `contracts/` | Desde 2026-11-20: `LandNFT`, `AvatarNFT`, `LuckyBox`, `SCityToken`, `BuildingNFT` e `PropertyNFT` no anvil. Faltam `GameVault`, `Marketplace`, vesting e a reserva da auditoria (E3.8) |
 | `services/world` | Faltam imóveis, impostos, regras de cerco e a cotação EIP-712 |
 | `services/chain-indexer` | Começou em 2026-11-20; espera o `GameVault` para os depósitos. O `services/realtime` também começou nesse dia |
 | Etapa 0 sem código | E0.2 (trocar as credenciais legadas), E0.8 (parecer jurídico), o tomate duplicado e a calibração da elasticidade e do dinheiro novo no simulador |
@@ -62,7 +62,7 @@ O MVP roda inteiro na máquina local, sem serviços pagos. Por isso, publicar o 
    - a assinatura do VRF da Chainlink na testnet.
 2. **Concluir o `world`.**
    - ✅ Cotação EIP-712 aceita pelo `LandNFT` no anvil (E2.4, 2026-11-20). O lote pago no ledger vira NFT na carteira do jogador.
-   - 🟡 Imóveis com obra, desgaste e renda (E2.5, 2026-11-20). A Casa T1 está pronta, com reparo e upgrade de nível e valores provisórios; faltam aluguel, os outros tipos e o `PropertyNFT`.
+   - 🟡 Imóveis com obra, desgaste e renda (E2.5, 2026-11-20). A Casa T1 está pronta, com reparo e upgrade de nível e valores provisórios. O `PropertyNFT` também: o imóvel pronto vira NFT na carteira do dono do lote, o nível sobe com voucher do world e o chain-indexer espelha tudo, testado no anvil. Faltam aluguel, os outros tipos e a renda conferir o dono on-chain.
    - 🟡 Impostos (E2.6, 2026-11-20). IPTU e PT com débito automático, multa e bloqueio do lote inadimplente, com valores provisórios; falta o leilão.
 3. **Blockchain e prédios no servidor.**
    - 🟡 `chain-indexer` (2026-11-20): lê os eventos com confirmações e trata reorganização. Espelha lotes, avatares e caixas, e foi testado no anvil. Falta o depósito creditar o THALER uma única vez, que espera o `GameVault`.

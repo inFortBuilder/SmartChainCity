@@ -61,6 +61,8 @@ O dono do lote constrói, espera a obra e coleta a renda (doc 03 §6.3). O dinhe
 
 Reparo e upgrade cobram antes e só depois mudam o imóvel. Na mudança, que roda numa transação com o imóvel travado, a renda acumulada até ali é fechada numa coleta e paga, com o desgaste e o nível antigos. Assim a obra nunca recalcula para trás um período que já rendeu. Cada imóvel tem no máximo uma obra pendente (`409 work_in_progress`). Sem THALER, a obra não acontece; com o ledger fora, ela fica pendente e o job a termina depois.
 
+**Na blockchain (`PropertyNFT`).** Com a obra pronta, o dono pede `POST /v1/world/properties/:id/onchain-voucher` com `{wallet}`. O world confere que o imóvel é dele e está pronto, que a cidade está na rede, que a carteira está ligada à conta e que o lote não está inadimplente, e assina com a mesma chave da posse do lote. A carteira chama `PropertyNFT.mint`, e o contrato exige que ela seja dona do lote no `LandNFT`. O id do token é o id do imóvel. Depois de um upgrade, `POST /v1/world/properties/:id/level-voucher` assina o nível atual para `PropertyNFT.upgrade`. Ligue com `PROPERTY_NFT_ADDRESS` no `.env`.
+
 O job `properties.settle` (junto do `purchases.settle`) refaz obras e coletas que ficaram pendentes. As chaves do ledger são as mesmas, então nada é cobrado nem pago duas vezes.
 
 **Premissas, sem fonte no GDD** (a "Figura 16" não veio no texto; doc 11). A API marca cada uma em `provisional`:
@@ -151,6 +153,8 @@ TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc_test pnpm --filter
 | POST | `/v1/world/properties/:id/claim` | dono (Bearer) | Coleta a renda acumulada |
 | POST | `/v1/world/properties/:id/repair` | dono (Bearer) | Reparo: desgaste volta a 100 |
 | POST | `/v1/world/properties/:id/upgrade` | dono (Bearer) | Sobe um nível |
+| POST | `/v1/world/properties/:id/onchain-voucher` | dono (Bearer) | Voucher EIP-712 do `PropertyNFT` para o imóvel pronto (corpo: `{wallet}`) |
+| POST | `/v1/world/properties/:id/level-voucher` | dono (Bearer) | Voucher do nível atual para `PropertyNFT.upgrade` |
 | GET | `/v1/world/me/taxes` | jogador (Bearer) | Contas de imposto: valor, multa, vencimento, situação e dias de atraso; total devido |
 | POST | `/v1/world/me/taxes/pay` | jogador (Bearer) | Paga agora as contas pendentes |
 | POST | `/v1/world/cities/:code/lots/:id/building` | dono do lote (Bearer) | Envia o job do SCC Builder; o world valida contra o próprio lote |
@@ -160,7 +164,7 @@ TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc_test pnpm --filter
 | POST | `/v1/world/buildings/:id/onchain-voucher` | dono (Bearer) | Voucher EIP-712 do `BuildingNFT` para o prédio aprovado (corpo: `{wallet}`) |
 | GET | `/healthz` | — | `{status: "ok"}` |
 
-Erros com código estável: `lot_not_for_sale`, `lot_reserved`, `district_closed`, `other_district`, `area_cap`, `insufficient_scity`, `reservation_lost`, `ledger_unavailable`, `not_found`, `not_lot_owner`, `wallet_not_linked`, `unknown_property_type`, `zone_not_allowed`, `lot_has_property`, `insufficient_thaler`, `property_not_ready`, `nothing_to_claim`, `claim_in_progress`, `nothing_to_repair`, `max_level`, `work_in_progress`, `tax_default`, `taxes_disabled`, `building_invalid`, `lot_has_building`, `lot_without_polygon`, `building_not_in_review`, `builder_unavailable`, `model_not_found`, `building_not_approved`, `model_hash_missing`, `pool_empty`, `properties_disabled`, `city_not_onchain`, `onchain_disabled`, `gateway_unavailable`, `missing_credentials`, `invalid_token`, `token_expired`.
+Erros com código estável: `lot_not_for_sale`, `lot_reserved`, `district_closed`, `other_district`, `area_cap`, `insufficient_scity`, `reservation_lost`, `ledger_unavailable`, `not_found`, `not_lot_owner`, `wallet_not_linked`, `unknown_property_type`, `zone_not_allowed`, `lot_has_property`, `insufficient_thaler`, `property_not_ready`, `nothing_to_claim`, `claim_in_progress`, `nothing_to_repair`, `max_level`, `work_in_progress`, `nothing_to_upgrade`, `tax_default`, `taxes_disabled`, `building_invalid`, `lot_has_building`, `lot_without_polygon`, `building_not_in_review`, `builder_unavailable`, `model_not_found`, `building_not_approved`, `model_hash_missing`, `pool_empty`, `properties_disabled`, `city_not_onchain`, `onchain_disabled`, `gateway_unavailable`, `missing_credentials`, `invalid_token`, `token_expired`.
 
 ## Banco
 
@@ -169,7 +173,7 @@ Esquema próprio `world`: `city` (zonas, bairros abertos, limiar), `lot` (situa�
 ## Ainda não
 
 - Ler a blockchain: transferências do `LandNFT` atualizarem o dono no jogo (chain-indexer).
-- Imóveis: troca de tipo (T1 → T2 → T3), seguro, aluguel e hotel, lote duplo (Residencial 2 e 3), regularização e água/energia; os outros tipos do doc 03 §6; o catálogo vindo do Strapi (hoje fica no código, igual ao seed); o `PropertyNFT`.
+- Imóveis: troca de tipo (T1 → T2 → T3), seguro, aluguel e hotel, lote duplo (Residencial 2 e 3), regularização e água/energia; os outros tipos do doc 03 §6; o catálogo vindo do Strapi (hoje fica no código, igual ao seed); a renda conferir o dono on-chain do imóvel e do lote (doc 07 §2.2), que pede o feed do chain-indexer.
 - Prédios: o chain-indexer ler o `BuildingNFT`, unidades e venda (E3.11), taxa de alvará, prazo de obra proporcional à área, IPTU por unidade.
 - Impostos: leilão do lote inadimplente; IPTU por unidade dos prédios de construtores (doc 13).
 - Câmbio THALER ↔ SCITY e cotação do dia (passo 11 da trilha); hoje `SCITY_USD` é fixo.

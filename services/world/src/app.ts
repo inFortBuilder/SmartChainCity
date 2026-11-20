@@ -6,6 +6,7 @@ import { z } from 'zod';
 import type { Config } from './config.js';
 import { type QuoteSigner, type WalletDirectory, issueOnchainQuote } from './domain/land-quote.js';
 import { type BuildingVoucherSigner, issueBuildingVoucher } from './domain/building-voucher.js';
+import { type PropertyVoucherSigner, issueLevelVoucher, issuePropertyVoucher } from './domain/property-voucher.js';
 import {
   ACCRUAL_CAP_DAYS,
   MIN_WEAR_FOR_INCOME,
@@ -58,7 +59,12 @@ export async function buildApp(
   now: () => Date = () => new Date(),
   payments: LandPayments | null = null,
   land: { wallets: WalletDirectory; signer: QuoteSigner; contract: string; chainId: number } | null = null,
-  properties: { store: PropertyStore; payments: PropertyPayments | null } | null = null,
+  properties: {
+    store: PropertyStore;
+    payments: PropertyPayments | null;
+    /** PropertyNFT (E2.5): vouchers de mint e de nível do imóvel pronto. */
+    onchain?: { wallets: WalletDirectory; signer: PropertyVoucherSigner; contract: string; chainId: number } | null;
+  } | null = null,
   taxes: { store: TaxStore; payments: TaxPayments | null } | null = null,
   buildings: {
     store: BuildingStore;
@@ -311,6 +317,60 @@ export async function buildApp(
 
   app.post('/v1/world/properties/:id/repair', workRoute('repair'));
   app.post('/v1/world/properties/:id/upgrade', workRoute('upgrade'));
+
+  // PropertyNFT (E2.5): o imóvel pronto vai para a carteira do dono do lote; o nível sobe com outro voucher.
+  const propertyChain = () => {
+    const onchain = propertiesOn().onchain;
+    if (!onchain) throw new AppError('onchain_disabled', 'O PropertyNFT não está configurado.', 503);
+    return onchain;
+  };
+
+  app.post('/v1/world/properties/:id/onchain-voucher', async (request) => {
+    const me = await player(request);
+    const { id } = z.object({ id: z.uuid() }).parse(request.params);
+    const { wallet } = z.object({ wallet: z.string() }).parse(request.body);
+    const onchain = propertyChain();
+    const { voucher, signature, property } = await issuePropertyVoucher(
+      propertiesOn().store,
+      onchain.wallets,
+      onchain.signer,
+      { propertyId: id, accountId: me, wallet, cityNftId: (c) => config.LAND_CITY_IDS[c], ttlSeconds: config.QUOTE_TTL_SECONDS, requestId: request.id },
+      now,
+    );
+    await assertNotInDefault(taxes?.store ?? null, property.city, property.lotId, now());
+    return {
+      contract: onchain.contract,
+      chain_id: onchain.chainId,
+      token_id: voucher.tokenId.toString(),
+      voucher: {
+        tokenId: voucher.tokenId.toString(),
+        owner: voucher.owner,
+        lotId: voucher.lotId.toString(),
+        typeCode: voucher.typeCode,
+        level: voucher.level,
+        deadline: voucher.deadline.toString(),
+      },
+      signature,
+    };
+  });
+
+  app.post('/v1/world/properties/:id/level-voucher', async (request) => {
+    const me = await player(request);
+    const { id } = z.object({ id: z.uuid() }).parse(request.params);
+    const onchain = propertyChain();
+    const { voucher, signature } = await issueLevelVoucher(
+      propertiesOn().store,
+      onchain.signer,
+      { propertyId: id, accountId: me, ttlSeconds: config.QUOTE_TTL_SECONDS },
+      now,
+    );
+    return {
+      contract: onchain.contract,
+      chain_id: onchain.chainId,
+      voucher: { tokenId: voucher.tokenId.toString(), level: voucher.level, deadline: voucher.deadline.toString() },
+      signature,
+    };
+  });
 
   // ---------------------------------------------------------------- impostos (E2.6)
 

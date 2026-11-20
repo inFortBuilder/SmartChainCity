@@ -7,6 +7,7 @@ import {AvatarNFT} from "../src/AvatarNFT.sol";
 import {BuildingNFT} from "../src/BuildingNFT.sol";
 import {LandNFT} from "../src/LandNFT.sol";
 import {LuckyBox} from "../src/LuckyBox.sol";
+import {PropertyNFT} from "../src/PropertyNFT.sol";
 import {SCityToken} from "../src/SCityToken.sol";
 import {LocalVRFCoordinator} from "../src/dev/LocalVRFCoordinator.sol";
 import {IVRFCoordinatorV2Plus} from "../src/vrf/VRFV2Plus.sol";
@@ -92,6 +93,9 @@ contract DeployLocal is Script {
         BuildingNFT buildingNft =
             new BuildingNFT(deployer, land, "http://localhost:8030/v1/world/nft/buildings/");
         buildingNft.grantRole(buildingNft.SIGNER_ROLE(), worldSigner);
+        PropertyNFT propertyNft =
+            new PropertyNFT(deployer, land, "http://localhost:8030/v1/world/nft/properties/");
+        propertyNft.grantRole(propertyNft.SIGNER_ROLE(), worldSigner);
 
         vm.stopBroadcast();
 
@@ -103,6 +107,7 @@ contract DeployLocal is Script {
         vm.serializeAddress(key, "LuckyBox", address(box));
         vm.serializeAddress(key, "LocalVRFCoordinator", address(vrf));
         vm.serializeAddress(key, "BuildingNFT", address(buildingNft));
+        vm.serializeAddress(key, "PropertyNFT", address(propertyNft));
         string memory json = vm.serializeAddress(key, "worldSigner", worldSigner);
         vm.writeJson(json, "deployments/anvil.json");
 
