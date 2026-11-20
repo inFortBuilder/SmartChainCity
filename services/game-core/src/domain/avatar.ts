@@ -1,7 +1,7 @@
 import { AppError } from '@scc/shared';
 
 import { type Rarity, isRarity, professionFits } from './catalog.js';
-import { CONDITIONS, type Condition, activeConditions } from './conditions.js';
+import { CONDITIONS, type Condition, activeConditions, drainDue, drainHealth } from './conditions.js';
 
 /**
  * Avatar e atributos (doc 02 §2.3, doc 06 §2). Atributos de 0 a 10, educação
@@ -15,8 +15,8 @@ const HOUR = 3_600_000;
 /**
  * Queda com o tempo. Só a alimentação tem taxa no GDD ("48 h sem comer"):
  * de 10 a 0 em 48 h. Felicidade e higiene são premissas desta etapa, a
- * calibrar no simulador. Energia e saúde não caem sozinhas: gastam com o
- * turno de trabalho (E1.4), atividades e doenças.
+ * calibrar no simulador. Energia não cai sozinha: gasta com o turno de trabalho (E1.4) e atividades. A
+ * saúde cai com as doenças graves (conditions.ts, drainHealth).
  */
 export const DECAY = {
   food: { everyMs: 4.8 * HOUR, source: 'GDD §2.3: 48 h de 10 a 0' },
@@ -71,12 +71,16 @@ export function decayed(avatar: Avatar, now: Date): Avatar {
     // Zerado, o relógio para no agora: comer de novo recomeça a contagem cheia.
     anchors[name] = attributes[name] === 0 ? now : new Date(anchors[name].getTime() + steps * everyMs);
   }
-  return { ...avatar, attributes, anchors };
+  // Doenças graves tiram saúde com o tempo (febre, enxaqueca, virose: 1 a cada 15 min).
+  const drained = drainHealth(avatar.conditions, attributes.health, now);
+  attributes.health = drained.health;
+  return { ...avatar, attributes, anchors, conditions: drained.conditions };
 }
 
 /** Algo caiu desde a última gravação? É o que o job procura. */
 export const decayDue = (avatar: Avatar, now: Date) =>
-  DECAYING.some((name) => avatar.attributes[name] > 0 && now.getTime() - avatar.anchors[name].getTime() >= DECAY[name].everyMs);
+  DECAYING.some((name) => avatar.attributes[name] > 0 && now.getTime() - avatar.anchors[name].getTime() >= DECAY[name].everyMs) ||
+  drainDue(avatar.conditions, avatar.attributes.health, now);
 
 /** Internado agora? A alta é pelo relógio: passou de `hospitalUntil`, está livre. */
 export const inHospital = (avatar: Avatar, now: Date) =>

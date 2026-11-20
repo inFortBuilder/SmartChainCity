@@ -206,7 +206,7 @@ describe('API da farmácia', () => {
   it('a tabela da farmácia é pública', async () => {
     const r = await app.inject({ url: '/v1/catalog/pharmacy' });
     expect(r.json()).toMatchObject({ price: '1000', cure_chance: 0.7, provisional_price: true });
-    expect(r.json().conditions.map((c: { code: string }) => c.code)).toEqual(['dor_de_barriga', 'gripe', 'dor_de_cabeca']);
+    expect(r.json().conditions.map((c: { code: string }) => c.code)).toEqual(['dor_de_barriga', 'gripe', 'dor_de_cabeca', 'febre', 'enxaqueca', 'virose']);
   });
 });
 

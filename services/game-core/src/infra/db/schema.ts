@@ -138,7 +138,7 @@ export const hospitalStay = game.table(
   (t) => [
     index('hospital_stay_avatar_idx').on(t.avatarId, t.admittedAt),
     index('hospital_stay_fee_idx').on(t.feeStatus, t.admittedAt),
-    check('hospital_stay_reason_check', sql`${t.reason} in ('health', 'energy')`),
+    check('hospital_stay_reason_check', sql`${t.reason} in ('health', 'energy', 'treatment')`),
     check('hospital_stay_fee_status_check', sql`${t.feeStatus} in ('pending', 'paid', 'waived')`),
     check('hospital_stay_fee_check', sql`${t.feeCents} > 0`),
     check('hospital_stay_period_check', sql`${t.dischargeAt} > ${t.admittedAt}`),

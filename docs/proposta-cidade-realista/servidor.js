@@ -347,10 +347,16 @@ export function createServidor(map) {
       if (!internado && a.conditions?.length) {
         body += `<h3>🤒 Doente</h3>${a.conditions
           .map(
-            (c) => `<div class="linha"><p class="muted pequeno">${esc(c.label)}${c.blocks_work ? ' · de cama, sem trabalhar' : ` · rendimento ×${c.yield_factor}`} · passa em ${left(c.ends_at)}</p>
-            <button class="btn btn--blue pequeno" type="button" data-s="remedio" data-c="${esc(c.code)}" ${busy ? 'disabled' : ''}>Remédio · 10</button></div>`,
+            (c) => `<div class="linha"><p class="muted pequeno">${esc(c.label)}${c.blocks_work ? ' · de cama, sem trabalhar' : ` · rendimento ×${c.yield_factor}`}${c.hospital_only ? ' · <strong>−1 saúde a cada 15 min</strong>' : ''} · passa em ${left(c.ends_at)}</p>
+            ${
+              c.hospital_only
+                ? `<button class="btn btn--blue pequeno" type="button" data-s="tratar" ${busy ? 'disabled' : ''}>Hospital · 30</button>`
+                : `<button class="btn btn--blue pequeno" type="button" data-s="remedio" data-c="${esc(c.code)}" ${busy ? 'disabled' : ''}>Remédio · 10</button>`
+            }</div>`,
           )
-          .join('')}<p class="muted pequeno">O remédio cura com 70% de chance; sem cura, o THALER não volta.</p>`;
+          .join('')}<p class="muted pequeno">O remédio cura com 70% de chance; sem cura, o THALER não volta.${
+          a.conditions.some((c) => c.hospital_only) ? ' Febre, enxaqueca e virose só o hospital trata: 4 h internado, sai curado e com a saúde cheia.' : ''
+        }</p>`;
       }
       // Mercado do jogo (E2.3): comer custa THALER e sobe a alimentação.
       // Despensa: pacotes comprados antes; comer daqui não cobra de novo.
@@ -568,6 +574,13 @@ export function createServidor(map) {
         });
         message = r.cured ? `Remédio: −${thaler(r.medicine.price)} THALER, curado.` : `Remédio: −${thaler(r.medicine.price)} THALER, mas não curou. Pode tentar de novo.`;
         messageOk = r.cured;
+      });
+    }
+    if (what === 'tratar') {
+      return act(async () => {
+        const r = await call(API.game, `/v1/avatars/${data.avatar.id}/hospital/treat`, { method: 'POST', token: session.token });
+        message = `Hospital: tratamento de 30 THALER, alta em ${left(r.stay.discharge_at)}.`;
+        messageOk = true;
       });
     }
     if (what === 'claim') {

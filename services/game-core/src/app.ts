@@ -67,6 +67,7 @@ const avatarDto = (a: Avatar, at: Date) => ({
     label: CONDITIONS[c.code].label,
     blocks_work: CONDITIONS[c.code].blocksWork,
     yield_factor: CONDITIONS[c.code].yieldFactor,
+    hospital_only: CONDITIONS[c.code].serious,
     ends_at: c.endsAt.toISOString(),
   })),
   created_at: a.createdAt.toISOString(),
@@ -252,6 +253,21 @@ export async function buildApp(
     return { stays: (await store.listStays(avatar.id, 20)).map(stayDto) };
   });
 
+  // Tratamento voluntário (E2.3): febre, enxaqueca e virose só o hospital cura. 4 h internado e a taxa.
+  app.post('/v1/avatars/:id/hospital/treat', async (request, reply) => {
+    const avatar = await ownAvatar(request);
+    let stay = await store.treat(avatar.id, now(), randomUUID());
+    if (hospitalPayer) {
+      await chargeStay(store, hospitalPayer, stay, request.id).catch((error) =>
+        request.log.warn(`taxa do tratamento fica para o job: ${(error as Error).message}`),
+      );
+      stay = (await store.listStays(avatar.id, 1))[0] ?? stay;
+    }
+    const at = now();
+    const fresh = (await store.get(avatar.id))!;
+    return reply.status(201).send({ stay: stayDto(stay), avatar: avatarDto(decayed(fresh, at), at) });
+  });
+
   // Começa o turno. Depois disso o cliente pode fechar: o job conclui no horário.
   app.post('/v1/avatars/:id/work', async (request, reply) => {
     const { shift } = workBody.parse(request.body);
@@ -401,6 +417,8 @@ export async function buildApp(
       hours: CONDITIONS[code].durationMs / 3_600_000,
       blocks_work: CONDITIONS[code].blocksWork,
       yield_factor: CONDITIONS[code].yieldFactor,
+      // Grave: a farmácia não cura, só o hospital; tira 1 de saúde a cada 15 min.
+      hospital_only: CONDITIONS[code].serious,
     })),
   }));
 

@@ -145,7 +145,7 @@ export function startShift(
   const attributes: Attributes = { ...a, energy: a.energy - cost };
   // Gripe e dor de cabeça saem da semente do turno (premissa, doc do domínio) e começam quando ele acaba.
   let conditions = avatar.conditions;
-  for (const code of ['gripe', 'dor_de_cabeca'] as const) {
+  for (const code of ['gripe', 'dor_de_cabeca', 'febre', 'enxaqueca', 'virose'] as const) {
     if (draw(seed, id, code) < CONDITIONS[code].chance) conditions = catchCondition(conditions, code, shift.endsAt);
   }
   return { shift, avatar: { ...avatar, attributes, conditions, updatedAt: now } };
