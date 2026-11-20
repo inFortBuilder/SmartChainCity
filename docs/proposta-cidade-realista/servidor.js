@@ -1,5 +1,5 @@
 // Liga o mapa aos serviços (célula jogável, E1.6): o jogador entra com a
-// carteira (SIWE, pelo gateway), vê o avatar (game-core) e o THALER do ledger
+// carteira (SIWE, pelo gateway) ou com um código por e-mail, vê o avatar (game-core) e o THALER do ledger
 // (economy), trabalha um turno e coleta. Aqui nada é simulado: quem decide é o
 // servidor (ADR-0002). A gestão de lotes e negócios do painel "Meu
 // patrimônio" continua simulada no navegador até o serviço world.
@@ -9,7 +9,11 @@ const API = {
   gateway: params.get('gateway') ?? 'http://127.0.0.1:8000',
   economy: params.get('economy') ?? 'http://127.0.0.1:8010',
   game: params.get('game') ?? 'http://127.0.0.1:8020',
+  world: params.get('world') ?? 'http://127.0.0.1:8030',
 };
+const CITY = 'pittsburg';
+// Lotes do jogador no servidor ficam violeta; os da gestão simulada, ciano.
+const SERVER_LOT_COLOR = 0x8b5cf6;
 const TOKEN_KEY = 'scc-servidor-token';
 const DEV_WALLET_KEY = 'scc-carteira-de-teste';
 // A carteira de teste guarda a chave no navegador: só serve em máquina local.
@@ -35,6 +39,9 @@ const storage = {
   },
 };
 
+/** wei (18 casas) → SCITY com 2 casas, para a tela. */
+const scity = (wei) =>
+  (Number(BigInt(wei) / 10n ** 14n) / 10_000).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const thaler = (cents) => (Number(cents) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const short = (addr) => `${addr.slice(0, 6)}…${addr.slice(-4)}`;
 const left = (iso) => {
@@ -52,7 +59,7 @@ class ApiError extends Error {
   }
 }
 
-async function call(base, path, { method = 'GET', body, token } = {}) {
+async function call(base, path, { method = 'GET', body, token, headers = {} } = {}) {
   let response;
   try {
     response = await fetch(base + path, {
@@ -60,6 +67,7 @@ async function call(base, path, { method = 'GET', body, token } = {}) {
       headers: {
         ...(body ? { 'content-type': 'application/json' } : {}),
         ...(token ? { authorization: `Bearer ${token}` } : {}),
+        ...headers,
       },
       body: body ? JSON.stringify(body) : undefined,
     });
@@ -71,8 +79,11 @@ async function call(base, path, { method = 'GET', body, token } = {}) {
   return json;
 }
 
-/** Assina a mensagem SIWE com a MetaMask, ou com a carteira de teste guardada no navegador. */
-async function signIn(useTestWallet) {
+/**
+ * Assina a mensagem SIWE com a MetaMask, ou com a carteira de teste guardada no
+ * navegador. Serve para entrar e para ligar a carteira a uma conta de e-mail.
+ */
+async function siweProof(useTestWallet, statement) {
   const { createSiweMessage } = await import(`${VIEM}/siwe`);
   let address;
   let sign;
@@ -101,14 +112,61 @@ async function signIn(useTestWallet) {
     nonce,
     uri: location.origin,
     version: '1',
-    statement: 'Entrar na Smart Chain City.',
+    statement,
   });
-  const signature = await sign(message);
-  const result = await call(API.gateway, '/v1/auth/siwe/verify', { method: 'POST', body: { message, signature } });
-  return { token: result.access_token, address, expiresAt: Date.now() + result.expires_in * 1000 };
+  return { message, signature: await sign(message), address };
 }
 
-export function createServidor() {
+async function signIn(useTestWallet) {
+  const { message, signature, address } = await siweProof(useTestWallet, 'Entrar na Smart Chain City.');
+  const result = await call(API.gateway, '/v1/auth/siwe/verify', { method: 'POST', body: { message, signature } });
+  return { token: result.access_token, address, email: result.account.email, expiresAt: Date.now() + result.expires_in * 1000 };
+}
+
+/** Login por e-mail: o gateway manda um código de 6 dígitos (no MVP local, no log dele). */
+async function sendEmailCode(email) {
+  await call(API.gateway, '/v1/auth/email/start', { method: 'POST', body: { email } });
+}
+
+async function verifyEmailCode(email, code) {
+  try {
+    const result = await call(API.gateway, '/v1/auth/email/verify', { method: 'POST', body: { email, code } });
+    return { token: result.access_token, address: null, email: result.account.email, expiresAt: Date.now() + result.expires_in * 1000 };
+  } catch (error) {
+    return codeError(error);
+  }
+}
+
+/** Código errado é 401, mas não é sessão expirada: mostra a mensagem e deixa tentar de novo. */
+function codeError(error) {
+  if (error.status === 401 && error.code === 'invalid_code') throw new ApiError(400, error.code, error.message);
+  throw error;
+}
+
+/** Códigos de 401 que querem dizer "token não vale mais". */
+const SESSION_ERRORS = new Set(['missing_credentials', 'invalid_token', 'token_expired']);
+
+/** Vínculos da conta logada: carteira na conta de e-mail, e-mail na conta de carteira. */
+async function linkWallet(token, useTestWallet) {
+  const { message, signature } = await siweProof(useTestWallet, 'Ligar esta carteira à minha conta na Smart Chain City.');
+  try {
+    return await call(API.gateway, '/v1/me/wallets', { method: 'POST', token, body: { message, signature } });
+  } catch (error) {
+    // Assinatura ou nonce recusados também são 401, mas a sessão continua valendo.
+    if (error.status === 401 && !SESSION_ERRORS.has(error.code)) throw new ApiError(400, error.code, error.message);
+    throw error;
+  }
+}
+
+async function linkEmailVerify(token, email, code) {
+  try {
+    return await call(API.gateway, '/v1/me/email/verify', { method: 'POST', token, body: { email, code } });
+  } catch (error) {
+    return codeError(error);
+  }
+}
+
+export function createServidor(map) {
   const panel = document.createElement('aside');
   panel.className = 'servidor glass';
   panel.setAttribute('aria-label', 'Jogo no servidor');
@@ -121,16 +179,27 @@ export function createServidor() {
   } catch {
     session = null;
   }
-  let data = { avatar: null, balance: '0', shifts: [] };
+  let data = { avatar: null, balance: '0', scity: '0', lots: [], shifts: [] };
+  /** Alimentos do mercado do jogo, com o preço de uma unidade em centavos de THALER. */
+  let foods = [];
   let message = '';
   let messageOk = false;
   let busy = false;
   let open = true;
+  /** E-mail que já recebeu o código: a tela pede o código em vez do e-mail. */
+  let emailSent = null;
+  /** O mesmo, para pôr e-mail na conta logada. */
+  let linkSent = null;
+  /** Conta no gateway: e-mail e carteiras ligadas (null até o primeiro /v1/me). */
+  let me = null;
 
   const logout = (why = '') => {
     session = null;
+    me = null;
+    linkSent = null;
     storage.set(TOKEN_KEY, null);
-    data = { avatar: null, balance: '0', shifts: [] };
+    data = { avatar: null, balance: '0', scity: '0', lots: [], shifts: [] };
+    drawLots();
     message = why;
     render();
   };
@@ -138,12 +207,30 @@ export function createServidor() {
   async function refresh() {
     if (!session) return render();
     try {
-      const [avatars, balances] = await Promise.all([
+      const [avatars, balances, profile] = await Promise.all([
         call(API.game, '/v1/avatars', { token: session.token }),
         call(API.economy, '/v1/economy/balances', { token: session.token }),
+        // Gateway fora não derruba o painel: só some a parte de vínculos.
+        call(API.gateway, '/v1/me', { token: session.token }).catch((error) => {
+          if (error.status === 401) throw error;
+          return null;
+        }),
       ]);
+      if (profile) me = { email: profile.account.email, wallets: profile.wallets.map((w) => w.address) };
       data.avatar = avatars.avatars[0] ?? null;
+      // Lista do mercado: pública, busca uma vez (se o game-core for antigo, só não aparece).
+      if (!foods.length) {
+        foods = await call(API.game, '/v1/catalog/foods')
+          .then((r) => r.foods)
+          .catch(() => []);
+      }
       data.balance = balances.balances.find((b) => b.currency === 'THALER')?.amount ?? '0';
+      data.scity = balances.balances.find((b) => b.currency === 'SCITY')?.amount ?? '0';
+      // Lotes do servidor: se o world estiver fora, o resto do painel segue.
+      data.lots = await call(API.world, '/v1/world/me/lots', { token: session.token })
+        .then((r) => r.lots)
+        .catch(() => data.lots);
+      drawLots();
       data.shifts = data.avatar
         ? (await call(API.game, `/v1/avatars/${data.avatar.id}/shifts`, { token: session.token })).shifts
         : [];
@@ -171,6 +258,8 @@ export function createServidor() {
     await refresh();
   }
 
+  const sign = (n) => (n > 0 ? `+${n}` : String(n));
+
   const bar = (label, value, max = 10) =>
     `<div class="attr"><span>${label}</span><div class="barra"><span style="width:${(value / max) * 100}%"></span></div><b>${value}</b></div>`;
 
@@ -183,10 +272,24 @@ export function createServidor() {
     const note = message ? `<p class="${messageOk ? 'ok-s' : 'aviso-s'}">${esc(message)}</p>` : '';
     if (!session) {
       panel.innerHTML = `${head}
-        <p class="muted">Entre com a carteira para trabalhar e receber THALER de verdade, pelo servidor.</p>
+        <p class="muted">Entre com a carteira ou com o e-mail para trabalhar e receber THALER de verdade, pelo servidor.</p>
         ${window.ethereum ? '<button class="btn btn--primary" type="button" data-s="entrar">Entrar com a carteira</button>' : ''}
         ${LOCAL ? '<button class="btn btn--blue" type="button" data-s="entrar-teste">Entrar com carteira de teste</button>' : ''}
-        ${!window.ethereum && !LOCAL ? '<p class="muted">Instale uma carteira (MetaMask) para entrar.</p>' : ''}
+        ${!window.ethereum && !LOCAL ? '<p class="muted">Instale uma carteira (MetaMask) ou entre com o e-mail.</p>' : ''}
+        <h3>Com e-mail</h3>
+        ${
+          emailSent
+            ? `<form data-form="codigo">
+                <p class="muted">Código enviado para <b>${esc(emailSent)}</b>. Vale 10 minutos.${LOCAL ? ' Na máquina local, ele aparece no log do gateway.' : ''}</p>
+                <div class="linha"><input class="campo" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required placeholder="000000" aria-label="Código de 6 dígitos" /></div>
+                <button class="btn btn--primary" type="submit" ${busy ? 'disabled' : ''}>Entrar</button>
+                <button class="btn btn--ghost pequeno" type="button" data-s="email-voltar">Trocar e-mail ou pedir outro código</button>
+              </form>`
+            : `<form data-form="email">
+                <div class="linha"><input class="campo" name="email" type="email" autocomplete="email" required maxlength="254" placeholder="voce@exemplo.com" aria-label="E-mail" /></div>
+                <button class="btn btn--blue" type="submit" ${busy ? 'disabled' : ''}>Receber código</button>
+              </form>`
+        }
         ${note}`;
       return;
     }
@@ -204,6 +307,44 @@ export function createServidor() {
       body = `<p><strong>${esc(a.job.label)}</strong> <span class="muted">· ${esc(a.rarity)}</span></p>
         ${bar('Energia', at.energy)}${bar('Saúde', at.health)}${bar('Felicidade', at.happiness)}${bar('Alimentação', at.food)}${bar('Higiene', at.hygiene)}
         <p class="muted pequeno">Educação ${at.education}/100${a.status.earnsReward ? '' : ' · <strong>sem comer há 48 h: o turno não paga</strong>'}</p>`;
+      // Hospital compulsório (E2.3): saúde ou energia em 0 interna por 1 dia, com taxa de 30 THALER.
+      const internado = a.status.inHospital;
+      if (internado) {
+        body += `<h3>🏥 Internado</h3>
+          <p class="muted pequeno">Energia ou saúde chegou a 0. Alta em ${left(a.hospital_until)}, com energia e saúde cheias.
+          Taxa de 30 THALER (perdoada se faltar saldo). Até lá, sem trabalho e sem mercado.</p>`;
+      }
+      // Doenças e farmácia do jogo (E2.3): o remédio custa 10 THALER e cura com 70% de chance.
+      if (!internado && a.conditions?.length) {
+        body += `<h3>🤒 Doente</h3>${a.conditions
+          .map(
+            (c) => `<div class="linha"><p class="muted pequeno">${esc(c.label)}${c.blocks_work ? ' · de cama, sem trabalhar' : ` · rendimento ×${c.yield_factor}`} · passa em ${left(c.ends_at)}</p>
+            <button class="btn btn--blue pequeno" type="button" data-s="remedio" data-c="${esc(c.code)}" ${busy ? 'disabled' : ''}>Remédio · 10</button></div>`,
+          )
+          .join('')}<p class="muted pequeno">O remédio cura com 70% de chance; sem cura, o THALER não volta.</p>`;
+      }
+      // Mercado do jogo (E2.3): comer custa THALER e sobe a alimentação.
+      // Despensa: pacotes comprados antes; comer daqui não cobra de novo.
+      const guardados = a.pantry ?? [];
+      if (!internado && guardados.length) {
+        body += `<h3>🧺 Despensa</h3><div class="linha">${guardados
+          .map((p) => {
+            const f = foods.find((x) => x.code === p.food);
+            return `<button class="btn btn--ghost pequeno" type="button" data-s="consumir" data-f="${esc(p.food)}" ${busy || at.food >= 10 ? 'disabled' : ''}>${esc(f?.label ?? p.food)} × ${p.units}</button>`;
+          })
+          .join('')}</div>${at.food >= 10 ? '<p class="muted pequeno">Satisfeito: come da despensa quando a alimentação baixar.</p>' : ''}`;
+      }
+      if (!internado && foods.length) {
+        const options = foods
+          .map((f) => `<option value="${esc(f.code)}">${esc(f.label)} · ${thaler(f.price)} (pacote de ${f.pack}: ${thaler(f.pack_price)}) · ${sign(f.energy)} energia, ${sign(f.health)} saúde</option>`)
+          .join('');
+        body += `<form data-form="comer" class="comer">
+          <div class="linha"><select class="campo" name="food" aria-label="Alimento">${options}</select>
+          <button class="btn btn--blue" type="submit" name="acao" value="comer" ${busy || at.food >= 10 ? 'disabled' : ''}>Comer</button>
+          <button class="btn btn--ghost" type="submit" name="acao" value="pacote" ${busy ? 'disabled' : ''}>Pacote</button></div>
+          <p class="muted pequeno">Cada refeição dá +3 de alimentação; o pacote vai para a despensa.${foods.some((f) => f.provisional_price) ? ' Preço provisório até o game designer definir.' : ''}</p>
+        </form>`;
+      }
       if (running) {
         const total = new Date(running.ends_at) - new Date(running.starts_at);
         const pct = Math.min(100, ((Date.now() - new Date(running.starts_at)) / total) * 100);
@@ -211,7 +352,7 @@ export function createServidor() {
           <div class="barra"><span style="width:${pct}%"></span></div>
           <p class="muted pequeno">Falta ${left(running.ends_at)}. Pode fechar o jogo: o servidor conclui o turno.<br>
           Compromisso do sorteio: <code>${running.seed_commit.slice(0, 16)}…</code></p>`;
-      } else {
+      } else if (!internado) {
         body += `<div class="linha">
           <button class="btn btn--blue" type="button" data-s="work" data-h="6" ${busy || !a.status.canWork ? 'disabled' : ''}>Trabalhar 6 h</button>
           <button class="btn btn--blue" type="button" data-s="work" data-h="12" ${busy || !a.status.canWork ? 'disabled' : ''}>Trabalhar 12 h</button></div>`;
@@ -224,11 +365,110 @@ export function createServidor() {
         body += `<p class="muted pequeno">Último turno: ${thaler(last.result.thaler)} THALER${last.result.damaged ? ' (com danos)' : ''} · semente revelada <code>${last.seed.slice(0, 12)}…</code></p>`;
       }
     }
+    const email = me?.email ?? session.email ?? null;
+    const wallets = me?.wallets ?? (session.address ? [session.address] : []);
+    const who = [email ? esc(email) : '', ...wallets.map(short)].filter(Boolean).join('<br>');
+    // Vínculos: a conta de e-mail ganha carteira; a de carteira ganha e-mail.
+    let links = '';
+    if (me && !wallets.length && (window.ethereum || LOCAL)) {
+      links += `<p class="muted pequeno">Ligue uma carteira para entrar também por ela e, depois, receber NFTs.</p>
+        <div class="linha">
+          ${window.ethereum ? `<button class="btn btn--ghost pequeno" type="button" data-s="ligar-carteira" ${busy ? 'disabled' : ''}>Ligar carteira</button>` : ''}
+          ${LOCAL ? `<button class="btn btn--ghost pequeno" type="button" data-s="ligar-carteira-teste" ${busy ? 'disabled' : ''}>Ligar carteira de teste</button>` : ''}
+        </div>`;
+    }
+    if (me && !email) {
+      links += linkSent
+        ? `<form data-form="ligar-codigo">
+            <p class="muted pequeno">Código enviado para <b>${esc(linkSent)}</b>.${LOCAL ? ' Na máquina local, ele aparece no log do gateway.' : ''}</p>
+            <div class="linha"><input class="campo" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required placeholder="000000" aria-label="Código de 6 dígitos" />
+            <button class="btn btn--ghost pequeno" type="submit" ${busy ? 'disabled' : ''}>Confirmar</button></div>
+            <button class="btn btn--ghost pequeno" type="button" data-s="ligar-email-voltar">Trocar e-mail</button>
+          </form>`
+        : `<form data-form="ligar-email">
+            <p class="muted pequeno">Ponha um e-mail na conta para entrar sem a carteira.</p>
+            <div class="linha"><input class="campo" name="email" type="email" autocomplete="email" required maxlength="254" placeholder="voce@exemplo.com" aria-label="E-mail da conta" />
+            <button class="btn btn--ghost pequeno" type="submit" ${busy ? 'disabled' : ''}>Receber código</button></div>
+          </form>`;
+    }
     panel.innerHTML = `${head}
-      <dl class="resumo"><dt>Conta</dt><dd>${short(session.address)}</dd><dt>THALER (ledger)</dt><dd>${thaler(data.balance)}</dd></dl>
+      <dl class="resumo"><dt>Conta</dt><dd>${who}</dd><dt>THALER (ledger)</dt><dd>${thaler(data.balance)}</dd><dt>SCITY (ledger)</dt><dd>${scity(data.scity)}</dd><dt>Lotes no servidor</dt><dd>${data.lots.length}</dd></dl>
+      ${data.lots.length ? `<p class="muted pequeno">${data.lots.map((l) => esc(l.code)).join(' · ')} <span class="tag-srv">violeta no mapa</span></p>` : '<p class="muted pequeno">Clique num lote verde e compre pela ficha.</p>'}
+      ${LOCAL ? `<button class="btn btn--ghost pequeno" type="button" data-s="faucet" ${busy ? 'disabled' : ''}>+1.000 SCITY de teste</button>` : ''}
+      ${links}
       ${body}${note}
       <button class="btn btn--ghost pequeno" type="button" data-s="sair">Sair</button>`;
   }
+
+  panel.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const form = e.target.closest('form[data-form]');
+    if (!form || busy) return;
+    const field = new FormData(form);
+    if (form.dataset.form === 'comer') {
+      const food = String(field.get('food') ?? '');
+      const item = foods.find((f) => f.code === food);
+      if (e.submitter?.value === 'pacote') {
+        return act(async () => {
+          const r = await call(API.game, `/v1/avatars/${data.avatar.id}/pantry`, {
+            method: 'POST',
+            token: session.token,
+            body: { food },
+            headers: { 'idempotency-key': crypto.randomUUID() },
+          });
+          const guardado = r.avatar.pantry.find((p) => p.food === food)?.units ?? 0;
+          message = `Pacote de ${item?.label ?? food}: −${thaler(r.purchase.price)} THALER, ${guardado} na despensa.`;
+          messageOk = true;
+        });
+      }
+      return act(async () => {
+        // A chave faz o servidor reconhecer um clique repetido como o mesmo pedido.
+        const r = await call(API.game, `/v1/avatars/${data.avatar.id}/meals`, {
+          method: 'POST',
+          token: session.token,
+          body: { food },
+          headers: { 'idempotency-key': crypto.randomUUID() },
+        });
+        const ill = r.avatar.conditions?.find((c) => c.code === r.meal.effects.condition);
+        message = `${item?.label ?? food}: −${thaler(r.meal.price)} THALER, alimentação ${r.avatar.attributes.food}/10.${ill ? ` Deu ${ill.label.toLowerCase()}.` : ''}`;
+        messageOk = true;
+      });
+    }
+    if (form.dataset.form === 'email') {
+      const email = String(field.get('email') ?? '').trim();
+      return act(async () => {
+        await sendEmailCode(email);
+        emailSent = email;
+      });
+    }
+    if (form.dataset.form === 'ligar-email') {
+      const email = String(field.get('email') ?? '').trim();
+      return act(async () => {
+        await call(API.gateway, '/v1/me/email/start', { method: 'POST', token: session.token, body: { email } });
+        linkSent = email;
+      });
+    }
+    const code = String(field.get('code') ?? '').trim();
+    if (form.dataset.form === 'ligar-codigo') {
+      return act(async () => {
+        try {
+          await linkEmailVerify(session.token, linkSent, code);
+        } catch (error) {
+          // E-mail de outra conta: não adianta outro código, volta para o campo do e-mail.
+          if (error.status === 409) linkSent = null;
+          throw error;
+        }
+        message = `E-mail ${linkSent} ligado à conta.`;
+        messageOk = true;
+        linkSent = null;
+      });
+    }
+    return act(async () => {
+      session = await verifyEmailCode(emailSent, code);
+      storage.set(TOKEN_KEY, JSON.stringify(session));
+      emailSent = null;
+    });
+  });
 
   panel.addEventListener('click', (e) => {
     const b = e.target.closest('[data-s]');
@@ -239,10 +479,34 @@ export function createServidor() {
       return render();
     }
     if (what === 'sair') return logout();
+    if (what === 'ligar-carteira' || what === 'ligar-carteira-teste') {
+      return act(async () => {
+        await linkWallet(session.token, what === 'ligar-carteira-teste');
+        message = 'Carteira ligada à conta. Agora dá para entrar por ela também.';
+        messageOk = true;
+      });
+    }
+    if (what === 'ligar-email-voltar') {
+      linkSent = null;
+      message = '';
+      return render();
+    }
+    if (what === 'email-voltar') {
+      emailSent = null;
+      message = '';
+      return render();
+    }
     if (what === 'entrar' || what === 'entrar-teste') {
       return act(async () => {
         session = await signIn(what === 'entrar-teste');
         storage.set(TOKEN_KEY, JSON.stringify(session));
+      });
+    }
+    if (what === 'faucet') {
+      return act(async () => {
+        await call(API.economy, '/v1/dev/faucet', { method: 'POST', token: session.token });
+        message = '+1.000 SCITY de teste no ledger.';
+        messageOk = true;
       });
     }
     if (what === 'avatar') return act(() => call(API.game, '/v1/dev/avatar', { method: 'POST', token: session.token }));
@@ -250,6 +514,30 @@ export function createServidor() {
       return act(() =>
         call(API.game, `/v1/avatars/${data.avatar.id}/work`, { method: 'POST', token: session.token, body: { shift: Number(b.dataset.h) } }),
       );
+    }
+    if (what === 'consumir') {
+      return act(async () => {
+        const r = await call(API.game, `/v1/avatars/${data.avatar.id}/consume`, {
+          method: 'POST',
+          token: session.token,
+          body: { food: b.dataset.f },
+        });
+        const label = foods.find((f) => f.code === b.dataset.f)?.label ?? b.dataset.f;
+        message = `${label} da despensa: alimentação ${r.avatar.attributes.food}/10.`;
+        messageOk = true;
+      });
+    }
+    if (what === 'remedio') {
+      return act(async () => {
+        const r = await call(API.game, `/v1/avatars/${data.avatar.id}/medicine`, {
+          method: 'POST',
+          token: session.token,
+          body: { condition: b.dataset.c },
+          headers: { 'idempotency-key': crypto.randomUUID() },
+        });
+        message = r.cured ? `Remédio: −${thaler(r.medicine.price)} THALER, curado.` : `Remédio: −${thaler(r.medicine.price)} THALER, mas não curou. Pode tentar de novo.`;
+        messageOk = r.cured;
+      });
     }
     if (what === 'claim') {
       return act(async () => {
@@ -260,6 +548,82 @@ export function createServidor() {
     }
   });
 
+  const group = new map.THREE.Group();
+  map.scene.add(group);
+  async function drawLots() {
+    group.children.splice(0).forEach((m) => m.geometry.dispose());
+    if (!data.lots.length) return;
+    await map.loadLotsFor(data.lots.map((l) => l.id));
+    for (const l of data.lots) {
+      const ring = map.lotRing(l.id);
+      const shape = new map.THREE.Shape(ring.map(([x, z]) => new map.THREE.Vector2(x, -z)));
+      const mesh = new map.THREE.Mesh(
+        new map.THREE.ShapeGeometry(shape).rotateX(-Math.PI / 2),
+        new map.THREE.MeshBasicMaterial({ color: SERVER_LOT_COLOR, transparent: true, opacity: 0.85, depthWrite: false }),
+      );
+      mesh.position.y = 3.7;
+      // Depois do preenchimento verde dos lotes, que é translúcido e misturaria as cores.
+      mesh.renderOrder = 10;
+      group.add(mesh);
+    }
+  }
+
+  /**
+   * Ficha do lote com o jogador logado: a situação vem do world. Devolve true
+   * quando assume a compra, para a gestão simulada não mostrar a dela.
+   */
+  function decorateLot(i, ficha) {
+    if (!session) return false;
+    const box = document.createElement('div');
+    box.className = 'gestao srv-lote';
+    box.innerHTML = '<p class="muted pequeno">Consultando o servidor…</p>';
+    ficha.append(box);
+    call(API.world, `/v1/world/cities/${CITY}/lots/${i}`, { token: session.token })
+      .then(({ lot }) => {
+        const price = BigInt(Math.round(Number(lot.price_scity) * 1e6)) * 10n ** 12n;
+        // A linha "Situação" da ficha vem dos arquivos estáticos; com login, vale a do servidor.
+        const situacao = ficha.querySelector('dd');
+        if (situacao) {
+          situacao.textContent = lot.mine
+            ? 'Seu (servidor)'
+            : { civic: 'Da Prefeitura', sold: 'Vendido', reserved: 'Em compra' }[lot.status] ?? (lot.district_open ? 'À venda' : 'Bairro ainda fechado');
+        }
+        let html = '<h3>No servidor</h3>';
+        if (lot.mine) html += '<p><span class="tag tag--srv">Seu</span> Este lote é seu no servidor.</p>';
+        else if (lot.status === 'civic') html += '<p class="muted">Da Prefeitura: não está à venda.</p>';
+        else if (lot.status === 'sold') html += '<p class="muted">Vendido a outro jogador.</p>';
+        else if (lot.status === 'reserved') html += '<p class="muted">Outro jogador está comprando agora.</p>';
+        else if (!lot.district_open) html += '<p class="muted">Bairro ainda fechado para venda.</p>';
+        else {
+          const enough = BigInt(data.scity) >= price;
+          html += `<p class="muted pequeno">US$ ${lot.price_usd.toLocaleString('pt-BR')}, pagos em SCITY pela cotação.</p>
+            <button class="btn btn--primary" type="button" data-buy="${i}" ${enough ? '' : 'disabled'}>Comprar por ${Number(lot.price_scity).toLocaleString('pt-BR')} SCITY</button>
+            ${enough ? '' : '<p class="muted pequeno">SCITY insuficiente: use “+1.000 SCITY de teste” no painel.</p>'}`;
+        }
+        box.innerHTML = html;
+      })
+      .catch((error) => {
+        box.innerHTML = `<p class="aviso-s">${esc(error.code === 'offline' ? 'Serviço world fora do ar.' : error.message)}</p>`;
+      });
+    box.addEventListener('click', async (e) => {
+      const b = e.target.closest('[data-buy]');
+      if (!b || b.disabled) return;
+      b.disabled = true;
+      b.textContent = 'Comprando…';
+      try {
+        const r = await call(API.world, `/v1/world/cities/${CITY}/lots/${i}/buy`, { method: 'POST', token: session.token });
+        message = `${r.lot.code} é seu por ${Number(r.purchase.price_scity).toLocaleString('pt-BR')} SCITY.`;
+        messageOk = true;
+      } catch (error) {
+        message = error.message;
+        messageOk = false;
+      }
+      await refresh();
+      map.showLot(i);
+    });
+    return true;
+  }
+
   render();
   refresh();
   // Atualiza o turno e o saldo enquanto a página está aberta.
@@ -267,5 +631,5 @@ export function createServidor() {
     if (session && !busy && !document.hidden) refresh();
   }, 10_000);
 
-  return { refresh, getSession: () => session, getData: () => data, API };
+  return { refresh, decorateLot, active: () => session !== null, getSession: () => session, getData: () => data, API };
 }

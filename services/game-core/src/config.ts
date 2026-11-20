@@ -11,6 +11,9 @@ const list = (value: string) =>
 
 const schema = z.object({
   NODE_ENV: z.string().default('development'),
+  LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
+  /** Token do Prometheus para ler /metrics; sem ele, /metrics fica desligado em produção. */
+  METRICS_TOKEN: z.string().min(32, 'METRICS_TOKEN precisa de pelo menos 32 caracteres').optional(),
   PORT: z.coerce.number().int().positive().default(8020),
   HOST: z.string().default('127.0.0.1'),
   DATABASE_URL: z.string().optional(),
@@ -25,6 +28,8 @@ const schema = z.object({
   DECAY_EVERY_SECONDS: z.coerce.number().int().positive().default(900),
   /** Intervalo do job que conclui os turnos vencidos (shift.complete). */
   SHIFT_CHECK_SECONDS: z.coerce.number().int().positive().default(60),
+  /** Intervalo do job que interna quem chegou a saúde 0 ou energia 0 e cobra a taxa (hospital.admit). */
+  HOSPITAL_CHECK_SECONDS: z.coerce.number().int().positive().default(60),
   /** Ledger que paga os turnos. Sem os dois, a coleta responde 503. */
   ECONOMY_URL: optional(z.url()),
   ECONOMY_TOKEN: optional(z.string().min(32, 'ECONOMY_TOKEN precisa de pelo menos 32 caracteres')),
@@ -32,6 +37,8 @@ const schema = z.object({
    * Só desenvolvimento: dá um avatar de teste a quem não tem (ainda não existe
    * Lucky Box) e encurta a duração do turno, sem mudar o pagamento.
    */
+  /** Strapi com o catálogo publicado. Sem ele, vale o seed (cms-strapi/seed). */
+  CMS_URL: optional(z.url()),
   DEV_FREE_AVATAR: z.stringbool().default(false),
   DEV_SHIFT_MINUTES: optional(z.coerce.number().positive()),
 });

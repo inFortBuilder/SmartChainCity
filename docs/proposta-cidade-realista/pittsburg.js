@@ -159,6 +159,7 @@ let lotToggle = null;
 let lotsPromise = null;
 let gestao = null;
 let shownLot = null;
+let servidor = null;
 
 function lotPoint(i, k) {
   const at = (i * lots.n + k) * 2;
@@ -415,7 +416,9 @@ function showLot(i) {
     <dt>Área construível</dt><dd>${fmt.format(Math.round(area * zone.far))} m²</dd>
     <dt>Preço</dt><dd>${fmt.format(Math.round(area * zone.price))} SCITY</dd></dl>
     ${free && !open ? `<p class="muted" style="font-size:12px;margin:10px 0 0">Cada bairro abre quando os já abertos passam de ${limiar}% vendidos, do centro para fora.</p>` : ''}`;
-  gestao?.decorateLot(i, ficha);
+  // Com login, a situação real vem do world; a compra simulada da gestão sai de cena.
+  const servidorAtivo = servidor?.decorateLot(i, ficha) ?? false;
+  gestao?.decorateLot(i, ficha, servidorAtivo);
 }
 
 async function loadCivic() {
@@ -634,7 +637,7 @@ try {
     loadGlb: (buffer) => new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).parseAsync(buffer, ''),
   });
   // Célula jogável (E1.6): login, avatar, THALER e turno pelos serviços.
-  const servidor = createServidor();
+  servidor = createServidor({ THREE, scene, lotRing, loadLotsFor, showLot });
   window.__pittsburg = { scene, camera, controls, renderer, buildings, pick, showBuilding, pickLot, showLot, getLots: () => lots, gestao, civicBuilding, progressiveBuilding, loadLotsFor, servidor };
 
   // Spike E0.9: ?spike (ou ?spike=20) mede download, FPS e 20 prédios com LOD.

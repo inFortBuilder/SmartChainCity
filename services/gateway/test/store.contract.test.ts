@@ -58,3 +58,85 @@ describe.each(stores)('AuthStore: %s', (_name, make, enabled) => {
     expect(await store.findAccount(randomUUID())).toBeNull();
   });
 });
+
+describe.each(stores)('AuthStore, vínculos: %s', (_name, make, enabled) => {
+  const email = () => `${randomUUID()}@teste.local`;
+
+  it.runIf(enabled)('carteira disputada por duas contas em paralelo fica com uma só', async () => {
+    const store = make();
+    const accounts = await Promise.all(Array.from({ length: 5 }, () => store.findOrCreateAccountByEmail(email(), new Date())));
+    const wallet = address();
+    const results = await Promise.all(accounts.map((a) => store.linkWallet(a.id, wallet, 97, new Date())));
+    expect(results.filter((r) => r === 'linked')).toHaveLength(1);
+    expect(results.filter((r) => r === 'taken')).toHaveLength(4);
+    const owner = accounts[results.indexOf('linked')]!;
+    expect(await store.linkWallet(owner.id, wallet, 97, new Date())).toBe('already_linked');
+    expect((await store.findOrCreateAccountByWallet(wallet, 97, new Date())).id).toBe(owner.id);
+  });
+
+  it.runIf(enabled)('e-mail entra só em conta sem e-mail e só se for livre', async () => {
+    const store = make();
+    const taken = email();
+    await store.findOrCreateAccountByEmail(taken, new Date());
+    const target = await store.findOrCreateAccountByWallet(address(), 97, new Date());
+    expect(await store.setAccountEmail(target.id, taken)).toBe('taken');
+    const mine = email();
+    expect(await store.setAccountEmail(target.id, mine)).toBe('set');
+    expect(await store.setAccountEmail(target.id, mine)).toBe('already_set');
+    expect(await store.setAccountEmail(target.id, email())).toBe('has_other');
+    expect((await store.findOrCreateAccountByEmail(mine, new Date())).id).toBe(target.id);
+  });
+});
+
+describe.each(stores)('AuthStore, código por e-mail: %s', (_name, make, enabled) => {
+  const email = () => `${randomUUID()}@teste.local`;
+
+  it.runIf(enabled)('código certo vale uma vez, mesmo em paralelo', async () => {
+    const store = make();
+    const e = email();
+    expect(await store.saveEmailCode(e, 'h1', later(60_000), new Date(), 60)).toBe(true);
+    const results = await Promise.all(
+      Array.from({ length: 10 }, () => store.consumeEmailCode(e, 'h1', new Date(), 5)),
+    );
+    expect(results.filter(Boolean)).toHaveLength(1);
+  });
+
+  it.runIf(enabled)('erros contam e, no limite, nem o certo vale', async () => {
+    const store = make();
+    const e = email();
+    await store.saveEmailCode(e, 'h1', later(60_000), new Date(), 60);
+    for (let i = 0; i < 3; i++) expect(await store.consumeEmailCode(e, 'errado', new Date(), 3)).toBe(false);
+    expect(await store.consumeEmailCode(e, 'h1', new Date(), 3)).toBe(false);
+  });
+
+  it.runIf(enabled)('não troca o código antes do intervalo; depois troca e zera os erros', async () => {
+    const store = make();
+    const e = email();
+    const t0 = new Date();
+    const at = (s: number) => new Date(t0.getTime() + s * 1000);
+    await store.saveEmailCode(e, 'h1', at(600), t0, 60);
+    await store.consumeEmailCode(e, 'errado', t0, 2);
+    expect(await store.saveEmailCode(e, 'h2', at(600), at(10), 60)).toBe(false);
+    expect(await store.saveEmailCode(e, 'h2', at(700), at(61), 60)).toBe(true);
+    await store.consumeEmailCode(e, 'errado', at(62), 2);
+    expect(await store.consumeEmailCode(e, 'h2', at(63), 2)).toBe(true);
+  });
+
+  it.runIf(enabled)('código vencido não vale', async () => {
+    const store = make();
+    const e = email();
+    await store.saveEmailCode(e, 'h1', later(1_000), new Date(), 60);
+    expect(await store.consumeEmailCode(e, 'h1', later(2_000), 5)).toBe(false);
+  });
+
+  it.runIf(enabled)('primeiro login por e-mail em paralelo cria uma só conta', async () => {
+    const store = make();
+    const e = email();
+    const accounts = await Promise.all(
+      Array.from({ length: 10 }, () => store.findOrCreateAccountByEmail(e, new Date())),
+    );
+    expect(new Set(accounts.map((a) => a.id)).size).toBe(1);
+    expect(accounts[0]).toMatchObject({ email: e, status: 'active' });
+    expect(await store.listWallets(accounts[0]!.id)).toEqual([]);
+  });
+});

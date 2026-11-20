@@ -34,7 +34,7 @@ No `.env`, preencha `JWT_SECRET` (o mesmo do gateway) e `INTERNAL_TOKEN` (uma ch
 Testes, com o Postgres do `pnpm db:up` no ar:
 
 ```bash
-TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc pnpm --filter @scc/economy test
+TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc_test pnpm --filter @scc/economy test
 ```
 
 ## API
@@ -44,6 +44,7 @@ TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc pnpm --filter @scc
 | GET | `/v1/economy/balances` | jogador (Bearer) | Saldos: `{balances: [{currency, amount, decimals}]}` |
 | GET | `/v1/economy/ledger?currency=&cursor=&limit=` | jogador (Bearer) | Extrato do mais recente para o mais antigo; `next_cursor` para a próxima página |
 | POST | `/internal/v1/ledger/transactions` | serviços (`X-Service-Token` + `Idempotency-Key`) | Lança `{kind, ref_type, ref_id, legs: [{owner_type, owner_id, currency, amount}]}`: 201 novo, 200 repetido |
+| POST | `/v1/dev/faucet` | jogador (Bearer) | **Só desenvolvimento** (`DEV_FAUCET=true`, recusado em produção): +1.000 SCITY de teste, como um depósito simulado da ponte |
 | GET | `/healthz` | — | `{status: "ok"}` |
 
 Exemplo: pagar um turno de 11,85 THALER a partir do pool P2E.

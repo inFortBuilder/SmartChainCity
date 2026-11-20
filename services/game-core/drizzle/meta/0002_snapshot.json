@@ -1,0 +1,494 @@
+{
+  "id": "5508130d-cacf-483d-a8d9-8ffa2570a701",
+  "prevId": "593fdec9-3fac-4a5c-853e-738658f8327c",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "game.avatar": {
+      "name": "avatar",
+      "schema": "game",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "token_id": {
+          "name": "token_id",
+          "type": "numeric(78, 0)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "rarity": {
+          "name": "rarity",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "job_code": {
+          "name": "job_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "energy": {
+          "name": "energy",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "health": {
+          "name": "health",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "happiness": {
+          "name": "happiness",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "food": {
+          "name": "food",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "hygiene": {
+          "name": "hygiene",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "education": {
+          "name": "education",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "food_at": {
+          "name": "food_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "happiness_at": {
+          "name": "happiness_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "hygiene_at": {
+          "name": "hygiene_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "employment_status": {
+          "name": "employment_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'employed'"
+        },
+        "last_worked_at": {
+          "name": "last_worked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "avatar_account_idx": {
+          "name": "avatar_account_idx",
+          "columns": [
+            {
+              "expression": "account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "avatar_token_id_unique": {
+          "name": "avatar_token_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "token_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "avatar_rarity_check": {
+          "name": "avatar_rarity_check",
+          "value": "\"game\".\"avatar\".\"rarity\" in ('common', 'rare', 'epic', 'legendary')"
+        },
+        "avatar_energy_check": {
+          "name": "avatar_energy_check",
+          "value": "\"game\".\"avatar\".\"energy\" between 0 and 10"
+        },
+        "avatar_health_check": {
+          "name": "avatar_health_check",
+          "value": "\"game\".\"avatar\".\"health\" between 0 and 10"
+        },
+        "avatar_happiness_check": {
+          "name": "avatar_happiness_check",
+          "value": "\"game\".\"avatar\".\"happiness\" between 0 and 10"
+        },
+        "avatar_food_check": {
+          "name": "avatar_food_check",
+          "value": "\"game\".\"avatar\".\"food\" between 0 and 10"
+        },
+        "avatar_hygiene_check": {
+          "name": "avatar_hygiene_check",
+          "value": "\"game\".\"avatar\".\"hygiene\" between 0 and 10"
+        },
+        "avatar_education_check": {
+          "name": "avatar_education_check",
+          "value": "\"game\".\"avatar\".\"education\" between 0 and 100"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "game.meal": {
+      "name": "meal",
+      "schema": "game",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "avatar_id": {
+          "name": "avatar_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "food_code": {
+          "name": "food_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "price_cents": {
+          "name": "price_cents",
+          "type": "numeric(38, 0)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "effects": {
+          "name": "effects",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "client_key": {
+          "name": "client_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "eaten_at": {
+          "name": "eaten_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "meal_avatar_idx": {
+          "name": "meal_avatar_idx",
+          "columns": [
+            {
+              "expression": "avatar_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "meal_client_key_unique": {
+          "name": "meal_client_key_unique",
+          "columns": [
+            {
+              "expression": "account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "client_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "meal_avatar_id_avatar_id_fk": {
+          "name": "meal_avatar_id_avatar_id_fk",
+          "tableFrom": "meal",
+          "tableTo": "avatar",
+          "schemaTo": "game",
+          "columnsFrom": [
+            "avatar_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "meal_status_check": {
+          "name": "meal_status_check",
+          "value": "\"game\".\"meal\".\"status\" in ('pending', 'eaten', 'failed')"
+        },
+        "meal_price_check": {
+          "name": "meal_price_check",
+          "value": "\"game\".\"meal\".\"price_cents\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "game.work_shift": {
+      "name": "work_shift",
+      "schema": "game",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "avatar_id": {
+          "name": "avatar_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "job_code": {
+          "name": "job_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "shift_hours": {
+          "name": "shift_hours",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "starts_at": {
+          "name": "starts_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ends_at": {
+          "name": "ends_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "seed_commit": {
+          "name": "seed_commit",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "seed": {
+          "name": "seed",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "snapshot": {
+          "name": "snapshot",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "result": {
+          "name": "result",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "thaler_earned": {
+          "name": "thaler_earned",
+          "type": "numeric(38, 0)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "work_shift_avatar_idx": {
+          "name": "work_shift_avatar_idx",
+          "columns": [
+            {
+              "expression": "avatar_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "starts_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "work_shift_due_idx": {
+          "name": "work_shift_due_idx",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "ends_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "work_shift_avatar_id_avatar_id_fk": {
+          "name": "work_shift_avatar_id_avatar_id_fk",
+          "tableFrom": "work_shift",
+          "tableTo": "avatar",
+          "schemaTo": "game",
+          "columnsFrom": [
+            "avatar_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "work_shift_hours_check": {
+          "name": "work_shift_hours_check",
+          "value": "\"game\".\"work_shift\".\"shift_hours\" in (6, 12)"
+        },
+        "work_shift_status_check": {
+          "name": "work_shift_status_check",
+          "value": "\"game\".\"work_shift\".\"status\" in ('running', 'done', 'claimed')"
+        }
+      },
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {
+    "game": "game"
+  },
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}
