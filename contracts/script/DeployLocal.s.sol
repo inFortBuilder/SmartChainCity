@@ -1,0 +1,106 @@
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.28;
+
+import {Script, console} from "forge-std/Script.sol";
+
+import {AvatarNFT} from "../src/AvatarNFT.sol";
+import {LandNFT} from "../src/LandNFT.sol";
+import {LuckyBox} from "../src/LuckyBox.sol";
+import {SCityToken} from "../src/SCityToken.sol";
+import {LocalVRFCoordinator} from "../src/dev/LocalVRFCoordinator.sol";
+import {IVRFCoordinatorV2Plus} from "../src/vrf/VRFV2Plus.sol";
+
+/// @notice Sobe os contratos da Etapa 2 no anvil (rede local, chain 31337) e grava os endereços em
+/// `deployments/anvil.json`. Só para desenvolvimento: usa o coordenador VRF local e a conta do anvil.
+///
+///   anvil
+///   forge script script/DeployLocal.s.sol --rpc-url http://127.0.0.1:8545 --broadcast \
+///     --unlocked --sender 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+///
+/// Variáveis opcionais: `WORLD_SIGNER` (quem assina as cotações de lote; padrão: o próprio deployer).
+contract DeployLocal is Script {
+    string constant PROFESSIONS = "../cms-strapi/seed/profissoes.json";
+    string[4] RARITIES = ["common", "rare", "epic", "legendary"];
+
+    /// Lê o seed item a item: o filtro JSONPath do forge não devolve listas.
+    function _professionsByRarity(string memory catalog) internal view returns (bytes32[][4] memory out) {
+        uint256 n;
+        while (vm.keyExistsJson(catalog, string.concat("$[", vm.toString(n), "]"))) n++;
+        uint256[4] memory counts;
+        bytes32[] memory codes = new bytes32[](n);
+        uint8[] memory rarities = new uint8[](n);
+        for (uint256 i; i < n; ++i) {
+            string memory at = string.concat("$[", vm.toString(i), "]");
+            codes[i] = bytes32(bytes(vm.parseJsonString(catalog, string.concat(at, ".code"))));
+            bytes32 rarity = keccak256(bytes(vm.parseJsonString(catalog, string.concat(at, ".rarity"))));
+            for (uint8 r; r < 4; ++r) {
+                if (rarity == keccak256(bytes(RARITIES[r]))) {
+                    rarities[i] = r;
+                    counts[r]++;
+                }
+            }
+        }
+        for (uint8 r; r < 4; ++r) {
+            out[r] = new bytes32[](counts[r]);
+            uint256 k;
+            for (uint256 i; i < n; ++i) {
+                if (rarities[i] == r) out[r][k++] = codes[i];
+            }
+        }
+    }
+
+    function run() external {
+        require(block.chainid == 31_337, "DeployLocal so roda no anvil (31337)");
+        address deployer = msg.sender;
+        address worldSigner = vm.envOr("WORLD_SIGNER", deployer);
+        string memory catalog = vm.readFile(PROFESSIONS);
+
+        vm.startBroadcast(deployer);
+
+        SCityToken scity = new SCityToken(deployer);
+        LandNFT land = new LandNFT(deployer, deployer, "http://localhost:4003/v1/world/nft/lots/");
+        land.grantRole(land.SIGNER_ROLE(), worldSigner);
+
+        AvatarNFT avatar = new AvatarNFT(deployer, deployer, 250, "http://localhost:4002/v1/nft/avatars/");
+        LocalVRFCoordinator vrf = new LocalVRFCoordinator();
+        LuckyBox box = new LuckyBox(
+            deployer,
+            avatar,
+            deployer,
+            LuckyBox.VrfConfig({
+                coordinator: IVRFCoordinatorV2Plus(address(vrf)),
+                keyHash: bytes32(0),
+                subId: 0,
+                requestConfirmations: 1,
+                callbackGasLimit: 300_000,
+                nativePayment: false
+            })
+        );
+        avatar.grantRole(avatar.MINTER_ROLE(), address(box));
+
+        // Profissões do catálogo (mesmo seed do Strapi), por raridade.
+        bytes32[][4] memory byRarity = _professionsByRarity(catalog);
+        for (uint8 r; r < 4; ++r) {
+            box.setProfessions(r, byRarity[r]);
+        }
+        // Tier de teste em BNB do anvil. Probabilidades PROVISÓRIAS (as fatias do simulador): a tabela do
+        // whitepaper não está nas fontes (doc 02 §2).
+        box.setTier(1, address(0), 0.05 ether, [uint16(4000), 3000, 2000, 1000], true);
+
+        vm.stopBroadcast();
+
+        string memory key = "anvil";
+        vm.serializeUint(key, "chainId", block.chainid);
+        vm.serializeAddress(key, "SCityToken", address(scity));
+        vm.serializeAddress(key, "LandNFT", address(land));
+        vm.serializeAddress(key, "AvatarNFT", address(avatar));
+        vm.serializeAddress(key, "LuckyBox", address(box));
+        vm.serializeAddress(key, "LocalVRFCoordinator", address(vrf));
+        string memory json = vm.serializeAddress(key, "worldSigner", worldSigner);
+        vm.writeJson(json, "deployments/anvil.json");
+
+        console.log("LandNFT  ", address(land));
+        console.log("LuckyBox ", address(box));
+        console.log("Enderecos em deployments/anvil.json");
+    }
+}

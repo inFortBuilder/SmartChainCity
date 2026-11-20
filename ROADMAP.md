@@ -50,14 +50,16 @@ O MVP roda inteiro na máquina local, sem serviços pagos. Por isso, publicar o 
 
 | Área | Situação |
 |------|----------|
-| `contracts/` | Vazio. É o item mais atrasado: a Etapa 2 depende de `LandNFT`, `AvatarNFT` e `LuckyBox`, e a auditoria (E3.8) precisa ser reservada |
+| `contracts/` | Desde 2026-11-20: `LandNFT`, `AvatarNFT`, `LuckyBox` e `SCityToken` no anvil. Faltam `PropertyNFT`, `GameVault`, `Marketplace`, vesting e a reserva da auditoria (E3.8) |
 | `services/world` | Faltam imóveis, impostos, regras de cerco e a cotação EIP-712 |
 | `services/realtime`, `services/chain-indexer` | Não começados |
 | Etapa 0 sem código | E0.2 (trocar as credenciais legadas), E0.8 (parecer jurídico), o tomate duplicado e a calibração da elasticidade e do dinheiro novo no simulador |
 | `client-unity/` | Plano B ([ADR-0009](docs/adr/0009-cliente-web-nativo.md)): E0.3 e E0.6 saíram do caminho crítico |
 
 **Sequência:**
-1. **Contratos de lote e avatar:** `LandNFT`, `AvatarNFT` e `LuckyBox` com Foundry, na rede local (Anvil).
+1. ✅ **Contratos de lote e avatar** (2026-11-20). `LandNFT`, `AvatarNFT`, `LuckyBox` e `SCityToken` estão em Foundry, com 42 testes e deploy no anvil ([contracts](contracts/README.md)). Faltam:
+   - o world assinar a cotação, que entra no passo 2;
+   - a assinatura do VRF da Chainlink na testnet.
 2. **Concluir o `world`.**
    - Cotação EIP-712 aceita pelo `LandNFT` (E2.4).
    - Imóveis com obra, desgaste e renda (E2.5).

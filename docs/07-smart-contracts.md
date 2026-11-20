@@ -22,21 +22,22 @@ Rede: **BNB Smart Chain** (testnet para homologação). Ferramentas: Foundry ou 
 ## 2. Detalhes
 
 ### 2.1 `LandNFT`
+Implementado em [`contracts/src/LandNFT.sol`](../contracts/src/LandNFT.sol) (2026-11-20). Com a [ADR-0012](adr/0012-cidade-real-construtores.md), o lote é um polígono identificado no serviço world por (cidade, número do lote), e não mais por (x, y) numa grade.
+
 ```solidity
-// int32 → uint32 reinterpreta em complemento de dois: único e reversível (ver doc 03 §2)
-function lotId(int32 x, int32 y) public pure returns (uint256) {
-    return (uint256(uint32(x)) << 32) | uint256(uint32(y));
+// cidade nos 32 bits altos, lote nos 32 baixos: único e reversível (lotOf)
+function lotId(uint32 city, uint32 lot) public pure returns (uint256) {
+    return (uint256(city) << 32) | uint256(lot);
 }
 
-/// Venda primária: o servidor de mundo assina uma cotação válida
-/// (região aberta, preço da região, regras de bairro e cerco já validadas off-chain).
-function buyPrimary(LotQuote calldata q, bytes calldata sig) external;
-// LotQuote { int32 x; int32 y; uint256 price; address buyer; uint256 deadline; uint256 nonce; }
+/// Venda primária: o world assina uma cotação válida
+/// (bairro aberto, preço da zona, regra de bairro e teto de área já validados off-chain).
+function buyPrimary(LotQuote calldata q, bytes calldata sig) external payable;
+// LotQuote { uint32 city; uint32 lot; address buyer; address currency; uint256 price; uint256 nonce; uint256 deadline; }
 ```
-- As regras de "1 bairro por região" e "não cercar terceiros" dependem do estado da grade e são **validadas off-chain**, com a cotação assinada (EIP-712) pelo serviço World. O contrato confere assinatura, preço, prazo e nonce.
-- **Transferências secundárias** são livres no padrão ERC-721. Para manter a regra de bairro também no secundário, há duas opções (decisão no doc 11):
-  - (a) `_update` override consultando um *registry* de restrições assinado; ou
-  - (b) aceitar a transferência e aplicar a regra só no jogo (lote "excedente" não pode ser construído).
+- A regra de bairro e o teto de área dependem do estado da cidade e são **validados off-chain**, com a cotação assinada (EIP-712) pelo serviço world. O contrato confere a assinatura, o comprador (quem chama), o preço, o prazo e o nonce.
+- `currency` 0 é BNB; outro valor é o endereço do token (SCITY, stablecoin). Com `price` 0, o lote já foi pago no ledger do jogo, e o contrato só registra a posse on-chain.
+- **Transferências secundárias** são livres no padrão ERC-721: a regra de bairro vale só no jogo (opção (b), decidida na [ADR-0014](adr/0014-decisoes-produto-mvp.md)).
 
 ### 2.2 `PropertyNFT`
 - `mint(voucher)` com `{owner, typeCode, level, anchorLotId}` assinado pelo servidor.
