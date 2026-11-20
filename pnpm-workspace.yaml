@@ -7,6 +7,7 @@ packages:
   - services/game-core
   - services/world
   - services/chain-indexer
+  - services/realtime
 
 # Binário do tsx/vitest; sem isto a instalação no CI acusa build ignorado.
 allowBuilds:
@@ -14,3 +15,5 @@ allowBuilds:
   "@embedded-postgres/windows-x64": true
   # O CI roda em Linux: sem esta linha a instalação para com ERR_PNPM_IGNORED_BUILDS.
   "@embedded-postgres/linux-x64": true
+  # Acelerador nativo opcional do msgpackr (Colyseus): sem ele, a versão em JS funciona igual.
+  msgpackr-extract: false
