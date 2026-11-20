@@ -15,13 +15,14 @@ import {
   tooManyAvatars,
 } from '../../domain/avatar.js';
 import type { Rarity } from '../../domain/catalog.js';
-import type { Condition, ConditionCode } from '../../domain/conditions.js';
+import { type Condition, type ConditionCode, SERIOUS_CODES } from '../../domain/conditions.js';
 import {
   type FeeStatus,
   type HospitalReason,
   type HospitalStay,
   type HospitalStore,
   admit,
+  treat,
 } from '../../domain/hospital.js';
 import { type Meal, type MealEffects, type MealPlanner, type MealStatus, type MealStore, eat } from '../../domain/meal.js';
 import {
@@ -96,11 +97,17 @@ const resultJson = (result: ShiftResult) => ({ damaged: result.damaged, factors:
 type Row = typeof avatar.$inferSelect;
 
 /** No jsonb as datas vão como texto ISO. */
+/** Avatar com doença grave gravada (febre, enxaqueca, virose): a saúde dele cai com o tempo. */
+const hasSerious = sql.raw(
+  `jsonb_path_exists("conditions", '$[*] ? (${SERIOUS_CODES.map((c) => `@.code == "${c}"`).join(' || ')})')`,
+);
+
 const toConditions = (value: unknown): Condition[] =>
-  ((value ?? []) as { code: string; startsAt: string; endsAt: string }[]).map((c) => ({
+  ((value ?? []) as { code: string; startsAt: string; endsAt: string; drained?: number }[]).map((c) => ({
     code: c.code as ConditionCode,
     startsAt: new Date(c.startsAt),
     endsAt: new Date(c.endsAt),
+    ...(c.drained ? { drained: c.drained } : {}),
   }));
 
 const toAvatar = (r: Row): Avatar => ({
@@ -134,7 +141,12 @@ const toRow = (a: Avatar) => ({
   happinessAt: a.anchors.happiness,
   hygieneAt: a.anchors.hygiene,
   hospitalUntil: a.hospitalUntil,
-  conditions: a.conditions.map((c) => ({ code: c.code, startsAt: c.startsAt.toISOString(), endsAt: c.endsAt.toISOString() })),
+  conditions: a.conditions.map((c) => ({
+    code: c.code,
+    startsAt: c.startsAt.toISOString(),
+    endsAt: c.endsAt.toISOString(),
+    ...(c.drained ? { drained: c.drained } : {}),
+  })),
   pantry: a.pantry,
   createdAt: a.createdAt,
   updatedAt: a.updatedAt,
@@ -181,7 +193,8 @@ export class PostgresAvatarStore implements AvatarStore, ShiftStore, MealStore, 
           sql`(
             (${avatar.food} > 0 and ${avatar.foodAt} <= ${limit(DECAY.food.everyMs)}) or
             (${avatar.happiness} > 0 and ${avatar.happinessAt} <= ${limit(DECAY.happiness.everyMs)}) or
-            (${avatar.hygiene} > 0 and ${avatar.hygieneAt} <= ${limit(DECAY.hygiene.everyMs)})
+            (${avatar.hygiene} > 0 and ${avatar.hygieneAt} <= ${limit(DECAY.hygiene.everyMs)}) or
+            (${avatar.health} > 0 and ${hasSerious})
           )`,
         )
         .limit(batch)
@@ -200,6 +213,9 @@ export class PostgresAvatarStore implements AvatarStore, ShiftStore, MealStore, 
             foodAt: next.anchors.food,
             happinessAt: next.anchors.happiness,
             hygieneAt: next.anchors.hygiene,
+            // Doenças graves tiram saúde com o tempo (conditions.ts, drainHealth).
+            health: next.attributes.health,
+            conditions: toRow(next).conditions,
             updatedAt: now,
           })
           .where(eq(avatar.id, row.id));
@@ -366,7 +382,8 @@ export class PostgresAvatarStore implements AvatarStore, ShiftStore, MealStore, 
   async admitDue(now: Date, batch: number, avatarId?: string) {
     return this.db.transaction(async (tx) => {
       // Energia ou saúde em 0, fora do hospital e sem turno rodando (o que já venceu conta como acabado).
-      const due = sql`(${avatar.energy} = 0 or ${avatar.health} = 0)
+      // Doença grave também entra: a saúde pode ter chegado a 0 desde a última gravação (admit confere pelo decayed).
+      const due = sql`(${avatar.energy} = 0 or ${avatar.health} = 0 or ${hasSerious})
         and (${avatar.hospitalUntil} is null or ${avatar.hospitalUntil} <= ${now})
         and not exists (
           select 1 from game.work_shift s where s.avatar_id = ${avatar.id} and s.status = 'running' and s.ends_at > ${now}
@@ -409,6 +426,28 @@ export class PostgresAvatarStore implements AvatarStore, ShiftStore, MealStore, 
       .update(hospitalStay)
       .set({ feeStatus: status })
       .where(and(eq(hospitalStay.id, stayId), eq(hospitalStay.feeStatus, 'pending')));
+  }
+
+  async treat(avatarId: string, now: Date, stayId: string) {
+    return this.db.transaction(async (tx) => {
+      // Trava o avatar: dois cliques viram um tratamento e um erro.
+      const [row] = await tx.select().from(avatar).where(eq(avatar.id, avatarId)).for('update');
+      if (!row) throw new AppError('not_found', 'Avatar não encontrado.', 404);
+      const [working] = await tx
+        .select({ id: workShift.id })
+        .from(workShift)
+        .where(and(eq(workShift.avatarId, avatarId), eq(workShift.status, 'running'), sql`${workShift.endsAt} > ${now}`))
+        .limit(1);
+      if (working) throw new AppError('shift_running', 'O avatar está trabalhando; trate quando o turno acabar.', 409);
+      const treated = treat(decayed(toAvatar(row), now), stayId, now);
+      await tx.update(avatar).set(toRow(treated.avatar)).where(eq(avatar.id, avatarId));
+      const s = treated.stay;
+      const [created] = await tx
+        .insert(hospitalStay)
+        .values({ ...s, feeCents: s.feeCents.toString() })
+        .returning();
+      return toStay(created!);
+    });
   }
 
   async listStays(avatarId: string, limit: number) {

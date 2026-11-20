@@ -1,6 +1,7 @@
 import { AppError } from '@scc/shared';
 
 import { ATTRIBUTE_MAX, type Avatar, inHospital } from './avatar.js';
+import { activeConditions, cureSerious, isSerious } from './conditions.js';
 
 /**
  * Hospital compulsório (E2.3, GDD §2.3 e §5): com saúde 0 ou energia 0, o
@@ -18,7 +19,10 @@ import { ATTRIBUTE_MAX, type Avatar, inHospital } from './avatar.js';
 export const HOSPITAL_FEE_CENTS = 3000n;
 export const HOSPITAL_STAY_MS = 24 * 3_600_000;
 
-export type HospitalReason = 'health' | 'energy';
+/** Tratamento voluntário das doenças graves (febre, enxaqueca, virose): internação curta. PREMISSA: 4 h. */
+export const TREATMENT_STAY_MS = 4 * 3_600_000;
+
+export type HospitalReason = 'health' | 'energy' | 'treatment';
 export type FeeStatus = 'pending' | 'paid' | 'waived';
 
 export interface HospitalStay {
@@ -60,6 +64,40 @@ export function admit(avatar: Avatar, id: string, now: Date): { stay: HospitalSt
     avatar: {
       ...avatar,
       attributes: { ...avatar.attributes, energy: ATTRIBUTE_MAX, health: ATTRIBUTE_MAX },
+      // O hospital trata as doenças graves (GDD §5).
+      conditions: cureSerious(avatar.conditions),
+      hospitalUntil: dischargeAt,
+      updatedAt: now,
+    },
+  };
+}
+
+/**
+ * Tratamento voluntário (E2.3): quem está com febre, enxaqueca ou virose vai ao
+ * hospital antes de a saúde chegar a 0. Paga a mesma taxa (30 THALER, para a
+ * queima), fica 4 h internado e sai curado, com a saúde cheia. Mais barato que
+ * esperar: a compulsória tira um dia inteiro.
+ */
+export function treat(avatar: Avatar, id: string, now: Date): { stay: HospitalStay; avatar: Avatar } {
+  if (inHospital(avatar, now)) throw new AppError('in_hospital', 'O avatar já está internado.', 409);
+  const serious = activeConditions(avatar.conditions, now).filter((c) => isSerious(c.code));
+  if (serious.length === 0) throw new AppError('nothing_to_treat', 'O avatar não tem doença que precise de hospital.', 409);
+  const dischargeAt = new Date(now.getTime() + TREATMENT_STAY_MS);
+  return {
+    stay: {
+      id,
+      avatarId: avatar.id,
+      accountId: avatar.accountId,
+      reason: 'treatment',
+      feeCents: HOSPITAL_FEE_CENTS,
+      feeStatus: 'pending',
+      admittedAt: now,
+      dischargeAt,
+    },
+    avatar: {
+      ...avatar,
+      attributes: { ...avatar.attributes, health: ATTRIBUTE_MAX },
+      conditions: cureSerious(avatar.conditions),
       hospitalUntil: dischargeAt,
       updatedAt: now,
     },
@@ -95,4 +133,6 @@ export interface HospitalStore {
   /** pending → paid ou waived. Repetir não faz nada. */
   settleFee(stayId: string, status: 'paid' | 'waived'): Promise<void>;
   listStays(avatarId: string, limit: number): Promise<HospitalStay[]>;
+  /** Tratamento voluntário: grava a internação e o avatar curado juntos. Recusa se já estiver internado ou sem doença grave. */
+  treat(avatarId: string, now: Date, stayId: string): Promise<HospitalStay>;
 }

@@ -50,6 +50,13 @@
       "when": 1795204326507,
       "tag": "0006_antifraude",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1795207863544,
+      "tag": "0007_tratamento",
+      "breakpoints": true
     }
   ]
 }

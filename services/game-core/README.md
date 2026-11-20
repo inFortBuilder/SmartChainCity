@@ -109,7 +109,27 @@ Com **saúde 0 ou energia 0**, o avatar é internado na hora (GDD §2.3 e §5). 
 
 No mapa de Pittsburg, o painel mostra "🏥 Internado" com o tempo até a alta e esconde o mercado e os turnos.
 
-Hoje a saúde não chega a 0 sozinha (nenhum alimento do catálogo tira saúde, e as doenças leves não mexem nela); a energia chega, quando um turno gasta toda a que sobrava. Depois de atualizar o código, rode `pnpm db:migrate`: a tabela `hospital_stay` e a coluna `avatar.hospital_until` são novas.
+A saúde chega a 0 pelas doenças graves (abaixo); a energia, quando um turno gasta toda a que sobrava. Depois de atualizar o código, rode `pnpm db:migrate`: a tabela `hospital_stay` e a coluna `avatar.hospital_until` são novas.
+
+### Doenças graves e tratamento
+
+As doenças do hospital do GDD §5 tiram **1 de saúde a cada 15 min** enquanto duram. A farmácia não cura (`409 hospital_only`): só o hospital.
+
+| Doença | Quando aparece (**premissa**) | Efeito além da saúde |
+|---|---|---|
+| Febre | 1% dos turnos | Não trabalha |
+| Enxaqueca | 1% dos turnos | Trabalha com −20% de rendimento (**premissa**) |
+| Virose | 0,5% dos turnos | Não trabalha |
+
+Saem da semente do turno, como a gripe, e duram até 72 h (**premissa**). Sem tratamento, a saúde chega a 0 em 2 h 30 e o avatar é internado por 1 dia; a internação compulsória também cura a doença grave.
+
+A queda é calculada pelo tempo, como a alimentação: cada doença guarda quanto já tirou (`drained`), então ver o avatar, a passada do job de decaimento e a internação dão o mesmo número, sem contar duas vezes.
+
+**Tratamento voluntário.** `POST /v1/avatars/:id/hospital/treat` interna por **4 h** (**premissa**), com a mesma taxa de 30 THALER para a queima e as mesmas regras de cobrança da compulsória (`reason: treatment`). Na alta, a doença grave sumiu e a saúde está cheia. Recusa com `nothing_to_treat` sem doença grave, `in_hospital` já internado e `shift_running` com turno rodando. O catálogo da farmácia e o avatar marcam essas doenças com `hospital_only: true`.
+
+No mapa de Pittsburg, a doença grave mostra a queda de saúde e o botão "Hospital · 30" no lugar do remédio.
+
+Depois de atualizar o código, rode `pnpm db:migrate`: a migração `0007_tratamento` aceita o motivo `treatment`.
 
 ## Antifraude (E2.9, passo 15 da trilha)
 
@@ -160,6 +180,7 @@ TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc_test pnpm --filter
 | POST | `/v1/avatars/:id/medicine` | jogador (Bearer) | Compra e toma o remédio `{condition}`. Aceita `Idempotency-Key`. Devolve o remédio, `cured` e o avatar |
 | GET | `/v1/catalog/pharmacy` | público | Preço do remédio, chance de cura e a tabela das doenças |
 | GET | `/v1/avatars/:id/hospital` | jogador (Bearer) | Últimas 20 internações, com motivo, alta e situação da taxa (`pending`, `paid`, `waived`) |
+| POST | `/v1/avatars/:id/hospital/treat` | jogador (Bearer) | Tratamento das doenças graves: 4 h internado, taxa de 30 THALER, sai curado |
 | POST | `/v1/dev/avatar` | jogador (Bearer) | **Só desenvolvimento** (`DEV_FREE_AVATAR=true`): dá um avatar comum a quem não tem; desligado, 404 |
 | POST | `/internal/v1/avatars` | serviços (`X-Service-Token`) | Cria `{account_id, rarity, job_code}`; na Etapa 2, chamado ao ver o mint da Lucky Box |
 | GET | `/internal/v1/risk/devices` | revisão (`X-Service-Token`) | Aparelhos com mais contas que o limite (`?days=30`) |
@@ -169,7 +190,7 @@ TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc_test pnpm --filter
 | GET | `/v1/catalog/professions` | público | As 44 profissões com ganho do dia, duração e tarefas; das tarefas, só a direção (+/−) de energia e felicidade (GDD §2.4) |
 | GET | `/healthz` | — | `{status: "ok"}` |
 
-Erros com código estável: `invalid_rarity`, `invalid_job`, `avatar_limit`, `invalid_shift`, `shift_running`, `daily_limit`, `too_tired`, `pool_empty`, `unknown_food`, `not_hungry`, `not_in_pantry`, `in_hospital`, `sick`, `not_sick`, `invalid_condition`, `insufficient_thaler`, `ledger_unavailable`, `not_found`, `forbidden`, `missing_credentials`, `invalid_token`, `token_expired`.
+Erros com código estável: `invalid_rarity`, `invalid_job`, `avatar_limit`, `invalid_shift`, `shift_running`, `daily_limit`, `too_tired`, `pool_empty`, `unknown_food`, `not_hungry`, `not_in_pantry`, `in_hospital`, `sick`, `not_sick`, `invalid_condition`, `hospital_only`, `nothing_to_treat`, `insufficient_thaler`, `ledger_unavailable`, `not_found`, `forbidden`, `missing_credentials`, `invalid_token`, `token_expired`.
 
 ## Banco
 

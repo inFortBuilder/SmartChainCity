@@ -72,7 +72,7 @@ O MVP roda inteiro na máquina local, sem serviços pagos. Por isso, publicar o 
    - 🟡 Profissões com minigame (E2.2, 2026-11-20). O turno percorre as tarefas da profissão e o mapa mostra a tarefa atual e o motivo do dano; as 12 do MVP estão marcadas no catálogo. Faltam o efeito real de energia por tarefa, que depende do game designer, e os cards de arte.
    - 🟡 Antifraude (E2.9, 2026-11-20). Até 3 contas ganhando P2E por aparelho, alerta por rede, limite de velocidade, revisão manual e métricas; os números são premissas. Faltam KYC para saque e captcha no cadastro.
    - 🟡 Painel econômico (E2.8, 2026-11-20). Emissão × dreno por tipo em 24 h e 7 dias, razão contra a meta de 55%, THALER por jogador, duração do pool P2E, alertas e painel "Economia" no Grafana. Os limites dos alertas são de partida.
-   - O resto da E2.3.
+   - 🟡 Doenças do hospital (E2.3, 2026-11-20). Febre, enxaqueca e virose tiram 1 de saúde a cada 15 min; a farmácia não cura e o hospital trata em 4 h pela taxa de 30 THALER. Faltam os preços e as chances definitivos, que são premissas, e calibrar no simulador.
 5. **Em paralelo, desde já:** reservar o auditor, obter o parecer jurídico (E0.8) e calibrar a economia. São o caminho crítico até o TGE e não dependem de código.
 
 **Regra para não acumular PRs:**
@@ -143,7 +143,7 @@ O MVP roda inteiro na máquina local, sem serviços pagos. Por isso, publicar o 
 |-------|--------|----------|
 | E2.1 Lucky Box (testnet) | contracts · client | `AvatarNFT` + `LuckyBox` com Chainlink VRF; tela de abertura; probabilidades públicas |
 | E2.2 Profissões do MVP | backend · cms · art | 12 profissões com minigame (11 comuns + Cozinheiro); cards de arte |
-| E2.3 Alimentação e saúde | backend · client | Mercado do jogo (🟡 comer e despensa pagos pelo ledger, preço provisório), hospital (🟡 compulsório com taxa), farmácia e doenças (🟡 dor de barriga, gripe e dor de cabeça; faltam as do hospital) |
+| E2.3 Alimentação e saúde | backend · client | Mercado do jogo (🟡 comer e despensa pagos pelo ledger, preço provisório), hospital (🟡 compulsório com taxa), farmácia e doenças (🟡 dor de barriga, gripe e dor de cabeça na farmácia; febre, enxaqueca e virose tiram saúde e só o hospital trata) |
 | E2.4 Região A1 | backend · client · tools | Grade completa, compra primária com cotação assinada, regularização, água/energia |
 | E2.5 Imóveis | backend · contracts · client | `LandNFT`, `PropertyNFT`; T1–T3 e Residencial 3; obra, desgaste, renda; aluguel e hotel |
 | E2.6 Impostos | backend | IPTU, PT de lote vazio, inadimplência |

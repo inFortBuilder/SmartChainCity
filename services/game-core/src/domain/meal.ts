@@ -2,7 +2,7 @@ import { AppError } from '@scc/shared';
 
 import { ATTRIBUTE_MAX, type Avatar } from './avatar.js';
 import { type Food, food as findFood } from './foods.js';
-import { CONDITIONS, type ConditionCode, activeConditions, catchCondition, cure, isConditionCode } from './conditions.js';
+import { CONDITIONS, type ConditionCode, activeConditions, catchCondition, cure, isConditionCode, isSerious } from './conditions.js';
 import { assertNotInHospital } from './hospital.js';
 
 /**
@@ -157,6 +157,9 @@ export function planMedicine(
   now: Date,
 ): Meal {
   if (!isConditionCode(input.condition)) throw new AppError('invalid_condition', 'Doença desconhecida.', 400);
+  if (isSerious(input.condition)) {
+    throw new AppError('hospital_only', 'Esta doença só o hospital trata (POST /v1/avatars/:id/hospital/treat).', 409);
+  }
   assertNotInHospital(avatar, now);
   if (!activeConditions(avatar.conditions, now).some((c) => c.code === input.condition)) {
     throw new AppError('not_sick', 'O avatar não está com essa doença.', 409);

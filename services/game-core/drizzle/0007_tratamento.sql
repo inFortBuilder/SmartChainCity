@@ -1,0 +1,2 @@
+ALTER TABLE "game"."hospital_stay" DROP CONSTRAINT "hospital_stay_reason_check";--> statement-breakpoint
+ALTER TABLE "game"."hospital_stay" ADD CONSTRAINT "hospital_stay_reason_check" CHECK ("game"."hospital_stay"."reason" in ('health', 'energy', 'treatment'));

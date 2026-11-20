@@ -10,7 +10,7 @@ import {
   decayed,
   tooManyAvatars,
 } from '../domain/avatar.js';
-import { type HospitalStay, type HospitalStore, admit } from '../domain/hospital.js';
+import { type HospitalStay, type HospitalStore, admit, treat } from '../domain/hospital.js';
 import { type Meal, type MealPlanner, type MealStore, eat } from '../domain/meal.js';
 import { type Shift, type ShiftPlanner, type ShiftStore, hoursSince, settle } from '../domain/shift.js';
 
@@ -45,6 +45,17 @@ export class MemoryAvatarStore implements AvatarStore, ShiftStore, MealStore, Ho
       created.push({ ...admitted.stay });
     }
     return created;
+  }
+
+  async treat(avatarId: string, now: Date, stayId: string) {
+    const stored = this.avatars.get(avatarId);
+    if (!stored) throw new AppError('not_found', 'Avatar não encontrado.', 404);
+    const working = [...this.shifts.values()].some((s) => s.avatarId === avatarId && s.status === 'running' && s.endsAt > now);
+    if (working) throw new AppError('shift_running', 'O avatar está trabalhando; trate quando o turno acabar.', 409);
+    const treated = treat(decayed(stored, now), stayId, now);
+    this.avatars.set(avatarId, clone(treated.avatar));
+    this.stays.set(treated.stay.id, { ...treated.stay });
+    return { ...treated.stay };
   }
 
   async pendingFees(batch: number) {
