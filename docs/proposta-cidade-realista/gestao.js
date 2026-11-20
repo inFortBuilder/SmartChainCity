@@ -478,7 +478,7 @@ export function createGestao(api) {
     }
   }
 
-  function decorateLot(i, ficha) {
+  function decorateLot(i, ficha, serverMode = false) {
     const lots = lotsData();
     const mine = owns(i);
     const order = bairroOf(i);
@@ -507,7 +507,7 @@ export function createGestao(api) {
         html = `<h3>Abrir negócio</h3><p class="muted">Pago em THALER. A zona do lote define o que cabe nele.</p>${businessRows(i)}`;
       }
       html = modelSection(i) + html;
-    } else if (lots.vacant[i] && lots.isOpen(i)) {
+    } else if (!serverMode && lots.vacant[i] && lots.isOpen(i)) {
       const price = priceOf(i);
       html = `<button class="btn btn--primary" type="button" data-gestao="buy" ${state.scity >= price ? '' : 'disabled'}>
         Comprar por ${fmt.format(price)} SCITY</button>

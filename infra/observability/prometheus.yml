@@ -1,0 +1,21 @@
+# Prometheus local: lê o /metrics de cada serviço rodando no host (pnpm dev).
+# Em dev o /metrics fica aberto; em produção cada serviço exige METRICS_TOKEN
+# (authorization: { credentials_file: ... } em cada job).
+global:
+  scrape_interval: 5s
+  evaluation_interval: 15s
+
+rule_files:
+  - /etc/prometheus/alertas.yml
+
+scrape_configs:
+  - job_name: servicos
+    static_configs:
+      - targets: ['host.docker.internal:8000']
+        labels: { instancia: gateway }
+      - targets: ['host.docker.internal:8010']
+        labels: { instancia: economy }
+      - targets: ['host.docker.internal:8020']
+        labels: { instancia: game-core }
+      - targets: ['host.docker.internal:8030']
+        labels: { instancia: world }
