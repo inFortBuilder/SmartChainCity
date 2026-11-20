@@ -273,6 +273,22 @@ export function createServidor(map) {
 
   const sign = (n) => (n > 0 ? `+${n}` : String(n));
 
+  // Lista das tarefas do turno: feita, em andamento e próxima, pelo relógio do navegador.
+  const minigameList = (m) => {
+    const now = Date.now();
+    const items = m.tasks
+      .map((t) => {
+        const s = new Date(t.starts_at).getTime();
+        const e = new Date(t.ends_at).getTime();
+        const state = now >= e ? 'feita' : now >= s ? 'agora' : 'depois';
+        const fx = [t.energy && `${t.energy === '+' ? '+' : '−'}energia`, t.happiness && `${t.happiness === '+' ? '+' : '−'}felicidade`].filter(Boolean).join(' · ');
+        const mark = state === 'feita' ? '✓' : state === 'agora' ? '▶' : '·';
+        return `<li class="tarefa tarefa--${state}"><span>${mark} ${esc(t.name)}</span>${fx ? `<span class="muted">${fx}</span>` : ''}</li>`;
+      })
+      .join('');
+    return `<ol class="minigame" aria-label="Tarefas do turno">${items}</ol>`;
+  };
+
   const bar = (label, value, max = 10) =>
     `<div class="attr"><span>${label}</span><div class="barra"><span style="width:${(value / max) * 100}%"></span></div><b>${value}</b></div>`;
 
@@ -365,6 +381,8 @@ export function createServidor(map) {
           <div class="barra"><span style="width:${pct}%"></span></div>
           <p class="muted pequeno">Falta ${left(running.ends_at)}. Pode fechar o jogo: o servidor conclui o turno.<br>
           Compromisso do sorteio: <code>${running.seed_commit.slice(0, 16)}…</code></p>`;
+        // Minigame (E2.2): as tarefas da profissão ao longo do turno, calculadas pelo relógio daqui.
+        if (running.minigame) body += minigameList(running.minigame);
       } else if (!internado) {
         body += `<div class="linha">
           <button class="btn btn--blue" type="button" data-s="work" data-h="6" ${busy || !a.status.canWork ? 'disabled' : ''}>Trabalhar 6 h</button>
@@ -375,7 +393,7 @@ export function createServidor(map) {
         body += `<button class="btn btn--primary" type="button" data-s="claim" ${busy ? 'disabled' : ''}>Coletar ${thaler(total)} THALER</button>`;
       }
       if (last?.result) {
-        body += `<p class="muted pequeno">Último turno: ${thaler(last.result.thaler)} THALER${last.result.damaged ? ' (com danos)' : ''} · semente revelada <code>${last.seed.slice(0, 12)}…</code></p>`;
+        body += `<p class="muted pequeno">Último turno: ${thaler(last.result.thaler)} THALER${last.result.damaged ? ' (com danos)' : ''}${last.minigame?.damage ? ` — ${esc(last.minigame.damage.event)} em “${esc(last.minigame.damage.task)}”` : ''} · semente revelada <code>${last.seed.slice(0, 12)}…</code></p>`;
       }
     }
     const email = me?.email ?? session.email ?? null;

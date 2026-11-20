@@ -32,6 +32,7 @@ import { fetchCmsFoods, fetchCmsProfessions } from './infra/cms-catalog.js';
 import { type Payer, type Shift, type ShiftStore, startShift } from './domain/shift.js';
 import { chargeStay } from './jobs/hospital.js';
 import { completeShifts } from './jobs/shift.js';
+import { MVP_PROFESSIONS, type Minigame, minigameOf } from './domain/minigame.js';
 import { AccountRateLimit, DEVICE_ACCOUNT_LIMIT, RiskGuard, type RiskStore } from './domain/risk.js';
 
 const uuid = z.uuid();
@@ -85,7 +86,23 @@ const stayDto = (h: HospitalStay) => ({
  * O jogador vê o compromisso da semente desde o começo; a semente só aparece
  * quando o turno acaba. Com ela, qualquer um refaz o sorteio dos danos.
  */
-const shiftDto = (s: Shift) => ({
+const minigameDto = (m: Minigame | null) =>
+  m && {
+    job: m.job,
+    current: m.current,
+    progress: Math.round(m.progress * 1000) / 1000,
+    tasks: m.tasks.map((t) => ({
+      name: t.name,
+      energy: t.energy,
+      happiness: t.happiness,
+      starts_at: t.startsAt.toISOString(),
+      ends_at: t.endsAt.toISOString(),
+      state: t.state,
+    })),
+    damage: m.damage,
+  };
+
+const shiftDto = (s: Shift, now: Date = new Date()) => ({
   id: s.id,
   hours: s.hours,
   status: s.status,
@@ -99,6 +116,8 @@ const shiftDto = (s: Shift) => ({
     damaged: s.result.damaged,
     factors: s.result.factors,
   },
+  // Minigame (E2.2): as tarefas da profissão ao longo do turno.
+  minigame: minigameDto(minigameOf(s, now)),
 });
 
 const mealDto = (m: Meal) => ({
@@ -177,6 +196,8 @@ export async function buildApp(
       label: p.label,
       rarity: p.rarity,
       thaler_per_day: p.tokens,
+      // As 12 do MVP (E2.2): 11 comuns e o Cozinheiro.
+      mvp: (MVP_PROFESSIONS as readonly string[]).includes(p.code),
       minutes: p.minutes,
       tasks: p.tasks.map((t) => ({
         name: t.name,
@@ -250,14 +271,14 @@ export async function buildApp(
         now(),
       ),
     );
-    return reply.status(201).send({ shift: shiftDto(started) });
+    return reply.status(201).send({ shift: shiftDto(started, now()) });
   });
 
   app.get('/v1/avatars/:id/shifts', async (request) => {
     const avatar = await ownAvatar(request);
     // Não espera a próxima passada do job: o que já venceu aparece concluído.
     await completeShifts(store, now());
-    return { shifts: (await store.listShifts(avatar.id, 20)).map(shiftDto) };
+    return { shifts: (await store.listShifts(avatar.id, 20)).map((s) => shiftDto(s, now())) };
   });
 
   // Mercado do jogo (E2.3): a lista com o preço de uma unidade, em centavos de THALER.
