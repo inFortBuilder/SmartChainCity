@@ -14,6 +14,7 @@ Mudanças aqui exigem 2 aprovações. Os endereços implantados ficam em `deploy
 | [`LandNFT`](src/LandNFT.sol) | Lote da cidade (ERC-721). O `tokenId` é `cidade << 32 \| lote`, o mesmo par (cidade, lote) do serviço world, e pode ser desfeito com `lotOf`. A venda primária usa `buyPrimary(cotação, assinatura)`: o world assina a cotação (EIP-712), e o contrato confere assinatura, comprador, preço, prazo e nonce. O pagamento vai direto para a tesouraria, em BNB ou num token. Com preço 0, o lote já foi pago no ledger do jogo e o contrato só registra a posse. A transferência é livre ([ADR-0014](../docs/adr/0014-decisoes-produto-mvp.md)) |
 | [`AvatarNFT`](src/AvatarNFT.sol) | Smartcityano (ERC-721 com royalties EIP-2981, 2,5% para a tesouraria). Raridade (0 a 3) e profissão ficam gravadas no mint. A profissão é o código do catálogo em `bytes32` (ex.: `padeiro`), o mesmo do Strapi. Só quem tem o papel `MINTER` cria avatares |
 | [`LuckyBox`](src/LuckyBox.sol) | Caixas por tier: moeda, preço e tabela de probabilidades por raridade, pública on-chain. `open` cobra e pede um número ao Chainlink VRF v2.5; o callback sorteia a raridade e a profissão e cria o avatar. A tabela vale como estava no momento da compra |
+| [`BuildingNFT`](src/BuildingNFT.sol) | Prédio de construtor (doc 13 §7). Guarda o lote, o hash do GLB aprovado (`modelHash`), os andares e o construtor. O mint usa o voucher EIP-712 do world, dado só a prédio com alvará. O construtor precisa ser dono do lote no `LandNFT`, e cada lote tem no máximo um prédio vigente. `demolish` (dono do prédio e do lote) libera o lote |
 | [`SCityToken`](src/SCityToken.sol) | SCITY: ERC-20 com Permit e oferta fixa de 1 bilhão, criada uma única vez no deploy. Não tem função de mint |
 | [`LocalVRFCoordinator`](src/dev/LocalVRFCoordinator.sol) | Coordenador VRF **só para o anvil e os testes**: qualquer um entrega o sorteio. Na BSC entra o coordenador real da Chainlink |
 
@@ -39,7 +40,7 @@ forge test
 forge fmt --check
 ```
 
-São 42 testes. Entre eles:
+São 51 testes. Entre eles:
 - o fuzz do `tokenId` de lote;
 - a invariante de `totalSupply` constante;
 - a distribuição das raridades dentro de ±1% em 40 mil sorteios;
@@ -60,7 +61,7 @@ forge script script/DeployLocal.s.sol --rpc-url http://127.0.0.1:8545 --broadcas
 ```
 
 O script:
-- sobe os cinco contratos;
+- sobe os seis contratos (o `BuildingNFT` por último, para os outros endereços não mudarem);
 - dá ao `LuckyBox` o papel de criar avatares;
 - carrega as 44 profissões do seed do CMS (`cms-strapi/seed/profissoes.json`), separadas por raridade;
 - cria o tier 1 (0,05 BNB);
@@ -107,3 +108,23 @@ Os campos:
 - `deadline`: prazo em segundos Unix.
 
 A carteira que chama `buyPrimary` precisa ser o `buyer` da cotação.
+
+## Voucher de prédio (para o serviço world)
+
+Domínio EIP-712:
+- `name`: `SCC BuildingNFT`
+- `version`: `1`
+- `chainId` da rede
+- `verifyingContract`: endereço do `BuildingNFT`
+
+```
+BuildingVoucher(uint256 lotId,address developer,bytes32 modelHash,uint16 floors,uint256 nonce,uint256 deadline)
+```
+
+Os campos:
+- `lotId`: o `tokenId` do lote no `LandNFT`.
+- `developer`: carteira do construtor; precisa ser quem chama `mint` e o dono do lote.
+- `modelHash`: SHA-256 do GLB aprovado, que o SCC Builder devolve na validação.
+- `nonce`: único por prédio.
+
+Testado no anvil em 2026-11-20: o world assinou a cotação do lote e o voucher; a carteira do jogador comprou o lote e mintou o prédio, e o mesmo voucher foi recusado na segunda vez.

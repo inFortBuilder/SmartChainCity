@@ -115,6 +115,8 @@ Só o prédio aprovado aparece para os outros jogadores (`GET /v1/world/cities/:
 
 Para o envio funcionar, a cidade precisa ter sido importada de novo, porque é a importação que grava o polígono de cada lote.
 
+**Na blockchain (E2.11):** com o alvará, o construtor pede o voucher com `POST /v1/world/buildings/:id/onchain-voucher` e `{wallet}`. O world confere que o prédio é dele e foi aprovado, que tem o hash do GLB (`model_sha256`, devolvido pelo Builder na validação) e que a carteira está ligada à conta; e assina com a mesma chave da posse on-chain do lote. Com o voucher, a carteira chama `BuildingNFT.mint`, e o contrato exige que ela seja dona do lote no `LandNFT`. Ligue com `BUILDING_NFT_ADDRESS` no `.env`.
+
 ## Rodar
 
 ```bash
@@ -155,9 +157,10 @@ TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc_test pnpm --filter
 | GET | `/v1/world/me/buildings` | jogador (Bearer) | Prédios do jogador e a situação de cada um |
 | GET | `/v1/world/cities/:code/lots/:id/building` | público | Prédio aprovado do lote, com os artefatos |
 | POST | `/internal/v1/buildings/:id/review` | ferramenta interna (`x-service-token`) | Alvará: aprova ou recusa |
+| POST | `/v1/world/buildings/:id/onchain-voucher` | dono (Bearer) | Voucher EIP-712 do `BuildingNFT` para o prédio aprovado (corpo: `{wallet}`) |
 | GET | `/healthz` | — | `{status: "ok"}` |
 
-Erros com código estável: `lot_not_for_sale`, `lot_reserved`, `district_closed`, `other_district`, `area_cap`, `insufficient_scity`, `reservation_lost`, `ledger_unavailable`, `not_found`, `not_lot_owner`, `wallet_not_linked`, `unknown_property_type`, `zone_not_allowed`, `lot_has_property`, `insufficient_thaler`, `property_not_ready`, `nothing_to_claim`, `claim_in_progress`, `nothing_to_repair`, `max_level`, `work_in_progress`, `tax_default`, `taxes_disabled`, `building_invalid`, `lot_has_building`, `lot_without_polygon`, `building_not_in_review`, `builder_unavailable`, `model_not_found`, `pool_empty`, `properties_disabled`, `city_not_onchain`, `onchain_disabled`, `gateway_unavailable`, `missing_credentials`, `invalid_token`, `token_expired`.
+Erros com código estável: `lot_not_for_sale`, `lot_reserved`, `district_closed`, `other_district`, `area_cap`, `insufficient_scity`, `reservation_lost`, `ledger_unavailable`, `not_found`, `not_lot_owner`, `wallet_not_linked`, `unknown_property_type`, `zone_not_allowed`, `lot_has_property`, `insufficient_thaler`, `property_not_ready`, `nothing_to_claim`, `claim_in_progress`, `nothing_to_repair`, `max_level`, `work_in_progress`, `tax_default`, `taxes_disabled`, `building_invalid`, `lot_has_building`, `lot_without_polygon`, `building_not_in_review`, `builder_unavailable`, `model_not_found`, `building_not_approved`, `model_hash_missing`, `pool_empty`, `properties_disabled`, `city_not_onchain`, `onchain_disabled`, `gateway_unavailable`, `missing_credentials`, `invalid_token`, `token_expired`.
 
 ## Banco
 
@@ -167,7 +170,7 @@ Esquema próprio `world`: `city` (zonas, bairros abertos, limiar), `lot` (situa�
 
 - Ler a blockchain: transferências do `LandNFT` atualizarem o dono no jogo (chain-indexer).
 - Imóveis: troca de tipo (T1 → T2 → T3), seguro, aluguel e hotel, lote duplo (Residencial 2 e 3), regularização e água/energia; os outros tipos do doc 03 §6; o catálogo vindo do Strapi (hoje fica no código, igual ao seed); o `PropertyNFT`.
-- Prédios: `BuildingNFT` com o hash do modelo (E2.11), unidades e venda (E3.11), taxa de alvará, prazo de obra proporcional à área, IPTU por unidade.
+- Prédios: o chain-indexer ler o `BuildingNFT`, unidades e venda (E3.11), taxa de alvará, prazo de obra proporcional à área, IPTU por unidade.
 - Impostos: leilão do lote inadimplente; IPTU por unidade dos prédios de construtores (doc 13).
 - Câmbio THALER ↔ SCITY e cotação do dia (passo 11 da trilha); hoje `SCITY_USD` é fixo.
 - Mercado secundário entre jogadores, imóveis e utilidades.

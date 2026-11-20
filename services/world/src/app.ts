@@ -5,6 +5,7 @@ import { z } from 'zod';
 
 import type { Config } from './config.js';
 import { type QuoteSigner, type WalletDirectory, issueOnchainQuote } from './domain/land-quote.js';
+import { type BuildingVoucherSigner, issueBuildingVoucher } from './domain/building-voucher.js';
 import {
   ACCRUAL_CAP_DAYS,
   MIN_WEAR_FOR_INCOME,
@@ -59,7 +60,13 @@ export async function buildApp(
   land: { wallets: WalletDirectory; signer: QuoteSigner; contract: string; chainId: number } | null = null,
   properties: { store: PropertyStore; payments: PropertyPayments | null } | null = null,
   taxes: { store: TaxStore; payments: TaxPayments | null } | null = null,
-  buildings: { store: BuildingStore; builder: BuilderClient | null; payments: OutorgaPayments | null } | null = null,
+  buildings: {
+    store: BuildingStore;
+    builder: BuilderClient | null;
+    payments: OutorgaPayments | null;
+    /** BuildingNFT (E2.11): voucher para levar o prédio aprovado à blockchain. */
+    onchain?: { wallets: WalletDirectory; signer: BuildingVoucherSigner; contract: string; chainId: number } | null;
+  } | null = null,
 ) {
   const app = Fastify({
     ...serverOptions({ service: 'world', nodeEnv: config.NODE_ENV, logLevel: config.LOG_LEVEL }),
@@ -365,6 +372,7 @@ export async function buildApp(
     outorga_scity: scityText(b.outorgaWei),
     checks: b.checks,
     artifacts: b.artifacts,
+    model_sha256: b.modelSha256,
     review_note: b.reviewNote,
     created_at: b.createdAt.toISOString(),
     reviewed_at: b.reviewedAt?.toISOString() ?? null,
@@ -419,6 +427,36 @@ export async function buildApp(
     const b = await buildingsOn().store.buildingOnLot(code, id);
     if (!b || b.status !== 'approved') throw new AppError('not_found', 'Este lote não tem prédio aprovado.', 404);
     return { building: buildingDto(b) };
+  });
+
+  // Voucher do BuildingNFT (E2.11): o prédio aprovado vai para a blockchain pela carteira do construtor.
+  app.post('/v1/world/buildings/:id/onchain-voucher', async (request) => {
+    const me = await player(request);
+    const { id } = z.object({ id: z.uuid() }).parse(request.params);
+    const { wallet } = z.object({ wallet: z.string() }).parse(request.body);
+    const onchain = buildingsOn().onchain;
+    if (!onchain) throw new AppError('onchain_disabled', 'O BuildingNFT não está configurado.', 503);
+    const { voucher, signature, building: b } = await issueBuildingVoucher(
+      buildingsOn().store,
+      onchain.wallets,
+      onchain.signer,
+      { buildingId: id, accountId: me, wallet, cityNftId: (c) => config.LAND_CITY_IDS[c], ttlSeconds: config.QUOTE_TTL_SECONDS, requestId: request.id },
+      now,
+    );
+    await assertNotInDefault(taxes?.store ?? null, b.city, b.lotId, now());
+    return {
+      contract: onchain.contract,
+      chain_id: onchain.chainId,
+      voucher: {
+        lotId: voucher.lotId.toString(),
+        developer: voucher.developer,
+        modelHash: voucher.modelHash,
+        floors: voucher.floors,
+        nonce: voucher.nonce.toString(),
+        deadline: voucher.deadline.toString(),
+      },
+      signature,
+    };
   });
 
   // Alvará (moderação de conteúdo, doc 13 §4 passo 4): ferramenta interna da Prefeitura.

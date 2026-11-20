@@ -4,6 +4,7 @@ pragma solidity 0.8.28;
 import {Script, console} from "forge-std/Script.sol";
 
 import {AvatarNFT} from "../src/AvatarNFT.sol";
+import {BuildingNFT} from "../src/BuildingNFT.sol";
 import {LandNFT} from "../src/LandNFT.sol";
 import {LuckyBox} from "../src/LuckyBox.sol";
 import {SCityToken} from "../src/SCityToken.sol";
@@ -87,6 +88,11 @@ contract DeployLocal is Script {
         // whitepaper não está nas fontes (doc 02 §2).
         box.setTier(1, address(0), 0.05 ether, [uint16(4000), 3000, 2000, 1000], true);
 
+        // Por último, para os endereços de antes não mudarem num anvil novo.
+        BuildingNFT buildingNft =
+            new BuildingNFT(deployer, land, "http://localhost:8030/v1/world/nft/buildings/");
+        buildingNft.grantRole(buildingNft.SIGNER_ROLE(), worldSigner);
+
         vm.stopBroadcast();
 
         string memory key = "anvil";
@@ -96,6 +102,7 @@ contract DeployLocal is Script {
         vm.serializeAddress(key, "AvatarNFT", address(avatar));
         vm.serializeAddress(key, "LuckyBox", address(box));
         vm.serializeAddress(key, "LocalVRFCoordinator", address(vrf));
+        vm.serializeAddress(key, "BuildingNFT", address(buildingNft));
         string memory json = vm.serializeAddress(key, "worldSigner", worldSigner);
         vm.writeJson(json, "deployments/anvil.json");
 

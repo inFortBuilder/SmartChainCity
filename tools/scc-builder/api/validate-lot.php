@@ -18,7 +18,7 @@ declare(strict_types=1);
  * "position" é opcional: sem ele o modelo vai para o centroide do lote.
  *
  * 200 { data: { valid, checks[], footprint{hull, area_m2}, suggested_floors,
- *               placement, artifacts{glb, lod1, lod2, meta} } }
+ *               placement, artifacts{glb, lod1, lod2, meta}, model_sha256 } }
  *
  * O resultado não fica gravado: quem guarda a validação aprovada é o
  * serviço World, que chama este endpoint.
@@ -118,6 +118,13 @@ foreach ($nomes as $campo => $nome) {
 }
 $chaves['thumb'] = null; // miniatura renderizada no servidor: ainda não implementada
 
+// Hash do GLB aprovado: vai para o BuildingNFT (modelHash). Trocar o modelo muda o hash.
+$glbSha256 = null;
+if (isset($artefatos['modelo.glb'])) {
+    $hash      = hash_file('sha256', Storage::resolve(Storage::CONVERTED, $artefatos['modelo.glb']));
+    $glbSha256 = $hash === false ? null : $hash;
+}
+
 Response::success([
     'lot_id'    => isset($lot['id']) ? \substr((string) $lot['id'], 0, 64) : null,
     'job_id'    => $jobId,
@@ -125,5 +132,6 @@ Response::success([
     'version'   => $job['version'],
 ] + $resultado + [
     'artifacts' => $chaves,
+    'model_sha256' => $glbSha256,
     'published' => S3Publisher::ativo(),
 ]);

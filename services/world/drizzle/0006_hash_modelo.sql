@@ -1,0 +1,1 @@
+ALTER TABLE "world"."building" ADD COLUMN "model_sha256" text;
