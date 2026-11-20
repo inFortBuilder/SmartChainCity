@@ -133,6 +133,7 @@ const building = (over: Partial<Building> = {}): Building => ({
   outorgaWei: 0n,
   checks: [],
   artifacts: {},
+  modelSha256: null,
   status: 'pending_review',
   reviewNote: null,
   createdAt: T0,

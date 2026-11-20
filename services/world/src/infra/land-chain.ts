@@ -2,6 +2,12 @@ import { AppError, forwardRequestId } from '@scc/shared';
 import type { Address, Hex } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 
+import {
+  BUILDING_VOUCHER_TYPES,
+  type BuildingVoucher,
+  type BuildingVoucherSigner,
+  buildingDomain,
+} from '../domain/building-voucher.js';
 import { LOT_QUOTE_TYPES, type LotQuote, type QuoteSigner, type WalletDirectory, landDomain } from '../domain/land-quote.js';
 
 /**
@@ -27,6 +33,30 @@ export class LocalKeyQuoteSigner implements QuoteSigner {
       types: LOT_QUOTE_TYPES,
       primaryType: 'LotQuote',
       message: quote,
+    });
+  }
+}
+
+/** Assina os vouchers do `BuildingNFT` com a mesma chave do world (papel SIGNER do contrato). */
+export class LocalKeyBuildingSigner implements BuildingVoucherSigner {
+  private readonly account;
+  readonly address: Address;
+
+  constructor(
+    privateKey: Hex,
+    private readonly chainId: number,
+    private readonly contract: Address,
+  ) {
+    this.account = privateKeyToAccount(privateKey);
+    this.address = this.account.address;
+  }
+
+  signBuilding(voucher: BuildingVoucher): Promise<Hex> {
+    return this.account.signTypedData({
+      domain: buildingDomain(this.chainId, this.contract),
+      types: BUILDING_VOUCHER_TYPES,
+      primaryType: 'BuildingVoucher',
+      message: voucher,
     });
   }
 }

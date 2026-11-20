@@ -158,6 +158,7 @@ caso('HTTP: POST validate-lot.php com JWT, escopo e erros', function (): void {
         igual(25, $d['suggested_floors']);
         igual(400, $d['footprint']['area_m2']);
         igual('builder/0xDono/mdl_torre/v1/modelo.glb', $d['artifacts']['glb']);
+        igual(\hash('sha256', 'glTF'), $d['model_sha256'], 'hash do GLB:');
         igual('builder/0xDono/mdl_torre/v1/modelo-lod1.glb', $d['artifacts']['lod1']);
         igual(null, $d['artifacts']['lod2']);
         igual(false, $d['published']);

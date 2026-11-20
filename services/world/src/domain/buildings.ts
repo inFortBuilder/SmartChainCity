@@ -41,6 +41,8 @@ export interface BuilderValidation {
   model_id: string;
   version: number;
   artifacts: Record<string, string | null>;
+  /** SHA-256 do GLB aprovado (hex), o `modelHash` do BuildingNFT. */
+  model_sha256?: string | null;
 }
 
 export interface BuilderValidateInput {
@@ -74,6 +76,8 @@ export interface Building {
   outorgaWei: bigint;
   checks: BuilderCheck[];
   artifacts: Record<string, string | null>;
+  /** SHA-256 do GLB aprovado (hex): vai on-chain como `modelHash`. */
+  modelSha256: string | null;
   status: BuildingStatus;
   reviewNote: string | null;
   createdAt: Date;
@@ -177,6 +181,7 @@ export async function submitBuilding(
     outorgaWei: BigInt(outorgaScity) * WEI,
     checks: v.checks,
     artifacts: v.artifacts,
+    modelSha256: typeof v.model_sha256 === 'string' && /^[0-9a-f]{64}$/.test(v.model_sha256) ? v.model_sha256 : null,
     status: outorgaScity > 0 ? 'pending_payment' : 'pending_review',
     reviewNote: null,
     createdAt: t,

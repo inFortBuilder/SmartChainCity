@@ -14,7 +14,7 @@ import { chargeTaxes } from './domain/taxes.js';
 import { PostgresPropertyStore } from './infra/db/postgres-property-store.js';
 import { PostgresWorldStore } from './infra/db/postgres-store.js';
 import { PostgresTaxStore } from './infra/db/postgres-tax-store.js';
-import { GatewayWalletDirectory, LocalKeyQuoteSigner } from './infra/land-chain.js';
+import { GatewayWalletDirectory, LocalKeyBuildingSigner, LocalKeyQuoteSigner } from './infra/land-chain.js';
 import { LedgerLandPayments } from './infra/ledger-payments.js';
 import { LedgerPropertyPayments } from './infra/ledger-property-payments.js';
 import { LedgerTaxPayments } from './infra/ledger-tax-payments.js';
@@ -75,7 +75,21 @@ const app = await buildApp(
   land,
   { store: propertyStore, payments: propertyPayments },
   { store: taxStore, payments: taxPayments },
-  { store: buildingStore, builder, payments: outorga },
+  {
+    store: buildingStore,
+    builder,
+    payments: outorga,
+    // BuildingNFT: mesma chave e mesmo gateway da posse on-chain do lote.
+    onchain:
+      land && config.BUILDING_NFT_ADDRESS && config.LAND_SIGNER_KEY
+        ? {
+            wallets: land.wallets,
+            signer: new LocalKeyBuildingSigner(config.LAND_SIGNER_KEY as Hex, config.CHAIN_ID, config.BUILDING_NFT_ADDRESS as Address),
+            contract: config.BUILDING_NFT_ADDRESS,
+            chainId: config.CHAIN_ID,
+          }
+        : null,
+  },
 );
 const onchain = land ? `${land.contract} (chain ${land.chainId}, signer ${land.signer.address})` : 'desligada';
 app.log.info(

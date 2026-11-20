@@ -194,6 +194,7 @@ export const building = world.table(
     outorgaWei: numeric('outorga_wei', { precision: 78, scale: 0 }).notNull(),
     checks: jsonb('checks').notNull(),
     artifacts: jsonb('artifacts').notNull(),
+    modelSha256: text('model_sha256'),
     status: text('status').notNull(),
     reviewNote: text('review_note'),
     createdAt: timestamptz('created_at').notNull(),

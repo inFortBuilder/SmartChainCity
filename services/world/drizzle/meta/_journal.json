@@ -43,6 +43,13 @@
       "when": 1795189238900,
       "tag": "0005_predios",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1795190376860,
+      "tag": "0006_hash_modelo",
+      "breakpoints": true
     }
   ]
 }
