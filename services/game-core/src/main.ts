@@ -4,6 +4,7 @@ import { buildApp } from './app.js';
 import { loadConfig } from './config.js';
 import { PostgresAvatarStore } from './infra/db/postgres-store.js';
 import { MemoryAvatarStore } from './infra/memory-store.js';
+import { MemoryRiskStore, PostgresRiskStore } from './infra/risk-store.js';
 import { EconomyPayer } from './infra/economy-payer.js';
 import { scheduleDecay } from './jobs/decay.js';
 import { scheduleHospital } from './jobs/hospital.js';
@@ -22,7 +23,9 @@ const payer =
   config.ECONOMY_URL && config.ECONOMY_TOKEN ? new EconomyPayer(config.ECONOMY_URL, config.ECONOMY_TOKEN) : null;
 
 // O mesmo cliente do ledger paga os turnos e cobra as refeições e o hospital.
-const app = await buildApp(config, store, undefined, payer, payer, payer);
+// Antifraude (E2.9): sinais de aparelho e rede, no mesmo banco.
+const riskStore = pool ? new PostgresRiskStore(pool) : new MemoryRiskStore();
+const app = await buildApp(config, store, undefined, payer, payer, payer, undefined, riskStore);
 app.log.info(`armazenamento: ${pool ? 'postgres' : 'memória'}; pagamento de turnos: ${payer ? config.ECONOMY_URL : 'desligado'}`);
 
 // Catálogo publicado no Strapi; se ele estiver fora, segue o seed e o webhook atualiza depois.

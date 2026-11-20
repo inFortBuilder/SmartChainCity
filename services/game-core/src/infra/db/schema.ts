@@ -144,3 +144,35 @@ export const hospitalStay = game.table(
     check('hospital_stay_period_check', sql`${t.dischargeAt} > ${t.admittedAt}`),
   ],
 );
+
+/**
+ * Antifraude (E2.9): sinais por conta, aparelho e rede, só em HMAC (sem IP nem id
+ * puro). Uma linha por combinação, com a primeira e a última vez.
+ */
+export const riskSignal = game.table(
+  'risk_signal',
+  {
+    accountId: uuid('account_id').notNull(),
+    device: text('device').notNull().default(''),
+    network: text('network').notNull(),
+    firstSeen: timestamptz('first_seen').notNull(),
+    lastSeen: timestamptz('last_seen').notNull(),
+  },
+  (t) => [
+    uniqueIndex('risk_signal_key_idx').on(t.accountId, t.device, t.network),
+    index('risk_signal_device_idx').on(t.device, t.lastSeen),
+    index('risk_signal_network_idx').on(t.network, t.lastSeen),
+  ],
+);
+
+/** Decisão manual da revisão: libera ou bloqueia a conta, acima das regras. */
+export const riskDecision = game.table(
+  'risk_decision',
+  {
+    accountId: uuid('account_id').primaryKey(),
+    decision: text('decision').notNull(),
+    note: text('note'),
+    at: timestamptz('at').notNull(),
+  },
+  (t) => [check('risk_decision_check', sql`${t.decision} in ('allow', 'block')`)],
+);

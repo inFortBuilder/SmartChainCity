@@ -59,6 +59,18 @@ class ApiError extends Error {
   }
 }
 
+// Id do aparelho para o antifraude do game-core (E2.9): aleatório, guardado neste
+// navegador. Não identifica a pessoa; só junta as contas que jogam no mesmo aparelho.
+const DEVICE_KEY = 'scc-aparelho';
+function deviceId() {
+  let id = storage.get(DEVICE_KEY, localStorage);
+  if (!id || !/^[A-Za-z0-9_-]{16,64}$/.test(id)) {
+    id = crypto.randomUUID().replace(/-/g, '');
+    storage.set(DEVICE_KEY, id, localStorage);
+  }
+  return id;
+}
+
 async function call(base, path, { method = 'GET', body, token, headers = {} } = {}) {
   let response;
   try {
@@ -67,6 +79,7 @@ async function call(base, path, { method = 'GET', body, token, headers = {} } = 
       headers: {
         ...(body ? { 'content-type': 'application/json' } : {}),
         ...(token ? { authorization: `Bearer ${token}` } : {}),
+        ...(base === API.game ? { 'x-device-id': deviceId() } : {}),
         ...headers,
       },
       body: body ? JSON.stringify(body) : undefined,
