@@ -1,4 +1,4 @@
-import type { City, Lot } from '../src/domain/lots.js';
+import type { City, LotImport, Polygon } from '../src/domain/lots.js';
 
 /**
  * Cidade de teste: 3 bairros de 10 lotes de 100 m² em uso misto (US$ 1,56/m²),
@@ -16,14 +16,25 @@ export const testCity = (code: string): City => ({
   releaseThreshold: 0.7,
 });
 
-export const testLots = (): Pick<Lot, 'id' | 'district' | 'zone' | 'areaM2' | 'status'>[] =>
+export const testLots = (): LotImport[] =>
   Array.from({ length: 30 }, (_, id) => ({
     id,
     district: Math.floor(id / 10),
     zone: 'mixed',
     areaM2: 100,
     status: id === 9 ? 'civic' : 'vacant',
+    polygon: square(id * 20, 0, 10),
   }));
+
+/** Quadrado de lado `side` metros com o canto em (x, z). */
+function square(x: number, z: number, side: number): Polygon {
+  return [
+    [x, z],
+    [x + side, z],
+    [x + side, z + side],
+    [x, z + side],
+  ];
+}
 
 /** Código único por rodada: no Postgres compartilhado, cada teste tem a sua cidade. */
 export const uniqueCode = () => `t-${Math.random().toString(36).slice(2, 10)}`;

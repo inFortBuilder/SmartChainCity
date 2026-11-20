@@ -1,0 +1,1 @@
+ALTER TABLE "world"."lot" ADD COLUMN "polygon" jsonb;

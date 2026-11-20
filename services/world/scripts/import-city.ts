@@ -10,7 +10,7 @@ import { join, resolve } from 'node:path';
 
 import { Pool } from 'pg';
 
-import type { City, Lot } from '../src/domain/lots.js';
+import type { City, LotImport, Polygon } from '../src/domain/lots.js';
 import { PostgresWorldStore } from '../src/infra/db/postgres-store.js';
 
 const args = process.argv.slice(2);
@@ -49,6 +49,16 @@ const areas = new Float32Array(buffer, polyBytes, count);
 const zones = new Uint8Array(buffer, polyBytes + count * 4, count);
 const vacant = new Uint8Array(buffer, polyBytes + count * 5, count);
 const district = new Uint16Array(buffer, polyBytes + count * 6, count);
+const points = new Float32Array(buffer, 0, count * meta.pontos * 2);
+/** Polígono do lote i em metros, com 2 casas (centímetro). */
+const polygonOf = (i: number): Polygon => {
+  const out: Polygon = [];
+  for (let k = 0; k < meta.pontos; k++) {
+    const at = (i * meta.pontos + k) * 2;
+    out.push([Math.round(points[at]! * 100) / 100, Math.round(points[at + 1]! * 100) / 100]);
+  }
+  return out;
+};
 const civicSet = new Set(civic?.lotes ?? []);
 
 const city: City = {
@@ -67,11 +77,11 @@ const city: City = {
   releaseThreshold: meta.liberacao?.limiar ?? 0.7,
 };
 
-const lots: Pick<Lot, 'id' | 'district' | 'zone' | 'areaM2' | 'status'>[] = [];
+const lots: LotImport[] = [];
 for (let i = 0; i < count; i++) {
   // Lote ocupado na conversão (prédio existente) não está à venda: fica como da cidade.
   const status = civicSet.has(i) || !vacant[i] ? 'civic' : 'vacant';
-  lots.push({ id: i, district: district[i]!, zone: meta.zonas[zones[i]!]!.key, areaM2: areas[i]!, status });
+  lots.push({ id: i, district: district[i]!, zone: meta.zonas[zones[i]!]!.key, areaM2: areas[i]!, status, polygon: polygonOf(i) });
 }
 
 const started = Date.now();

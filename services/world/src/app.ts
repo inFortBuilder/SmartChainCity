@@ -1,5 +1,5 @@
 import cors from '@fastify/cors';
-import { AppError, bearerToken, observe, serverOptions, verifyAccessToken } from '@scc/shared';
+import { AppError, bearerToken, observe, requireServiceToken, serverOptions, verifyAccessToken } from '@scc/shared';
 import Fastify, { type FastifyRequest } from 'fastify';
 import { z } from 'zod';
 
@@ -27,6 +27,15 @@ import {
 } from './domain/properties.js';
 import { type LandPayments, type Lot, type WorldStore, lotCode, priceOf } from './domain/lots.js';
 import { buyLot } from './domain/purchase.js';
+import {
+  type BuilderClient,
+  type Building,
+  BuildingInvalidError,
+  type BuildingStore,
+  type OutorgaPayments,
+  reviewBuilding,
+  submitBuilding,
+} from './domain/buildings.js';
 import { type TaxPayments, type TaxStore, assertNotInDefault, payMyTaxes, totalOf } from './domain/taxes.js';
 
 const WEI = 10n ** 18n;
@@ -50,6 +59,7 @@ export async function buildApp(
   land: { wallets: WalletDirectory; signer: QuoteSigner; contract: string; chainId: number } | null = null,
   properties: { store: PropertyStore; payments: PropertyPayments | null } | null = null,
   taxes: { store: TaxStore; payments: TaxPayments | null } | null = null,
+  buildings: { store: BuildingStore; builder: BuilderClient | null; payments: OutorgaPayments | null } | null = null,
 ) {
   const app = Fastify({
     ...serverOptions({ service: 'world', nodeEnv: config.NODE_ENV, logLevel: config.LOG_LEVEL }),
@@ -58,6 +68,13 @@ export async function buildApp(
   await app.register(cors, { origin: config.CORS_ORIGINS });
 
   app.setErrorHandler((error, request, reply) => {
+    if (error instanceof BuildingInvalidError) {
+      return reply.status(422).send({
+        error: { code: error.code, message: error.message },
+        checks: error.validation.checks,
+        footprint: error.validation.footprint,
+      });
+    }
     if (error instanceof AppError) {
       return reply.status(error.status).send({ error: { code: error.code, message: error.message } });
     }
@@ -263,6 +280,9 @@ export async function buildApp(
     if (!propPayments) throw new AppError('ledger_unavailable', 'A construção está desligada.', 503);
     await cityOr404(code);
     await assertNotInDefault(taxes?.store ?? null, code, id, now());
+    if (buildings && (await buildings.store.buildingOnLot(code, id))) {
+      throw new AppError('lot_has_building', 'Este lote já tem um prédio de construtor.', 409);
+    }
     const p = await buildProperty(store, propStore, propPayments, { city: code, lotId: id, accountId: me, type, requestId: request.id }, now);
     return reply.status(201).send({ property: propertyDto(p) });
   });
@@ -322,6 +342,95 @@ export async function buildApp(
     const { store: taxStore, payments: taxPayments } = taxesOn();
     if (!taxPayments) throw new AppError('ledger_unavailable', 'O pagamento de impostos está desligado.', 503);
     return payMyTaxes(taxStore, taxPayments, me, now(), request.id);
+  });
+
+  // ---------------------------------------------------------------- prédios de construtores (E2.10)
+
+  const buildingsOn = () => {
+    if (!buildings) throw new AppError('buildings_disabled', 'Os prédios de construtores estão desligados.', 503);
+    return buildings;
+  };
+
+  const buildingDto = (b: Building) => ({
+    id: b.id,
+    city: b.city,
+    lot_id: b.lotId,
+    status: b.status,
+    model: { job_id: b.jobId, model_id: b.modelId, version: b.modelVersion },
+    placement: { position: b.position, rotation_deg: b.rotationDeg },
+    height_m: b.heightM,
+    footprint_m2: b.footprintM2,
+    floors: b.floors,
+    gfa_m2: b.gfaM2,
+    outorga_scity: scityText(b.outorgaWei),
+    checks: b.checks,
+    artifacts: b.artifacts,
+    review_note: b.reviewNote,
+    created_at: b.createdAt.toISOString(),
+    reviewed_at: b.reviewedAt?.toISOString() ?? null,
+  });
+
+  const buildingBody = z.object({
+    job_id: z.string().min(1).max(64),
+    rotation_deg: z.number().min(-360).max(360).default(0),
+    units: z.enum(['m', 'cm', 'mm', 'in', 'ft']).default('m'),
+    position: z.tuple([z.number(), z.number()]).optional(),
+  });
+
+  // Envia o modelo do SCC Builder para o lote: o world manda o polígono e as regras.
+  app.post('/v1/world/cities/:code/lots/:id/building', async (request, reply) => {
+    const me = await player(request);
+    const { code, id } = lotParams.parse(request.params);
+    const body = buildingBody.parse(request.body);
+    const { store: bStore, builder, payments: outorga } = buildingsOn();
+    if (!builder || !outorga) throw new AppError('builder_unavailable', 'O SCC Builder ou o ledger não estão configurados.', 503);
+    const c = await cityOr404(code);
+    await assertNotInDefault(taxes?.store ?? null, code, id, now());
+    const b = await submitBuilding(
+      store,
+      properties?.store ?? null,
+      bStore,
+      builder,
+      outorga,
+      {
+        city: c,
+        lotId: id,
+        accountId: me,
+        authorization: request.headers.authorization!,
+        jobId: body.job_id,
+        rotationDeg: body.rotation_deg,
+        units: body.units,
+        ...(body.position ? { position: body.position } : {}),
+        requestId: request.id,
+      },
+      now,
+    );
+    return reply.status(201).send({ building: buildingDto(b) });
+  });
+
+  app.get('/v1/world/me/buildings', async (request) => {
+    const me = await player(request);
+    return { buildings: (await buildingsOn().store.buildingsOf(me)).map(buildingDto) };
+  });
+
+  // Público: só o prédio com alvará aparece para os outros jogadores (o mapa desenha).
+  app.get('/v1/world/cities/:code/lots/:id/building', async (request) => {
+    const { code, id } = lotParams.parse(request.params);
+    const b = await buildingsOn().store.buildingOnLot(code, id);
+    if (!b || b.status !== 'approved') throw new AppError('not_found', 'Este lote não tem prédio aprovado.', 404);
+    return { building: buildingDto(b) };
+  });
+
+  // Alvará (moderação de conteúdo, doc 13 §4 passo 4): ferramenta interna da Prefeitura.
+  app.post('/internal/v1/buildings/:id/review', async (request) => {
+    if (!config.INTERNAL_TOKEN) {
+      throw new AppError('internal_disabled', 'Rotas internas desligadas: defina INTERNAL_TOKEN.', 503);
+    }
+    requireServiceToken(request.headers['x-service-token'], config.INTERNAL_TOKEN);
+    const { id } = z.object({ id: z.uuid() }).parse(request.params);
+    const body = z.object({ approve: z.boolean(), note: z.string().max(500).optional() }).parse(request.body);
+    const b = await reviewBuilding(buildingsOn().store, id, body.approve, body.note ?? null, now());
+    return { building: buildingDto(b) };
   });
 
   return app;

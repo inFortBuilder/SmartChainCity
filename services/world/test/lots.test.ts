@@ -18,6 +18,7 @@ const lot = (over: Partial<Lot> = {}): Lot => ({
   reservedUntil: null,
   reservationId: null,
   soldAt: null,
+  polygon: null,
   ...over,
 });
 

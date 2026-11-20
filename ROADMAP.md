@@ -66,7 +66,7 @@ O MVP roda inteiro na máquina local, sem serviços pagos. Por isso, publicar o 
    - 🟡 Impostos (E2.6, 2026-11-20). IPTU e PT com débito automático, multa e bloqueio do lote inadimplente, com valores provisórios; falta o leilão.
 3. **Blockchain e prédios no servidor.**
    - 🟡 `chain-indexer` (2026-11-20): lê os eventos com confirmações e trata reorganização. Espelha lotes, avatares e caixas, e foi testado no anvil. Falta o depósito creditar o THALER uma única vez, que espera o `GameVault`.
-   - Validação dos prédios do SCC Builder no servidor, com o `BuildingNFT` (E2.10 e E2.11).
+   - 🟡 Validação dos prédios no servidor (E2.10, 2026-11-20). O world manda o polígono e as regras do próprio banco para o SCC Builder, cobra a outorga e guarda o prédio para o alvará; testado com o Builder real. Falta o `BuildingNFT` (E2.11).
 4. **Fechar a Etapa 2.**
    - Multiplayer no `realtime` (E2.7).
    - Profissões com minigame (E2.2).

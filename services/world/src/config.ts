@@ -34,6 +34,10 @@ const schema = z.object({
   SETTLE_EVERY_SECONDS: z.coerce.number().int().positive().default(60),
   /** Intervalo do job tax.charge (gera contas de IPTU e PT e tenta o débito automático). */
   TAX_EVERY_SECONDS: z.coerce.number().int().positive().default(3600),
+  /** SCC Builder (tools/scc-builder): valida os prédios dos construtores. Sem ele, o envio responde 503. */
+  BUILDER_URL: optional(z.url()),
+  /** Token das ferramentas internas (alvará dos prédios). Sem ele, as rotas /internal respondem 503. */
+  INTERNAL_TOKEN: optional(z.string().min(32, 'INTERNAL_TOKEN precisa de pelo menos 32 caracteres')),
   /**
    * Posse on-chain do lote (LandNFT, doc 07 §2.1). Sem GATEWAY_URL, GATEWAY_TOKEN,
    * LAND_NFT_ADDRESS e LAND_SIGNER_KEY, a rota de cotação responde 503. O gateway confere a carteira do jogador.

@@ -29,12 +29,17 @@ export interface City {
 
 export type LotStatus = 'vacant' | 'reserved' | 'sold' | 'civic';
 
+/** Polígono do lote em metros, [[x, z], …] (ADR-0012), como no lotes.bin do city-import. */
+export type Polygon = [number, number][];
+
 export interface Lot {
   city: string;
   id: number;
   district: number;
   zone: string;
   areaM2: number;
+  /** Sem polígono (cidade importada antes de 2026-11-20), o lote não aceita prédio de construtor. */
+  polygon: Polygon | null;
   status: LotStatus;
   ownerAccountId: string | null;
   reservedBy: string | null;
@@ -129,9 +134,12 @@ export function nextOpenCount(
 }
 
 /** Persistência. Memória e Postgres passam pelo mesmo teste de contrato. */
+/** O que a importação da cidade traz de cada lote. */
+export type LotImport = Pick<Lot, 'id' | 'district' | 'zone' | 'areaM2' | 'status'> & { polygon?: Polygon | null };
+
 export interface WorldStore {
   /** Carrega (ou recarrega) a cidade; lotes já vendidos mantêm o dono. */
-  importCity(city: City, lots: Pick<Lot, 'id' | 'district' | 'zone' | 'areaM2' | 'status'>[]): Promise<void>;
+  importCity(city: City, lots: LotImport[]): Promise<void>;
   getCity(code: string): Promise<City | null>;
   districts(code: string): Promise<{ order: number; lots: number; sold: number; forSale: number; areaM2: number }[]>;
   lotsOfDistrict(code: string, district: number): Promise<Lot[]>;

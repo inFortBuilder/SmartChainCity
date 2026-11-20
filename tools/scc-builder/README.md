@@ -47,7 +47,7 @@ roadmap.
 | Conversão no servidor via API REST                                                           | ✅                                                               |
 | **Preset `scc`**: Y-up, metros, Meshopt, LOD1/LOD2, `modelo.meta.json` (base, caixa/colisor) | ✅ no CLI e na API; no editor, eixo/escala e aviso de orçamento  |
 | **Exportar para o mapa**: ajusta aos limites da plataforma e coloca o prédio no lote do mapa | ✅ (protótipo da cidade; o World ainda não existe)               |
-| **`POST /api/validate-lot.php`**: recuo, gabarito, coeficiente/outorga, triângulos, escala   | ✅ (testes em `tests/php/`)                                      |
+| **`POST /api/validate-lot.php`**: recuo, gabarito, coeficiente/outorga, triângulos, escala   | ✅ (testes em `tests/php/`); o world chama com o polígono do próprio banco ([services/world](../../services/world/README.md#prédios-de-construtores-e210))                                      |
 | **Login pelo JWT HS256 do gateway SCC**, escopo dos jobs por `account_id`                    | ✅                                                               |
 | API key opcional servidor a servidor (com `X-Account-Id`)                                    | ✅                                                               |
 | Publicação no bucket SCC: `builder/<account_id>/<model_id>/v<n>/modelo.glb`                  | ✅ (SigV4 próprio; S3, MinIO, R2) — sem teste contra bucket real |
