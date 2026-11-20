@@ -11,6 +11,9 @@ const optional = <T extends z.ZodType>(type: T) => z.preprocess((v) => (v === ''
 
 const schema = z.object({
   NODE_ENV: z.string().default('development'),
+  LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
+  /** Token do Prometheus para ler /metrics; sem ele, /metrics fica desligado em produção. */
+  METRICS_TOKEN: optional(z.string().min(32, 'METRICS_TOKEN precisa de pelo menos 32 caracteres')),
   PORT: z.coerce.number().int().positive().default(8030),
   HOST: z.string().default('127.0.0.1'),
   DATABASE_URL: z.string().optional(),

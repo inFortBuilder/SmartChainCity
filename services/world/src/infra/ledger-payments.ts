@@ -1,4 +1,4 @@
-import { AppError } from '@scc/shared';
+import { AppError, forwardRequestId } from '@scc/shared';
 
 import type { LandPayments, Purchase } from '../domain/lots.js';
 
@@ -14,7 +14,7 @@ export class LedgerLandPayments implements LandPayments {
     private readonly fetchFn: typeof fetch = fetch,
   ) {}
 
-  private async post(key: string, kind: string, purchase: Purchase, fromPlayer: boolean) {
+  private async post(key: string, kind: string, purchase: Purchase, fromPlayer: boolean, requestId?: string) {
     const amount = purchase.priceWei.toString();
     const player = { owner_type: 'player', owner_id: purchase.accountId, currency: 'SCITY' };
     const treasury = { owner_type: 'pool', owner_id: 'treasury', currency: 'SCITY' };
@@ -22,7 +22,12 @@ export class LedgerLandPayments implements LandPayments {
     try {
       response = await this.fetchFn(`${this.baseUrl.replace(/\/$/, '')}/internal/v1/ledger/transactions`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-service-token': this.token, 'idempotency-key': key },
+        headers: {
+          'content-type': 'application/json',
+          'x-service-token': this.token,
+          'idempotency-key': key,
+          ...forwardRequestId(requestId),
+        },
         body: JSON.stringify({
           kind,
           ref_type: 'lot_purchase',
@@ -50,11 +55,11 @@ export class LedgerLandPayments implements LandPayments {
     throw new AppError('ledger_unavailable', 'O ledger recusou o lançamento.', 502);
   }
 
-  charge(purchase: Purchase) {
-    return this.post(`lot-buy:${purchase.id}`, 'lot_buy', purchase, true);
+  charge(purchase: Purchase, requestId?: string) {
+    return this.post(`lot-buy:${purchase.id}`, 'lot_buy', purchase, true, requestId);
   }
 
-  refund(purchase: Purchase) {
-    return this.post(`lot-refund:${purchase.id}`, 'lot_refund', purchase, false);
+  refund(purchase: Purchase, requestId?: string) {
+    return this.post(`lot-refund:${purchase.id}`, 'lot_refund', purchase, false, requestId);
   }
 }

@@ -38,7 +38,7 @@ Cada atributo que cai guarda o **instante de referência** (`food_at`, `happines
 | Base | Fixa por avatar, tirada do id dentro da faixa da raridade (comum 100–125, raro 140–165, épico 180–205, lendário 225–250) |
 | Danos | 5% de chance de perder 30% (premissas do simulador), sorteados com a semente do turno |
 | Sorteio auditável | No começo, o servidor publica `seed_commit` = sha256(semente). No fim, revela a semente; o resultado é HMAC(semente, turno), que qualquer um refaz |
-| Pagamento | O "Coletar" paga pelo ledger do economy, do pool P2E para o jogador, com a chave `shift:<id>`: repetir nunca paga em dobro. Pool vazio responde `503 pool_empty` e o turno fica para coletar depois |
+| Pagamento | O "Coletar" paga pelo ledger do economy, do pool P2E para o jogador, com a chave `shift:<id>`: repetir nunca paga em dobro. O `x-request-id` da coleta vai junto, para achar o pagamento no log do economy. Pool vazio responde `503 pool_empty` e o turno fica para coletar depois |
 
 Moradia irregular (×0,5) e evento semanal (×1,15) ficam em 1 até existirem imóveis e eventos. O pet entra no teto de 2,5× quando existir.
 

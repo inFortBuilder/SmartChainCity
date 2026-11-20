@@ -1,18 +1,24 @@
 import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
-import { AppError } from '@scc/shared';
+import { AppError, observe, serverOptions } from '@scc/shared';
 import Fastify, { type FastifyRequest } from 'fastify';
 import { z } from 'zod';
 
 import type { Config } from './config.js';
 import { AuthService } from './domain/auth.js';
-import type { Account, AuthStore } from './domain/ports.js';
+import { EmailLogin, type Mailer } from './domain/email-login.js';
+import type { Account, AuthStore, WalletLink } from './domain/ports.js';
 import { verifyToken } from './domain/token.js';
+import { LogMailer } from './infra/log-mailer.js';
 
 const verifyBody = z.object({
   message: z.string().min(1).max(4096),
   signature: z.string().regex(/^0x[0-9a-fA-F]+$/),
 });
+
+const emailField = z.email().max(254);
+const emailStartBody = z.object({ email: emailField });
+const emailVerifyBody = z.object({ email: emailField, code: z.string().regex(/^[0-9]{6}$/) });
 
 const accountDto = (account: Account) => ({
   id: account.id,
@@ -22,14 +28,17 @@ const accountDto = (account: Account) => ({
   created_at: account.createdAt.toISOString(),
 });
 
-export async function buildApp(config: Config, store: AuthStore, now?: () => Date) {
+export async function buildApp(config: Config, store: AuthStore, now?: () => Date, mailer?: Mailer) {
   const app = Fastify({
     trustProxy: config.TRUST_PROXY,
-    logger:
-      config.NODE_ENV === 'test'
-        ? false
-        : { redact: ['req.headers.authorization', 'req.body.signature'] },
+    ...serverOptions({
+      service: 'gateway',
+      nodeEnv: config.NODE_ENV,
+      logLevel: config.LOG_LEVEL,
+      redact: ['req.body.signature', 'req.body.code'],
+    }),
   });
+  observe(app, { service: 'gateway', nodeEnv: config.NODE_ENV, metricsToken: config.METRICS_TOKEN });
 
   const tokenOptions = {
     secret: config.JWT_SECRET,
@@ -42,6 +51,19 @@ export async function buildApp(config: Config, store: AuthStore, now?: () => Dat
       domains: config.SIWE_DOMAINS,
       chainIds: config.SIWE_CHAIN_IDS,
       nonceTtlSeconds: config.SIWE_NONCE_TTL_SECONDS,
+      token: tokenOptions,
+    },
+    now,
+  );
+
+  const emailLogin = new EmailLogin(
+    store,
+    mailer ?? new LogMailer(app.log),
+    {
+      secret: config.JWT_SECRET,
+      ttlSeconds: config.EMAIL_CODE_TTL_SECONDS,
+      resendSeconds: config.EMAIL_CODE_RESEND_SECONDS,
+      maxAttempts: config.EMAIL_CODE_MAX_ATTEMPTS,
       token: tokenOptions,
     },
     now,
@@ -99,22 +121,73 @@ export async function buildApp(config: Config, store: AuthStore, now?: () => Dat
     };
   });
 
+  const emailOn = () => {
+    if (config.EMAIL_LOGIN === 'off') throw new AppError('not_found', 'Rota não encontrada.', 404);
+  };
+
+  // Passo 1: manda o código. A resposta é sempre a mesma, para não revelar quem joga.
+  app.post('/v1/auth/email/start', { config: authLimit }, async (request, reply) => {
+    emailOn();
+    const { email } = emailStartBody.parse(request.body);
+    const { expiresIn } = await emailLogin.start(email);
+    return reply.status(202).send({ expires_in: expiresIn });
+  });
+
+  // Passo 2: troca o código pelo mesmo JWT do login SIWE.
+  app.post('/v1/auth/email/verify', { config: authLimit }, async (request) => {
+    emailOn();
+    const body = emailVerifyBody.parse(request.body);
+    const result = await emailLogin.verify(body.email, body.code);
+    return {
+      access_token: result.token,
+      token_type: 'Bearer',
+      expires_in: result.expiresIn,
+      account: accountDto(result.account),
+    };
+  });
+
   const authenticate = async (request: FastifyRequest) => {
     const match = /^Bearer\s+(.+)$/i.exec(request.headers.authorization ?? '');
     if (!match?.[1]) throw new AppError('missing_credentials', 'Envie o token.', 401);
     return verifyToken(match[1], tokenOptions);
   };
 
-  app.get('/v1/me', async (request) => {
-    const { account, wallets } = await auth.me(await authenticate(request));
-    return {
-      account: accountDto(account),
-      wallets: wallets.map((wallet) => ({
-        address: wallet.address,
-        chain_id: wallet.chainId,
-        verified_at: wallet.verifiedAt.toISOString(),
-      })),
-    };
+  const meDto = ({ account, wallets }: { account: Account; wallets: WalletLink[] }) => ({
+    account: accountDto(account),
+    wallets: wallets.map((wallet) => ({
+      address: wallet.address,
+      chain_id: wallet.chainId,
+      verified_at: wallet.verifiedAt.toISOString(),
+    })),
+  });
+
+  app.get('/v1/me', async (request) => meDto(await auth.me(await authenticate(request))));
+
+  // Liga mais uma carteira à conta logada, com a mesma assinatura SIWE do login.
+  app.post('/v1/me/wallets', { config: authLimit }, async (request, reply) => {
+    const accountId = await authenticate(request);
+    const body = verifyBody.parse(request.body);
+    const result = await auth.linkWallet(accountId, body.message, body.signature as `0x${string}`);
+    return reply.status(result.linked ? 201 : 200).send(meDto(result));
+  });
+
+  // Põe e-mail na conta logada (a de carteira): código como no login.
+  app.post('/v1/me/email/start', { config: authLimit }, async (request, reply) => {
+    emailOn();
+    const accountId = await authenticate(request);
+    const { email } = emailStartBody.parse(request.body);
+    const { account } = await auth.me(accountId);
+    const { expiresIn } = await emailLogin.startLink(account, email);
+    return reply.status(202).send({ expires_in: expiresIn });
+  });
+
+  app.post('/v1/me/email/verify', { config: authLimit }, async (request) => {
+    emailOn();
+    const accountId = await authenticate(request);
+    const body = emailVerifyBody.parse(request.body);
+    await auth.me(accountId);
+    await emailLogin.verifyLink(accountId, body.email, body.code);
+    return meDto(await auth.me(accountId));
   });
 
   return app;

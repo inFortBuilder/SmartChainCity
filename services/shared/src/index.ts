@@ -14,3 +14,12 @@ export class AppError extends Error {
 }
 
 export { bearerToken, requireServiceToken, verifyAccessToken, type VerifyOptions } from './auth.js';
+export {
+  forwardRequestId,
+  HttpMetrics,
+  observe,
+  requestIdFrom,
+  serverOptions,
+  type ObserveOptions,
+  type ServerOptionsInput,
+} from './observability.js';

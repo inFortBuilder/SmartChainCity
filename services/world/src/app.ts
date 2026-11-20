@@ -1,5 +1,5 @@
 import cors from '@fastify/cors';
-import { AppError, bearerToken, verifyAccessToken } from '@scc/shared';
+import { AppError, bearerToken, observe, serverOptions, verifyAccessToken } from '@scc/shared';
 import Fastify, { type FastifyRequest } from 'fastify';
 import { z } from 'zod';
 
@@ -27,8 +27,9 @@ export async function buildApp(
   payments: LandPayments | null = null,
 ) {
   const app = Fastify({
-    logger: config.NODE_ENV === 'test' ? false : { redact: ['req.headers.authorization'] },
+    ...serverOptions({ service: 'world', nodeEnv: config.NODE_ENV, logLevel: config.LOG_LEVEL }),
   });
+  observe(app, { service: 'world', nodeEnv: config.NODE_ENV, metricsToken: config.METRICS_TOKEN });
   await app.register(cors, { origin: config.CORS_ORIGINS });
 
   app.setErrorHandler((error, request, reply) => {
@@ -123,7 +124,7 @@ export async function buildApp(
     const me = await player(request);
     const { code, id } = lotParams.parse(request.params);
     if (!payments) throw new AppError('ledger_unavailable', 'A venda de lotes está desligada.', 503);
-    const purchase = await buyLot(store, payments, { city: code, lotId: id, accountId: me, scityUsd: config.SCITY_USD }, now);
+    const purchase = await buyLot(store, payments, { city: code, lotId: id, accountId: me, scityUsd: config.SCITY_USD, requestId: request.id }, now);
     const c = await cityOr404(code);
     const lot = (await store.getLot(code, id))!;
     return reply.status(201).send({
