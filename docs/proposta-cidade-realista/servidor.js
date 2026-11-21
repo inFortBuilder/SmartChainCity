@@ -280,6 +280,8 @@ export function createServidor(map) {
   let venues = [];
   let propertyTypes = null;
   let cup = null;
+  let carCatalog = null;
+  let cars = null;
   let message = '';
   let messageOk = false;
   let busy = false;
@@ -328,6 +330,11 @@ export function createServidor(map) {
         .catch(() => []);
       // Campeonato de botão (E3.3): o do mês e o resultado do anterior.
       cup = await call(API.game, '/v1/championships/current', { token: session.token }).catch(() => null);
+      // Veículos (E3.5): a agência e os carros da conta.
+      if (!carCatalog) carCatalog = await call(API.game, '/v1/catalog/vehicles').catch(() => null);
+      cars = await call(API.game, '/v1/vehicles', { token: session.token })
+        .then((r) => r.vehicles)
+        .catch(() => null);
       if (!jobs.length) jobs = await call(API.game, '/v1/catalog/professions').then((r) => r.professions).catch(() => []);
       if (!foods.length) {
         foods = await call(API.game, '/v1/catalog/foods')
@@ -570,6 +577,48 @@ export function createServidor(map) {
   const vaultError = (error) => (error instanceof ApiError ? error : new ApiError(400, 'tx', txError(error, VAULT_ERRORS)));
 
   /**
+   * Veículos (E3.5): autoescola, agência (compra, aluguel e recompra) e IPVA.
+   * O carro existe só no jogo por enquanto; as corridas vêm depois.
+   */
+  const carSection = (a) => {
+    const r = carCatalog.rules;
+    const off = busy ? 'disabled' : '';
+    const day = (iso) => new Date(iso).toLocaleDateString('pt-BR');
+    let html = '<h3>🚗 Veículos</h3>';
+    if (!a.license) {
+      html += `<div class="linha"><button class="btn btn--ghost pequeno" type="button" data-s="autoescola" ${off}>Autoescola · ${thaler(r.license_price)}</button>
+        <span class="muted pequeno">${r.license_hours} h sem trabalhar; habilita o avatar a dirigir.</span></div>`;
+    } else if (!a.license.licensed) {
+      html += `<p class="muted pequeno">Na autoescola: falta ${left(a.license.ready_at)}.</p>`;
+    } else {
+      html += '<p class="muted pequeno">🪪 Habilitado para dirigir.</p>';
+    }
+    const label = { ok: 'em dia', suspended: 'suspenso: IPVA atrasado', worn_out: 'gasto (só vende)', expired: 'aluguel vencido', pending: 'processando' };
+    if (cars.length) {
+      html += `<ul class="lista-saques">${cars
+        .map((c) => {
+          const info = c.kind === 'rental' ? `alugado até ${day(c.rental_until)}` : `IPVA até ${day(c.ipva_paid_until)}`;
+          const buttons = [
+            c.ipva_payable ? `<button class="btn btn--blue pequeno" type="button" data-s="ipva" data-c="${esc(c.id)}" ${off}>IPVA · ${thaler(c.ipva_cents)}</button>` : '',
+            c.buyback_cents !== null && c.state !== 'suspended' ? `<button class="btn btn--ghost pequeno" type="button" data-s="vender-carro" data-c="${esc(c.id)}" data-v="${esc(c.buyback_cents)}" ${off}>Vender · ${thaler(c.buyback_cents)}</button>` : '',
+          ].join('');
+          return `<li><span>${esc(c.label)} · vel. ${c.attributes.speed} · força ${c.attributes.power} · ${esc(label[c.state] ?? c.state)} · ${info}</span><span class="linha">${buttons}</span></li>`;
+        })
+        .join('')}</ul>`;
+    }
+    const options = carCatalog.models
+      .map((m) => `<option value="${esc(m.code)}">${esc(m.label)} · ${thaler(m.price)} (aluguel ${thaler(m.rent_price)}) · vel. ${m.speed}, força ${m.power}</option>`)
+      .join('');
+    html += `<form data-form="carro" class="comer">
+        <div class="linha"><select class="campo" name="model" aria-label="Modelo">${options}</select></div>
+        <div class="linha"><button class="btn btn--blue pequeno" type="submit" name="acao" value="comprar" ${off}>Comprar</button>
+        <button class="btn btn--ghost pequeno" type="submit" name="acao" value="alugar" ${off}>Alugar ${r.rent_days} dias</button></div>
+        <p class="muted pequeno">Atributos no máximo por ${r.full_days} dias, depois caem até a metade em ${r.life_days}. IPVA de ${Math.round(r.ipva_share * 100)}% a cada ${r.ipva_days} dias; atrasado, suspende. A agência recompra por ${Math.round(r.buyback_share * 100)}% do valor depreciado. Preços provisórios.</p>
+      </form>`;
+    return html;
+  };
+
+  /**
    * Campeonato mensal de futebol de botão (E3.3): times de 6, inscrição paga;
    * na virada do mês o servidor disputa com a semente publicada e paga os 3 primeiros.
    */
@@ -809,6 +858,7 @@ export function createServidor(map) {
       }
       if (!internado && leisure && a.leisure) body += leisureSection(a);
       if (cup) body += cupSection(a);
+      if (carCatalog && cars) body += carSection(a);
       if (!internado && school && a.school) body += schoolSection(a);
       if (!internado && petshop) body += petSection(a);
       if (running) {
@@ -877,6 +927,18 @@ export function createServidor(map) {
     const form = e.target.closest('form[data-form]');
     if (!form || busy) return;
     const field = new FormData(form);
+    if (form.dataset.form === 'carro') {
+      const model = String(field.get('model') ?? '');
+      const rent = e.submitter?.value === 'alugar';
+      const m = carCatalog?.models.find((x) => x.code === model);
+      return act(async () => {
+        const r = await call(API.game, '/v1/vehicles', { method: 'POST', token: session.token, body: { model, rent } });
+        message = rent
+          ? `${m?.label ?? model} alugado até ${new Date(r.vehicle.rental_until).toLocaleDateString('pt-BR')}: −${thaler(m?.rent_price ?? '0')} THALER.`
+          : `${m?.label ?? model} comprado: −${thaler(m?.price ?? '0')} THALER.`;
+        messageOk = true;
+      });
+    }
     if (form.dataset.form === 'time') {
       const name = String(field.get('name') ?? '').trim();
       return act(async () => {
@@ -1106,6 +1168,31 @@ export function createServidor(map) {
       return act(() =>
         call(API.game, `/v1/avatars/${data.avatar.id}/work`, { method: 'POST', token: session.token, body: { shift: Number(b.dataset.h) } }),
       );
+    }
+    if (what === 'autoescola') {
+      return act(async () => {
+        const r = await call(API.game, `/v1/avatars/${data.avatar.id}/license`, {
+          method: 'POST',
+          token: session.token,
+          headers: { 'idempotency-key': crypto.randomUUID() },
+        });
+        message = `Autoescola: −${thaler(r.purchase.price)} THALER. Habilitado em ${left(r.avatar.license.ready_at)}.`;
+        messageOk = true;
+      });
+    }
+    if (what === 'ipva') {
+      return act(async () => {
+        const r = await call(API.game, `/v1/vehicles/${b.dataset.c}/ipva`, { method: 'POST', token: session.token });
+        message = `IPVA pago: ${r.vehicle.label} em dia até ${new Date(r.vehicle.ipva_paid_until).toLocaleDateString('pt-BR')}.`;
+        messageOk = true;
+      });
+    }
+    if (what === 'vender-carro') {
+      return act(async () => {
+        const r = await call(API.game, `/v1/vehicles/${b.dataset.c}/sell`, { method: 'POST', token: session.token });
+        message = `Carro vendido para a agência: +${thaler(r.sold.cents)} THALER.`;
+        messageOk = true;
+      });
     }
     if (what === 'time-entrar') {
       const teamId = b.dataset.t;

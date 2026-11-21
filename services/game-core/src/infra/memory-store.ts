@@ -16,6 +16,7 @@ import { type Shift, type ShiftPlanner, type ShiftStore, hoursSince, settle } fr
 import { clonePet } from '../domain/pet.js';
 import { cloneSchool } from '../domain/school.js';
 import { cloneLeisure } from '../domain/leisure.js';
+import { licenseFromJson, licenseToJson } from '../domain/vehicle.js';
 
 const cloneShift = (s: Shift): Shift => ({ ...s, snapshot: { ...s.snapshot }, result: s.result && { ...s.result } });
 
@@ -31,6 +32,7 @@ const clone = (a: Avatar): Avatar => ({
   pet: clonePet(a.pet),
   school: cloneSchool(a.school),
   leisure: cloneLeisure(a.leisure),
+  license: licenseFromJson(licenseToJson(a.license)),
 });
 
 /** Para testes e desenvolvimento. Uma thread só: cada operação é atômica. */

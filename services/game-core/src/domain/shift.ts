@@ -8,6 +8,7 @@ import { CONDITIONS, assertCanWorkHealthy, catchCondition, yieldFactor } from '.
 import { assertNotInHospital } from './hospital.js';
 import { happinessWithPet, petFactors } from './pet.js';
 import { assertNotInSchool } from './school.js';
+import { inDrivingSchool } from './vehicle.js';
 
 /**
  * Turno de trabalho (E1.4; doc 02 §3.2, doc 04 §4). O ganho segue a mesma
@@ -125,6 +126,7 @@ export function startShift(
   // Primeiro as regras do turno; depois o estado do avatar.
   assertNotInHospital(avatar, now);
   assertNotInSchool(avatar, now);
+  if (inDrivingSchool(avatar, now)) throw new AppError('in_driving_school', 'Na autoescola: 3 h sem trabalhar.', 409);
   assertCanWorkHealthy(avatar.conditions, now);
   const cost = ENERGY_COST[hours];
   const a = avatar.attributes;

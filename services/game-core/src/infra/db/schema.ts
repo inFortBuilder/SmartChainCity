@@ -56,6 +56,8 @@ export const avatar = game.table(
     school: jsonb('school'),
     /** Lazer (E3.3): última vez de cada atividade, {lastAt: {codigo: ISO}}. */
     leisure: jsonb('leisure'),
+    /** Habilitação (E3.5): {readyAt}, o fim da autoescola. */
+    license: jsonb('license'),
     createdAt: timestamptz('created_at').notNull(),
     updatedAt: timestamptz('updated_at').notNull(),
   },
@@ -269,5 +271,31 @@ export const championshipMember = game.table(
     index('championship_member_team_idx').on(t.teamId),
     index('championship_member_pending_idx').on(t.status, t.joinedAt),
     check('championship_member_status_check', sql`${t.status} in ('pending', 'paid')`),
+  ],
+);
+
+/**
+ * Veículos (E3.5): carro comprado ou alugado na agência do jogo. Só no jogo por enquanto (o VehicleNFT do
+ * doc 07 é opcional na fase 2).
+ */
+export const vehicle = game.table(
+  'vehicle',
+  {
+    id: uuid('id').primaryKey(),
+    accountId: uuid('account_id').notNull(),
+    model: text('model').notNull(),
+    kind: text('kind').notNull(),
+    paidCents: numeric('paid_cents', { precision: 38, scale: 0 }).notNull(),
+    boughtAt: timestamptz('bought_at').notNull(),
+    rentalUntil: timestamptz('rental_until'),
+    ipvaPaidUntil: timestamptz('ipva_paid_until'),
+    status: text('status').notNull(),
+    soldAt: timestamptz('sold_at'),
+  },
+  (t) => [
+    index('vehicle_account_idx').on(t.accountId, t.boughtAt),
+    index('vehicle_pending_idx').on(t.status, t.boughtAt),
+    check('vehicle_kind_check', sql`${t.kind} in ('owned', 'rental')`),
+    check('vehicle_status_check', sql`${t.status} in ('pending', 'active', 'sold')`),
   ],
 );

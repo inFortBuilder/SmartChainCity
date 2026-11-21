@@ -5,6 +5,7 @@ import { CONDITIONS, type Condition, activeConditions, drainDue, drainHealth } f
 import { type Pet, decayedPet } from './pet.js';
 import { type School, inSchool, schooled } from './school.js';
 import type { Leisure } from './leisure.js';
+import { type License, inDrivingSchool } from './vehicle.js';
 
 /**
  * Avatar e atributos (doc 02 §2.3, doc 06 §2). Atributos de 0 a 10, educação
@@ -66,6 +67,8 @@ export interface Avatar {
   school?: School | null;
   /** Lazer (E3.3): última vez de cada atividade; null sem histórico. */
   leisure?: Leisure | null;
+  /** Habilitação (E3.5): o fim da autoescola; null sem habilitação. */
+  license?: License | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -108,7 +111,8 @@ export function status(avatar: Avatar, now: Date = new Date()) {
   // De cama ou isolado (dor de barriga, gripe) também não trabalha nem sai para o lazer.
   const bedridden = activeConditions(avatar.conditions, now).some((c) => CONDITIONS[c.code].blocksWork);
   // Na escola trocando de profissão também não trabalha (E3.2).
-  const free = !inHospital(avatar, now) && !bedridden && !inSchool(avatar, now);
+  // Na autoescola (3 h parado, GDD) também.
+  const free = !inHospital(avatar, now) && !bedridden && !inSchool(avatar, now) && !inDrivingSchool(avatar, now);
   return {
     // GDD: 48 h sem comer não gera recompensa.
     earnsReward: a.food > 0,
@@ -142,6 +146,7 @@ export function newAvatar(
     pet: null,
     school: null,
     leisure: null,
+    license: null,
     createdAt: now,
     updatedAt: now,
   };

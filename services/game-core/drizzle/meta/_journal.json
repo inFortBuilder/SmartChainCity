@@ -99,6 +99,13 @@
       "when": 1795300276850,
       "tag": "0013_campeonato",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1795301517196,
+      "tag": "0014_veiculos",
+      "breakpoints": true
     }
   ]
 }
