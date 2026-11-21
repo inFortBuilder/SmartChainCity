@@ -1304,13 +1304,16 @@ export function createServidor(map) {
     }
     if (what && what.startsWith('fazenda-')) {
       const n = b.dataset.p;
+      // Lê os campos antes do act(): ele redesenha o painel e os selects voltam ao padrão.
+      const machine = panel.querySelector('[data-maquina]')?.value;
+      const crop = panel.querySelector(`[data-crop="${n}"]`)?.value;
       const req = {
         'fazenda-comprar': () => call(API.game, '/v1/farm', { method: 'POST', token: session.token }),
-        'fazenda-maquina': () => call(API.game, '/v1/farm/machines', { method: 'POST', token: session.token, body: { machine: panel.querySelector('[data-maquina]')?.value } }),
+        'fazenda-maquina': () => call(API.game, '/v1/farm/machines', { method: 'POST', token: session.token, body: { machine } }),
         'fazenda-arar': () =>
           call(API.game, `/v1/farm/plots/${n}/plow`, { method: 'POST', token: session.token, body: b.dataset.own ? { avatar_id: data.avatar.id } : {} }),
         'fazenda-plantar': () =>
-          call(API.game, `/v1/farm/plots/${n}/plant`, { method: 'POST', token: session.token, body: { crop: panel.querySelector(`[data-crop="${n}"]`)?.value } }),
+          call(API.game, `/v1/farm/plots/${n}/plant`, { method: 'POST', token: session.token, body: { crop } }),
         'fazenda-colher': () => call(API.game, `/v1/farm/plots/${n}/harvest`, { method: 'POST', token: session.token, body: { avatar_id: data.avatar.id } }),
         'fazenda-nivel': () => call(API.game, '/v1/farm/level', { method: 'POST', token: session.token }),
       }[what];
