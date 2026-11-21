@@ -10,6 +10,7 @@ import { PostgresAuctionStore } from './infra/db/postgres-auction-store.js';
 import { PostgresBuildingStore } from './infra/db/postgres-building-store.js';
 import { LedgerOutorgaPayments } from './infra/ledger-outorga-payments.js';
 import { LedgerAuctionPayments } from './infra/ledger-auction-payments.js';
+import { EconomyScityPrice } from './infra/economy-price.js';
 import { MemoryAuctionStore } from './infra/memory-auction-store.js';
 import { MemoryBuildingStore } from './infra/memory-building-store.js';
 import { settleStale } from './domain/purchase.js';
@@ -75,6 +76,10 @@ const builder = config.BUILDER_URL ? new HttpBuilderClient(config.BUILDER_URL) :
 const outorga =
   config.ECONOMY_URL && config.ECONOMY_TOKEN ? new LedgerOutorgaPayments(config.ECONOMY_URL, config.ECONOMY_TOKEN) : null;
 
+// Cotação do SCITY: do câmbio do economy, renovada a cada minuto; sem ele, o SCITY_USD fixo.
+const price = config.ECONOMY_URL ? new EconomyScityPrice(config.ECONOMY_URL, config.SCITY_USD) : null;
+if (price) await price.refresh();
+
 const app = await buildApp(
   config,
   store,
@@ -111,7 +116,10 @@ const app = await buildApp(
           }
         : null,
   },
+  price ? price.usd : undefined,
 );
+const priceTimer = price ? setInterval(() => void price.refresh(), 60_000) : null;
+priceTimer?.unref();
 const onchain = land ? `${land.contract} (chain ${land.chainId}, signer ${land.signer.address})` : 'desligada';
 app.log.info(
   `armazenamento: ${pool ? 'postgres' : 'memória'}; venda de lotes: ${payments ? config.ECONOMY_URL : 'desligada'}; posse on-chain: ${onchain}`,

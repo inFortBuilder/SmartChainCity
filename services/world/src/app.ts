@@ -79,6 +79,8 @@ export async function buildApp(
     /** BuildingNFT (E2.11): voucher para levar o prédio aprovado à blockchain. */
     onchain?: { wallets: WalletDirectory; signer: BuildingVoucherSigner; contract: string; chainId: number } | null;
   } | null = null,
+  /** Preço do SCITY em dólar agora: a cotação do economy (passo 11) ou o SCITY_USD fixo. */
+  scityUsd: () => number = () => config.SCITY_USD,
 ) {
   const app = Fastify({
     ...serverOptions({ service: 'world', nodeEnv: config.NODE_ENV, logLevel: config.LOG_LEVEL }),
@@ -124,7 +126,7 @@ export async function buildApp(
 
   const lotDto = (lot: Lot, me: string | null, open: boolean, zones: Awaited<ReturnType<typeof cityOr404>>['zones']) => {
     const zone = zones.find((z) => z.key === lot.zone)!;
-    const { priceUsd, priceWei } = priceOf(lot.areaM2, zone, config.SCITY_USD);
+    const { priceUsd, priceWei } = priceOf(lot.areaM2, zone, scityUsd());
     // Reserva vencida aparece como à venda; o dono não é exposto, só "seu".
     const status = lot.status === 'reserved' && (lot.reservedUntil?.getTime() ?? 0) <= now().getTime() ? 'vacant' : lot.status;
     return {
@@ -148,7 +150,7 @@ export async function buildApp(
     const c = await cityOr404(code);
     const districts = await store.districts(code);
     return {
-      city: { code: c.code, name: c.name, open_count: c.openCount, release_threshold: c.releaseThreshold, scity_usd: config.SCITY_USD },
+      city: { code: c.code, name: c.name, open_count: c.openCount, release_threshold: c.releaseThreshold, scity_usd: scityUsd() },
       districts: districts.map((d) => ({ order: d.order, open: d.order < c.openCount, lots: d.lots, for_sale: d.forSale, sold: d.sold })),
     };
   });
@@ -185,7 +187,7 @@ export async function buildApp(
     const me = await player(request);
     const { code, id } = lotParams.parse(request.params);
     if (!payments) throw new AppError('ledger_unavailable', 'A venda de lotes está desligada.', 503);
-    const purchase = await buyLot(store, payments, { city: code, lotId: id, accountId: me, scityUsd: config.SCITY_USD, requestId: request.id }, now);
+    const purchase = await buyLot(store, payments, { city: code, lotId: id, accountId: me, scityUsd: scityUsd(), requestId: request.id }, now);
     const c = await cityOr404(code);
     const lot = (await store.getLot(code, id))!;
     return reply.status(201).send({

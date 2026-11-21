@@ -10,7 +10,7 @@ Cidade, bairros e lotes: situação, dono, preço e a venda primária (doc 03 §
 | Regra | Como |
 |---|---|
 | Geometria e situação separadas | Os polígonos ficam nos arquivos estáticos por bairro, que o mapa já baixa ([city-chunks](../../tools/scc-builder/README.md#lotes-por-bairro)). O servidor guarda o que muda e decide a venda: zona, área, bairro, situação e dono |
-| Preço em dólar, pago em SCITY | Área × US$/m² da zona (residencial 0,78, uso misto 1,56, comercial 2,85), convertido pela cotação `SCITY_USD`. A cotação é fixa até o câmbio do economy (passo 11 da trilha) |
+| Preço em dólar, pago em SCITY | Área × US$/m² da zona (residencial 0,78, uso misto 1,56, comercial 2,85), convertido pela cotação do câmbio do economy (`GET /v1/economy/fx`, renovada a cada minuto). Sem o economy, vale a última cotação lida ou o `SCITY_USD` do `.env`. A reserva fixa o preço em SCITY |
 | Prefeitura | Lotes do Centro Administrativo (`civico.json`) não estão à venda |
 | Um bairro por jogador | Todos os lotes de um jogador ficam no mesmo bairro (doc 03 §5), até 30% da área do bairro (doc 13 §3) |
 | Liberação por bairro | Um bairro aberto no começo; o próximo abre quando os abertos passam de 70% vendidos (doc 03 §5) |
@@ -197,5 +197,4 @@ Esquema próprio `world`: `city` (zonas, bairros abertos, limiar), `lot` (situa�
 - Imóveis: troca de tipo (T1 → T2 → T3), seguro, aluguel e hotel, lote duplo (Residencial 2 e 3), regularização e água/energia; os outros tipos do doc 03 §6; o catálogo vindo do Strapi (hoje fica no código, igual ao seed); a renda conferir o dono on-chain do imóvel e do lote (doc 07 §2.2), que pede o feed do chain-indexer.
 - Prédios: o chain-indexer ler o `BuildingNFT`, unidades e venda (E3.11), taxa de alvará, prazo de obra proporcional à área, IPTU por unidade.
 - Impostos: o leilão tomar também o NFT do lote e do imóvel; IPTU por unidade dos prédios de construtores (doc 13).
-- Ler a cotação do dia do economy (`GET /v1/economy/fx`) no lugar do `SCITY_USD` fixo.
 - Mercado secundário entre jogadores, imóveis e utilidades.
