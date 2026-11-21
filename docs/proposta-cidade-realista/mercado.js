@@ -494,5 +494,9 @@ export function createMercado(map) {
     },
     listings: () => listings,
     auctions: () => auctions,
+    /** Os mesmos caminhos dos botões (testes e outras telas). */
+    bid: placeBid,
+    settle,
+    cancelAuction,
   };
 }

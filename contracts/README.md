@@ -36,9 +36,13 @@ O VRF usa uma interface mínima ([`src/vrf/VRFV2Plus.sol`](src/vrf/VRFV2Plus.sol
 | Comprar | `buy(listingId, maxPrice)`: o comprador aprova o SCITY antes. Saem a taxa do protocolo (`feeBps`, 2,5%, para a tesouraria; teto de 10%) e o royalty EIP-2981 de cada NFT que o declara, sobre a parte dele no preço. O resto vai para o vendedor, e todos os NFTs passam juntos. `maxPrice` protege contra troca de preço |
 | Recusa | Venda vencida, preço acima de `maxPrice`, compra da própria listagem e vendedor que já não tem algum dos NFTs (`ListingStale`: vendeu fora ou o leilão apreendeu, [ADR-0016](../docs/adr/0016-apreensao-nft-leilao.md)) |
 | Cancelar | O vendedor, ou o admin (moderação) |
-| Pausa | `PAUSER_ROLE` para listar e comprar |
+| Leiloar | `createAuction(items, startPrice, duration)`, de 1 h a 14 dias: os NFTs ficam guardados no contrato até o fim, e uma venda a preço fixo do mesmo NFT é cancelada. No jogo, a posse segue com o vendedor até o fim |
+| Lance | `bid(auctionId, amount)`: o SCITY fica guardado no contrato, e o lance anterior volta na hora. O mínimo é o preço inicial ou 5% acima do maior (`minimumBid`). Um lance nos últimos 10 minutos estica o fim para 10 minutos depois dele |
+| Encerrar | `settle(auctionId)`, chamado por qualquer um depois do fim. Com lance, separa taxa, royalties e vendedor, como na venda, e entrega os NFTs ao vencedor; sem lance, eles voltam ao vendedor. Se algum NFT saiu do contrato (apreensão do leilão por imposto), o lance volta e o resto volta ao vendedor |
+| Cancelar leilão | `cancelAuction`: o vendedor, enquanto não há lance; o admin, sempre (moderação), devolvendo o lance |
+| Pausa | `PAUSER_ROLE` para listar, comprar, leiloar, dar lance e encerrar |
 
-A regra de bairro fica só no jogo ([ADR-0014](../docs/adr/0014-decisoes-produto-mvp.md)). Sem proxy e sem leilão com prazo no MVP: os dois entram antes da mainnet, junto com a auditoria (E3.8). O `DeployLocal` cria o mercado por último, com taxa de 2,5% para o deployer e o lote, o imóvel e o avatar permitidos.
+A regra de bairro fica só no jogo ([ADR-0014](../docs/adr/0014-decisoes-produto-mvp.md)). Sem proxy no MVP: o UUPS atrás de timelock entra antes da mainnet, junto com a auditoria (E3.8). O `DeployLocal` cria o mercado por último, com taxa de 2,5% para o deployer e o lote, o imóvel e o avatar permitidos.
 
 ## Rodar
 
