@@ -16,6 +16,10 @@ import { MemoryBuildingStore } from './infra/memory-building-store.js';
 import { settleStale } from './domain/purchase.js';
 import { chargeTaxes } from './domain/taxes.js';
 import { tickAuctions } from './domain/auctions.js';
+import { syncChain } from './domain/chain-sync.js';
+import { GatewayWalletOwners, IndexerChainFeed } from './infra/chain-feed.js';
+import { PostgresChainSyncStore } from './infra/db/postgres-chain-sync-store.js';
+import { MemoryChainSyncStore } from './infra/memory-chain-sync-store.js';
 import { PostgresPropertyStore } from './infra/db/postgres-property-store.js';
 import { PostgresWorldStore } from './infra/db/postgres-store.js';
 import { PostgresTaxStore } from './infra/db/postgres-tax-store.js';
@@ -189,7 +193,37 @@ const auctionTimer = setInterval(async () => {
 }, config.AUCTION_EVERY_SECONDS * 1000);
 auctionTimer.unref();
 
+// Job chain.sync: lote e imóvel vendidos na blockchain mudam de dono no jogo (doc 07 §2.1 e §2.2).
+const chainSync =
+  config.CHAIN_INDEXER_URL && config.CHAIN_INDEXER_TOKEN && config.GATEWAY_URL && config.GATEWAY_TOKEN
+    ? {
+        feed: new IndexerChainFeed(config.CHAIN_INDEXER_URL, config.CHAIN_INDEXER_TOKEN),
+        owners: new GatewayWalletOwners(config.GATEWAY_URL, config.GATEWAY_TOKEN),
+        store: pool ? new PostgresChainSyncStore(pool) : new MemoryChainSyncStore(),
+        lots: store,
+        properties: propertyStore,
+        cityOf: (id: number) => Object.entries(config.LAND_CITY_IDS).find(([, n]) => n === id)?.[0],
+      }
+    : null;
+let syncing = false;
+const syncTimer = chainSync
+  ? setInterval(async () => {
+      if (syncing) return;
+      syncing = true;
+      try {
+        const r = await syncChain(chainSync);
+        if (r.applied || r.pending) app.log.info(`chain.sync: ${r.applied} passagem(ns) de dono, ${r.pending} esperando a carteira ser ligada`);
+      } catch (error) {
+        app.log.error(error);
+      } finally {
+        syncing = false;
+      }
+    }, config.CHAIN_SYNC_SECONDS * 1000)
+  : null;
+syncTimer?.unref();
+
 const shutdown = async () => {
+  if (syncTimer) clearInterval(syncTimer);
   clearInterval(auctionTimer);
   clearInterval(timer);
   clearInterval(taxTimer);

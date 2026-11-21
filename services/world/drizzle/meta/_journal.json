@@ -57,6 +57,13 @@
       "when": 1795217763449,
       "tag": "0007_leilao",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1795231018895,
+      "tag": "0008_posse_onchain",
+      "breakpoints": true
     }
   ]
 }

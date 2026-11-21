@@ -246,3 +246,21 @@ export const building = world.table(
     check('building_status_check', sql`${t.status} in ('pending_payment', 'pending_review', 'approved', 'rejected')`),
   ],
 );
+
+/** Posse on-chain → jogo (job chain.sync): até onde o feed do chain-indexer já foi lido. */
+export const chainCursor = world.table('chain_cursor', {
+  name: text('name').primaryKey(),
+  after: integer('after').notNull(),
+});
+
+/** Transferência on-chain para uma carteira sem conta: aplicada quando a carteira for ligada. */
+export const chainTransferPending = world.table(
+  'chain_transfer_pending',
+  {
+    eventId: integer('event_id').primaryKey(),
+    kind: text('kind').notNull(),
+    tokenId: text('token_id').notNull(),
+    toAddress: text('to_address').notNull(),
+  },
+  (t) => [index('chain_transfer_pending_token_idx').on(t.kind, t.tokenId), check('chain_transfer_pending_kind_check', sql`${t.kind} in ('lot', 'property')`)],
+);
