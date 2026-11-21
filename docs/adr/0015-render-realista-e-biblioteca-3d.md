@@ -58,5 +58,5 @@ Problemas para o nosso caso:
 - **Avatar:** humanoide glTF ou VRM, com o esqueleto padrão e as animações de andar, sentar e trabalhar compartilhadas, na mesma escala do kit (1,7 a 1,8 m).
 - **Contrato de encomenda:** cessão total dos direitos patrimoniais, permissão de venda, de NFT e de modificação, e garantia de que a peça não usa material de terceiros.
 - **Moderação do alvará:** o SCC Builder procura nomes de bibliotecas comerciais conhecidas (por exemplo `archmodels`, `Archexterior`) e o construtor declara a origem dos modelos ao enviar.
-- **Próximo passo:** um spike de 1 sprint com 1 escritório interior do SCC Kit, com luz assada, colisão e o avatar entrando. Meta: 60 FPS no notebook de referência e 30 FPS no celular.
+- **Spike do escritório (2026-11-21):** feito ([resultado](../desenvolvimento/spike-escritorio-adr0015.md)). Interior com luz assada, AO e o avatar entrando pela porta em menos de 4 ms por quadro numa GTX 1660, com cerca de 30 mil triângulos. O lightmap passa a vir do Blender junto com o interior, em vez de ser assado no navegador. Falta medir no notebook de referência e no celular (meta de 60 e 30 FPS).
 - **Pendente:** o parecer jurídico (E0.8) confirma a leitura das licenças antes de qualquer compra.
