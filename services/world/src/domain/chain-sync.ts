@@ -1,5 +1,6 @@
 import type { WorldStore } from './lots.js';
 import type { PropertyStore } from './properties.js';
+import type { SeizureStore } from './seizures.js';
 
 /**
  * Posse on-chain → jogo (doc 07 §2.1 e §2.2). O `LandNFT` e o `PropertyNFT`
@@ -67,10 +68,21 @@ interface Deps {
   properties: PropertyStore;
   /** Código da cidade no world para o id numérico do contrato (inverso de LAND_CITY_IDS). */
   cityOf: (cityNftId: number) => string | undefined;
+  /** Apreensões do leilão (ADR-0016): enquanto aberta, o token só muda de dono no jogo pela apreensão. */
+  seizures?: SeizureStore | null;
+  now?: () => Date;
 }
 
 /** Passa o token ao dono da carteira. true se terminou (aplicado ou nada a fazer); false se a carteira não tem conta. */
 async function apply(deps: Deps, t: PendingTransfer): Promise<boolean> {
+  // Leilão com apreensão aberta: o jogo já deu o token ao vencedor. Chegou a ele, a apreensão fecha;
+  // qualquer outra transferência (o dono antigo vendendo) não muda o dono no jogo.
+  const seized = await deps.seizures?.openFor(t.kind, t.tokenId);
+  if (seized) {
+    const to = await deps.owners.ownerOf(t.to);
+    if (to === seized.toAccountId) await deps.seizures!.close(seized.id, 'done', deps.now?.() ?? new Date());
+    return true;
+  }
   const accountId = await deps.owners.ownerOf(t.to);
   if (!accountId) return false;
   const tokenId = BigInt(t.tokenId);

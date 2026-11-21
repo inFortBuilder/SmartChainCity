@@ -218,4 +218,89 @@ contract LandNFTTest is Test {
         land.setTreasury(buyer);
         assertEq(land.treasury(), buyer);
     }
+
+    // ---------------------------------------------------------------- apreensão (ADR-0016)
+
+    function seizure(uint256 tokenId, address to, uint256 nonce)
+        internal
+        view
+        returns (LandNFT.Seizure memory)
+    {
+        // forge-lint: disable-next-line(environment-read-across-mutation)
+        return LandNFT.Seizure({tokenId: tokenId, to: to, nonce: nonce, deadline: block.timestamp + 600});
+    }
+
+    function signSeizure(LandNFT.Seizure memory s, uint256 key) internal view returns (bytes memory) {
+        (uint8 v, bytes32 r, bytes32 ss) = vm.sign(key, land.seizureDigest(s));
+        return abi.encodePacked(r, ss, v);
+    }
+
+    function boughtLot(uint32 lot, uint256 nonce) internal returns (uint256 id) {
+        LandNFT.LotQuote memory q = quote(lot, address(scity), 0, nonce);
+        bytes memory sig = sign(q, signerKey);
+        vm.prank(buyer);
+        id = land.buyPrimary(q, sig);
+    }
+
+    /// O lote vendido de novo na blockchain ainda vai para o vencedor do leilão, sem aprovação do dono.
+    function test_seizeMovesLotFromWhoeverHoldsIt() public {
+        uint256 id = boughtLot(60, 20);
+        address holder = makeAddr("comprou-depois");
+        vm.prank(buyer);
+        land.transferFrom(buyer, holder, id);
+        address winner = makeAddr("vencedor");
+        LandNFT.Seizure memory s = seizure(id, winner, 1);
+        bytes memory sig = signSeizure(s, signerKey);
+        vm.expectEmit(true, true, true, true);
+        emit LandNFT.Seized(id, holder, winner, 1);
+        // Qualquer um envia (aqui, um terceiro); o lote só vai para o vencedor.
+        vm.prank(makeAddr("relayer"));
+        land.seize(s, sig);
+        assertEq(land.ownerOf(id), winner);
+        assertTrue(land.seizureUsed(1));
+    }
+
+    function test_seizeRejectsReuseExpiryForgeryAndMissingToken() public {
+        uint256 id = boughtLot(61, 21);
+        address winner = makeAddr("vencedor");
+        LandNFT.Seizure memory s = seizure(id, winner, 2);
+        bytes memory sig = signSeizure(s, signerKey);
+        land.seize(s, sig);
+        vm.expectRevert(LandNFT.SeizureAlreadyUsed.selector);
+        land.seize(s, sig);
+
+        LandNFT.Seizure memory late = seizure(id, buyer, 3);
+        bytes memory lateSig = signSeizure(late, signerKey);
+        vm.warp(late.deadline + 1);
+        vm.expectRevert(LandNFT.SeizureExpired.selector);
+        land.seize(late, lateSig);
+
+        // Assinatura de quem não é SIGNER, e voucher adulterado (outro destino).
+        LandNFT.Seizure memory forged = seizure(id, buyer, 4);
+        (address stranger, uint256 strangerKey) = makeAddrAndKey("estranho");
+        bytes memory strangerSig = signSeizure(forged, strangerKey);
+        vm.expectRevert(abi.encodeWithSelector(LandNFT.InvalidSigner.selector, stranger));
+        land.seize(forged, strangerSig);
+        bytes memory good = signSeizure(forged, signerKey);
+        forged.to = makeAddr("outro-destino");
+        vm.expectRevert();
+        land.seize(forged, good);
+
+        // Lote que nunca foi para a blockchain: não há o que apreender.
+        LandNFT.Seizure memory none = seizure(land.lotId(PITTSBURG, 999), winner, 5);
+        bytes memory noneSig = signSeizure(none, signerKey);
+        vm.expectRevert();
+        land.seize(none, noneSig);
+        assertFalse(land.seizureUsed(5));
+    }
+
+    function test_seizeBlockedWhenPaused() public {
+        uint256 id = boughtLot(62, 22);
+        LandNFT.Seizure memory s = seizure(id, makeAddr("vencedor"), 6);
+        bytes memory sig = signSeizure(s, signerKey);
+        vm.prank(admin);
+        land.pause();
+        vm.expectRevert(Pausable.EnforcedPause.selector);
+        land.seize(s, sig);
+    }
 }

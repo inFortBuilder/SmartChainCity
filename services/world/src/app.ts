@@ -38,6 +38,7 @@ import {
   reviewBuilding,
   submitBuilding,
 } from './domain/buildings.js';
+import { type ChainTokens, type SeizureKind, type SeizureSigner, type SeizureStore, issueSeizureVoucher, seizureDto } from './domain/seizures.js';
 import { type TaxPayments, type TaxStore, assertNotInDefault, payMyTaxes, totalOf } from './domain/taxes.js';
 import { type Auction, type AuctionStore, minBid, placeBid } from './domain/auctions.js';
 import { rentsHere } from './domain/chain-sync.js';
@@ -82,6 +83,14 @@ export async function buildApp(
   } | null = null,
   /** Preço do SCITY em dólar agora: a cotação do economy (passo 11) ou o SCITY_USD fixo. */
   scityUsd: () => number = () => config.SCITY_USD,
+  /** Apreensão do NFT no leilão (ADR-0016). */
+  seizures: {
+    store: SeizureStore;
+    wallets: WalletDirectory | null;
+    signers: Partial<Record<SeizureKind, SeizureSigner>>;
+    chain?: ChainTokens | null;
+    chainId: number;
+  } | null = null,
 ) {
   const app = Fastify({
     ...serverOptions({ service: 'world', nodeEnv: config.NODE_ENV, logLevel: config.LOG_LEVEL }),
@@ -594,6 +603,35 @@ export async function buildApp(
     const body = z.object({ approve: z.boolean(), note: z.string().max(500).optional() }).parse(request.body);
     const b = await reviewBuilding(buildingsOn().store, id, body.approve, body.note ?? null, now());
     return { building: buildingDto(b) };
+  });
+
+  // ---------------------------------------------------------------- apreensão (ADR-0016)
+
+  const seizuresOn = () => {
+    if (!seizures) throw new AppError('seizures_disabled', 'A apreensão do leilão não está configurada.', 503);
+    return seizures;
+  };
+
+  app.get('/v1/world/me/seizures', async (request) => {
+    const me = await player(request);
+    return { seizures: (await seizuresOn().store.openOf(me)).map(seizureDto) };
+  });
+
+  // Voucher para o vencedor do leilão trazer o token: LandNFT.seize ou PropertyNFT.seize.
+  app.post('/v1/world/seizures/:id/voucher', async (request) => {
+    const me = await player(request);
+    const { id } = z.object({ id: z.uuid() }).parse(request.params);
+    const { wallet } = z.object({ wallet: z.string() }).parse(request.body);
+    const s = seizuresOn();
+    if (!s.wallets) throw new AppError('onchain_disabled', 'A posse on-chain não está configurada.', 503);
+    const r = await issueSeizureVoucher({ store: s.store, wallets: s.wallets, signers: s.signers, chain: s.chain }, { seizureId: id, accountId: me, wallet, requestId: request.id }, now());
+    return {
+      contract: r.contract,
+      chain_id: s.chainId,
+      seizure: seizureDto(r.seizure),
+      voucher: { tokenId: r.voucher.tokenId.toString(), to: r.voucher.to, nonce: r.voucher.nonce.toString(), deadline: r.voucher.deadline.toString() },
+      signature: r.signature,
+    };
   });
 
   return app;

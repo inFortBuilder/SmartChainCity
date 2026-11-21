@@ -264,3 +264,30 @@ export const chainTransferPending = world.table(
   },
   (t) => [index('chain_transfer_pending_token_idx').on(t.kind, t.tokenId), check('chain_transfer_pending_kind_check', sql`${t.kind} in ('lot', 'property')`)],
 );
+
+/**
+ * Apreensão do NFT no leilão por imposto (ADR-0016): o vencedor pede o voucher
+ * e o contrato leva o token até ele. Uma aberta por token.
+ */
+export const seizure = world.table(
+  'seizure',
+  {
+    id: uuid('id').primaryKey(),
+    kind: text('kind').notNull(),
+    tokenId: text('token_id').notNull(),
+    city: text('city').notNull(),
+    lotId: integer('lot_id').notNull(),
+    propertyId: uuid('property_id'),
+    toAccountId: uuid('to_account_id').notNull(),
+    nonce: numeric('nonce', { precision: 78, scale: 0 }).notNull(),
+    status: text('status').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+    closedAt: timestamp('closed_at', { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex('seizure_open_token_idx').on(t.kind, t.tokenId).where(sql`status = 'open'`),
+    index('seizure_account_idx').on(t.toAccountId, t.status),
+    check('seizure_kind_check', sql`${t.kind} in ('lot', 'property')`),
+    check('seizure_status_check', sql`${t.status} in ('open', 'done', 'cancelled')`),
+  ],
+);

@@ -243,4 +243,56 @@ contract PropertyNFTTest is Test {
         vm.prank(admin);
         property.setBaseURI("ipfs://p/");
     }
+
+    // ---------------------------------------------------------------- apreensão (ADR-0016)
+
+    /// O imóvel vai junto com o lote no leilão: as duas apreensões, e o vínculo lote → imóvel continua.
+    function test_seizeMovesPropertyWithTheLot() public {
+        PropertyNFT.PropertyVoucher memory v = voucher(ID, lot42);
+        bytes memory sig = sign(v, signerKey);
+        vm.prank(owner);
+        property.mint(v, sig);
+
+        address winner = makeAddr("vencedor");
+        // forge-lint: disable-next-line(environment-read-across-mutation)
+        uint256 deadline = block.timestamp + 600;
+        LandNFT.Seizure memory ls =
+            LandNFT.Seizure({tokenId: lot42, to: winner, nonce: 1, deadline: deadline});
+        (uint8 a, bytes32 b, bytes32 c) = vm.sign(signerKey, land.seizureDigest(ls));
+        land.seize(ls, abi.encodePacked(b, c, a));
+        PropertyNFT.Seizure memory ps =
+            PropertyNFT.Seizure({tokenId: ID, to: winner, nonce: 1, deadline: deadline});
+        (uint8 pv, bytes32 r, bytes32 s) = vm.sign(signerKey, property.seizureDigest(ps));
+        vm.expectEmit(true, true, true, true);
+        emit PropertyNFT.Seized(ID, owner, winner, 1);
+        vm.prank(winner);
+        property.seize(ps, abi.encodePacked(r, s, pv));
+
+        assertEq(land.ownerOf(lot42), winner);
+        assertEq(property.ownerOf(ID), winner);
+        assertEq(property.propertyOfLot(lot42), ID);
+        // O nível sobe pelo novo dono, como antes.
+        (PropertyNFT.LevelVoucher memory lv, bytes memory lsig) = levelVoucher(2);
+        vm.prank(winner);
+        property.upgrade(lv, lsig);
+        assertEq(property.propertyOf(ID).level, 2);
+    }
+
+    function test_seizeRejectsReuseAndWrongSigner() public {
+        PropertyNFT.PropertyVoucher memory v = voucher(ID, lot42);
+        bytes memory sig = sign(v, signerKey);
+        vm.prank(owner);
+        property.mint(v, sig);
+        // forge-lint: disable-next-line(environment-read-across-mutation)
+        PropertyNFT.Seizure memory ps =
+            PropertyNFT.Seizure({tokenId: ID, to: other, nonce: 7, deadline: block.timestamp + 600});
+        (, uint256 strangerKey) = makeAddrAndKey("estranho");
+        (uint8 xv, bytes32 xr, bytes32 xs) = vm.sign(strangerKey, property.seizureDigest(ps));
+        vm.expectRevert();
+        property.seize(ps, abi.encodePacked(xr, xs, xv));
+        (uint8 pv, bytes32 r, bytes32 s) = vm.sign(signerKey, property.seizureDigest(ps));
+        property.seize(ps, abi.encodePacked(r, s, pv));
+        vm.expectRevert(PropertyNFT.SeizureAlreadyUsed.selector);
+        property.seize(ps, abi.encodePacked(r, s, pv));
+    }
 }

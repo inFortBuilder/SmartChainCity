@@ -30,6 +30,17 @@ contract PropertyNFT is ERC721, EIP712, AccessControl, Pausable, ReentrancyGuard
     bytes32 public constant LEVEL_TYPEHASH =
         keccak256("LevelVoucher(uint256 tokenId,uint16 level,uint256 deadline)");
 
+    /// @notice Apreensão do leilão por imposto (ADR-0016).
+    bytes32 public constant SEIZURE_TYPEHASH =
+        keccak256("Seizure(uint256 tokenId,address to,uint256 nonce,uint256 deadline)");
+
+    struct Seizure {
+        uint256 tokenId;
+        address to;
+        uint256 nonce;
+        uint256 deadline;
+    }
+
     struct PropertyVoucher {
         uint256 tokenId;
         address owner;
@@ -58,11 +69,14 @@ contract PropertyNFT is ERC721, EIP712, AccessControl, Pausable, ReentrancyGuard
     mapping(uint256 tokenId => Property) private properties;
     /// @notice Imóvel de cada lote (0 se não houver).
     mapping(uint256 lotId => uint256 tokenId) public propertyOfLot;
+    /// @notice Nonces de apreensão já usados (ADR-0016).
+    mapping(uint256 nonce => bool) public seizureUsed;
 
     event PropertyMinted(
         uint256 indexed tokenId, uint256 indexed lotId, address indexed owner, bytes32 typeCode, uint16 level
     );
     event PropertyUpgraded(uint256 indexed tokenId, uint16 level);
+    event Seized(uint256 indexed tokenId, address indexed from, address indexed to, uint256 nonce);
     event BaseURIChanged(string baseURI);
 
     error VoucherExpired();
@@ -74,6 +88,8 @@ contract PropertyNFT is ERC721, EIP712, AccessControl, Pausable, ReentrancyGuard
     error NotPropertyOwner();
     error LevelNotHigher(uint16 current);
     error ZeroAddress();
+    error SeizureExpired();
+    error SeizureAlreadyUsed();
 
     constructor(address admin, IERC721 land_, string memory baseURI_)
         ERC721("Smart Chain City Property", "SCCPROP")
@@ -134,6 +150,29 @@ contract PropertyNFT is ERC721, EIP712, AccessControl, Pausable, ReentrancyGuard
         // A "chamada externa" do lint é o ecrecover (precompile, só leitura).
         // forge-lint: disable-next-line(reentrancy-events)
         emit PropertyUpgraded(v.tokenId, v.level);
+    }
+
+    /// @notice Hash EIP-712 da apreensão que o world assina (leilão por imposto, ADR-0016).
+    function seizureDigest(Seizure calldata s) public view returns (bytes32) {
+        return _hashTypedDataV4(keccak256(abi.encode(SEIZURE_TYPEHASH, s.tokenId, s.to, s.nonce, s.deadline)));
+    }
+
+    /// @notice Leilão por imposto atrasado (doc 03 §4, ADR-0016): passa o token de quem o tiver para o
+    /// vencedor do leilão do world, sem a aprovação do dono. Só com apreensão assinada pelo SIGNER, de nonce
+    /// único e com prazo. Qualquer um pode enviar (o vencedor paga o gás), mas o token só vai para `s.to`.
+    function seize(Seizure calldata s, bytes calldata signature) external nonReentrant whenNotPaused {
+        if (s.to == address(0)) revert ZeroAddress();
+        // forge-lint: disable-next-line(block-timestamp)
+        if (block.timestamp > s.deadline) revert SeizureExpired();
+        if (seizureUsed[s.nonce]) revert SeizureAlreadyUsed();
+        _checkSigner(seizureDigest(s), signature);
+        seizureUsed[s.nonce] = true;
+        address from = _requireOwned(s.tokenId);
+        // auth = 0: transferência sem aprovação do dono, que é justamente o que a apreensão faz.
+        _update(s.to, s.tokenId, address(0));
+        // A "chamada externa" do lint é o ecrecover (precompile, só leitura).
+        // forge-lint: disable-next-line(reentrancy-events)
+        emit Seized(s.tokenId, from, s.to, s.nonce);
     }
 
     function propertyOf(uint256 tokenId) external view returns (Property memory) {
