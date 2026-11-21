@@ -68,6 +68,10 @@ const schema = z.object({
   BUILDING_NFT_ADDRESS: optional(z.string().regex(/^0x[0-9a-fA-F]{40}$/, 'BUILDING_NFT_ADDRESS precisa ser um endereço')),
   /** PropertyNFT: com ele (e o resto da posse on-chain acima), o world emite o voucher do imóvel pronto. */
   PROPERTY_NFT_ADDRESS: optional(z.string().regex(/^0x[0-9a-fA-F]{40}$/, 'PROPERTY_NFT_ADDRESS precisa ser um endereço')),
+  /** Posse on-chain → jogo (job chain.sync): o feed do chain-indexer. Precisa também de GATEWAY_URL e GATEWAY_TOKEN. */
+  CHAIN_INDEXER_URL: optional(z.url()),
+  CHAIN_INDEXER_TOKEN: optional(z.string().min(32, 'CHAIN_INDEXER_TOKEN precisa de pelo menos 32 caracteres')),
+  CHAIN_SYNC_SECONDS: z.coerce.number().int().positive().default(30),
   /** Validade da cotação assinada. */
   QUOTE_TTL_SECONDS: z.coerce.number().int().positive().default(600),
 });

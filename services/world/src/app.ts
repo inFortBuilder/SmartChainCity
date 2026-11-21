@@ -40,6 +40,7 @@ import {
 } from './domain/buildings.js';
 import { type TaxPayments, type TaxStore, assertNotInDefault, payMyTaxes, totalOf } from './domain/taxes.js';
 import { type Auction, type AuctionStore, minBid, placeBid } from './domain/auctions.js';
+import { rentsHere } from './domain/chain-sync.js';
 
 const WEI = 10n ** 18n;
 /** wei → texto em SCITY com até 6 casas, para a tela. */
@@ -319,6 +320,11 @@ export async function buildApp(
     const { id } = z.object({ id: z.uuid() }).parse(request.params);
     const { store: propStore, payments: propPayments } = propertiesOn();
     if (!propPayments) throw new AppError('ledger_unavailable', 'A coleta está desligada.', 503);
+    // Doc 07 §2.2: o imóvel só rende se o dono dele também for o dono do lote (o lote pode ter sido vendido na blockchain).
+    const target = await propStore.getProperty(id);
+    if (target && target.ownerAccountId === me && !rentsHere((await store.getLot(target.city, target.lotId))?.ownerAccountId, me)) {
+      throw new AppError('lot_not_owned', 'O lote deste imóvel é de outra pessoa: o imóvel só rende para quem também é dono do lote.', 409);
+    }
     const { claim, property } = await claimIncome(propStore, propPayments, { propertyId: id, accountId: me, requestId: request.id }, now);
     return { claim: { id: claim.id, amount_cents: claim.amountCents, status: claim.status }, property: propertyDto(property) };
   });

@@ -46,6 +46,21 @@ Em produção a chave fica num KMS, e o world não sobe com `LAND_SIGNER_KEY`.
 
 Ainda não: o world não lê a blockchain. Quando o lote for transferido on-chain, quem atualiza o dono no jogo é o chain-indexer (passo 13 da trilha).
 
+### Venda na blockchain muda o dono no jogo
+
+O `LandNFT` e o `PropertyNFT` circulam livres (ADR-0014). O job `chain.sync` (`CHAIN_SYNC_SECONDS`, 30 s) lê o feed de eventos confirmados do chain-indexer e, a cada `Transfer` entre duas carteiras:
+
+| Caso | O que acontece |
+|---|---|
+| Carteira com conta (gateway) | O lote ou o imóvel passa para essa conta. Os impostos seguintes vão para ela |
+| Carteira sem conta | A transferência fica pendente, e o jogo mantém o dono antigo até a carteira ser ligada |
+| O mesmo token vendido de novo | Vale a última transferência; as pendentes dele saem |
+| Mint (de `0x0`) | Nada: é o jogo levando para a carteira o que já era do jogador |
+
+**Renda:** o imóvel só rende para quem também é dono do lote (doc 07 §2.2). Se o lote foi vendido e o imóvel não, a coleta responde `409 lot_not_owned`.
+
+Ligue com `CHAIN_INDEXER_URL`, `CHAIN_INDEXER_TOKEN` (o `INTERNAL_TOKEN` do indexer), `GATEWAY_URL` e `GATEWAY_TOKEN`. Testado no anvil em 2026-11-21: o lote vendido de uma carteira para outra passou para a conta do comprador.
+
 ## Imóveis (E2.5)
 
 O dono do lote constrói, espera a obra e coleta a renda (doc 03 §6.3). O dinheiro é THALER em centavos, no ledger do economy:
@@ -185,16 +200,15 @@ TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc_test pnpm --filter
 | POST | `/v1/world/buildings/:id/onchain-voucher` | dono (Bearer) | Voucher EIP-712 do `BuildingNFT` para o prédio aprovado (corpo: `{wallet}`) |
 | GET | `/healthz` | — | `{status: "ok"}` |
 
-Erros com código estável: `lot_not_for_sale`, `lot_reserved`, `district_closed`, `other_district`, `area_cap`, `insufficient_scity`, `reservation_lost`, `ledger_unavailable`, `not_found`, `not_lot_owner`, `wallet_not_linked`, `unknown_property_type`, `zone_not_allowed`, `lot_has_property`, `insufficient_thaler`, `property_not_ready`, `nothing_to_claim`, `claim_in_progress`, `nothing_to_repair`, `max_level`, `work_in_progress`, `nothing_to_upgrade`, `tax_default`, `taxes_disabled`, `auctions_disabled`, `own_auction`, `auction_closed`, `bid_too_low`, `other_district`, `area_cap`, `building_invalid`, `lot_has_building`, `lot_without_polygon`, `building_not_in_review`, `builder_unavailable`, `model_not_found`, `building_not_approved`, `model_hash_missing`, `pool_empty`, `properties_disabled`, `city_not_onchain`, `onchain_disabled`, `gateway_unavailable`, `missing_credentials`, `invalid_token`, `token_expired`.
+Erros com código estável: `lot_not_for_sale`, `lot_reserved`, `district_closed`, `other_district`, `area_cap`, `insufficient_scity`, `reservation_lost`, `ledger_unavailable`, `not_found`, `not_lot_owner`, `wallet_not_linked`, `unknown_property_type`, `zone_not_allowed`, `lot_has_property`, `insufficient_thaler`, `property_not_ready`, `nothing_to_claim`, `claim_in_progress`, `nothing_to_repair`, `max_level`, `work_in_progress`, `lot_not_owned`, `nothing_to_upgrade`, `tax_default`, `taxes_disabled`, `auctions_disabled`, `own_auction`, `auction_closed`, `bid_too_low`, `other_district`, `area_cap`, `building_invalid`, `lot_has_building`, `lot_without_polygon`, `building_not_in_review`, `builder_unavailable`, `model_not_found`, `building_not_approved`, `model_hash_missing`, `pool_empty`, `properties_disabled`, `city_not_onchain`, `onchain_disabled`, `gateway_unavailable`, `missing_credentials`, `invalid_token`, `token_expired`.
 
 ## Banco
 
-Esquema próprio `world`: `city` (zonas, bairros abertos, limiar), `lot` (situação, dono, reserva) e `purchase` (cada compra, com o preço em wei e a situação), `property` (imóvel, obra, desgaste e última coleta; um por lote) e `property_claim` (cada coleta e se já foi paga) `property_work` (reparos e upgrades; uma pendente por imóvel), `tax_bill` (uma conta por lote, tipo e período), `auction` e `auction_bid` (leilão do lote inadimplente; um ativo por lote) e `building` (prédio validado, outorga, alvará; um vigente por lote). O `lot` ganhou `polygon`. Migrações em `drizzle/`, controladas em `drizzle.__world_migrations`.
+Esquema próprio `world`: `city` (zonas, bairros abertos, limiar), `lot` (situação, dono, reserva) e `purchase` (cada compra, com o preço em wei e a situação), `property` (imóvel, obra, desgaste e última coleta; um por lote) e `property_claim` (cada coleta e se já foi paga) `property_work` (reparos e upgrades; uma pendente por imóvel), `tax_bill` (uma conta por lote, tipo e período), `auction` e `auction_bid` (leilão do lote inadimplente; um ativo por lote) e `building` (prédio validado, outorga, alvará; um vigente por lote), `chain_cursor` e `chain_transfer_pending` (posse on-chain → jogo). O `lot` ganhou `polygon`. Migrações em `drizzle/`, controladas em `drizzle.__world_migrations`.
 
 ## Ainda não
 
-- Ler a blockchain: transferências do `LandNFT` atualizarem o dono no jogo (chain-indexer).
-- Imóveis: troca de tipo (T1 → T2 → T3), seguro, aluguel e hotel, lote duplo (Residencial 2 e 3), regularização e água/energia; os outros tipos do doc 03 §6; o catálogo vindo do Strapi (hoje fica no código, igual ao seed); a renda conferir o dono on-chain do imóvel e do lote (doc 07 §2.2), que pede o feed do chain-indexer.
+- Imóveis: troca de tipo (T1 → T2 → T3), seguro, aluguel e hotel, lote duplo (Residencial 2 e 3), regularização e água/energia; os outros tipos do doc 03 §6; o catálogo vindo do Strapi (hoje fica no código, igual ao seed); renda proporcional ao tempo em que os donos do lote e do imóvel coincidiram (hoje a regra vale na hora da coleta).
 - Prédios: o chain-indexer ler o `BuildingNFT`, unidades e venda (E3.11), taxa de alvará, prazo de obra proporcional à área, IPTU por unidade.
 - Impostos: o leilão tomar também o NFT do lote e do imóvel; IPTU por unidade dos prédios de construtores (doc 13).
 - Mercado secundário entre jogadores, imóveis e utilidades.

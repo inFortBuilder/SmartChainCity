@@ -91,5 +91,5 @@ As migrações ficam em `drizzle/`, controladas em `drizzle.__indexer_migrations
 
 ## Ainda não
 
-- **Usar o feed no world:** atualizar o dono do lote no jogo quando ele é transferido on-chain, o que pede a ligação carteira → conta do gateway. No game-core, o mesmo para os avatares.
+- **Usar o feed no game-core:** o world já segue as transferências do `LandNFT` e do `PropertyNFT` ([world](../world/README.md#venda-na-blockchain-muda-o-dono-no-jogo)); falta o mesmo para os avatares.
 - **Teste na BSC Testnet:** precisa do VRF da Chainlink e de BNB de teste.
