@@ -149,6 +149,20 @@ Atividades de lazer ([leisure.ts](src/domain/leisure.ts), GDD §2.3 e §6). Prec
 
 Depois de atualizar o código, rode `pnpm db:migrate`: a migração `0012_lazer` cria a coluna `leisure`.
 
+## Veículos (E3.5)
+
+Autoescola, agência e IPVA ([vehicle.ts](src/domain/vehicle.ts), GDD §6 "Carros" e "Agência de carros e barcos"). O carro existe só no jogo (tabela `vehicle`), porque o `VehicleNFT` do doc 07 é opcional na fase 2. As corridas e a oficina vêm no próximo passo.
+
+| Regra | Como |
+|---|---|
+| Autoescola | `POST /v1/avatars/:id/license`: 3 h sem trabalhar nem lazer (GDD), depois habilitado. Paga pelo caminho das refeições (`license_buy`, `burn/license`). O avatar traz `license` |
+| Agência | `POST /v1/vehicles` com `{model}` compra e `{model, rent: true}` aluga por 3 dias a 5% do valor (GDD). O carro nasce `pending` e vira `active` com a cobrança (`vehicle_buy`/`vehicle_rent`, `burn/vehicles`); sem THALER, some. Pendente com o ledger fora: o job cobra de novo com a mesma chave |
+| Vida útil | Atributos (velocidade e força) no máximo até 90 dias e caindo em linha reta até 50% aos 180 (GDD: vida média de 6 meses). Depois disso o carro está gasto e só vende |
+| IPVA | 2% do preço a cada 182 dias; o primeiro vence 182 dias depois da compra. `POST /v1/vehicles/:id/ipva` paga (até 30 dias antes), com uma chave por semestre. Atrasado, o carro fica `suspended` (GDD: "inadimplência suspende o uso") e não vende |
+| Recompra | `POST /v1/vehicles/:id/sell`: a agência paga 80% do valor depreciado (preço × (1 − idade/180 dias)), saindo da conta de sistema `system/vehicle_agency` (`vehicle_buyback`) |
+
+**Premissas:** Hatch 3.000, Sedã esportivo 8.000 e Superesportivo 20.000 THALER; a curva de queda; IPVA de 2%; recompra de 80%; autoescola de 50 THALER. Depois de atualizar o código, rode `pnpm db:migrate`: a migração `0014_veiculos` cria `vehicle` e a coluna `license` do avatar.
+
 ## Campeonato de futebol de botão (E3.3)
 
 Um campeonato por mês, UTC ([championship.ts](src/domain/championship.ts), GDD §6 "Lazer": "times de 6; 75% das inscrições → 50/35/15% para os 3 primeiros; 25% queimados").
@@ -265,6 +279,12 @@ TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc_test pnpm --filter
 | POST | `/v1/avatars/:id/consume` | jogador (Bearer) | Come uma unidade `{food}` da despensa, sem cobrar. Devolve o avatar |
 | POST | `/v1/avatars/:id/medicine` | jogador (Bearer) | Compra e toma o remédio `{condition}`. Aceita `Idempotency-Key`. Devolve o remédio, `cured` e o avatar |
 | GET | `/v1/catalog/pharmacy` | público | Preço do remédio, chance de cura e a tabela das doenças |
+| GET | `/v1/catalog/vehicles` | público | Modelos da agência (preço, aluguel, velocidade, força) e as regras de vida útil, IPVA, aluguel, recompra e autoescola |
+| POST | `/v1/avatars/:id/license` | jogador (Bearer) | Autoescola: paga e fica 3 h parado. Aceita `Idempotency-Key` |
+| GET | `/v1/vehicles` | jogador (Bearer) | Carros da conta com a situação (`ok`, `suspended`, `worn_out`, `expired`), atributos de agora, valor, recompra e IPVA |
+| POST | `/v1/vehicles` | jogador (Bearer) | Compra `{model}` ou aluga `{model, rent: true}` na agência |
+| POST | `/v1/vehicles/:id/ipva` | jogador (Bearer) | Paga o IPVA do semestre |
+| POST | `/v1/vehicles/:id/sell` | jogador (Bearer) | Vende para a agência pela depreciação |
 | GET | `/v1/championships/current` | público (com Bearer, marca o seu time) | O campeonato do mês (times, jogadores por time, bolo, prazo, `seed_commit`), as regras e o resultado do mês anterior (`last`) |
 | GET | `/v1/championships/:month` | público | Um campeonato (`AAAA-MM`); disputado, com a semente e o resultado |
 | POST | `/v1/championships/current/teams` | jogador (Bearer) | Cria o time `{name, avatar_id}` e paga a inscrição |
