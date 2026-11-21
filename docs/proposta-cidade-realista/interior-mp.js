@@ -99,8 +99,8 @@ export function createInteriorMultiplayer(opts) {
     const tex = new THREE.CanvasTexture(c);
     tex.colorSpace = THREE.SRGBColorSpace;
     const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false }));
-    sp.scale.set((w / 44) * 0.22, 0.22, 1);
-    sp.position.y = 2.05;
+    sp.scale.set((w / 44) * 0.1, 0.1, 1);
+    sp.position.y = 1.95;
     sp.renderOrder = 10;
     return sp;
   }

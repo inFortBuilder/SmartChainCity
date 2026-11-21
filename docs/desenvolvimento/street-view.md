@@ -128,6 +128,27 @@ Como usar:
 - no escritório, sentou na cadeira da estação;
 - "Conversar" tocou o clipe de conversa e parou ao andar.
 
+### Visitas com outros jogadores
+
+Quem está no mesmo imóvel, o dono e os convidados, se vê dentro dele. Cada pessoa aparece com:
+- o tipo de avatar (Man ou Human);
+- o nome, com "(dono)" para quem é dono;
+- a pose: andando, correndo, sentada, interagindo ou conversando.
+
+O painel "💬 Aqui dentro" mostra quantas pessoas estão no imóvel e tem um chat, com a mesma moderação do bairro.
+
+- **Sala:** `interior` no `realtime`, uma por lote (`city`, `lot`), até 25 pessoas.
+- **Quem entra:** o `realtime` pergunta ao world, com o token do próprio jogador, se ele pode visitar o imóvel do lote (`/visit`). É a mesma regra do clique no street view, sem segredo novo. Quem não é dono nem convidado não entra na sala.
+- **O que vai para a sala:** a posição, o rumo, a pose e o tipo de avatar, até 6 vezes por segundo e só quando algo muda.
+- **Como os outros aparecem:** quem senta vai direto ao assento, tocando `Sitting_Enter` e depois `Sitting_Idle_Loop`. Ao levantar, toca `Sitting_Exit`. O mapa passa o número do lote e o nome do jogador ao interior.
+
+**Testado** em 2026-11-21, com duas abas no mesmo imóvel e os serviços locais:
+- o world autorizou as duas entradas;
+- A viu B (Human, dono) entrar e sentar no sofá;
+- a mensagem de B chegou a A pelo chat.
+
+A recusa para quem não foi convidado está coberta pelo teste do `realtime`.
+
 ## Outros jogadores na rua (multiplayer)
 
 A sala do bairro no `realtime` sincroniza, para cada jogador:
@@ -155,4 +176,3 @@ O avatar dos outros segue a posição recebida na velocidade de caminhada, sem p
 1. Colisão da câmera com os prédios, e faixas de pedestre e calçadas como área preferida.
 2. Interiores próprios para cada tipo de imóvel e de negócio, e o modelo do prédio aprovado no lugar do escritório padrão.
 3. Digitar no computador sentado: a UAL vol. 1 não tem esse clipe; a vol. 2 tem ações de mão que podem servir.
-4. Visitas com outros jogadores dentro do imóvel (a sala do interior).
