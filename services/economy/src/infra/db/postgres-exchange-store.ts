@@ -3,7 +3,8 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import type { Pool } from 'pg';
 
 import type { Conversion, Direction, ExchangeStore, FxRate } from '../../domain/exchange.js';
-import { fxConversion as cT, fxRate as rT } from './schema.js';
+import type { TickSample, TwapSampleStore } from '../../domain/fx-twap.js';
+import { fxConversion as cT, fxRate as rT, fxTickSample as sT } from './schema.js';
 
 type Db = ReturnType<typeof drizzle>;
 
@@ -17,11 +18,24 @@ const toConversion = (r: typeof cT.$inferSelect): Conversion => ({
   status: r.status as Conversion['status'],
 });
 
-export class PostgresExchangeStore implements ExchangeStore {
+export class PostgresExchangeStore implements ExchangeStore, TwapSampleStore {
   private readonly db: Db;
 
   constructor(pool: Pool) {
     this.db = drizzle(pool);
+  }
+
+  async addSample(pool: string, s: TickSample) {
+    await this.db.insert(sT).values({ pool, at: s.at, tickCumulative: s.tickCumulative.toString() }).onConflictDoNothing();
+  }
+
+  async sampleAtOrBefore(pool: string, before: Date) {
+    const [r] = await this.db.select().from(sT).where(and(eq(sT.pool, pool), lte(sT.at, before))).orderBy(desc(sT.at)).limit(1);
+    return r ? { at: r.at, tickCumulative: BigInt(r.tickCumulative) } : null;
+  }
+
+  async pruneSamples(pool: string, before: Date) {
+    await this.db.delete(sT).where(and(eq(sT.pool, pool), sql`${sT.at} < ${before}`));
   }
 
   async latestRate(at: Date) {

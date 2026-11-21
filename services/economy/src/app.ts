@@ -16,6 +16,7 @@ import {
   currentTerms,
   rateFromUsd,
 } from './domain/exchange.js';
+import { TWAP_SOURCE } from './domain/fx-twap.js';
 import {
   type AccountDirectory,
   type VoucherSigner,
@@ -262,7 +263,8 @@ export async function buildApp(
       pool_brake: Math.round(terms.brake * 1000) / 1000,
       min_exit_cents: MIN_EXIT_CENTS.toString(),
       daily_exit_cents: terms.dailyExitCents.toString(),
-      provisional: true,
+      // Provisória enquanto não vem do TWAP da DEX.
+      provisional: terms.rate.source !== TWAP_SOURCE,
     };
   });
 
@@ -289,7 +291,7 @@ export async function buildApp(
     return { conversions: (await exchangeOn().store.listOf(accountId, 50)).map(conversionDto) };
   });
 
-  // Cotação nova, por quem opera (hoje) ou pelo job do TWAP da DEX (depois do TGE).
+  // Cotação nova por quem opera. Com o pool da DEX ligado, o job fx.twap volta a mandar no período seguinte.
   app.post('/internal/v1/economy/fx', async (request, reply) => {
     requireServiceToken(request.headers['x-service-token'], config.INTERNAL_TOKEN);
     const { scity_usd, source } = z.object({ scity_usd: z.number().positive().max(1e6), source: z.string().max(40).default('manual') }).parse(request.body);

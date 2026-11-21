@@ -46,6 +46,20 @@ const schema = z.object({
   P2E_START: z.preprocess((v) => (v === '' ? undefined : v), z.coerce.date().optional()),
   /** Fim do período grátis (ADR-0014): o THALER ganho antes não vira SCITY. Sem ele, não há período grátis. */
   FREE_PERIOD_UNTIL: z.preprocess((v) => (v === '' ? undefined : v), z.coerce.date().optional()),
+  /**
+   * Cotação pelo TWAP da DEX (job fx.twap). Precisa do RPC_URL, do pool SCITY/USDT
+   * (PancakeSwap V3) e do endereço do SCITY. Sem eles, a cotação vem só da rota interna.
+   */
+  DEX_POOL_ADDRESS: z.preprocess((v) => (v === '' ? undefined : v), z.string().regex(/^0x[0-9a-fA-F]{40}$/).optional()),
+  SCITY_TOKEN_ADDRESS: z.preprocess((v) => (v === '' ? undefined : v), z.string().regex(/^0x[0-9a-fA-F]{40}$/).optional()),
+  /** Janela da média, em segundos (doc 04 §5: 24 h). O pool precisa guardar observações para ela. */
+  FX_TWAP_SECONDS: z.coerce.number().int().min(600).max(7 * 86_400).default(86_400),
+  /** Uma cotação nova a cada tantas horas (doc 04 §5: diária). */
+  FX_PERIOD_HOURS: z.coerce.number().positive().default(24),
+  /** Disjuntor: salto maior que isso sobre a cotação em vigor não é aplicado (PREMISSA: 50%). */
+  FX_MAX_JUMP_BPS: z.coerce.number().int().positive().max(100_000).default(5000),
+  /** De quanto em quanto tempo o job confere se a cotação venceu. 0 desliga. */
+  FX_CHECK_SECONDS: z.coerce.number().int().nonnegative().default(600),
 });
 
 export type Config = z.infer<typeof schema>;

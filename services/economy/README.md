@@ -26,7 +26,7 @@ O "banco central" do doc 04 §5. O jogador troca o SCITY do jogo (que chega pelo
 
 | Regra | Como |
 |---|---|
-| Cotação | THALER por SCITY = 20 × preço do SCITY em dólar: o THALER vale sempre US$ 0,05 e o payback em dólar fica estável. A primeira sai de `SCITY_USD`; as seguintes, de `POST /internal/v1/economy/fx` (quem opera hoje; o job do TWAP 24 h da DEX depois do TGE) |
+| Cotação | THALER por SCITY = 20 × preço do SCITY em dólar: o THALER vale sempre US$ 0,05 e o payback em dólar fica estável. A primeira sai de `SCITY_USD`. Com o pool da DEX configurado, o job `fx.twap` dá uma nova por dia pelo TWAP de 24 h (abaixo). `POST /internal/v1/economy/fx` é a cotação de quem opera, que vale até a rodada seguinte do job |
 | Entrada (SCITY → THALER) | Sem taxa e sem teto. O SCITY vai para `system/fx` e o THALER sai de lá (`fx_scity_to_thaler`) |
 | Saída (THALER → SCITY) | Spread de 7,5%, queimado (`burn/fx_spread`); mínimo de 500 THALER; teto de 2.000 THALER por conta em 24 h, conferido com a conta travada (`fx_thaler_to_scity`) |
 | Freio do pool | Com `P2E_START` (TGE), conta o SCITY já pago em saídas contra o liberado do pool P2E (doc 04 §3). A partir de 70%, o teto cai e o spread sobe, até +10 pontos; no limite, a saída para (`pool_brake`) |
@@ -34,7 +34,24 @@ O "banco central" do doc 04 §5. O jogador troca o SCITY do jogo (que chega pelo
 | Repetição | `Idempotency-Key` obrigatória: a mesma chave devolve a mesma conversão |
 | Arredondamento | Sempre a favor do jogo: centavos e wei para baixo, taxa para cima |
 
-**Premissas**, as mesmas do [simulador](../../tools/econ-sim/README.md) (`params/base.json`): 20 THALER/SCITY a US$ 1, spread de 7,5%, mínimo de 500, teto de 2.000/dia, freio a partir de 70% com +10 pontos no máximo. A cotação marcada como `provisional` na API até o TWAP existir.
+**Premissas**, as mesmas do [simulador](../../tools/econ-sim/README.md) (`params/base.json`): 20 THALER/SCITY a US$ 1, spread de 7,5%, mínimo de 500, teto de 2.000/dia, freio a partir de 70% com +10 pontos no máximo. A cotação aparece como `provisional` na API enquanto não vem do TWAP.
+
+### Cotação pelo TWAP da DEX (job `fx.twap`)
+
+O job lê o oráculo do pool SCITY/USDT da PancakeSwap V3, que tem a mesma interface da Uniswap V3 (`observe`). Ele tira o tick médio das últimas 24 h e calcula o preço: 1,0001^tick, ajustado pelas casas decimais, com o USDT valendo US$ 1. É uma média geométrica, então um pico curto mexe pouco nela.
+
+| Regra | Como |
+|---|---|
+| Quando | A cada `FX_CHECK_SECONDS` (10 min) o job grava uma amostra do tick acumulado. Se a cotação em vigor não vem do TWAP ou tem mais de `FX_PERIOD_HOURS` (24 h), ele calcula uma nova |
+| Acumulado de 24 h atrás | Primeiro, do próprio pool (`observe([24 h])`). Um pool movimentado enche o anel de observações antes disso: o WBNB/USDT da PancakeSwap, com 2.100 observações, cobre cerca de 1 h. Quando o pool reverte com `OLD`, vale a amostra própria mais nova com 24 h ou mais (tabela `fx_tick_sample`), desde que tenha no máximo 48 h |
+| Disjuntor | Um salto maior que `FX_MAX_JUMP_BPS` (50%, **premissa**) sobre a cotação em vigor não é aplicado. O job registra o erro, e quem opera decide pela rota interna. Na rodada seguinte, o TWAP é comparado com a cotação que ficou |
+| Sem dados | Sem histórico, com a RPC fora ou com o preço fora de US$ 0,000001 a 1 milhão, a cotação fica como está e o job registra um aviso. Um pool sem o SCITY é erro de configuração |
+
+Configuração: `RPC_URL`, `DEX_POOL_ADDRESS` e `SCITY_TOKEN_ADDRESS`. Sem eles, a cotação vem só da rota interna. Na BSC, depois do TGE, aumente as observações do pool (`increaseObservationCardinalityNext`) para o pool cobrir as 24 h sozinho sempre que der.
+
+**Testado** em 2026-11-21:
+- No anvil, com o `LocalDexPool` do `DeployLocal`: 12 h a US$ 1 e 12 h a US$ 0,50 deram US$ 0,707. Um pico de 1 h a US$ 100 numa janela de 24 h só levou a média a US$ 0,62. Com janela de 1 h, o disjuntor segurou o mesmo pico.
+- Na BSC, só leitura, o mesmo leitor no pool WBNB/USDT da PancakeSwap V3: o TWAP de 10 min e o de 1 h bateram com o preço à vista. O de 24 h reverteu com `OLD`, e é para isso que servem as amostras.
 
 ## Saque pelo GameVault (E3.7)
 
@@ -131,11 +148,11 @@ Erros com código estável: `invalid_posting`, `insufficient_funds`, `idempotenc
 
 ## Banco
 
-Esquema próprio `economy` (o serviço não toca as tabelas do gateway): `ledger_account` (com o saldo guardado), `ledger_tx` (com `seq`, cursor do extrato, e a impressão digital do pedido), `ledger_entry`, `withdrawal` (saques e vouchers), `fx_rate` (cotações) e `fx_conversion` (cada troca). Migrações em `drizzle/`, controladas na tabela `drizzle.__economy_migrations`.
+Esquema próprio `economy` (o serviço não toca as tabelas do gateway): `ledger_account` (com o saldo guardado), `ledger_tx` (com `seq`, cursor do extrato, e a impressão digital do pedido), `ledger_entry`, `withdrawal` (saques e vouchers), `fx_rate` (cotações), `fx_tick_sample` (amostras do TWAP) e `fx_conversion` (cada troca). Migrações em `drizzle/`, controladas na tabela `drizzle.__economy_migrations`.
 
 ## Ainda não
 
-- TWAP 24 h da DEX para a cotação (depois do TGE, E4.2).
-- KYC para saque acima de um limite (doc 10).
+- O pool SCITY/USDT na BSC (TGE, E4.2): endereço, observações e liquidez travada.
+- Provedor de KYC (hoje a revisão é manual; parecer E0.8).
 - `openapi.yaml` deste serviço.
 - Quem chama o lançamento interno: o game-core (turno de trabalho, passo 7) e o world (compra de lote) ainda não existem.

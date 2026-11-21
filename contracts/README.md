@@ -63,11 +63,12 @@ forge script script/DeployLocal.s.sol --rpc-url http://127.0.0.1:8545 --broadcas
 ```
 
 O script:
-- sobe os oito contratos (o `BuildingNFT`, o `PropertyNFT` e o `GameVault` por último, para os outros endereços não mudarem);
+- sobe os oito contratos e o par de teste da DEX (o `BuildingNFT`, o `PropertyNFT`, o `GameVault` e o par da DEX por último, para os outros endereços não mudarem);
 - põe 1 milhão de SCITY no `GameVault` como reserva de saque, com tetos de 1 milhão por dia e 10 mil por endereço (**premissa**);
 - dá ao `LuckyBox` o papel de criar avatares;
 - carrega as 44 profissões do seed do CMS (`cms-strapi/seed/profissoes.json`), separadas por raridade;
 - cria o tier 1 (0,05 BNB);
+- cria um par SCITY/dólar de teste para o TWAP do câmbio: `LocalUSD` e `LocalDexPool` ([`src/dev/LocalDexPool.sol`](src/dev/LocalDexPool.sol)), a US$ 1. O pool tem o oráculo da PancakeSwap V3 (`observe`), mas não troca tokens: o preço muda com `setTick`;
 - grava os endereços em [`deployments/anvil.json`](deployments/anvil.json).
 
 Num anvil recém-iniciado, os endereços são sempre os mesmos. `WORLD_SIGNER` define quem assina as cotações de lote; sem ela, é o próprio deployer.
