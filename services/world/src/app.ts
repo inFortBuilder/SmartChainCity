@@ -276,7 +276,7 @@ export async function buildApp(
     if (!propPayments) throw new AppError('ledger_unavailable', 'As obras estão desligadas.', 503);
     const target = await propStore.getProperty(id);
     if (target && target.ownerAccountId === me) await assertNotInDefault(taxes?.store ?? null, target.city, target.lotId, now());
-    const { work, property, claim } = await startWork(propStore, propPayments, { propertyId: id, accountId: me, kind, requestId: request.id }, now);
+    const { work, property, claim } = await startWork(propStore, propPayments, { propertyId: id, accountId: me, kind, requestId: request.id }, now, store);
     return {
       work: { id: work.id, kind: work.kind, cost_cents: work.costCents, to_level: work.toLevel },
       // Renda acumulada até a obra, fechada e paga antes de o imóvel mudar.
