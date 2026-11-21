@@ -272,6 +272,7 @@ export function createServidor(map) {
   let data = { avatar: null, balance: '0', scity: '0', lots: [], shifts: [], fx: null, withdrawals: null, deposits: null, kyc: null, invitations: [] };
   /** Alimentos do mercado do jogo, com o preço de uma unidade em centavos de THALER. */
   let foods = [];
+  let petshop = null;
   let message = '';
   let messageOk = false;
   let busy = false;
@@ -309,6 +310,8 @@ export function createServidor(map) {
       if (profile) me = { email: profile.account.email, wallets: profile.wallets.map((w) => w.address) };
       data.avatar = avatars.avatars[0] ?? null;
       // Lista do mercado: pública, busca uma vez (se o game-core for antigo, só não aparece).
+      // Pet Shop (E3.1): preços e serviços, uma vez.
+      if (!petshop) petshop = await call(API.game, '/v1/catalog/petshop').catch(() => null);
       if (!foods.length) {
         foods = await call(API.game, '/v1/catalog/foods')
           .then((r) => r.foods)
@@ -549,6 +552,51 @@ export function createServidor(map) {
   /** Erro de transação no cofre em texto curto. */
   const vaultError = (error) => (error instanceof ApiError ? error : new ApiError(400, 'tx', txError(error, VAULT_ERRORS)));
 
+  /**
+   * Pet do avatar (E3.1): adoção no Pet Shop, os atributos de 0 a 5, o nível
+   * (multiplica a experiência no turno) e os cuidados. Quem decide é o game-core.
+   */
+  const petSection = (a) => {
+    const pet = a.pet;
+    const price = (code) => thaler(petshop.services.find((x) => x.code === code)?.price ?? '0');
+    if (!pet) {
+      const options = petshop.species.map((sp) => `<option value="${esc(sp.code)}">${esc(sp.label)} · ${thaler(sp.price)}</option>`).join('');
+      return `<h3>🐾 Pet Shop</h3>
+        <form data-form="adotar" class="comer">
+          <div class="linha"><select class="campo" name="species" aria-label="Espécie">${options}</select>
+          <input class="campo" name="name" required maxlength="24" placeholder="Nome" aria-label="Nome do pet" />
+          <button class="btn btn--blue" type="submit" ${busy ? 'disabled' : ''}>Adotar</button></div>
+          <p class="muted pequeno">Um pet por avatar. O nível dele multiplica a experiência no turno (até 1,25×). Sem comida, ele morre; triste, o avatar rende com metade da felicidade.</p>
+        </form>`;
+    }
+    const icon = pet.species === 'cat' ? '🐱' : '🐶';
+    if (!pet.alive) {
+      return `<h3>${icon} ${esc(pet.name)} morreu</h3>
+        <p class="muted pequeno">Ficou sem comida. Enterre para adotar outro.</p>
+        <button class="btn btn--ghost pequeno" type="button" data-s="pet" data-a="enterrar" ${busy ? 'disabled' : ''}>Enterrar</button>`;
+    }
+    const at = pet.attributes;
+    const hotel = pet.hotel_until;
+    const next = pet.next_level_xp === null ? 'nível máximo' : `${pet.xp}/${pet.next_level_xp} de experiência para o próximo`;
+    let html = `<h3>${icon} ${esc(pet.name)} <span class="muted pequeno">· ${esc(pet.species_label)} · nível ${pet.level} · ×${pet.multiplier.toLocaleString('pt-BR')}</span></h3>
+      ${bar('Alimentação', at.food, 5)}${bar('Água', at.water, 5)}${bar('Felicidade', at.happiness, 5)}
+      <p class="muted pequeno">${next}${pet.sad ? ' · <strong>triste: o avatar rende com metade da felicidade</strong>' : ''}</p>`;
+    if (hotel) return `${html}<p class="muted pequeno">🏨 No hotel até ${left(hotel)}: não perde alimentação nem felicidade.</p>`;
+    const off = busy ? 'disabled' : '';
+    html += `<div class="linha">
+        <button class="btn btn--blue pequeno" type="button" data-s="pet-shop" data-v="racao" ${off || (at.food >= 5 ? 'disabled' : '')}>Ração · ${price('racao')}</button>
+        <button class="btn btn--ghost pequeno" type="button" data-s="pet" data-a="agua" ${off || (at.water >= 5 ? 'disabled' : '')}>Água</button>
+        <button class="btn btn--ghost pequeno" type="button" data-s="pet" data-a="passeio" ${off || (at.water <= 1 || !a.status.canLeisure || a.attributes.energy < 5 ? 'disabled' : '')}>Passear</button>
+      </div>
+      <div class="linha">
+        <button class="btn btn--ghost pequeno" type="button" data-s="pet-shop" data-v="banho" ${off}>Banho · ${price('banho')}</button>
+        <button class="btn btn--ghost pequeno" type="button" data-s="pet-shop" data-v="tosa" ${off}>Tosa · ${price('tosa')}</button>
+        <button class="btn btn--ghost pequeno" type="button" data-s="pet-shop" data-v="hotel" ${off}>Hotel 24 h · ${price('hotel')}</button>
+      </div>
+      <p class="muted pequeno">Passear gasta 5 de energia do avatar e dá felicidade e saúde; o pet só bebe em casa. Preços provisórios.</p>`;
+    return html;
+  };
+
   const bar = (label, value, max = 10) =>
     `<div class="attr"><span>${label}</span><div class="barra"><span style="width:${(value / max) * 100}%"></span></div><b>${value}</b></div>`;
 
@@ -640,6 +688,7 @@ export function createServidor(map) {
           <p class="muted pequeno">Cada refeição dá +3 de alimentação; o pacote vai para a despensa.${foods.some((f) => f.provisional_price) ? ' Preço provisório até o game designer definir.' : ''}</p>
         </form>`;
       }
+      if (!internado && petshop) body += petSection(a);
       if (running) {
         const total = new Date(running.ends_at) - new Date(running.starts_at);
         const pct = Math.min(100, ((Date.now() - new Date(running.starts_at)) / total) * 100);
@@ -706,6 +755,20 @@ export function createServidor(map) {
     const form = e.target.closest('form[data-form]');
     if (!form || busy) return;
     const field = new FormData(form);
+    if (form.dataset.form === 'adotar') {
+      const species = String(field.get('species') ?? '');
+      const name = String(field.get('name') ?? '').trim();
+      return act(async () => {
+        const r = await call(API.game, `/v1/avatars/${data.avatar.id}/pet`, {
+          method: 'POST',
+          token: session.token,
+          body: { species, name },
+          headers: { 'idempotency-key': crypto.randomUUID() },
+        });
+        message = `${r.avatar.pet.name} chegou: −${thaler(r.purchase.price)} THALER.`;
+        messageOk = true;
+      });
+    }
     if (form.dataset.form === 'comer') {
       const food = String(field.get('food') ?? '');
       const item = foods.find((f) => f.code === food);
@@ -899,6 +962,34 @@ export function createServidor(map) {
       return act(() =>
         call(API.game, `/v1/avatars/${data.avatar.id}/work`, { method: 'POST', token: session.token, body: { shift: Number(b.dataset.h) } }),
       );
+    }
+    if (what === 'pet-shop') {
+      const service = b.dataset.v;
+      return act(async () => {
+        const r = await call(API.game, `/v1/avatars/${data.avatar.id}/pet/services`, {
+          method: 'POST',
+          token: session.token,
+          body: { service },
+          headers: { 'idempotency-key': crypto.randomUUID() },
+        });
+        const label = petshop?.services.find((x) => x.code === service)?.label ?? service;
+        message = `${label} para ${r.avatar.pet.name}: −${thaler(r.purchase.price)} THALER.`;
+        messageOk = true;
+      });
+    }
+    if (what === 'pet') {
+      const action = b.dataset.a;
+      return act(async () => {
+        const name = data.avatar.pet?.name ?? 'o pet';
+        const r = await call(API.game, `/v1/avatars/${data.avatar.id}/pet/actions`, { method: 'POST', token: session.token, body: { action } });
+        message =
+          action === 'enterrar'
+            ? `${name} foi enterrado. O Pet Shop tem outros esperando.`
+            : action === 'agua'
+              ? `${name} bebeu água.`
+              : `Passeio com ${name}: energia ${r.avatar.attributes.energy}/10, felicidade ${r.avatar.attributes.happiness}/10.`;
+        messageOk = true;
+      });
     }
     if (what === 'consumir') {
       return act(async () => {

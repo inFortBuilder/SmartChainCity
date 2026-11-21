@@ -2,6 +2,7 @@ import { AppError } from '@scc/shared';
 
 import { type Rarity, isRarity, professionFits } from './catalog.js';
 import { CONDITIONS, type Condition, activeConditions, drainDue, drainHealth } from './conditions.js';
+import { type Pet, decayedPet } from './pet.js';
 
 /**
  * Avatar e atributos (doc 02 §2.3, doc 06 §2). Atributos de 0 a 10, educação
@@ -57,6 +58,8 @@ export interface Avatar {
   conditions: Condition[];
   /** Despensa: unidades guardadas de cada alimento, compradas em pacote. */
   pantry: Record<string, number>;
+  /** Pet do avatar (E3.1): gato ou cachorro, vivo ou morto até ser enterrado; null sem pet. */
+  pet?: Pet | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -78,7 +81,9 @@ export function decayed(avatar: Avatar, now: Date): Avatar {
   // Doenças graves tiram saúde com o tempo (febre, enxaqueca, virose: 1 a cada 15 min).
   const drained = drainHealth(avatar.conditions, attributes.health, now);
   attributes.health = drained.health;
-  return { ...avatar, attributes, anchors, conditions: drained.conditions };
+  // O pet cai junto (pet.ts): alimentação em 0 o mata.
+  const pet = avatar.pet ? decayedPet(avatar.pet, now) : (avatar.pet ?? null);
+  return { ...avatar, attributes, anchors, conditions: drained.conditions, pet };
 }
 
 /** Algo caiu desde a última gravação? É o que o job procura. */
@@ -126,6 +131,7 @@ export function newAvatar(
     hospitalUntil: null,
     conditions: [],
     pantry: {},
+    pet: null,
     createdAt: now,
     updatedAt: now,
   };

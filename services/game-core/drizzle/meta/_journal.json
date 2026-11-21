@@ -71,6 +71,13 @@
       "when": 1795257233278,
       "tag": "0009_dono_onchain",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1795296287516,
+      "tag": "0010_pets",
+      "breakpoints": true
     }
   ]
 }

@@ -6,6 +6,7 @@ import { type Attributes, type Avatar, status } from './avatar.js';
 import { BASE_RANGE, profession } from './catalog.js';
 import { CONDITIONS, assertCanWorkHealthy, catchCondition, yieldFactor } from './conditions.js';
 import { assertNotInHospital } from './hospital.js';
+import { happinessWithPet, petFactors } from './pet.js';
 
 /**
  * Turno de trabalho (E1.4; doc 02 §3.2, doc 04 §4). O ganho segue a mesma
@@ -60,6 +61,8 @@ export interface Snapshot {
   education: number;
   earnsReward: boolean;
   base: number;
+  /** Multiplicador do pet vivo (GDD §2.4, 1,00× a 1,25×); ausente nos turnos de antes dos pets. */
+  pet?: number;
 }
 
 export interface ShiftResult {
@@ -141,8 +144,10 @@ export function startShift(
     seed,
     snapshot: {
       health: a.health,
-      happiness: a.happiness,
+      // Pet triste: o avatar perde 50% da felicidade (GDD).
+      happiness: happinessWithPet(avatar),
       education: a.education,
+      pet: petFactors(avatar).multiplier,
       earnsReward: status(avatar, now).earnsReward,
       base: baseOf(avatar.jobCode),
       illness: yieldFactor(avatar.conditions, now),
@@ -170,8 +175,8 @@ export function settle(shift: Pick<Shift, 'id' | 'hours' | 'seed' | 'snapshot'>)
   const level = (v: number) => Math.min(10, Math.max(1, v));
   const health = HEALTH_MULT[level(s.health)]!;
   const happiness = HAPPINESS_MULT[level(s.happiness)]!;
-  // Pet ainda não existe: só a experiência entra, com o teto conjunto.
-  const expPet = Math.min(expMultiplier(s.education), EXP_PET_CAP);
+  // Experiência × Pet, com o teto conjunto (ADR-0013).
+  const expPet = Math.min(expMultiplier(s.education) * (s.pet ?? 1), EXP_PET_CAP);
   const damaged = draw(shift.seed, shift.id, 'damage') < DAMAGE_CHANCE;
   const damage = damaged ? 1 - DAMAGE_FRACTION : 1;
   const dayShare = shift.hours / MAX_HOURS_PER_DAY;

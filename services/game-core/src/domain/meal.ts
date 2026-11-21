@@ -4,6 +4,7 @@ import { ATTRIBUTE_MAX, type Avatar } from './avatar.js';
 import { type Food, food as findFood } from './foods.js';
 import { CONDITIONS, type ConditionCode, activeConditions, catchCondition, cure, isConditionCode, isSerious } from './conditions.js';
 import { assertNotInHospital } from './hospital.js';
+import { type PetEffect, applyPetEffect } from './pet.js';
 
 /**
  * Refeição no mercado do jogo (E2.3, GDD §2.3 e §4): o avatar compra uma
@@ -31,6 +32,8 @@ export interface MealEffects {
   cure?: { code: ConditionCode; success: boolean };
   /** Só pacote: as unidades vão para a despensa em vez de serem comidas. */
   pantry?: { code: string; units: number };
+  /** Só Pet Shop (E3.1): adoção ou serviço, aplicado ao pet depois da cobrança. */
+  pet?: PetEffect;
 }
 
 /**
@@ -57,6 +60,31 @@ export const MEDICINE_CODE = 'remedio';
 export const MEDICINE_PRICE_CENTS = 1000n;
 export const CURE_CHANCE = 0.7;
 export const isMedicine = (m: Pick<Meal, 'foodCode'>) => m.foodCode === MEDICINE_CODE;
+
+/**
+ * Pet Shop (E3.1): a adoção e os serviços passam pelo mesmo caminho da refeição
+ * (cobrança em duas fases, idempotente). O código é `pet:<adocao|serviço>`.
+ */
+export const isPetShop = (m: Pick<Meal, 'foodCode'>) => m.foodCode?.startsWith('pet:') ?? false;
+
+export function planPetShop(
+  avatar: Avatar,
+  input: { id: string; clientKey: string | null; effect: PetEffect; cents: bigint },
+  now: Date,
+): Meal {
+  return {
+    id: input.id,
+    avatarId: avatar.id,
+    accountId: avatar.accountId,
+    foodCode: input.effect.kind === 'adopt' ? `pet:adocao:${input.effect.species}` : `pet:${input.effect.service}`,
+    priceCents: input.cents,
+    effects: { food: 0, energy: 0, health: 0, pet: input.effect },
+    status: 'pending',
+    clientKey: input.clientKey,
+    createdAt: now,
+    eatenAt: null,
+  };
+}
 
 export interface Meal {
   id: string;
@@ -186,6 +214,7 @@ const clamp = (n: number) => Math.max(0, Math.min(ATTRIBUTE_MAX, n));
  * pôs no agora, e a contagem recomeça cheia.
  */
 export function eat(avatar: Avatar, effects: MealEffects, now: Date): Avatar {
+  if (effects.pet) return applyPetEffect(avatar, effects.pet, now);
   const a = avatar.attributes;
   let conditions = avatar.conditions;
   if (effects.condition) conditions = catchCondition(conditions, effects.condition, now);
