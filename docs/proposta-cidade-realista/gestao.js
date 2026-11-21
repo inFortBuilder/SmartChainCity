@@ -642,7 +642,10 @@ export function createGestao(api) {
     renderHud();
     renderPanel();
     const showing = api.currentLot();
-    if (showing !== null && state.businesses[showing]) api.showLot(showing);
+    // Não redesenha a ficha com alguém digitando nela ou com uma transação em andamento (mercado, convites).
+    const ficha = document.querySelector('[data-ficha]');
+    const ocupada = ficha && (ficha.contains(document.activeElement) || ficha.querySelector('[data-busy]'));
+    if (showing !== null && state.businesses[showing] && !ocupada) api.showLot(showing);
     save(state);
   }
 
