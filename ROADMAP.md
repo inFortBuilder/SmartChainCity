@@ -165,7 +165,7 @@ O MVP roda inteiro na máquina local, sem serviços pagos. Por isso, publicar o 
 | E3.4 Fazenda (A3) | backend · client · art | Plantio, estações, pecuária, maquinário, riscos |
 | E3.5 Veículos e corridas | backend · contracts · client | Carros, autoescola, IPVA, oficina, corridas diárias |
 | E3.6 Marketplace | contracts · backend · client | Listagem, leilão, combo lote + imóvel, royalties. 🟡 Desde 2026-11-21: contrato com listagem, combo, taxa e royalties, e listagens no chain-indexer. A tela no mapa também: painel Mercado, compra, venda pela ficha do lote (com o imóvel em combo) e cancelamento. O leilão com prazo também, no contrato, no indexer e no mapa |
-| E3.7 GameVault | contracts · backend | Depósito e saque por voucher EIP-712, limites, circuit breaker |
+| E3.7 GameVault | contracts · backend | Depósito e saque por voucher EIP-712, limites, circuit breaker. ✅ No anvil desde 2026-11-21: depósito com permit, saque por voucher com teto de 24 h, KYC e carência, teto diário do contrato conferido antes de assinar, desistência do voucher e a tela no mapa (depositar, resgatar e desistir pela carteira). Fora do MVP: proxy UUPS atrás de timelock e signer no KMS, antes da mainnet |
 | E3.8 Auditoria externa | contracts · legal | Auditoria dos contratos e correção dos achados |
 | E3.9 Teste de carga | infra | 10 mil simultâneos no Realtime; 1 mil req/s na API |
 | E3.10 Eventos semanais + GamePass | backend · cms | Eventos por profissão; temporada 1 |

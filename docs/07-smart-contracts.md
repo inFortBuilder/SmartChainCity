@@ -51,10 +51,13 @@ function buyPrimary(LotQuote calldata q, bytes calldata sig) external payable;
 
 ### 2.4 `GameVault`
 
-**Pronto no anvil (2026-11-20):** depósito, `claim` com voucher, tetos diários (total e por endereço), pausa e `setLimits`. Sem proxy por enquanto; o UUPS atrás de timelock entra antes da mainnet. O depósito credita **SCITY** no ledger (o mesmo que paga os lotes); a troca por THALER é a operação de câmbio.
+**Pronto no anvil (2026-11-20):** depósito, `claim` com voucher, tetos diários (total e por endereço), pausa e `setLimits`. Desde 2026-11-21: depósito com permit numa transação, `available` (quanto ainda sai hoje), `cancelVoucher` (o jogador desiste e o SCITY volta ao jogo) e a tela no mapa para depositar, resgatar e desistir. Sem proxy por enquanto; o UUPS atrás de timelock entra antes da mainnet. O depósito credita **SCITY** no ledger (o mesmo que paga os lotes); a troca por THALER é a operação de câmbio.
 ```solidity
 function deposit(uint256 amount) external;                         // emite Deposited(account, amount)
+function depositWithPermit(uint256 amount, uint256 deadline, uint8 v, bytes32 r, bytes32 s) external; // EIP-2612
 function claim(Withdrawal calldata w, bytes calldata sig) external; // EIP-712
+function cancelVoucher(Withdrawal calldata w, bytes calldata sig) external; // só o destinatário
+function available(address account) external view returns (uint256 total, uint256 mine);
 // Withdrawal { address to; uint256 amount; uint256 nonce; uint256 deadline; }
 ```
 - Limite global diário de saída (circuit breaker) e por endereço.

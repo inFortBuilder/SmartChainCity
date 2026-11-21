@@ -17,7 +17,7 @@ Lê os eventos dos contratos na rede (anvil, BSC Testnet ou BSC). Espera as conf
 | Avatares | `Transfer` e `AvatarMinted` do `AvatarNFT`: dono, raridade e profissão |
 | Imóveis | `Transfer`, `PropertyMinted` e `PropertyUpgraded` do `PropertyNFT`: dono, lote âncora, tipo e nível |
 | Caixas | `BoxOpened` e `AvatarRevealed` da `LuckyBox`: quem abriu, situação e avatar sorteado |
-| Depósitos | `Deposited` do `GameVault`: vira saldo de SCITY no ledger (veja abaixo). `Withdrawn` fica no feed |
+| Depósitos | `Deposited` do `GameVault`: vira saldo de SCITY no ledger (veja abaixo). `Withdrawn` e `VoucherCancelled` ficam no feed |
 | Feed | `GET /internal/v1/chain/events?after=<id>` entrega os eventos confirmados, em ordem, para os outros serviços (com `x-service-token`) |
 
 `LotSold` fica só no registro de eventos, porque a posse vem do `Transfer`.

@@ -60,10 +60,12 @@ O jogador pede o saque do SCITY que tem no jogo e recebe um voucher EIP-712 para
 | Passo | Como |
 |---|---|
 | Pedido | `POST /v1/economy/withdrawals` com `{wallet, amount_wei}`. O gateway confere que a carteira é da conta e a idade da conta |
+| Teto do contrato | Antes de debitar, o economy lê `available` e `paused` no cofre: pausado, `503 vault_paused`; o pedido passa do que o cofre ainda libera hoje para a carteira, `409 vault_limit`. Sem a RPC, segue: o `claim` confere de novo |
 | Regras | Mínimo de 1 SCITY; teto de 1.000 SCITY por conta em 24 h, conferido com a conta travada (dois pedidos juntos não passam do teto); carência de 7 dias para conta nova (doc 04 §5). **Sem KYC, até 300 SCITY em 30 dias** (premissa), conferido na mesma trava; acima disso, `403 kyc_required` até a conta ter o nível 1 no gateway ([KYC](../gateway/README.md#kyc-no-saque)) |
 | Débito | O SCITY sai do jogador para `escrow/withdrawals` (`scity_withdrawal`, chave `withdrawal:<id>`). Sem saldo, `409 insufficient_scity` |
 | Voucher | `{to, amount, nonce, deadline}`, nonce = os 128 bits do id, prazo de 48 h. A resposta traz o contrato, a rede, o voucher e a assinatura |
-| Resgate | O job `withdrawals.settle` (`WITHDRAW_EVERY_SECONDS`, 60 s) lê `nonceUsed` no cofre. Resgatado: o escrow vai para `system/vault` e o saque fica `claimed` |
+| Resgate | O job `withdrawals.settle` (`WITHDRAW_EVERY_SECONDS`, 60 s) lê `nonceUsed` e `nonceCancelled` no cofre. Resgatado: o escrow vai para `system/vault` e o saque fica `claimed` |
+| Desistência | A carteira cancela o voucher no cofre (`cancelVoucher`). O job devolve o escrow ao jogador na hora (`scity_withdrawal_refund`, a mesma chave do vencido) e o saque fica `cancelled`. O cancelado não conta nos tetos da conta |
 | Prazo vencido | Sem resgate, o escrow volta ao jogador (`scity_withdrawal_refund`) e o saque fica `refunded`. O contrato já recusa o voucher vencido, então não há saque em dobro |
 | Queda no meio | Saque `created` parado há mais de 1 min é retomado pelo job, com as mesmas chaves |
 
@@ -126,7 +128,7 @@ TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc_test pnpm --filter
 | GET | `/v1/economy/exchange` | jogador (Bearer) | Últimas 50 conversões |
 | POST | `/internal/v1/economy/fx` | serviços (`X-Service-Token`) | Cotação nova `{scity_usd, source}`, valendo a partir de agora |
 | POST | `/v1/economy/withdrawals` | jogador (Bearer) | Pede o saque `{wallet, amount_wei}` e recebe o voucher do `GameVault` |
-| GET | `/v1/economy/withdrawals` | jogador (Bearer) | Últimos 50 saques, com o voucher dos pendentes |
+| GET | `/v1/economy/withdrawals?wallet=` | jogador (Bearer) | Últimos 50 saques, com o voucher dos pendentes. Com `wallet`, `vault` diz se o cofre está pausado, os tetos e quanto ainda sai hoje (`wallet_left_wei`, `total_left_wei`) |
 | POST | `/v1/dev/faucet` | jogador (Bearer) | **Só desenvolvimento** (`DEV_FAUCET=true`, recusado em produção): +1.000 SCITY de teste, como um depósito simulado da ponte |
 | GET | `/healthz` | — | `{status: "ok"}` |
 
