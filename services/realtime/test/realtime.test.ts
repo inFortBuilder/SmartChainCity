@@ -66,13 +66,26 @@ describe('moderação do chat', () => {
 
 // ---------------------------------------------------------------- servidor de verdade
 
+const OWNER = randomUUID();
+const GUEST = randomUUID();
 let server: Awaited<ReturnType<typeof startRealtime>>;
 let endpoint: string;
 const logs: { event: string; data: Record<string, unknown> }[] = [];
 
 beforeAll(async () => {
   const config = configSchema.parse({ NODE_ENV: 'test', PORT: '0', JWT_SECRET: SECRET, INTERNAL_TOKEN: INTERNAL, MAX_CLIENTS: '25' });
-  server = await startRealtime(config, (event, data) => logs.push({ event, data }));
+  server = await startRealtime(config, (event, data) => logs.push({ event, data }), {
+    // World falso: o lote 7 é do dono e tem um convidado; o resto recusa.
+    visits: {
+      check: async (tok, city, lot) => {
+        const sub = JSON.parse(Buffer.from(tok.split('.')[1]!, 'base64url').toString()).sub as string;
+        if (city !== 'pittsburg' || lot !== 7) return null;
+        if (sub === OWNER) return { placeId: 'casa-7', interior: 'home', role: 'owner' };
+        if (sub === GUEST) return { placeId: 'casa-7', interior: 'home', role: 'guest' };
+        return null;
+      },
+    },
+  });
   endpoint = `http://127.0.0.1:${server.port}`;
 });
 afterAll(async () => {
@@ -150,12 +163,12 @@ describe('sala do bairro', () => {
     await waitFor(() => players(b).get(a.sessionId)?.x === 126);
     expect(players(b).get(a.sessionId)).toMatchObject({ mode: 'map', speed: 0, skin: 'man' });
 
-    // Tipo de avatar: human passa; desconhecido mantém o atual.
+    // Tipo de avatar: woman passa (e o nome antigo human vira woman); desconhecido mantém o atual.
     a.send('move', { x: 127, z: -42, mode: 'street', speed: 0, skin: 'human' });
-    await waitFor(() => players(b).get(a.sessionId)?.skin === 'human');
+    await waitFor(() => players(b).get(a.sessionId)?.skin === 'woman');
     a.send('move', { x: 128, z: -42, mode: 'street', speed: 0, skin: 'dragao' });
     await waitFor(() => players(b).get(a.sessionId)?.x === 128);
-    expect(players(b).get(a.sessionId)?.skin).toBe('human');
+    expect(players(b).get(a.sessionId)?.skin).toBe('woman');
 
     await b.leave();
     await waitFor(() => players(a).size === 1);
@@ -230,5 +243,46 @@ describe('sala do bairro', () => {
     expect(evOutra).toEqual([]);
     await a.leave();
     await outra.leave();
+  });
+});
+
+describe('sala do interior', () => {
+  async function enter(sub: string, opts: Record<string, unknown> = {}) {
+    const client = new Client(endpoint);
+    client.auth.token = await token(sub);
+    const room = await client.joinOrCreate('interior', { city: 'pittsburg', lot: 7, ...opts });
+    await waitFor(() => room.state?.players !== undefined);
+    return room;
+  }
+  const visitors = (room: Room) => room.state.players as Map<string, { name: string; x: number; z: number; pose: string; skin: string; role: string }>;
+
+  it('só o dono e o convidado entram; os dois se veem sentar e conversar', async () => {
+    await expect(enter(randomUUID())).rejects.toBeTruthy();
+    await expect(enter(OWNER, { lot: 8 })).rejects.toBeTruthy();
+
+    const dono = await enter(OWNER, { name: 'Dona', skin: 'woman' });
+    const conv = await enter(GUEST, { name: 'Amigo' });
+    expect(dono.roomId).toBe(conv.roomId);
+    await waitFor(() => visitors(dono).size === 2);
+    expect(visitors(conv).get(dono.sessionId)).toMatchObject({ name: 'Dona', skin: 'woman', role: 'owner' });
+    expect(visitors(dono).get(conv.sessionId)).toMatchObject({ role: 'guest', skin: 'man' });
+
+    conv.send('move', { x: -5.3, z: 1.0, rot: 1.57, pose: 'sit' });
+    await waitFor(() => visitors(dono).get(conv.sessionId)?.pose === 'sit');
+    expect(visitors(dono).get(conv.sessionId)?.x).toBeCloseTo(-5.3);
+    // Fora da sala ou pose desconhecida.
+    conv.send('move', { x: 500, z: 0, pose: 'walk' });
+    conv.send('move', { x: -5.3, z: 1.0, pose: 'voando' });
+    await waitFor(() => visitors(dono).get(conv.sessionId)?.pose === 'idle');
+    expect(visitors(dono).get(conv.sessionId)?.x).toBeCloseTo(-5.3);
+
+    const chat = messages(dono, 'chat');
+    conv.send('chat', { text: 'Que casa bonita!' });
+    await waitFor(() => chat.length === 1);
+    expect(chat[0]).toMatchObject({ name: 'Amigo', text: 'Que casa bonita!' });
+
+    await conv.leave();
+    await waitFor(() => visitors(dono).size === 1);
+    await dono.leave();
   });
 });

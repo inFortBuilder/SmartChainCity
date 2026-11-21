@@ -6,6 +6,7 @@ import { WebSocketTransport } from '@colyseus/ws-transport';
 import { z } from 'zod';
 
 import { DistrictRoom } from './district-room.js';
+import { HttpVisitChecker, InteriorRoom, type VisitChecker } from './interior-room.js';
 import { MuteBook, moderateText } from './moderation.js';
 
 export const configSchema = z.object({
@@ -19,6 +20,8 @@ export const configSchema = z.object({
   MAX_CLIENTS: z.coerce.number().int().positive().default(100),
   /** Token dos outros serviços para os eventos globais. Sem ele, /internal responde 503. */
   INTERNAL_TOKEN: z.preprocess((v) => (v === '' ? undefined : v), z.string().min(32).optional()),
+  /** Serviço world: diz quem pode entrar na sala do interior de um imóvel. Sem ele, a sala recusa. */
+  WORLD_URL: z.preprocess((v) => (v === '' ? undefined : v), z.url().optional()),
 });
 export type Config = z.infer<typeof configSchema>;
 
@@ -42,15 +45,26 @@ const broadcastBody = z.object({ kind: z.string().regex(/^[a-z_]{1,32}$/), text:
  * `/internal/v1/broadcast`) entram no roteador do próprio Colyseus, junto das de
  * matchmaking: um servidor HTTP só, e uma resposta por requisição.
  */
-export async function startRealtime(config: Config, log: Log = () => {}) {
+export async function startRealtime(config: Config, log: Log = () => {}, overrides: { visits?: VisitChecker } = {}) {
   const registry = new Set<DistrictRoom>();
+  const worldUrl = config.WORLD_URL ?? (config.NODE_ENV === 'production' ? undefined : 'http://127.0.0.1:8030');
+  // Um silêncio vale em todas as salas: bairro e interior.
+  const mutes = new MuteBook();
   DistrictRoom.deps = {
     jwtSecret: config.JWT_SECRET,
     jwtIssuer: config.JWT_ISSUER,
     maxClients: config.MAX_CLIENTS,
-    mutes: new MuteBook(),
+    mutes,
     log,
     registry,
+  };
+  InteriorRoom.deps = {
+    jwtSecret: config.JWT_SECRET,
+    jwtIssuer: config.JWT_ISSUER,
+    mutes,
+    log,
+    // Na máquina local, sem WORLD_URL, o world fica na porta padrão; em produção, só com WORLD_URL.
+    visits: overrides.visits ?? (worldUrl ? new HttpVisitChecker(worldUrl) : null),
   };
 
   const healthz = createEndpoint('/healthz', { method: 'GET' }, async () => json(200, { status: 'ok' }));
@@ -95,6 +109,7 @@ export async function startRealtime(config: Config, log: Log = () => {}) {
   const gameServer = new Server({ transport: new WebSocketTransport({ server: http }), greet: false });
   gameServer.router = createRouter({ healthz, rooms, broadcast });
   gameServer.define('district', DistrictRoom).filterBy(['city', 'district']);
+  gameServer.define('interior', InteriorRoom).filterBy(['city', 'lot']);
   await gameServer.listen(config.PORT, config.HOST);
   const address = http.address();
   const port = typeof address === 'object' && address ? address.port : config.PORT;

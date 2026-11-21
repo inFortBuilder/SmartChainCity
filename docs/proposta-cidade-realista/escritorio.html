@@ -72,7 +72,8 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
-import { loadAvatarAssets, makeAvatar } from './avatar.js';
+import { getAvatarType, loadAvatarAssets, makeAvatar } from './avatar.js';
+import { createInteriorMultiplayer } from './interior-mp.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { ProgressiveLightMap } from 'three/addons/misc/ProgressiveLightMap.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
@@ -83,7 +84,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 // ---------------------------------------------------------------------------
 // Padrão SCC Kit (ADR-0015): metros, Y para cima, porta 1,0 × 2,1 m, pé-direito 2,8 m.
 // Tudo aqui é geometria própria, feita em código: nenhum modelo de terceiros.
-// O avatar é o manequim da Universal Animation Library (Quaternius, CC0), Man ou Human,
+// O avatar é o manequim da Universal Animation Library (Quaternius, CC0), Man ou Woman,
 // o mesmo escolhido no street view (avatar.js).
 // ---------------------------------------------------------------------------
 const SALA = { largura: 12, fundo: 9, pe: 2.8 };          // interior: x ∈ [-6, 6], z ∈ [-4.5, 4.5]
@@ -574,6 +575,21 @@ if (VOLTAR) {
   sair.hidden = false;
   sair.addEventListener('click', () => location.assign(VOLTAR));
 }
+// Com outros jogadores no mesmo imóvel (dono e convidados): sala do interior no realtime.
+const POSE_DO_ESTADO = { sentado: 'sit', levantando: 'sit', usando: 'interact', conversando: 'talk' };
+const poseAtual = () => (estado ? POSE_DO_ESTADO[estado.tipo] ?? 'idle' : avatar.vel > 2.5 ? 'run' : avatar.vel > 0 ? 'walk' : 'idle');
+const visitantes = VOLTAR
+  ? createInteriorMultiplayer({
+      THREE,
+      scene,
+      city: 'pittsburg',
+      lot: Number(PARAMS.get('lote')),
+      name: (PARAMS.get('nome') ?? 'Visitante').slice(0, 40),
+      skin: getAvatarType(),
+      loadGltf: (url) => new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).loadAsync(url),
+      me: () => ({ x: avatar.pos.x, z: avatar.pos.z, rot: avatar.rumo, pose: poseAtual() }),
+    })
+  : null;
 let saindo = false;
 function saiuPelaPorta() {
   if (!VOLTAR || saindo || avatar.pos.z < SALA.fundo / 2 + 1.2) return;
@@ -755,6 +771,7 @@ function andar(dt) {
   if (dir.lengthSq() > 0) {
     dir.normalize();
     const v = correndo ? 4.2 : 1.6;
+    avatar.vel = v;
     avatar.pos.addScaledVector(dir, v * dt);
     resolverColisao(avatar.pos);
     const alvoRumo = Math.atan2(dir.x, dir.z);
@@ -762,7 +779,10 @@ function andar(dt) {
     d = Math.atan2(Math.sin(d), Math.cos(d));
     avatar.rumo += d * Math.min(1, dt * 10);
     tocar(correndo ? 'Running' : 'Walking');
-  } else tocar('Idle');
+  } else {
+    avatar.vel = 0;
+    tocar('Idle');
+  }
   avatar.obj.position.copy(avatar.pos);
   avatar.obj.rotation.y = avatar.rumo;
 }
@@ -832,6 +852,7 @@ window.spike = {
   irPara: (x, z) => { avatar.alvo = new THREE.Vector3(x, 0, z); },
   get assentos() { return assentos; }, get pontos() { return pontos; }, get estado() { return estado; },
   usar: () => usarDaVez(), conversar: () => conversar(),
+  get visitantes() { return visitantes; },
   teleporte: (x, z) => { avatar.pos.set(x, 0, z); avatar.alvo = null; },
   olhar: (yaw, pitch, dist) => { orbita = { yaw, pitch, dist }; },
   vista: (de, para) => { vistaFixa = de ? { de: new THREE.Vector3(...de), para: new THREE.Vector3(...para) } : null; },

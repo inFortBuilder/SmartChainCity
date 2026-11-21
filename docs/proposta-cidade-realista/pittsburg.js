@@ -227,7 +227,10 @@ async function enterLot(i) {
     const a = streetView.position();
     const voltar = `pittsburg.html?rua=${a.x.toFixed(1)},${a.z.toFixed(1)},${streetView.heading().toFixed(2)}`;
     const titulo = `${place.label} · lote ${i}${role === 'guest' ? ' · convidado' : ''}`;
-    location.assign(`escritorio.html?${new URLSearchParams({ tipo: place.interior, titulo, voltar })}`);
+    const job = servidor.getData().avatar?.job?.label ?? 'Jogador';
+    const addr = servidor.getSession()?.address;
+    const nome = addr ? `${job} ${addr.slice(-4)}` : job;
+    location.assign(`escritorio.html?${new URLSearchParams({ tipo: place.interior, titulo, voltar, lote: String(i), nome })}`);
   } catch (error) {
     streetView.say(VISIT_ERRORS[error.code] ?? error.message, 3500);
   }

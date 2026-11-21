@@ -104,7 +104,7 @@ export function createMultiplayer(map) {
     return s;
   }
 
-  // Avatar dos outros jogadores: o tipo que cada um escolheu (Man ou Human), com os mesmos clipes.
+  // Avatar dos outros jogadores: o tipo que cada um escolheu (Man ou Woman), com os mesmos clipes.
   function makeWalker(pin, name) {
     const type = pin.skin;
     const assets = map.getStreetView?.()?.avatarAssets(type);

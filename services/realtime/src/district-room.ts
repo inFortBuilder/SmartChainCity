@@ -2,7 +2,8 @@ import { type AuthContext, type Client, Room } from '@colyseus/core';
 import { type MapSchema, schema, t } from '@colyseus/schema';
 import { verifyAccessToken } from '@scc/shared';
 
-import { MuteBook, RateLimiter, cleanName, moderateText } from './moderation.js';
+import { MuteBook, RateLimiter, cleanName } from './moderation.js';
+import { registerChat } from './room-chat.js';
 
 /**
  * Sala de um bairro (ADR-0005; ADR-0012: o bairro é a unidade de carregamento
@@ -23,7 +24,7 @@ export const Player = schema(
     mode: t.string().default('map'),
     /** Velocidade no street view, em m/s: escolhe a animação (parado, andando, correndo). */
     speed: t.float32().default(0),
-    /** Tipo de avatar no street view: `man` ou `human` (manequins da Universal Animation Library). */
+    /** Tipo de avatar no street view: `man` ou `woman` (manequins da Universal Animation Library). */
     skin: t.string().default('man'),
   },
   'Player',
@@ -54,7 +55,9 @@ export interface RoomDeps {
 const MAX_COORD = 200_000;
 const MODES = new Set(['map', 'street']);
 const MAX_SPEED = 10; // m/s: acima disso não é caminhada
-const SKINS = new Set(['man', 'human']);
+const SKINS = new Set(['man', 'woman']);
+/** Nome antigo do manequim feminino, de clientes que ainda não atualizaram. */
+const skinOf = (v: unknown) => (v === 'human' ? 'woman' : v);
 
 export class DistrictRoom extends Room {
   static deps: RoomDeps;
@@ -101,38 +104,16 @@ export class DistrictRoom extends Room {
       p.mode = typeof msg?.mode === 'string' && MODES.has(msg.mode) ? msg.mode : 'map';
       p.speed = p.mode === 'street' ? Math.min(MAX_SPEED, Math.max(0, speed)) : 0;
       // Tipo de avatar desconhecido não muda o atual.
-      if (typeof msg?.skin === 'string' && SKINS.has(msg.skin)) p.skin = msg.skin;
+      const skin = skinOf(msg?.skin);
+      if (typeof skin === 'string' && SKINS.has(skin)) p.skin = skin;
     });
 
-    this.onMessage('chat', (client, msg: { text?: unknown }) => {
-      const p = this.state.players.get(client.sessionId);
-      const account = this.accounts.get(client.sessionId);
-      if (!p || !account) return;
-      const muted = deps.mutes.isMuted(account);
-      if (muted) return client.send('chat_error', { reason: 'muted', until: new Date(muted).toISOString() });
-      if (!this.chats.take(client.sessionId)) return client.send('chat_error', { reason: 'too_fast' });
-
-      const r = moderateText(typeof msg?.text === 'string' ? msg.text : '');
-      if (!r.ok) {
-        const until = r.reason === 'link' ? deps.mutes.violation(account) : 0;
-        deps.log('chat.blocked', { account, reason: r.reason, room: this.roomId, muted: until > 0 });
-        return client.send('chat_error', { reason: r.reason, ...(until ? { muted_until: new Date(until).toISOString() } : {}) });
-      }
-      if (r.masked) {
-        const until = deps.mutes.violation(account);
-        deps.log('chat.masked', { account, room: this.roomId, muted: until > 0 });
-      }
-      this.broadcast('chat', { from: client.sessionId, name: p.name, text: r.text, at: new Date().toISOString() });
-    });
-
-    // Denúncia: 3 jogadores diferentes silenciam o alvo (doc 10).
-    this.onMessage('report', (client, msg: { sessionId?: unknown; reason?: unknown }) => {
-      const by = this.accounts.get(client.sessionId);
-      const target = typeof msg?.sessionId === 'string' ? this.accounts.get(msg.sessionId) : undefined;
-      if (!by || !target) return;
-      const until = deps.mutes.report(target, by);
-      deps.log('chat.report', { by, target, room: this.roomId, reason: String(msg?.reason ?? '').slice(0, 100), muted: until > 0 });
-      client.send('report_ok', {});
+    registerChat(this, {
+      mutes: deps.mutes,
+      log: deps.log,
+      chats: this.chats,
+      accounts: this.accounts,
+      nameOf: (id) => this.state.players.get(id)?.name,
     });
   }
 
