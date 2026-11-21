@@ -413,7 +413,7 @@ export function createServidor(map) {
     if (vault?.paused) html += '<p class="muted pequeno">⏸ <strong>Cofre pausado:</strong> depósito e resgate esperam ele reabrir.</p>';
     html += `<form data-form="deposito" class="banco">
         <input class="campo" name="valor" inputmode="decimal" required placeholder="SCITY a depositar" aria-label="SCITY a depositar" />
-        <button class="btn btn--blue pequeno" type="submit" ${busy || !hasWallet() ? 'disabled' : ''}>Depositar de ${short(wallets[0])}</button>
+        <button class="btn btn--blue pequeno" type="submit" ${busy || !hasWallet() || vault?.paused ? 'disabled' : ''}>Depositar de ${short(wallets[0])}</button>
       </form>
       <p class="muted pequeno">${hasWallet() ? 'Uma assinatura e uma transação: o SCITY vira saldo no jogo depois das confirmações da rede.' : 'Para depositar, abra o mapa num navegador com a MetaMask.'}</p>`;
     const deposits = (data.deposits ?? []).slice(0, 3);

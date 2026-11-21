@@ -16,6 +16,7 @@ import {
   type Withdrawal,
   type WithdrawalStore,
   deadlineSeconds,
+  formatScity,
   requestWithdrawal,
   settleWithdrawals,
   withdrawalNonce,
@@ -283,5 +284,14 @@ describe('API', () => {
     const off = await buildApp(config, ledger, () => T0);
     const r2 = await off.inject({ method: 'POST', url: '/v1/economy/withdrawals', headers, payload: { wallet, amount_wei: '1' } });
     expect(r2.statusCode).toBe(503);
+  });
+});
+
+describe('formatScity', () => {
+  it('milhar com ponto e até 4 casas com vírgula', () => {
+    expect(formatScity(10_000n * WEI)).toBe('10.000');
+    expect(formatScity(30n * WEI)).toBe('30');
+    expect(formatScity(1_234_567n * WEI + WEI / 2n)).toBe('1.234.567,5');
+    expect(formatScity(WEI / 10_000n)).toBe('0,0001');
   });
 });

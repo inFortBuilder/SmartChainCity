@@ -164,11 +164,12 @@ async function checkVault(vault: VaultReader | undefined, wallet: Address, amoun
   }
 }
 
-/** 1234500000000000000 → "1,2345" (até 4 casas, para mensagens). */
+/** 12345600000000000000000 → "12.345,6" (até 4 casas, para mensagens). */
 export const formatScity = (wei: bigint) => {
   const whole = wei / WEI;
   const frac = ((wei % WEI) * 10_000n) / WEI;
-  return frac === 0n ? whole.toString() : `${whole},${frac.toString().padStart(4, '0').replace(/0+$/, '')}`;
+  const int = whole.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  return frac === 0n ? int : `${int},${frac.toString().padStart(4, '0').replace(/0+$/, '')}`;
 };
 
 export async function requestWithdrawal(
