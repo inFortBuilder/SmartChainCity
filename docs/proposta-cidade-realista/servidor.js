@@ -51,6 +51,7 @@ const left = (iso) => {
   const ms = new Date(iso).getTime() - Date.now();
   if (ms <= 0) return 'concluindo…';
   const m = Math.ceil(ms / 60_000);
+  if (m >= 48 * 60) return `${Math.floor(m / 1440)} d ${Math.floor((m % 1440) / 60)} h`;
   return m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min`;
 };
 
@@ -571,7 +572,7 @@ export function createServidor(map) {
     const off = busy ? 'disabled' : '';
     html += `<div class="linha">
         <button class="btn btn--blue pequeno" type="button" data-s="aula" ${off || (sc.class_today || ed >= 100 || a.attributes.energy < 2 ? 'disabled' : '')}>Aula · ${thaler(school.class.price)}</button>
-        <span class="muted pequeno">${ed >= 100 ? 'Educação no máximo.' : sc.class_today ? 'Aula de hoje feita.' : `+${school.class.education} de educação, ${school.class.energy} de energia. Uma por dia.`}</span>
+        <span class="muted pequeno">${ed >= 100 ? 'Educação no máximo.' : sc.class_today ? 'Aula de hoje feita.' : `+${school.class.education} de educação, ${String(school.class.energy).replace('-', '−')} de energia. Uma por dia.`}</span>
       </div>`;
     const options = jobs
       .filter((j) => j.rarity === a.rarity && j.code !== a.job.code)
