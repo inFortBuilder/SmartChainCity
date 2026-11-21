@@ -12,6 +12,7 @@ import { readChunk } from '../../tools/scc-builder/bin/lib/lot-chunks.js';
 import { createGestao } from './gestao.js';
 import { createServidor } from './servidor.js';
 import { createMultiplayer } from './multiplayer.js';
+import { createStreetView } from './streetview.js';
 
 const BASE = '../../.local/cidades/pittsburg';
 const $ = (s) => document.querySelector(s);
@@ -142,6 +143,7 @@ function showBuilding(b) {
 let down = null;
 canvas.addEventListener('pointerdown', (e) => { down = [e.clientX, e.clientY]; });
 canvas.addEventListener('pointerup', (e) => {
+  if (streetView?.active()) return; // no chão, o clique é para caminhar
   if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) >= 5) return;
   if (lotLayer.visible) showLot(pickLot(e));
   else showBuilding(pick(e));
@@ -159,6 +161,7 @@ let lots = null;
 let lotToggle = null;
 let lotsPromise = null;
 let gestao = null;
+let streetView = null;
 let shownLot = null;
 let servidor = null;
 
@@ -644,7 +647,15 @@ try {
     THREE, scene, camera, controls, lotAt, getLots: () => lots,
     getSession: () => servidor.getSession(), getAvatar: () => servidor.getData().avatar,
   });
-  window.__pittsburg = { scene, camera, controls, renderer, buildings, pick, showBuilding, pickLot, showLot, getLots: () => lots, gestao, civicBuilding, progressiveBuilding, loadLotsFor, servidor, multiplayer };
+  // Street view: arrastar o boneco do canto até uma rua e caminhar só pelas ruas.
+  const roadsMesh = gltf.scene.getObjectByName('roads');
+  if (roadsMesh?.isMesh) {
+    streetView = createStreetView({
+      THREE, scene, camera, controls, canvas, roads: roadsMesh,
+      loadGltf: (url) => new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).loadAsync(url),
+    });
+  }
+  window.__pittsburg = { scene, camera, controls, renderer, buildings, pick, showBuilding, pickLot, showLot, getLots: () => lots, gestao, civicBuilding, progressiveBuilding, loadLotsFor, servidor, multiplayer, streetView };
 
   // Spike E0.9: ?spike (ou ?spike=20) mede download, FPS e 20 prédios com LOD.
   const spikeParam = new URLSearchParams(location.search).get('spike');
@@ -722,11 +733,17 @@ function updateNearPlane() {
   }
 }
 
+let svLast = 0;
 renderer.setAnimationLoop((now) => {
   adaptResolution(now);
   gestao?.tick();
-  controls.update();
-  updateNearPlane();
+  const dt = svLast ? (now - svLast) / 1000 : 0;
+  svLast = now;
+  // No street view, a câmera segue o avatar; no mapa, os controles de órbita.
+  if (!streetView?.tick(dt)) {
+    controls.update();
+    updateNearPlane();
+  }
   if (now - lastStream > 300) {
     lastStream = now;
     streamLots();

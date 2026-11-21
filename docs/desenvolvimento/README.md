@@ -14,7 +14,7 @@ Como trabalhar neste repositório: ambiente, fluxo de Git, padrões e o **caminh
 
 | Trilha | Pasta | Guia | Épicos principais |
 |--------|-------|------|-------------------|
-| Cliente web (Three.js, [ADR-0009](../adr/0009-cliente-web-nativo.md)) | [`docs/proposta-cidade-realista/`](../proposta-cidade-realista/README.md) (protótipo) | [spike E0.9](spike-e0.9-cliente-web.md) | E0.9, E1.6, E2.4, E2.7 |
+| Cliente web (Three.js, [ADR-0009](../adr/0009-cliente-web-nativo.md)) | [`docs/proposta-cidade-realista/`](../proposta-cidade-realista/README.md) (protótipo) | [spike E0.9](spike-e0.9-cliente-web.md), [street view](street-view.md) | E0.9, E1.6, E2.4, E2.7 |
 | Cliente Unity WebGL (plano B da ADR-0009) | [`client-unity/`](../../client-unity/README.md) | [trilha-client-unity.md](trilha-client-unity.md) | E0.3, E0.6 |
 | Backend (serviços) | [`services/`](../../services/README.md) | [trilha-backend.md](trilha-backend.md) | E1.1, E1.3–E1.5, E2.x, E3.x |
 | Smart contracts | [`contracts/`](../../contracts/README.md) | [trilha-contratos.md](trilha-contratos.md) | E2.1, E2.5, E3.6–E3.8, E4.1–E4.2 |
