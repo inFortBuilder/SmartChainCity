@@ -5,6 +5,7 @@ import { type Food, food as findFood } from './foods.js';
 import { CONDITIONS, type ConditionCode, activeConditions, catchCondition, cure, isConditionCode, isSerious } from './conditions.js';
 import { assertNotInHospital } from './hospital.js';
 import { type PetEffect, applyPetEffect } from './pet.js';
+import { type SchoolEffect, applySchoolEffect } from './school.js';
 
 /**
  * Refeição no mercado do jogo (E2.3, GDD §2.3 e §4): o avatar compra uma
@@ -34,6 +35,8 @@ export interface MealEffects {
   pantry?: { code: string; units: number };
   /** Só Pet Shop (E3.1): adoção ou serviço, aplicado ao pet depois da cobrança. */
   pet?: PetEffect;
+  /** Só escola (E3.2): aula ou troca de profissão, aplicada depois da cobrança. */
+  school?: SchoolEffect;
 }
 
 /**
@@ -66,6 +69,28 @@ export const isMedicine = (m: Pick<Meal, 'foodCode'>) => m.foodCode === MEDICINE
  * (cobrança em duas fases, idempotente). O código é `pet:<adocao|serviço>`.
  */
 export const isPetShop = (m: Pick<Meal, 'foodCode'>) => m.foodCode?.startsWith('pet:') ?? false;
+
+/** Escola (E3.2): aula e troca de profissão, pelo mesmo caminho. Código `escola:<aula|troca>`. */
+export const isSchool = (m: Pick<Meal, 'foodCode'>) => m.foodCode?.startsWith('escola:') ?? false;
+
+export function planSchool(
+  avatar: Avatar,
+  input: { id: string; clientKey: string | null; effect: SchoolEffect; cents: bigint },
+  now: Date,
+): Meal {
+  return {
+    id: input.id,
+    avatarId: avatar.id,
+    accountId: avatar.accountId,
+    foodCode: input.effect.kind === 'class' ? 'escola:aula' : `escola:troca:${input.effect.toJob}`,
+    priceCents: input.cents,
+    effects: { food: 0, energy: 0, health: 0, school: input.effect },
+    status: 'pending',
+    clientKey: input.clientKey,
+    createdAt: now,
+    eatenAt: null,
+  };
+}
 
 export function planPetShop(
   avatar: Avatar,
@@ -215,6 +240,7 @@ const clamp = (n: number) => Math.max(0, Math.min(ATTRIBUTE_MAX, n));
  */
 export function eat(avatar: Avatar, effects: MealEffects, now: Date): Avatar {
   if (effects.pet) return applyPetEffect(avatar, effects.pet, now);
+  if (effects.school) return applySchoolEffect(avatar, effects.school, now);
   const a = avatar.attributes;
   let conditions = avatar.conditions;
   if (effects.condition) conditions = catchCondition(conditions, effects.condition, now);

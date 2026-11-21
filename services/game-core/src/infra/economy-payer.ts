@@ -1,7 +1,7 @@
 import { AppError, forwardRequestId } from '@scc/shared';
 
 import type { HospitalPayer, HospitalStay } from '../domain/hospital.js';
-import { type Meal, type MealPayer, isMedicine, isPack, isPetShop } from '../domain/meal.js';
+import { type Meal, type MealPayer, isMedicine, isPack, isPetShop, isSchool } from '../domain/meal.js';
 import type { Payer, Shift } from '../domain/shift.js';
 
 /**
@@ -66,22 +66,23 @@ export class EconomyPayer implements Payer, MealPayer, HospitalPayer {
   async chargeMeal(meal: Meal, requestId?: string) {
     const medicine = isMedicine(meal);
     const petShop = isPetShop(meal);
+    const school = isSchool(meal);
     const error = await this.post(
       `meal:${meal.id}`,
       {
-        kind: petShop ? 'petshop_buy' : medicine ? 'medicine_buy' : isPack(meal) ? 'pack_buy' : 'meal_buy',
+        kind: school ? 'school_buy' : petShop ? 'petshop_buy' : medicine ? 'medicine_buy' : isPack(meal) ? 'pack_buy' : 'meal_buy',
         ref_type: 'meal',
         ref_id: meal.id,
         legs: [
           { owner_type: 'player', owner_id: meal.accountId, currency: 'THALER', amount: `-${meal.priceCents}` },
-          { owner_type: 'burn', owner_id: petShop ? 'petshop' : medicine ? 'pharmacy' : 'food', currency: 'THALER', amount: `${meal.priceCents}` },
+          { owner_type: 'burn', owner_id: school ? 'school' : petShop ? 'petshop' : medicine ? 'pharmacy' : 'food', currency: 'THALER', amount: `${meal.priceCents}` },
         ],
       },
       requestId,
     );
     if (error === null) return;
     if (error === 'insufficient_funds') {
-      throw new AppError('insufficient_thaler', `THALER insuficiente para ${petShop ? 'o Pet Shop' : medicine ? 'o remédio' : isPack(meal) ? 'o pacote' : 'esta refeição'}.`, 409);
+      throw new AppError('insufficient_thaler', `THALER insuficiente para ${school ? 'a escola' : petShop ? 'o Pet Shop' : medicine ? 'o remédio' : isPack(meal) ? 'o pacote' : 'esta refeição'}.`, 409);
     }
     throw new AppError('ledger_unavailable', 'O ledger recusou a cobrança.', 502);
   }

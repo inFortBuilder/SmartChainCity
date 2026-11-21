@@ -3,6 +3,7 @@ import { AppError } from '@scc/shared';
 import { type Rarity, isRarity, professionFits } from './catalog.js';
 import { CONDITIONS, type Condition, activeConditions, drainDue, drainHealth } from './conditions.js';
 import { type Pet, decayedPet } from './pet.js';
+import { type School, inSchool, schooled } from './school.js';
 
 /**
  * Avatar e atributos (doc 02 §2.3, doc 06 §2). Atributos de 0 a 10, educação
@@ -60,6 +61,8 @@ export interface Avatar {
   pantry: Record<string, number>;
   /** Pet do avatar (E3.1): gato ou cachorro, vivo ou morto até ser enterrado; null sem pet. */
   pet?: Pet | null;
+  /** Escola (E3.2): última aula e troca de profissão em curso; null sem histórico. */
+  school?: School | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -83,7 +86,8 @@ export function decayed(avatar: Avatar, now: Date): Avatar {
   attributes.health = drained.health;
   // O pet cai junto (pet.ts): alimentação em 0 o mata.
   const pet = avatar.pet ? decayedPet(avatar.pet, now) : (avatar.pet ?? null);
-  return { ...avatar, attributes, anchors, conditions: drained.conditions, pet };
+  // A escola anda junto: o bônus de felicidade do 2º dia e a troca de profissão no fim dos 4 dias.
+  return schooled({ ...avatar, attributes, anchors, conditions: drained.conditions, pet }, now);
 }
 
 /** Algo caiu desde a última gravação? É o que o job procura. */
@@ -100,7 +104,8 @@ export function status(avatar: Avatar, now: Date = new Date()) {
   const a = avatar.attributes;
   // De cama ou isolado (dor de barriga, gripe) também não trabalha nem sai para o lazer.
   const bedridden = activeConditions(avatar.conditions, now).some((c) => CONDITIONS[c.code].blocksWork);
-  const free = !inHospital(avatar, now) && !bedridden;
+  // Na escola trocando de profissão também não trabalha (E3.2).
+  const free = !inHospital(avatar, now) && !bedridden && !inSchool(avatar, now);
   return {
     // GDD: 48 h sem comer não gera recompensa.
     earnsReward: a.food > 0,
@@ -132,6 +137,7 @@ export function newAvatar(
     conditions: [],
     pantry: {},
     pet: null,
+    school: null,
     createdAt: now,
     updatedAt: now,
   };

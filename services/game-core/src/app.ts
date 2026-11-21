@@ -26,6 +26,7 @@ import {
   petDto,
   petMultiplier,
 } from './domain/pet.js';
+import { CHANGE_CENTS, CHANGE_MS, CLASS, GRADES, checkChange, checkClass, schoolDto } from './domain/school.js';
 import {
   CURE_CHANCE,
   MEAL_FOOD_POINTS,
@@ -37,7 +38,9 @@ import {
   eatFromPantry,
   isMedicine,
   isPetShop,
+  isSchool,
   planPetShop,
+  planSchool,
   isPack,
   packPriceCents,
   planMedicine,
@@ -81,6 +84,7 @@ const avatarDto = (a: Avatar, at: Date) => ({
   hospital_until: status(a, at).inHospital ? a.hospitalUntil!.toISOString() : null,
   pantry: Object.entries(a.pantry).map(([code, units]) => ({ food: code, units })),
   pet: petDto(a.pet, at),
+  school: schoolDto(a, at),
   // Só as que estão em curso: a sorteada no turno aparece quando o turno acaba.
   conditions: activeConditions(a.conditions, at).map((c) => ({
     code: c.code,
@@ -374,7 +378,7 @@ export async function buildApp(
     const meal = await store.beginMeal(avatar.id, avatar.accountId, clientKey, now(), plan(clientKey));
     const done = await settleMeal(meal, request.id);
     if (done.status === 'failed') {
-      const what = isPetShop(done) ? 'o Pet Shop' : isMedicine(done) ? 'o remédio' : isPack(done) ? 'o pacote' : 'esta refeição';
+      const what = isSchool(done) ? 'a escola' : isPetShop(done) ? 'o Pet Shop' : isMedicine(done) ? 'o remédio' : isPack(done) ? 'o pacote' : 'esta refeição';
       throw new AppError('insufficient_thaler', `THALER insuficiente para ${what}.`, 409);
     }
     return { avatar, done };
@@ -469,6 +473,41 @@ export async function buildApp(
     const next = await store.updateAvatar(avatar.id, avatar.accountId, now(), (current) => petAction(current, action, now()));
     const at = now();
     return { avatar: avatarDto(decayed(next, at), at) };
+  });
+
+  // Escola (E3.2): aula e troca de profissão, preços em centavos de THALER (premissas, school.ts).
+  app.get('/v1/catalog/school', async () => ({
+    decimals: 2,
+    provisional_price: true,
+    class: { price: CLASS.cents.toString(), education: CLASS.education, energy: CLASS.energy, per_day: 1 },
+    change: { price: CHANGE_CENTS.toString(), days: CHANGE_MS / 86_400_000, same_rarity: true },
+    grades: GRADES,
+  }));
+
+  // Aula do dia: +educação, −energia, paga pelo ledger.
+  app.post('/v1/avatars/:id/school/class', async (request, reply) => {
+    const { avatar, done } = await purchase(request, (clientKey) => (current) => {
+      const { cents, ...effect } = checkClass(current, now());
+      return planSchool(current, { id: randomUUID(), clientKey, effect, cents }, now());
+    });
+    const fresh = (await store.get(avatar.id))!;
+    const at = now();
+    return reply.status(201).send({ purchase: mealDto(done), avatar: avatarDto(decayed(fresh, at), at) });
+  });
+
+  // Troca de profissão: 4 dias de escola, sem trabalhar; a nova vale no fim.
+  app.post('/v1/avatars/:id/school/change', async (request, reply) => {
+    const { job } = z.object({ job: z.string() }).parse(request.body);
+    const own = await ownAvatar(request);
+    await completeShifts(store, now());
+    const running = (await store.listShifts(own.id, 5)).some((s) => s.status === 'running');
+    const { avatar, done } = await purchase(request, (clientKey) => (current) => {
+      const { cents, ...effect } = checkChange(current, job, running, now());
+      return planSchool(current, { id: randomUUID(), clientKey, effect, cents }, now());
+    });
+    const fresh = (await store.get(avatar.id))!;
+    const at = now();
+    return reply.status(201).send({ purchase: mealDto(done), avatar: avatarDto(decayed(fresh, at), at) });
   });
 
   app.get('/v1/catalog/pharmacy', async () => ({
