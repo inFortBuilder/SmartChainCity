@@ -50,7 +50,7 @@ O MVP roda inteiro na máquina local, sem serviços pagos. Por isso, publicar o 
 
 | Área | Situação |
 |------|----------|
-| `contracts/` | Desde 2026-11-20: `LandNFT`, `AvatarNFT`, `LuckyBox`, `SCityToken`, `BuildingNFT`, `PropertyNFT` e `GameVault` no anvil. Faltam `Marketplace`, vesting e a reserva da auditoria (E3.8) |
+| `contracts/` | Desde 2026-11-20: `LandNFT`, `AvatarNFT`, `LuckyBox`, `SCityToken`, `BuildingNFT`, `PropertyNFT` e `GameVault` no anvil. O `Marketplace` também (2026-11-21): listagem com preço fixo, combo, taxa e royalties. Faltam vesting e a reserva da auditoria (E3.8) |
 | `services/world` | Faltam imóveis, impostos, regras de cerco e a cotação EIP-712 |
 | `services/chain-indexer` | Começou em 2026-11-20; credita os depósitos do `GameVault` no ledger. O `services/realtime` também começou nesse dia |
 | Etapa 0 sem código | E0.2 (trocar as credenciais legadas), E0.8 (parecer jurídico), o tomate duplicado e a calibração da elasticidade e do dinheiro novo no simulador |
@@ -164,7 +164,7 @@ O MVP roda inteiro na máquina local, sem serviços pagos. Por isso, publicar o 
 | E3.3 Lazer e negócios de jogador | backend · client | Academia, galeria, parque, campeonato de futebol de botão |
 | E3.4 Fazenda (A3) | backend · client · art | Plantio, estações, pecuária, maquinário, riscos |
 | E3.5 Veículos e corridas | backend · contracts · client | Carros, autoescola, IPVA, oficina, corridas diárias |
-| E3.6 Marketplace | contracts · backend · client | Listagem, leilão, combo lote + imóvel, royalties |
+| E3.6 Marketplace | contracts · backend · client | Listagem, leilão, combo lote + imóvel, royalties. 🟡 Desde 2026-11-21: contrato com listagem, combo, taxa e royalties, e listagens no chain-indexer. Faltam a tela no mapa e o leilão com prazo |
 | E3.7 GameVault | contracts · backend | Depósito e saque por voucher EIP-712, limites, circuit breaker |
 | E3.8 Auditoria externa | contracts · legal | Auditoria dos contratos e correção dos achados |
 | E3.9 Teste de carga | infra | 10 mil simultâneos no Realtime; 1 mil req/s na API |

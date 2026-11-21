@@ -22,6 +22,11 @@ export const CONTRACT_ABIS = {
     'event Deposited(address indexed account, uint256 amount)',
     'event Withdrawn(address indexed to, uint256 amount, uint256 indexed nonce)',
   ]),
+  Marketplace: parseAbi([
+    'event Listed(uint256 indexed listingId, address indexed seller, uint256 price, uint64 expiresAt, address[] collections, uint256[] tokenIds)',
+    'event Sold(uint256 indexed listingId, address indexed seller, address indexed buyer, uint256 price, uint256 fee, uint256 royalty)',
+    'event Cancelled(uint256 indexed listingId)',
+  ]),
   LuckyBox: parseAbi([
     'event BoxOpened(uint256 indexed requestId, address indexed buyer, uint32 indexed tierId)',
     'event AvatarRevealed(uint256 indexed requestId, address indexed buyer, uint256 tokenId, uint8 rarity, bytes32 profession)',
@@ -55,6 +60,8 @@ export function normalizeArgs(args: Record<string, unknown>): EventArgs {
   const out: EventArgs = {};
   for (const [k, v] of Object.entries(args)) {
     if (typeof v === 'bigint') out[k] = v.toString();
+    // Listas (coleções e tokens de uma listagem): texto separado por vírgula.
+    else if (Array.isArray(v)) out[k] = v.map((x) => (typeof x === 'bigint' ? x.toString() : String(x).toLowerCase())).join(',');
     else if (typeof v === 'string') out[k] = /^0x[0-9a-fA-F]{40}$/.test(v) ? v.toLowerCase() : v;
     else if (typeof v === 'number' || typeof v === 'boolean') out[k] = v;
     else out[k] = String(v);
@@ -109,6 +116,21 @@ export interface BoxRequest {
   block: bigint;
 }
 
+/** Listagem do Marketplace (E3.6): um NFT ou um combo, por um preço em SCITY. */
+export interface MarketListing {
+  listingId: string;
+  seller: string;
+  priceWei: string;
+  /** Unix, em segundos. */
+  expiresAt: number;
+  /** Endereço da coleção (minúsculas) e token. */
+  items: { collection: string; tokenId: string }[];
+  /** `replaced`: o NFT foi listado de novo por quem o tem agora (o contrato fecha a velha sem evento). */
+  status: 'active' | 'sold' | 'cancelled' | 'replaced';
+  buyer: string | null;
+  block: bigint;
+}
+
 /**
  * O que um evento muda nas projeções. Os dois stores aplicam a mesma lista, na
  * ordem (bloco, log), então memória e Postgres chegam ao mesmo estado.
@@ -122,7 +144,9 @@ export type ProjectionOp =
   | { kind: 'property_level'; tokenId: string; level: number; block: bigint }
   | { kind: 'deposit'; txHash: string; logIndex: number; account: string; amountWei: string; block: bigint }
   | { kind: 'box_opened'; value: BoxRequest }
-  | { kind: 'box_revealed'; requestId: string; buyer: string; tokenId: string; block: bigint };
+  | { kind: 'box_revealed'; requestId: string; buyer: string; tokenId: string; block: bigint }
+  | { kind: 'listing_created'; value: MarketListing }
+  | { kind: 'listing_closed'; listingId: string; status: 'sold' | 'cancelled'; buyer: string | null; block: bigint };
 
 export function projectionOps(e: ChainEvent): ProjectionOp[] {
   const a = e.args;
@@ -184,6 +208,31 @@ export function projectionOps(e: ChainEvent): ProjectionOp[] {
   }
   if (e.contract === 'LuckyBox' && e.event === 'AvatarRevealed') {
     return [{ kind: 'box_revealed', requestId: a.requestId as string, buyer: a.buyer as string, tokenId: a.tokenId as string, block: e.blockNumber }];
+  }
+  if (e.contract === 'Marketplace' && e.event === 'Listed') {
+    const collections = String(a.collections).split(',');
+    const tokenIds = String(a.tokenIds).split(',');
+    return [
+      {
+        kind: 'listing_created',
+        value: {
+          listingId: a.listingId as string,
+          seller: a.seller as string,
+          priceWei: a.price as string,
+          expiresAt: Number(a.expiresAt),
+          items: collections.map((collection, i) => ({ collection, tokenId: tokenIds[i]! })),
+          status: 'active',
+          buyer: null,
+          block: e.blockNumber,
+        },
+      },
+    ];
+  }
+  if (e.contract === 'Marketplace' && e.event === 'Sold') {
+    return [{ kind: 'listing_closed', listingId: a.listingId as string, status: 'sold', buyer: a.buyer as string, block: e.blockNumber }];
+  }
+  if (e.contract === 'Marketplace' && e.event === 'Cancelled') {
+    return [{ kind: 'listing_closed', listingId: a.listingId as string, status: 'cancelled', buyer: null, block: e.blockNumber }];
   }
   // LotSold fica só no registro de eventos: a posse vem do Transfer. Withdrawn vai pelo feed para o economy.
   return [];

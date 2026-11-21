@@ -77,6 +77,8 @@ O crédito acontece uma vez só: numa reorganização as projeções são refeit
 | GET | `/v1/chain/deposits/:address` | público | Depósitos de uma carteira no `GameVault` e se já viraram saldo (`pending`, `credited`) |
 | GET | `/v1/chain/boxes/:requestId` | público | Caixa aberta: comprador, tier, situação e avatar sorteado |
 | GET | `/v1/chain/owners/:address` | público | Lotes, avatares e imóveis de uma carteira |
+| GET | `/v1/market/listings?limit=&all=` | público | Listagens abertas do `Marketplace`, as mais novas primeiro: vendedor, preço, prazo e itens com a coleção e o dono atual. Sem `all=true`, saem as vencidas e as velhas (`stale`: o vendedor já não tem algum NFT) |
+| GET | `/v1/market/listings/:id` | público | Uma listagem, aberta ou fechada (`sold`, `cancelled` ou `replaced` quando o NFT foi listado de novo pelo dono atual) |
 | GET | `/internal/v1/chain/events?after=&limit=` | serviços (`x-service-token`) | Feed de eventos confirmados, em ordem; `next_after` para a próxima página |
 | GET | `/healthz`, `/metrics` | — | Saúde e métricas ([infra/observability](../../infra/observability/README.md)) |
 

@@ -26,6 +26,20 @@ O VRF usa uma interface mínima ([`src/vrf/VRFV2Plus.sol`](src/vrf/VRFV2Plus.sol
 - As probabilidades do tier de teste são 40/30/20/10%, as mesmas fatias do simulador. A tabela do whitepaper não está nas fontes (doc 02 §2).
 - A Lucky Box depende do parecer jurídico (E0.8).
 
+### Marketplace (E3.6)
+
+[`Marketplace`](src/Marketplace.sol) é o mercado secundário, com preço fixo em SCITY (doc 07 §2.5).
+
+| Regra | Como |
+|---|---|
+| Listar | `list(items, price, expiresAt)`: de 1 a 5 NFTs de coleções permitidas (`setCollection`) por um preço só. Mais de um é o combo (lote + imóvel). O NFT fica na carteira: o vendedor só aprova o contrato (`setApprovalForAll`). Um NFT tem uma listagem viva por vez; se o dono mudou fora do mercado, o novo dono lista e a velha fecha |
+| Comprar | `buy(listingId, maxPrice)`: o comprador aprova o SCITY antes. Saem a taxa do protocolo (`feeBps`, 2,5%, para a tesouraria; teto de 10%) e o royalty EIP-2981 de cada NFT que o declara, sobre a parte dele no preço. O resto vai para o vendedor, e todos os NFTs passam juntos. `maxPrice` protege contra troca de preço |
+| Recusa | Venda vencida, preço acima de `maxPrice`, compra da própria listagem e vendedor que já não tem algum dos NFTs (`ListingStale`: vendeu fora ou o leilão apreendeu, [ADR-0016](../docs/adr/0016-apreensao-nft-leilao.md)) |
+| Cancelar | O vendedor, ou o admin (moderação) |
+| Pausa | `PAUSER_ROLE` para listar e comprar |
+
+A regra de bairro fica só no jogo ([ADR-0014](../docs/adr/0014-decisoes-produto-mvp.md)). Sem proxy e sem leilão com prazo no MVP: os dois entram antes da mainnet, junto com a auditoria (E3.8). O `DeployLocal` cria o mercado por último, com taxa de 2,5% para o deployer e o lote, o imóvel e o avatar permitidos.
+
 ## Rodar
 
 Instale o [Foundry](https://getfoundry.sh) (1.9 ou mais novo). Depois, nesta pasta:
@@ -63,7 +77,7 @@ forge script script/DeployLocal.s.sol --rpc-url http://127.0.0.1:8545 --broadcas
 ```
 
 O script:
-- sobe os oito contratos e o par de teste da DEX (o `BuildingNFT`, o `PropertyNFT`, o `GameVault` e o par da DEX por último, para os outros endereços não mudarem);
+- sobe os nove contratos e o par de teste da DEX (o `BuildingNFT`, o `PropertyNFT`, o `GameVault`, o par da DEX e o `Marketplace` por último, para os outros endereços não mudarem);
 - põe 1 milhão de SCITY no `GameVault` como reserva de saque, com tetos de 1 milhão por dia e 10 mil por endereço (**premissa**);
 - dá ao `LuckyBox` o papel de criar avatares;
 - carrega as 44 profissões do seed do CMS (`cms-strapi/seed/profissoes.json`), separadas por raridade;

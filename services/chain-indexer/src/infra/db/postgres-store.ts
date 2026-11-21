@@ -11,6 +11,7 @@ import {
   type Cursor,
   type EventArgs,
   type LotToken,
+  type MarketListing,
   type ProjectionOp,
   type PropertyToken,
   byChainOrder,
@@ -25,6 +26,7 @@ import {
   cursor as cursorT,
   deposit as depositT,
   lotToken as lotT,
+  marketListing as listingT,
   propertyToken as propT,
 } from './schema.js';
 
@@ -44,6 +46,12 @@ const toEvent = (r: typeof eventT.$inferSelect): ChainEvent & { id: number } => 
 });
 
 const toDeposit = ({ chainId: _c, ...r }: typeof depositT.$inferSelect): Deposit => ({ ...r, status: r.status as Deposit['status'] });
+
+const toListing = ({ chainId: _c, ...r }: typeof listingT.$inferSelect): MarketListing => ({
+  ...r,
+  items: r.items as MarketListing['items'],
+  status: r.status as MarketListing['status'],
+});
 
 async function apply(tx: Tx, chainId: number, op: ProjectionOp) {
   switch (op.kind) {
@@ -95,6 +103,25 @@ async function apply(tx: Tx, chainId: number, op: ProjectionOp) {
         .insert(depositT)
         .values({ chainId, txHash: op.txHash, logIndex: op.logIndex, account: op.account, amountWei: op.amountWei, block: op.block, status: 'pending' })
         .onConflictDoNothing();
+      return;
+    case 'listing_created':
+      // A listagem velha de um NFT listado de novo fecha (o contrato faz o mesmo, sem evento).
+      for (const it of op.value.items) {
+        await tx
+          .update(listingT)
+          .set({ status: 'replaced' })
+          .where(and(eq(listingT.chainId, chainId), eq(listingT.status, 'active'), sql`${listingT.items} @> ${JSON.stringify([it])}::jsonb`));
+      }
+      await tx
+        .insert(listingT)
+        .values({ chainId, ...op.value })
+        .onConflictDoNothing();
+      return;
+    case 'listing_closed':
+      await tx
+        .update(listingT)
+        .set({ status: op.status, buyer: op.buyer, block: op.block })
+        .where(and(eq(listingT.chainId, chainId), eq(listingT.listingId, op.listingId)));
       return;
     case 'box_opened':
       await tx
@@ -175,6 +202,7 @@ export class PostgresIndexerStore implements IndexerStore {
       await tx.delete(boxT).where(eq(boxT.chainId, chainId));
       await tx.delete(propT).where(eq(propT.chainId, chainId));
       await tx.delete(depositT).where(eq(depositT.chainId, chainId));
+      await tx.delete(listingT).where(eq(listingT.chainId, chainId));
       const keep = await tx
         .select()
         .from(eventT)
@@ -267,5 +295,20 @@ export class PostgresIndexerStore implements IndexerStore {
       .orderBy(asc(eventT.id))
       .limit(limit);
     return rows.map(toEvent);
+  }
+
+  async activeListings(chainId: number, limit: number) {
+    const rows = await this.db
+      .select()
+      .from(listingT)
+      .where(and(eq(listingT.chainId, chainId), eq(listingT.status, 'active')))
+      .orderBy(sql`${listingT.listingId}::numeric desc`)
+      .limit(limit);
+    return rows.map(toListing);
+  }
+
+  async listing(chainId: number, listingId: string) {
+    const [r] = await this.db.select().from(listingT).where(and(eq(listingT.chainId, chainId), eq(listingT.listingId, listingId)));
+    return r ? toListing(r) : null;
   }
 }

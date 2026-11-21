@@ -43,6 +43,7 @@ const schema = z.object({
   LUCKY_BOX_ADDRESS: address,
   PROPERTY_NFT_ADDRESS: address,
   GAME_VAULT_ADDRESS: address,
+  MARKETPLACE_ADDRESS: address,
   /** Crédito dos depósitos: o gateway diz de quem é a carteira e o economy lança o SCITY. Sem os quatro, o crédito fica desligado. */
   GATEWAY_URL: optional(z.url()),
   GATEWAY_TOKEN: optional(z.string().min(32)),
@@ -51,7 +52,14 @@ const schema = z.object({
 });
 
 export type Config = z.infer<typeof schema> & {
-  contracts: { LandNFT?: `0x${string}`; AvatarNFT?: `0x${string}`; LuckyBox?: `0x${string}`; PropertyNFT?: `0x${string}`; GameVault?: `0x${string}` };
+  contracts: {
+    LandNFT?: `0x${string}`;
+    AvatarNFT?: `0x${string}`;
+    LuckyBox?: `0x${string}`;
+    PropertyNFT?: `0x${string}`;
+    GameVault?: `0x${string}`;
+    Marketplace?: `0x${string}`;
+  };
 };
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -67,6 +75,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       LuckyBox: pick(c.LUCKY_BOX_ADDRESS, 'LuckyBox'),
       PropertyNFT: pick(c.PROPERTY_NFT_ADDRESS, 'PropertyNFT'),
       GameVault: pick(c.GAME_VAULT_ADDRESS, 'GameVault'),
+      Marketplace: pick(c.MARKETPLACE_ADDRESS, 'Marketplace'),
     },
   };
 }
