@@ -78,6 +78,13 @@ export class PostgresPropertyStore implements PropertyStore {
     return rows.map(toProperty);
   }
 
+  async transferProperty(id: string, from: string, to: string) {
+    await this.db
+      .update(propertyT)
+      .set({ ownerAccountId: to })
+      .where(and(eq(propertyT.id, id), eq(propertyT.ownerAccountId, from)));
+  }
+
   async activateProperty(id: string) {
     await this.db.update(propertyT).set({ status: 'active' }).where(eq(propertyT.id, id));
   }

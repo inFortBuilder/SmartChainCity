@@ -174,6 +174,44 @@ export const taxBill = world.table(
   ],
 );
 
+/** Leilão do lote inadimplente (E2.6): um ativo (`open` ou `charged`) por lote. */
+export const auction = world.table(
+  'auction',
+  {
+    id: uuid('id').primaryKey(),
+    city: text('city').notNull(),
+    lotId: integer('lot_id').notNull(),
+    sellerAccountId: uuid('seller_account_id').notNull(),
+    debtCents: numeric('debt_cents', { precision: 20, scale: 0 }).notNull(),
+    billIds: jsonb('bill_ids').notNull(),
+    status: text('status').notNull(),
+    startsAt: timestamptz('starts_at').notNull(),
+    endsAt: timestamptz('ends_at').notNull(),
+    winnerAccountId: uuid('winner_account_id'),
+    priceCents: numeric('price_cents', { precision: 20, scale: 0 }),
+    closedAt: timestamptz('closed_at'),
+  },
+  (t) => [
+    uniqueIndex('auction_one_active_idx').on(t.city, t.lotId).where(sql`status in ('open', 'charged')`),
+    index('auction_status_idx').on(t.status, t.endsAt),
+    check('auction_status_check', sql`${t.status} in ('open', 'charged', 'settled', 'cancelled', 'unsold')`),
+  ],
+);
+
+export const auctionBid = world.table(
+  'auction_bid',
+  {
+    id: uuid('id').primaryKey(),
+    auctionId: uuid('auction_id')
+      .notNull()
+      .references(() => auction.id),
+    accountId: uuid('account_id').notNull(),
+    amountCents: numeric('amount_cents', { precision: 20, scale: 0 }).notNull(),
+    createdAt: timestamptz('created_at').notNull(),
+  },
+  (t) => [index('auction_bid_auction_idx').on(t.auctionId, t.amountCents)],
+);
+
 /** Prédios de construtores (doc 13 §4, E2.10): validados contra o lote, à espera do alvará. */
 export const building = world.table(
   'building',

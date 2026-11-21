@@ -170,6 +170,13 @@ export class PostgresWorldStore implements WorldStore {
     });
   }
 
+  async transferLot(code: string, lotId: number, from: string, to: string) {
+    await this.db
+      .update(lotT)
+      .set({ ownerAccountId: to })
+      .where(and(eq(lotT.city, code), eq(lotT.id, lotId), eq(lotT.status, 'sold'), eq(lotT.ownerAccountId, from)));
+  }
+
   async confirm(purchaseId: string, now: Date) {
     return this.db.transaction(async (tx) => {
       const [pRow] = await tx.select().from(purchaseT).where(eq(purchaseT.id, purchaseId)).for('update');

@@ -6,11 +6,15 @@ import { loadConfig } from './config.js';
 import { settleBuildings } from './domain/buildings.js';
 import { settleProperties } from './domain/properties.js';
 import { HttpBuilderClient } from './infra/builder-client.js';
+import { PostgresAuctionStore } from './infra/db/postgres-auction-store.js';
 import { PostgresBuildingStore } from './infra/db/postgres-building-store.js';
 import { LedgerOutorgaPayments } from './infra/ledger-outorga-payments.js';
+import { LedgerAuctionPayments } from './infra/ledger-auction-payments.js';
+import { MemoryAuctionStore } from './infra/memory-auction-store.js';
 import { MemoryBuildingStore } from './infra/memory-building-store.js';
 import { settleStale } from './domain/purchase.js';
 import { chargeTaxes } from './domain/taxes.js';
+import { tickAuctions } from './domain/auctions.js';
 import { PostgresPropertyStore } from './infra/db/postgres-property-store.js';
 import { PostgresWorldStore } from './infra/db/postgres-store.js';
 import { PostgresTaxStore } from './infra/db/postgres-tax-store.js';
@@ -58,6 +62,10 @@ const propertyPayments =
 
 // Impostos: IPTU e PT em THALER no mesmo ledger.
 const taxStore = pool ? new PostgresTaxStore(pool) : new MemoryTaxStore();
+// Leilão do lote inadimplente: lance do vencedor no mesmo ledger.
+const auctionStore = pool ? new PostgresAuctionStore(pool) : new MemoryAuctionStore();
+const auctionPayments =
+  config.ECONOMY_URL && config.ECONOMY_TOKEN ? new LedgerAuctionPayments(config.ECONOMY_URL, config.ECONOMY_TOKEN) : null;
 const taxPayments =
   config.ECONOMY_URL && config.ECONOMY_TOKEN ? new LedgerTaxPayments(config.ECONOMY_URL, config.ECONOMY_TOKEN) : null;
 
@@ -87,7 +95,7 @@ const app = await buildApp(
           }
         : null,
   },
-  { store: taxStore, payments: taxPayments },
+  { store: taxStore, payments: taxPayments, auctions: auctionStore },
   {
     store: buildingStore,
     builder,
@@ -152,7 +160,29 @@ const taxTimer = setInterval(async () => {
 }, config.TAX_EVERY_SECONDS * 1000);
 taxTimer.unref();
 
+// Job auctions.tick: abre o leilão do lote inadimplente e fecha os vencidos (doc 03 §4).
+let auctioning = false;
+const auctionTimer = setInterval(async () => {
+  if (!auctionPayments || auctioning) return;
+  auctioning = true;
+  try {
+    const r = await tickAuctions(
+      { auctions: auctionStore, taxes: taxStore, lots: store, properties: propertyStore, payments: auctionPayments, buildings: buildingStore },
+      new Date(),
+    );
+    if (r.opened || r.settled || r.cancelled || r.unsold) {
+      app.log.info(`auctions.tick: ${r.opened} aberto(s), ${r.settled} vendido(s), ${r.cancelled} cancelado(s), ${r.unsold} sem comprador`);
+    }
+  } catch (error) {
+    app.log.error(error);
+  } finally {
+    auctioning = false;
+  }
+}, config.AUCTION_EVERY_SECONDS * 1000);
+auctionTimer.unref();
+
 const shutdown = async () => {
+  clearInterval(auctionTimer);
   clearInterval(timer);
   clearInterval(taxTimer);
   await app.close();

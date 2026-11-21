@@ -107,6 +107,8 @@ export interface PropertyStore {
   propertyOnLot(city: string, lotId: number): Promise<Property | null>;
   propertiesOf(accountId: string): Promise<Property[]>;
   activateProperty(id: string): Promise<void>;
+  /** Leilão (E2.6): o imóvel vai com o lote. Só muda se o dono ainda for `from`. */
+  transferProperty(id: string, from: string, to: string): Promise<void>;
   /** Apaga a obra que não foi paga (só em `pending`). */
   dropPendingProperty(id: string): Promise<void>;
   pendingProperties(olderThan: Date): Promise<Property[]>;

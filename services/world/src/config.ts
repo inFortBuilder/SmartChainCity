@@ -34,6 +34,8 @@ const schema = z.object({
   SETTLE_EVERY_SECONDS: z.coerce.number().int().positive().default(60),
   /** Intervalo do job tax.charge (gera contas de IPTU e PT e tenta o débito automático). */
   TAX_EVERY_SECONDS: z.coerce.number().int().positive().default(3600),
+  /** Job auctions.tick: abre os leilões devidos e fecha os vencidos. */
+  AUCTION_EVERY_SECONDS: z.coerce.number().int().positive().default(60),
   /** SCC Builder (tools/scc-builder): valida os prédios dos construtores. Sem ele, o envio responde 503. */
   BUILDER_URL: optional(z.url()),
   /** Token das ferramentas internas (alvará dos prédios). Sem ele, as rotas /internal respondem 503. */
