@@ -317,16 +317,17 @@ export function createServidor(map) {
     let html = `<h3>💱 Câmbio</h3>
       <p class="muted pequeno">1 SCITY = ${fx.thaler_per_scity.toLocaleString('pt-BR')} THALER (US$ ${fx.scity_usd.toLocaleString('pt-BR')}${fx.provisional ? ', cotação provisória' : ''}).
       Para SCITY: ${(fx.exit_spread_bps / 100).toLocaleString('pt-BR')}% de spread, mínimo de ${thaler(fx.min_exit_cents)} e até ${thaler(fx.daily_exit_cents)} THALER por dia${brake}.</p>
-      <form data-form="cambio" class="linha">
-        <input class="campo" name="valor" inputmode="decimal" required placeholder="Valor" aria-label="Valor a converter" />
+      <form data-form="cambio" class="banco">
+        <input class="campo" name="valor" inputmode="decimal" required placeholder="Valor (ex.: 12,5)" aria-label="Valor a converter" />
+        <div class="linha">
         <button class="btn btn--ghost pequeno" type="submit" name="dir" value="scity_to_thaler" ${busy ? 'disabled' : ''}>SCITY → THALER</button>
-        <button class="btn btn--ghost pequeno" type="submit" name="dir" value="thaler_to_scity" ${busy ? 'disabled' : ''}>THALER → SCITY</button>
+        <button class="btn btn--ghost pequeno" type="submit" name="dir" value="thaler_to_scity" ${busy ? 'disabled' : ''}>THALER → SCITY</button></div>
       </form>`;
     if (data.withdrawals === null) return html;
     html += '<h3>🏦 Saque para a carteira</h3>';
     if (!wallets.length) return `${html}<p class="muted pequeno">Ligue uma carteira à conta para sacar SCITY.</p>`;
-    html += `<form data-form="saque" class="linha">
-        <input class="campo" name="valor" inputmode="decimal" required placeholder="SCITY" aria-label="SCITY a sacar" />
+    html += `<form data-form="saque" class="banco">
+        <input class="campo" name="valor" inputmode="decimal" required placeholder="SCITY a sacar" aria-label="SCITY a sacar" />
         <button class="btn btn--blue pequeno" type="submit" ${busy ? 'disabled' : ''}>Sacar para ${short(wallets[0])}</button>
       </form>
       <p class="muted pequeno">O SCITY sai do jogo agora; a carteira resgata no GameVault em até 48 h, ou ele volta.</p>`;
