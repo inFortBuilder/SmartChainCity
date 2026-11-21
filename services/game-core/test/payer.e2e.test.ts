@@ -1,0 +1,95 @@
+import { randomUUID } from 'node:crypto';
+
+import { buildApp as buildEconomy } from '@scc/economy/src/app.js';
+import { loadConfig as economyConfig } from '@scc/economy/src/config.js';
+import { MemoryLedgerStore } from '@scc/economy/src/infra/memory-store.js';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+
+import { newAvatar } from '../src/domain/avatar.js';
+import { ENTRY_CENTS, type Member, newChampionship, play } from '../src/domain/championship.js';
+import { checkActivity } from '../src/domain/leisure.js';
+import { planLeisure, planPetShop, planSchool } from '../src/domain/meal.js';
+import { checkAdoption } from '../src/domain/pet.js';
+import { checkClass } from '../src/domain/school.js';
+import { EconomyPayer } from '../src/infra/economy-payer.js';
+
+/**
+ * As cobranças novas do game-core contra o economy de verdade: o ledger confere tipo de conta,
+ * dono e soma zero, e um teste com ledger falso não pega um id de conta que ele recusa.
+ */
+const SECRET = 'segredo-de-teste-com-mais-de-32-caracteres'; // gitleaks:allow (só no teste)
+const LEDGER_TOKEN = 'chave-interna-do-economy-com-mais-de-32-caracteres'; // gitleaks:allow (só no teste)
+const t0 = new Date('2026-11-21T08:00:00Z');
+
+let economy: Awaited<ReturnType<typeof buildEconomy>>;
+let payer: EconomyPayer;
+let ledger: MemoryLedgerStore;
+
+beforeEach(async () => {
+  ledger = new MemoryLedgerStore();
+  economy = await buildEconomy(economyConfig({ NODE_ENV: 'test', JWT_SECRET: SECRET, INTERNAL_TOKEN: LEDGER_TOKEN }), ledger);
+  payer = new EconomyPayer(await economy.listen({ port: 0, host: '127.0.0.1' }), LEDGER_TOKEN);
+});
+afterEach(async () => {
+  await economy.close();
+});
+
+const credit = (accountId: string, cents: bigint) =>
+  economy.inject({
+    method: 'POST',
+    url: '/internal/v1/ledger/transactions',
+    headers: { 'x-service-token': LEDGER_TOKEN, 'idempotency-key': `credito-${randomUUID()}` },
+    payload: {
+      kind: 'test_credit',
+      legs: [
+        { owner_type: 'system', owner_id: 'bridge', currency: 'THALER', amount: `-${cents}` },
+        { owner_type: 'player', owner_id: accountId, currency: 'THALER', amount: `${cents}` },
+      ],
+    },
+  });
+
+const thaler = async (ownerType: 'player' | 'escrow', ownerId: string) =>
+  (await ledger.balances(ownerType, ownerId)).find((b) => b.currency === 'THALER')?.amount ?? 0n;
+
+const avatar = (accountId = randomUUID()) => newAvatar({ id: randomUUID(), accountId, rarity: 'common', jobCode: 'padeiro' }, t0);
+
+describe('cobranças no economy de verdade', () => {
+  it('Pet Shop, escola e entrada de lazer são aceitas e mexem nos saldos certos', async () => {
+    const a = avatar();
+    const owner = randomUUID();
+    await credit(a.accountId, 20_000n);
+
+    const pet = checkAdoption(a, { species: 'cat', name: 'Mia' }, t0);
+    await payer.chargeMeal(planPetShop(a, { id: randomUUID(), clientKey: null, effect: { kind: 'adopt', species: 'cat', name: 'Mia' }, cents: pet.cents }, t0));
+    const aula = checkClass(a, t0);
+    await payer.chargeMeal(planSchool(a, { id: randomUUID(), clientKey: null, effect: { kind: 'class' }, cents: aula.cents }, t0));
+    const gym = checkActivity(a, { activity: 'academia', venue: { id: randomUUID(), activity: 'academia', feeCents: 500n, ownerAccountId: owner, open: true }, venueId: 'x' }, t0);
+    await payer.chargeMeal(planLeisure(a, { id: randomUUID(), clientKey: null, effect: gym.effect, cents: gym.cents }, t0));
+
+    // 20.000 − 5.000 (gato) − 1.500 (aula) − 500 (academia).
+    expect(await thaler('player', a.accountId)).toBe(13_000n);
+    expect(await thaler('player', owner)).toBe(450n);
+  });
+
+  it('campeonato: inscrição para o escrow do mês e a disputa esvazia o escrow', async () => {
+    const c = newChampionship('2026-11', 'ab'.repeat(32));
+    const teams = ['A', 'B', 'C'].map((name) => ({ id: randomUUID(), championshipId: c.id, name, captainAccountId: randomUUID(), createdAt: t0 }));
+    const members: Member[] = [];
+    for (const t of teams) {
+      for (let i = 0; i < 6; i++) {
+        const accountId = randomUUID();
+        await credit(accountId, ENTRY_CENTS);
+        const m: Member = { championshipId: c.id, teamId: t.id, accountId, avatarId: randomUUID(), feeCents: ENTRY_CENTS, status: 'paid', joinedAt: t0 };
+        await payer.chargeEntry(m);
+        members.push(m);
+      }
+    }
+    expect(await thaler('escrow', 'championship_2026_11')).toBe(18_000n);
+    const result = play(c, teams, members, () => ({ energy: 5, health: 5, happiness: 5 }));
+    await payer.payOut(c, result);
+    await payer.payOut(c, result); // repetir não paga de novo (mesma chave)
+    expect(await thaler('escrow', 'championship_2026_11')).toBe(0n);
+    const winner = result.payouts.find((p) => p.cents === '1125')!;
+    expect(await thaler('player', winner.accountId)).toBe(1125n);
+  });
+});

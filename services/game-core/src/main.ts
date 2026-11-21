@@ -11,6 +11,10 @@ import { MemoryChainSyncStore } from './infra/memory-chain-sync-store.js';
 import { MemoryRiskStore, PostgresRiskStore } from './infra/risk-store.js';
 import { EconomyPayer } from './infra/economy-payer.js';
 import { WorldVenues } from './infra/world-venues.js';
+import { decayed } from './domain/avatar.js';
+import { settleDue, settleEntry } from './domain/championship.js';
+import { PostgresChampionshipStore } from './infra/db/postgres-championship-store.js';
+import { MemoryChampionshipStore } from './infra/memory-championship-store.js';
 import { scheduleDecay } from './jobs/decay.js';
 import { scheduleHospital } from './jobs/hospital.js';
 import { scheduleShifts } from './jobs/shift.js';
@@ -32,7 +36,35 @@ const payer =
 const riskStore = pool ? new PostgresRiskStore(pool) : new MemoryRiskStore();
 // Lazer (E3.3): academias e galerias de jogador vêm do world.
 const venues = config.WORLD_URL && config.WORLD_TOKEN ? new WorldVenues(config.WORLD_URL, config.WORLD_TOKEN) : null;
-const app = await buildApp(config, store, undefined, payer, payer, payer, undefined, riskStore, venues);
+// Campeonato de botão (E3.3): o escrow e os prêmios passam pelo mesmo ledger.
+const championshipStore = pool ? new PostgresChampionshipStore(pool) : new MemoryChampionshipStore();
+const championships = payer ? { store: championshipStore, payer } : null;
+const app = await buildApp(config, store, undefined, payer, payer, payer, undefined, riskStore, venues, championships);
+
+// Job championship.settle: disputa o campeonato do mês que virou e cobra as inscrições paradas.
+const championshipTimer = championships
+  ? setInterval(async () => {
+      try {
+        for (const m of await championships.store.pendingMembers(new Date(Date.now() - 60_000))) {
+          await settleEntry(championships, m).catch(() => undefined);
+        }
+        const n = await settleDue(
+          {
+            ...championships,
+            attrsOf: async (id) => {
+              const a = await store.get(id);
+              return a ? decayed(a, new Date()).attributes : null;
+            },
+          },
+          new Date(),
+        );
+        if (n) app.log.info(`championship.settle: ${n} campeonato(s) disputado(s)`);
+      } catch (error) {
+        app.log.error(error);
+      }
+    }, 60_000)
+  : null;
+championshipTimer?.unref();
 app.log.info(`armazenamento: ${pool ? 'postgres' : 'memória'}; pagamento de turnos: ${payer ? config.ECONOMY_URL : 'desligado'}`);
 
 // Catálogo publicado no Strapi; se ele estiver fora, segue o seed e o webhook atualiza depois.
@@ -90,6 +122,7 @@ app.log.info(`AvatarNFT → jogo: ${chainSync ? config.CHAIN_INDEXER_URL : 'desl
 
 const shutdown = async () => {
   if (syncTimer) clearInterval(syncTimer);
+  if (championshipTimer) clearInterval(championshipTimer);
   decay.stop();
   shifts.stop();
   hospital.stop();
