@@ -279,6 +279,7 @@ export function createServidor(map) {
   let leisure = null;
   let venues = [];
   let propertyTypes = null;
+  let cup = null;
   let message = '';
   let messageOk = false;
   let busy = false;
@@ -325,6 +326,8 @@ export function createServidor(map) {
       venues = await call(API.world, `/v1/world/cities/${CITY}/venues`, { token: session.token })
         .then((r) => r.venues)
         .catch(() => []);
+      // Campeonato de botão (E3.3): o do mês e o resultado do anterior.
+      cup = await call(API.game, '/v1/championships/current', { token: session.token }).catch(() => null);
       if (!jobs.length) jobs = await call(API.game, '/v1/catalog/professions').then((r) => r.professions).catch(() => []);
       if (!foods.length) {
         foods = await call(API.game, '/v1/catalog/foods')
@@ -567,6 +570,45 @@ export function createServidor(map) {
   const vaultError = (error) => (error instanceof ApiError ? error : new ApiError(400, 'tx', txError(error, VAULT_ERRORS)));
 
   /**
+   * Campeonato mensal de futebol de botão (E3.3): times de 6, inscrição paga;
+   * na virada do mês o servidor disputa com a semente publicada e paga os 3 primeiros.
+   */
+  const cupSection = (a) => {
+    const c = cup.championship;
+    const r = cup.rules;
+    const month = new Date(`${c.id}-01T12:00:00Z`).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+    let html = `<h3>⚽ Campeonato de botão <span class="muted pequeno">· ${esc(month)}</span></h3>
+      <p class="muted pequeno">Inscrição de ${thaler(r.entry)} por jogador, times de ${r.team_size}. Prêmio: ${Math.round(r.prize_share * 100)}% do bolo para os 3 primeiros (${r.prizes.map((x) => `${Math.round(x * 100)}%`).join(' / ')}). Bolo de ${thaler(c.pool)}; disputa em ${left(c.ends_at)}.</p>`;
+    const mine = c.teams.find((t) => t.mine);
+    if (mine) {
+      html += `<p class="muted pequeno">Você joga no <strong>${esc(mine.name)}</strong> (${mine.players}/${c.team_size})${c.me.status === 'pending' ? ' · inscrição processando' : ''}.</p>`;
+    }
+    if (c.teams.length) {
+      html += `<ul class="lista-saques">${c.teams
+        .map(
+          (t) => `<li><span>${esc(t.name)} · ${t.players}/${c.team_size}</span>
+            ${!c.me && !t.full ? `<button class="btn btn--ghost pequeno" type="button" data-s="time-entrar" data-t="${esc(t.id)}" ${busy ? 'disabled' : ''}>Entrar · ${thaler(r.entry)}</button>` : t.full ? '<span class="muted pequeno">completo</span>' : ''}</li>`,
+        )
+        .join('')}</ul>`;
+    }
+    if (!c.me) {
+      html += `<form data-form="time" class="comer"><div class="linha">
+          <input class="campo" name="name" required minlength="2" maxlength="30" placeholder="Nome do time" aria-label="Nome do time" />
+          <button class="btn btn--blue" type="submit" ${busy ? 'disabled' : ''}>Criar time · ${thaler(r.entry)}</button></div></form>`;
+    }
+    html += `<p class="muted pequeno">Sorteio auditável: <code>${c.seed_commit.slice(0, 16)}…</code>. Time incompleto recebe a inscrição de volta; com menos de ${r.min_teams} times completos, todos recebem.</p>`;
+    const last = cup.last;
+    if (last?.result) {
+      const res = last.result;
+      const podium = res.ranking.filter((x) => x.complete).slice(0, 3);
+      html += res.played
+        ? `<p class="muted pequeno">Mês passado: ${podium.map((x, i) => `${['🥇', '🥈', '🥉'][i]} ${esc(x.name)}`).join(' · ')}.</p>`
+        : '<p class="muted pequeno">Mês passado: sem times suficientes, as inscrições voltaram.</p>';
+    }
+    return html;
+  };
+
+  /**
    * Lazer (E3.3): parque de graça; academias e galerias são negócios de outros
    * jogadores, com entrada. Cada atividade uma vez a cada 4 h.
    */
@@ -766,6 +808,7 @@ export function createServidor(map) {
         </form>`;
       }
       if (!internado && leisure && a.leisure) body += leisureSection(a);
+      if (cup) body += cupSection(a);
       if (!internado && school && a.school) body += schoolSection(a);
       if (!internado && petshop) body += petSection(a);
       if (running) {
@@ -834,6 +877,14 @@ export function createServidor(map) {
     const form = e.target.closest('form[data-form]');
     if (!form || busy) return;
     const field = new FormData(form);
+    if (form.dataset.form === 'time') {
+      const name = String(field.get('name') ?? '').trim();
+      return act(async () => {
+        await call(API.game, '/v1/championships/current/teams', { method: 'POST', token: session.token, body: { name, avatar_id: data.avatar.id } });
+        message = `Time ${name} criado: −${thaler(cup?.rules.entry ?? '0')} THALER. Chame mais 5 jogadores.`;
+        messageOk = true;
+      });
+    }
     if (form.dataset.form === 'trocar') {
       const job = String(field.get('job') ?? '');
       const label = jobs.find((j) => j.code === job)?.label ?? job;
@@ -1055,6 +1106,19 @@ export function createServidor(map) {
       return act(() =>
         call(API.game, `/v1/avatars/${data.avatar.id}/work`, { method: 'POST', token: session.token, body: { shift: Number(b.dataset.h) } }),
       );
+    }
+    if (what === 'time-entrar') {
+      const teamId = b.dataset.t;
+      return act(async () => {
+        const r = await call(API.game, `/v1/championships/current/teams/${teamId}/members`, {
+          method: 'POST',
+          token: session.token,
+          body: { avatar_id: data.avatar.id },
+        });
+        const t = r.championship.teams.find((x) => x.mine);
+        message = `Você entrou no ${t?.name ?? 'time'} (${t?.players ?? '?'}/${r.championship.team_size}).`;
+        messageOk = true;
+      });
     }
     if (what === 'lazer') {
       const activity = b.dataset.act;

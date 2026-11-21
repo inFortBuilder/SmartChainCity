@@ -212,3 +212,62 @@ export const chainAvatarPending = game.table('chain_avatar_pending', {
   rarity: smallint('rarity'),
   jobCode: text('job_code'),
 });
+
+/**
+ * Campeonato mensal de futebol de botão (E3.3): um por mês (`id` = AAAA-MM), com a semente do sorteio
+ * (o hash publicado na criação) e o resultado depois da disputa.
+ */
+export const championship = game.table(
+  'championship',
+  {
+    id: text('id').primaryKey(),
+    seed: text('seed').notNull(),
+    seedCommit: text('seed_commit').notNull(),
+    status: text('status').notNull(),
+    endsAt: timestamptz('ends_at').notNull(),
+    settledAt: timestamptz('settled_at'),
+    result: jsonb('result'),
+  },
+  (t) => [
+    index('championship_due_idx').on(t.status, t.endsAt),
+    check('championship_status_check', sql`${t.status} in ('open', 'settled')`),
+  ],
+);
+
+export const championshipTeam = game.table(
+  'championship_team',
+  {
+    id: uuid('id').primaryKey(),
+    championshipId: text('championship_id')
+      .notNull()
+      .references(() => championship.id),
+    name: text('name').notNull(),
+    captainAccountId: uuid('captain_account_id').notNull(),
+    createdAt: timestamptz('created_at').notNull(),
+  },
+  (t) => [uniqueIndex('championship_team_name_unique').on(t.championshipId, sql`lower(${t.name})`)],
+);
+
+/** Jogador inscrito: um time por conta em cada campeonato. */
+export const championshipMember = game.table(
+  'championship_member',
+  {
+    championshipId: text('championship_id')
+      .notNull()
+      .references(() => championship.id),
+    teamId: uuid('team_id')
+      .notNull()
+      .references(() => championshipTeam.id, { onDelete: 'cascade' }),
+    accountId: uuid('account_id').notNull(),
+    avatarId: uuid('avatar_id').notNull(),
+    feeCents: numeric('fee_cents', { precision: 38, scale: 0 }).notNull(),
+    status: text('status').notNull(),
+    joinedAt: timestamptz('joined_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('championship_member_account_unique').on(t.championshipId, t.accountId),
+    index('championship_member_team_idx').on(t.teamId),
+    index('championship_member_pending_idx').on(t.status, t.joinedAt),
+    check('championship_member_status_check', sql`${t.status} in ('pending', 'paid')`),
+  ],
+);

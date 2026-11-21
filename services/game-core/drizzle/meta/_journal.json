@@ -92,6 +92,13 @@
       "when": 1795298868220,
       "tag": "0012_lazer",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1795300276850,
+      "tag": "0013_campeonato",
+      "breakpoints": true
     }
   ]
 }

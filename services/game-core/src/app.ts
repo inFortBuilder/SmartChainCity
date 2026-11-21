@@ -27,6 +27,21 @@ import {
   petMultiplier,
 } from './domain/pet.js';
 import { CHANGE_CENTS, CHANGE_MS, CLASS, GRADES, checkChange, checkClass, schoolDto } from './domain/school.js';
+import {
+  type ChampionshipPayer,
+  type ChampionshipStore,
+  ENTRY_CENTS,
+  MIN_TEAMS,
+  PRIZE_BPS,
+  PRIZE_SHARE_BPS,
+  TEAM_SIZE,
+  type Championship,
+  assertOpen,
+  checkTeamName,
+  monthOf,
+  settleDue,
+  settleEntry,
+} from './domain/championship.js';
 import { ACTIVITIES, COOLDOWN_MS, OWNER_SHARE_BPS, type VenueDirectory, applyLeisure, checkActivity, leisureDto } from './domain/leisure.js';
 import {
   CURE_CHANCE,
@@ -174,6 +189,8 @@ export async function buildApp(
   riskStore: RiskStore | null = null,
   /** Lazer (E3.3): academias e galerias de jogador no world. Sem ele, só o parque. */
   venues: VenueDirectory | null = null,
+  /** Campeonato de futebol de botão (E3.3). Sem ele, as rotas do campeonato respondem 503. */
+  championships: { store: ChampionshipStore; payer: ChampionshipPayer } | null = null,
 ) {
   const app = Fastify({
     trustProxy: config.TRUST_PROXY,
@@ -559,6 +576,120 @@ export async function buildApp(
     const fresh = (await store.get(avatar.id))!;
     const at = now();
     return reply.status(201).send({ purchase: mealDto(done), avatar: avatarDto(decayed(fresh, at), at) });
+  });
+
+  // ---------------------------------------------------------------- campeonato de botão (E3.3)
+
+  const championshipsOn = () => {
+    if (!championships) throw new AppError('championships_disabled', 'O campeonato está desligado: o ledger não está ligado.', 503);
+    return championships;
+  };
+  const previousMonth = (month: string) => {
+    const [y, m] = month.split('-').map(Number) as [number, number];
+    return monthOf(new Date(Date.UTC(y, m - 2, 1)));
+  };
+
+  /** O campeonato como a API mostra. Os outros jogadores aparecem só pelo número no time. */
+  const championshipDto = async (c: Championship, me: string | null) => {
+    const { store: cs } = championshipsOn();
+    const [teams, members] = await Promise.all([cs.teams(c.id), cs.members(c.id)]);
+    const paid = members.filter((m) => m.status === 'paid');
+    const mine = me ? members.find((m) => m.accountId === me) : undefined;
+    return {
+      id: c.id,
+      status: c.status,
+      ends_at: c.endsAt.toISOString(),
+      seed_commit: c.seedCommit,
+      // A semente só aparece depois da disputa (commit-reveal).
+      seed: c.status === 'settled' ? c.seed : null,
+      entry: ENTRY_CENTS.toString(),
+      team_size: TEAM_SIZE,
+      pool: paid.reduce((sum, m) => sum + m.feeCents, 0n).toString(),
+      teams: teams.map((t) => {
+        const n = members.filter((m) => m.teamId === t.id).length;
+        return { id: t.id, name: t.name, players: n, full: n >= TEAM_SIZE, mine: mine?.teamId === t.id };
+      }),
+      me: mine ? { team_id: mine.teamId, avatar_id: mine.avatarId, status: mine.status } : null,
+      result: c.result,
+    };
+  };
+
+  /** Disputa o que venceu e cobra as inscrições paradas. O ledger fora não derruba a leitura. */
+  const catchUp = async () => {
+    const ch = championshipsOn();
+    await settleDue(
+      { ...ch, attrsOf: async (id) => {
+        const a = await store.get(id);
+        return a ? decayed(a, now()).attributes : null;
+      } },
+      now(),
+    ).catch(() => undefined);
+  };
+
+  app.get('/v1/championships/current', async (request) => {
+    const me = request.headers.authorization ? await player(request) : null;
+    const { store: cs } = championshipsOn();
+    await catchUp();
+    const month = monthOf(now());
+    const current = await cs.getOrCreate(month);
+    const last = await cs.get(previousMonth(month));
+    return {
+      rules: { entry: ENTRY_CENTS.toString(), team_size: TEAM_SIZE, prize_share: PRIZE_SHARE_BPS / 10_000, prizes: PRIZE_BPS.map((b) => b / 10_000), min_teams: MIN_TEAMS },
+      championship: await championshipDto(current, me),
+      last: last ? await championshipDto(last, me) : null,
+    };
+  });
+
+  app.get('/v1/championships/:month', async (request) => {
+    const { month } = z.object({ month: z.string().regex(/^\d{4}-\d{2}$/) }).parse(request.params);
+    const me = request.headers.authorization ? await player(request) : null;
+    await catchUp();
+    const c = await championshipsOn().store.get(month);
+    if (!c) throw new AppError('not_found', 'Campeonato não encontrado.', 404);
+    return { championship: await championshipDto(c, me) };
+  });
+
+  /** O avatar do jogador para a inscrição; de outra conta, 404. */
+  const ownAvatarById = async (accountId: string, avatarId: string) => {
+    const a = await store.get(avatarId);
+    if (!a || a.accountId !== accountId) throw new AppError('not_found', 'Avatar não encontrado.', 404);
+    return a;
+  };
+
+  /** Inscreve (pendente), cobra e confirma; sem THALER, desfaz. */
+  const enroll = async (request: FastifyRequest, register: (m: { accountId: string; avatarId: string; at: Date; championshipId: string }) => Promise<void>) => {
+    const accountId = await player(request);
+    const { avatar_id } = z.object({ avatar_id: z.uuid() }).passthrough().parse(request.body);
+    await ownAvatarById(accountId, avatar_id);
+    const ch = championshipsOn();
+    const c = await ch.store.getOrCreate(monthOf(now()));
+    assertOpen(c, now());
+    const at = now();
+    await register({ accountId, avatarId: avatar_id, at, championshipId: c.id });
+    const member = (await ch.store.members(c.id)).find((m) => m.accountId === accountId)!;
+    await settleEntry(ch, member, request.id);
+    return championshipDto((await ch.store.get(c.id))!, accountId);
+  };
+
+  app.post('/v1/championships/current/teams', async (request, reply) => {
+    const { name } = z.object({ name: z.string() }).passthrough().parse(request.body);
+    const teamName = checkTeamName(name);
+    const out = await enroll(request, async ({ accountId, avatarId, at, championshipId }) => {
+      const teamId = randomUUID();
+      await championshipsOn().store.createTeam(
+        { id: teamId, championshipId, name: teamName, captainAccountId: accountId, createdAt: at },
+        { championshipId, teamId, accountId, avatarId, feeCents: ENTRY_CENTS, status: 'pending', joinedAt: at },
+      );
+    });
+    return reply.status(201).send({ championship: out });
+  });
+
+  app.post('/v1/championships/current/teams/:teamId/members', async (request, reply) => {
+    const { teamId } = z.object({ teamId: z.uuid() }).parse(request.params);
+    const out = await enroll(request, ({ accountId, avatarId, at, championshipId }) =>
+      championshipsOn().store.addMember({ championshipId, teamId, accountId, avatarId, feeCents: ENTRY_CENTS, status: 'pending', joinedAt: at }),
+    );
+    return reply.status(201).send({ championship: out });
   });
 
   app.get('/v1/catalog/pharmacy', async () => ({

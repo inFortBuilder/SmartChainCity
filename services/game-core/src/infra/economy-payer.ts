@@ -3,6 +3,7 @@ import { AppError, forwardRequestId } from '@scc/shared';
 import type { HospitalPayer, HospitalStay } from '../domain/hospital.js';
 import { type Meal, type MealPayer, isLeisure, isMedicine, isPack, isPetShop, isSchool } from '../domain/meal.js';
 import { feeSplit } from '../domain/leisure.js';
+import type { Championship, ChampionshipPayer, ChampionshipResult, Member } from '../domain/championship.js';
 import type { Payer, Shift } from '../domain/shift.js';
 
 /**
@@ -11,7 +12,7 @@ import type { Payer, Shift } from '../domain/shift.js';
  * se perder no caminho e o lançamento for repetido, o ledger devolve a mesma
  * transação em vez de lançar duas vezes.
  */
-export class EconomyPayer implements Payer, MealPayer, HospitalPayer {
+export class EconomyPayer implements Payer, MealPayer, HospitalPayer, ChampionshipPayer {
   constructor(
     private readonly baseUrl: string,
     private readonly token: string,
@@ -106,6 +107,47 @@ export class EconomyPayer implements Payer, MealPayer, HospitalPayer {
     if (error === null) return;
     if (error === 'insufficient_funds') throw new AppError('insufficient_thaler', 'THALER insuficiente para a entrada.', 409);
     throw new AppError('ledger_unavailable', 'O ledger recusou a cobrança.', 502);
+  }
+
+  /** Inscrição no campeonato de botão (E3.3): do jogador para o escrow do campeonato. */
+  async chargeEntry(m: Member, requestId?: string) {
+    const error = await this.post(
+      `championship-entry:${m.championshipId}:${m.accountId}`,
+      {
+        kind: 'championship_entry',
+        ref_type: 'championship',
+        ref_id: m.championshipId,
+        legs: [
+          { owner_type: 'player', owner_id: m.accountId, currency: 'THALER', amount: `-${m.feeCents}` },
+          { owner_type: 'escrow', owner_id: `championship-${m.championshipId}`, currency: 'THALER', amount: `${m.feeCents}` },
+        ],
+      },
+      requestId,
+    );
+    if (error === null) return;
+    if (error === 'insufficient_funds') throw new AppError('insufficient_thaler', 'THALER insuficiente para a inscrição.', 409);
+    throw new AppError('ledger_unavailable', 'O ledger recusou a inscrição.', 502);
+  }
+
+  /** Disputa: prêmios, devoluções e queima saem do escrow numa transação só. */
+  async payOut(c: Championship, result: ChampionshipResult, requestId?: string) {
+    const pool = BigInt(result.poolCents);
+    if (pool === 0n) return;
+    // Uma perna por conta (a mesma conta não aparece duas vezes).
+    const byAccount = new Map<string, bigint>();
+    for (const p of result.payouts) byAccount.set(p.accountId, (byAccount.get(p.accountId) ?? 0n) + BigInt(p.cents));
+    const burn = BigInt(result.burnCents);
+    const legs = [
+      { owner_type: 'escrow', owner_id: `championship-${c.id}`, currency: 'THALER', amount: `-${pool}` },
+      ...[...byAccount].filter(([, v]) => v > 0n).map(([id, v]) => ({ owner_type: 'player', owner_id: id, currency: 'THALER', amount: `${v}` })),
+      ...(burn > 0n ? [{ owner_type: 'burn', owner_id: 'championship', currency: 'THALER', amount: `${burn}` }] : []),
+    ];
+    const error = await this.post(
+      `championship-payout:${c.id}`,
+      { kind: 'championship_payout', ref_type: 'championship', ref_id: c.id, legs },
+      requestId,
+    );
+    if (error !== null) throw new AppError('ledger_unavailable', 'O ledger recusou o pagamento do campeonato.', 502);
   }
 
   /** Taxa do hospital: sink, como a comida. */
