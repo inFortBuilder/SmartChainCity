@@ -113,7 +113,7 @@ export function createMercado(map) {
   style.textContent = `
     .merc-btn { position: fixed; right: 16px; bottom: 100px; z-index: 6; border: 0; border-radius: 12px; padding: 10px 14px; font: 700 14px system-ui, sans-serif;
       background: #fff; color: #0b1220; box-shadow: 0 4px 14px rgba(0,0,0,.25); cursor: pointer; }
-    .merc { position: fixed; right: 16px; top: 92px; bottom: 160px; width: 340px; max-width: calc(100vw - 32px); z-index: 7; overflow-y: auto; padding: 14px 16px; }
+    .merc { position: fixed; right: 332px; top: 92px; bottom: 160px; width: 340px; max-width: calc(100vw - 32px); z-index: 7; overflow-y: auto; padding: 14px 16px; }
     .merc[hidden] { display: none; }
     .merc h2 { font-size: 17px; margin: 0 0 4px; display: flex; justify-content: space-between; align-items: center; }
     .merc ul { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 8px; }
@@ -126,6 +126,7 @@ export function createMercado(map) {
     .merc-venda .linha { display: flex; gap: 6px; align-items: center; }
     .merc-venda input[type=text] { flex: 1; min-width: 0; background: rgba(0,0,0,.25); border: 1px solid rgba(255,255,255,.14); border-radius: 8px; padding: 7px 9px; color: inherit; }
     body.sv-on .merc-btn, body.sv-on .merc { display: none !important; }
+    @media (max-width: 1000px) { .merc { right: 16px; } }
     @media (max-width: 640px) { .merc-btn { bottom: 450px; right: 10px; } .merc { top: auto; bottom: 8px; height: 60vh; } }
   `;
   document.head.append(style);
@@ -247,9 +248,12 @@ export function createMercado(map) {
    * Ficha do lote: se a carteira do jogador é dona do lote na blockchain, mostra
    * "Vender no mercado" (com o imóvel junto, se ele também estiver na carteira).
    */
+  let decorating = 0;
   async function decorateLot(i, ficha) {
     const mine = me();
     if (!mine) return;
+    // Só vale a ficha mais recente: abrir o lote de novo no meio da consulta não duplica a caixa.
+    const turn = ++decorating;
     const tokenId = lotToken(i);
     let owner;
     try {
@@ -257,10 +261,12 @@ export function createMercado(map) {
     } catch {
       return;
     }
-    if (!owner.lots?.some((l) => l.token_id === tokenId) || !ficha.isConnected) return;
+    if (turn !== decorating || !owner.lots?.some((l) => l.token_id === tokenId) || !ficha.isConnected) return;
     const property = owner.properties?.find((p) => p.lot_id === tokenId);
     const listed = (await api('/v1/market/listings').catch(() => ({ listings: [] }))).listings.find((l) => l.items.some((it) => it.token_id === tokenId));
     marketAddress ??= (await api('/v1/market/listings').catch(() => ({}))).marketplace;
+    if (turn !== decorating) return;
+    ficha.querySelector('.merc-venda')?.remove();
     const box = document.createElement('div');
     box.className = 'gestao merc-venda';
     box.innerHTML = listed
@@ -275,6 +281,7 @@ export function createMercado(map) {
     const msg = (t) => (box.querySelector('[data-msg]').textContent = t);
     box.querySelector('[data-cancelar]')?.addEventListener('click', async (e) => {
       e.target.disabled = true;
+      box.dataset.busy = '1';
       try {
         const w = await wallet();
         msg('Confirme na carteira…');
@@ -283,6 +290,8 @@ export function createMercado(map) {
       } catch (error) {
         msg(txError(error));
         e.target.disabled = false;
+      } finally {
+        delete box.dataset.busy;
       }
     });
     box.querySelector('[data-vender]')?.addEventListener('submit', async (e) => {
@@ -291,6 +300,7 @@ export function createMercado(map) {
       if (!price || price === 0n) return msg('Preço inválido.');
       const submit = e.target.querySelector('button');
       submit.disabled = true;
+      box.dataset.busy = '1';
       try {
         if (!marketAddress) throw new Error('O Marketplace não está configurado no chain-indexer.');
         const w = await wallet();
@@ -311,6 +321,8 @@ export function createMercado(map) {
       } catch (error) {
         msg(txError(error));
         submit.disabled = false;
+      } finally {
+        delete box.dataset.busy;
       }
     });
   }

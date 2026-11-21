@@ -82,6 +82,8 @@ O crédito acontece uma vez só: numa reorganização as projeções são refeit
 | GET | `/internal/v1/chain/events?after=&limit=` | serviços (`x-service-token`) | Feed de eventos confirmados, em ordem; `next_after` para a próxima página |
 | GET | `/healthz`, `/metrics` | — | Saúde e métricas ([infra/observability](../../infra/observability/README.md)) |
 
+**Mercado no mapa:** o painel 🛒 Mercado do mapa (`docs/proposta-cidade-realista/mercado.js`) lê `/v1/market/listings` deste serviço (`?indexer=` muda o endereço; padrão `http://127.0.0.1:8040`). Na máquina local sem Postgres, um `.env` só com `RPC_URL`, `CHAIN_ID=31337`, `CONFIRMATIONS=0` e `DEPLOYMENTS_FILE` com o caminho absoluto basta: os eventos ficam em memória e são relidos ao reiniciar.
+
 ## Banco
 
 O esquema próprio `indexer` tem:

@@ -28,6 +28,8 @@
   .chip--thaler { color: #8ddc0e; }
   .topbar { height: auto; min-height: 64px; padding: 8px 14px; flex-wrap: wrap; }
   .ficha { max-height: calc(100vh - var(--topbar-h, 64px) - 56px); overflow-y: auto; width: 300px; }
+  /* A ficha aberta fica acima do chat do bairro: senão, o fim dela (vender, convidar) fica embaixo do painel. */
+  .ficha { z-index: 8; }
   .gestao { margin-top: 12px; border-top: 1px solid var(--glass-border); padding-top: 10px; }
   .gestao h3 { margin: 4px 0 6px; font-size: 14px; }
   .gestao p { font-size: 12px; margin: 6px 0; }
