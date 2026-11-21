@@ -75,6 +75,26 @@ export const propertyToken = indexer.table(
   (t) => [primaryKey({ columns: [t.chainId, t.tokenId] }), index('property_token_owner_idx').on(t.chainId, t.owner)],
 );
 
+/** Depósitos do GameVault: `pending` até o crédito no ledger (chave `chain:<rede>:<tx>:<log>`). */
+export const deposit = indexer.table(
+  'deposit',
+  {
+    chainId: integer('chain_id').notNull(),
+    txHash: text('tx_hash').notNull(),
+    logIndex: integer('log_index').notNull(),
+    account: text('account').notNull(),
+    amountWei: text('amount_wei').notNull(),
+    block: block('block').notNull(),
+    status: text('status').notNull(),
+    accountId: text('account_id'),
+  },
+  (t) => [
+    primaryKey({ columns: [t.chainId, t.txHash, t.logIndex] }),
+    index('deposit_pending_idx').on(t.chainId, t.status, t.block),
+    index('deposit_account_idx').on(t.chainId, t.account),
+  ],
+);
+
 export const boxRequest = indexer.table(
   'box_request',
   {

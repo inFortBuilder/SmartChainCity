@@ -129,7 +129,7 @@ O seed com segredo do servidor, revelado depois (commit-reveal), permite auditor
 
 | Fluxo | Como funciona |
 |-------|---------------|
-| **Depósito SCITY → THALER** | Jogador chama `deposit(amount)` no contrato `GameVault`; o indexer espera N confirmações (proposto: 15 blocos) e credita THALER pelo câmbio vigente. Idempotência pela `tx_hash` (o Strapi já tem `transaction_blockchain`). |
+| **Depósito SCITY → THALER** | Jogador chama `deposit(amount)` no contrato `GameVault`; o indexer espera N confirmações (proposto: 15 blocos) e credita o SCITY na conta dona da carteira; a troca por THALER é o câmbio, à parte. Idempotência pela chave `chain:<rede>:<tx>:<log>` no ledger. Pronto em 2026-11-20 ([chain-indexer](../services/chain-indexer/README.md)). |
 | **Saque THALER → SCITY** | Servidor debita THALER, aplica spread e limites, assina um **voucher EIP-712** `{to, amount, nonce, deadline}`; o jogador resgata no `GameVault.claim(voucher, sig)`. |
 | **Compra de NFT primário** (box, lote) | Pagamento direto no contrato; o indexer espelha a posse. |
 | **Mint de imóvel/ativo ganho no jogo** | Voucher assinado → jogador faz o mint (paga o gas) ou relayer faz *lazy mint* sob demanda. |

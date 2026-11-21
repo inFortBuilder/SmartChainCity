@@ -5,6 +5,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
 import type { ChainEvent, ContractName, EventArgs } from '../src/domain/events.js';
+import { creditDeposits } from '../src/domain/deposits.js';
 import { type ChainReader, type IndexerOptions, type IndexerStore, tick } from '../src/domain/indexer.js';
 import { PostgresIndexerStore } from '../src/infra/db/postgres-store.js';
 import { MemoryIndexerStore } from '../src/infra/memory-store.js';
@@ -199,6 +200,41 @@ describe.each([
     chain.fork(5n);
     await tick(chain, store, opt);
     expect(await store.property(id, tokenId)).toMatchObject({ owner: ALICE, level: 2 });
+  });
+
+  it.skipIf(!enabled)('depósito do GameVault: credita uma vez, espera a carteira ser ligada e sobrevive à reorganização', async () => {
+    const id = newChainId();
+    const chain = new FakeChain(id);
+    const store = make();
+    const opt = options(id, { confirmations: 0, reorgDepth: 3 });
+    const links = new Map<string, string>([[ALICE, 'conta-alice']]);
+    const owners = { ownerOf: async (a: string) => links.get(a) ?? null };
+    const posted = new Map<string, { accountId: string; amountWei: string }>();
+    const ledger = {
+      credit: async (key: string, accountId: string, amountWei: string) => {
+        if (!posted.has(key)) posted.set(key, { accountId, amountWei }); // o ledger devolve o antigo com a mesma chave
+      },
+    };
+    chain.mine(1);
+    chain.emit('GameVault', 'Deposited', { account: ALICE, amount: '5000000000000000000' });
+    chain.emit('GameVault', 'Deposited', { account: BOB, amount: '7' });
+    chain.mine(4);
+    await drain(chain, store, opt);
+
+    expect(await creditDeposits(store, id, owners, ledger)).toEqual({ credited: 1, unlinked: 1 });
+    expect([...posted.values()]).toEqual([{ accountId: 'conta-alice', amountWei: '5000000000000000000' }]);
+    expect([...posted.keys()][0]).toMatch(new RegExp(`^chain:${id}:0x[0-9a-f]{64}:0$`));
+    expect(await creditDeposits(store, id, owners, ledger)).toEqual({ credited: 0, unlinked: 1 });
+
+    links.set(BOB, 'conta-bob');
+    expect(await creditDeposits(store, id, owners, ledger)).toEqual({ credited: 1, unlinked: 0 });
+    expect((await store.depositsOf(id, BOB))[0]).toMatchObject({ status: 'credited', accountId: 'conta-bob', amountWei: '7' });
+
+    // Reorganização depois do bloco 1: as projeções voltam a pendente, mas a chave não credita de novo.
+    chain.fork(4n);
+    await tick(chain, store, opt);
+    await creditDeposits(store, id, owners, ledger);
+    expect(posted.size).toBe(2);
   });
 
   it.skipIf(!enabled)('lê em lotes de no máximo `batchBlocks`', async () => {

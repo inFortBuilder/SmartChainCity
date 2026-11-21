@@ -235,6 +235,19 @@ describe('rota interna de carteiras (para o world)', () => {
     expect(list[0]!.chain_id).toBe(97);
   });
 
+  it('acha a conta pela carteira, em qualquer caixa do endereço', async () => {
+    const internal = await buildApp(loadConfig({ ...env, INTERNAL_TOKEN: INTERNAL }), store, () => clock, inbox);
+    const wallet = newWallet();
+    const session = (
+      await internal.inject({ method: 'POST', url: '/v1/auth/siwe/verify', payload: await siwe(wallet) })
+    ).json() as { account: { id: string } };
+    const owner = (address: string, token?: string) =>
+      internal.inject({ method: 'GET', url: `/internal/v1/wallets/${address}/account`, headers: token ? { 'x-service-token': token } : {} });
+    expect((await owner(wallet.address.toLowerCase(), INTERNAL)).json()).toEqual({ account_id: session.account.id });
+    expect((await owner(newWallet().address, INTERNAL)).statusCode).toBe(404);
+    expect((await owner(wallet.address)).statusCode).toBe(403);
+  });
+
   it('recusa sem o token certo', async () => {
     const internal = await buildApp(loadConfig({ ...env, INTERNAL_TOKEN: INTERNAL }), store, () => clock, inbox);
     const id = crypto.randomUUID();

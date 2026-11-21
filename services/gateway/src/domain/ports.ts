@@ -50,4 +50,6 @@ export interface AuthStore {
   setAccountEmail(accountId: string, email: string): Promise<SetEmailResult>;
   findAccount(id: string): Promise<Account | null>;
   listWallets(accountId: string): Promise<WalletLink[]>;
+  /** Conta ligada à carteira (endereço com checksum), ou null. */
+  walletOwner(address: string): Promise<string | null>;
 }

@@ -2,6 +2,7 @@ import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
 import { AppError, observe, requireServiceToken, serverOptions } from '@scc/shared';
 import Fastify, { type FastifyRequest } from 'fastify';
+import { getAddress } from 'viem';
 import { z } from 'zod';
 
 import type { Config } from './config.js';
@@ -199,6 +200,18 @@ export async function buildApp(config: Config, store: AuthStore, now?: () => Dat
     const { id } = z.object({ id: z.uuid() }).parse(request.params);
     const { wallets } = await auth.me(id);
     return { wallets: wallets.map((w) => ({ address: w.address, chain_id: w.chainId })) };
+  });
+
+  // Conta dona da carteira, para o chain-indexer creditar o depósito do GameVault na conta certa.
+  app.get('/internal/v1/wallets/:address/account', async (request) => {
+    if (!config.INTERNAL_TOKEN) {
+      throw new AppError('internal_disabled', 'Rotas internas desligadas: defina INTERNAL_TOKEN.', 503);
+    }
+    requireServiceToken(request.headers['x-service-token'], config.INTERNAL_TOKEN);
+    const { address } = z.object({ address: z.string().regex(/^0x[0-9a-fA-F]{40}$/) }).parse(request.params);
+    const accountId = await store.walletOwner(getAddress(address));
+    if (!accountId) throw new AppError('not_found', 'Nenhuma conta ligada a esta carteira.', 404);
+    return { account_id: accountId };
   });
 
   return app;

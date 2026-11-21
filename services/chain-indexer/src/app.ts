@@ -115,6 +115,21 @@ export async function buildApp(config: Config, store: IndexerStore, status: Inde
     return { lots: lots.map(lotDto), avatars: avatars.map(avatarDto), properties: properties.map(propertyDto) };
   });
 
+  // Depósitos do GameVault de uma carteira e se já viraram saldo no jogo.
+  app.get('/v1/chain/deposits/:address', async (request) => {
+    const { address } = addressParam.parse(request.params);
+    const list = await store.depositsOf(chainId, address);
+    return {
+      deposits: list.map((d) => ({
+        tx_hash: d.txHash,
+        log_index: d.logIndex,
+        amount_wei: d.amountWei,
+        block: d.block.toString(),
+        status: d.status,
+      })),
+    };
+  });
+
   // Feed para os outros serviços (world, game-core): eventos confirmados, em ordem.
   app.get('/internal/v1/chain/events', async (request) => {
     if (!config.INTERNAL_TOKEN) {

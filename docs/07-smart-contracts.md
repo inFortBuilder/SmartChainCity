@@ -50,6 +50,8 @@ function buyPrimary(LotQuote calldata q, bytes calldata sig) external payable;
 - Publicar as probabilidades é obrigatório por transparência e por regulação de loot boxes (doc 10).
 
 ### 2.4 `GameVault`
+
+**Pronto no anvil (2026-11-20):** depósito, `claim` com voucher, tetos diários (total e por endereço), pausa e `setLimits`. Sem proxy por enquanto; o UUPS atrás de timelock entra antes da mainnet. O depósito credita **SCITY** no ledger (o mesmo que paga os lotes); a troca por THALER é a operação de câmbio.
 ```solidity
 function deposit(uint256 amount) external;                         // emite Deposited(account, amount)
 function claim(Withdrawal calldata w, bytes calldata sig) external; // EIP-712

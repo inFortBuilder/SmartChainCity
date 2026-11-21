@@ -85,6 +85,10 @@ export class MemoryAuthStore implements AuthStore {
     return this.accounts.get(id) ?? null;
   }
 
+  async walletOwner(address: string) {
+    return this.wallets.get(address)?.accountId ?? null;
+  }
+
   async listWallets(accountId: string) {
     return [...this.wallets.values()].filter((wallet) => wallet.accountId === accountId);
   }

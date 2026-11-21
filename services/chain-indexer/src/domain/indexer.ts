@@ -9,6 +9,7 @@ import {
   type PropertyToken,
   byChainOrder,
 } from './events.js';
+import type { Deposit } from './deposits.js';
 
 /**
  * Leitura da rede com confirmações (doc 05 §4, trilha-backend passo 13):
@@ -40,6 +41,10 @@ export interface IndexerStore {
   property(chainId: number, tokenId: string): Promise<PropertyToken | null>;
   propertiesOf(chainId: number, owner: string): Promise<PropertyToken[]>;
   box(chainId: number, requestId: string): Promise<BoxRequest | null>;
+  /** Depósitos do GameVault ainda não creditados no ledger, os mais antigos primeiro. */
+  pendingDeposits(chainId: number, limit: number): Promise<Deposit[]>;
+  markDepositCredited(chainId: number, txHash: string, logIndex: number, accountId: string): Promise<void>;
+  depositsOf(chainId: number, account: string): Promise<Deposit[]>;
   /** Eventos em ordem de gravação, depois de `afterId` (feed para os outros serviços). */
   eventsAfter(chainId: number, afterId: number, limit: number): Promise<(ChainEvent & { id: number })[]>;
 }
