@@ -92,7 +92,7 @@ export class RiskGuard {
    * Registra o pedido e decide se a conta pode ganhar P2E agora. Chamado ao
    * começar o turno e ao coletar.
    */
-  async check(input: { accountId: string; deviceHeader: unknown; ip: string; action: 'work' | 'claim' }, now: Date): Promise<RiskVerdict> {
+  async check(input: { accountId: string; deviceHeader: unknown; ip: string; action: 'work' | 'claim' | 'race' }, now: Date): Promise<RiskVerdict> {
     const rawDevice = deviceIdOf(input.deviceHeader);
     const device = rawDevice ? this.hmac('device', rawDevice) : null;
     const network = this.hmac('network', networkOf(input.ip));

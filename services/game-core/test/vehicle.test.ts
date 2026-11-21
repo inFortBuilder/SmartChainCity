@@ -143,6 +143,8 @@ class FakeLedger implements MealPayer, VehiclePayer {
     this.take(i.accountId, i.cents);
     this.keys.add(i.key);
   }
+  async chargeFuel() {}
+  async payPrize() {}
   async payBuyback(i: { key: string; accountId: string; cents: bigint }) {
     if (this.keys.has(i.key)) return;
     this.balances.set(i.accountId, (this.balances.get(i.accountId) ?? 0n) + i.cents);

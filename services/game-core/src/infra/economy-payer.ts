@@ -5,6 +5,7 @@ import { type Meal, type MealPayer, isLeisure, isLicense, isMedicine, isPack, is
 import { feeSplit } from '../domain/leisure.js';
 import type { Championship, ChampionshipPayer, ChampionshipResult, Member } from '../domain/championship.js';
 import type { VehiclePayer } from '../domain/vehicle.js';
+import type { Race, RacePayer } from '../domain/race.js';
 import type { Payer, Shift } from '../domain/shift.js';
 
 /**
@@ -16,7 +17,7 @@ import type { Payer, Shift } from '../domain/shift.js';
 /** Escrow do campeonato no ledger: o id de sistema só aceita letras, números e _ (AAAA-MM → championship_AAAA_MM). */
 const escrowOf = (month: string) => `championship_${month.replace('-', '_')}`;
 
-export class EconomyPayer implements Payer, MealPayer, HospitalPayer, ChampionshipPayer, VehiclePayer {
+export class EconomyPayer implements Payer, MealPayer, HospitalPayer, ChampionshipPayer, VehiclePayer, RacePayer {
   constructor(
     private readonly baseUrl: string,
     private readonly token: string,
@@ -132,6 +133,36 @@ export class EconomyPayer implements Payer, MealPayer, HospitalPayer, Championsh
     if (error === null) return;
     if (error === 'insufficient_funds') throw new AppError('insufficient_thaler', 'THALER insuficiente.', 409);
     throw new AppError('ledger_unavailable', 'O ledger recusou a cobrança.', 502);
+  }
+
+  /** Gasolina da corrida (E3.5): do jogador para a queima. */
+  async chargeFuel(race: Race, requestId?: string) {
+    await this.chargeVehicle(
+      { key: `race-fuel:${race.id}`, kind: 'race_fuel', accountId: race.accountId, cents: race.fuelCents, sink: 'fuel', refId: race.id },
+      requestId,
+    );
+  }
+
+  /** Prêmio da corrida: do pool P2E para o jogador, como o turno (emissão). */
+  async payPrize(race: Race, requestId?: string) {
+    const cents = BigInt(race.result.prizeCents);
+    if (cents <= 0n) return;
+    const error = await this.post(
+      `race-prize:${race.id}`,
+      {
+        kind: 'race_prize',
+        ref_type: 'vehicle_race',
+        ref_id: race.id,
+        legs: [
+          { owner_type: 'pool', owner_id: 'p2e', currency: 'THALER', amount: `-${cents}` },
+          { owner_type: 'player', owner_id: race.accountId, currency: 'THALER', amount: `${cents}` },
+        ],
+      },
+      requestId,
+    );
+    if (error === null) return;
+    if (error === 'insufficient_funds') throw new AppError('pool_empty', 'O pool P2E está sem saldo para o prêmio.', 503);
+    throw new AppError('ledger_unavailable', 'O ledger recusou o prêmio.', 502);
   }
 
   /** Recompra da agência: da conta de sistema da agência para o jogador. */

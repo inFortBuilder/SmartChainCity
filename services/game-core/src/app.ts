@@ -59,12 +59,30 @@ import {
   checkIpva,
   checkLicense,
   checkSale,
+  isBroken,
   licensed,
   newVehicle,
   rentCents,
   settleVehicle,
   vehicleDto,
 } from './domain/vehicle.js';
+import {
+  FUEL_CENTS,
+  PRIZES_CENTS,
+  RACES_PER_DAY,
+  REVISION_BPS,
+  REVISION_MS,
+  RIVALS,
+  type RacePayer,
+  type RaceStore,
+  SEVERITIES,
+  checkRace,
+  dayOf,
+  newRace,
+  raceDto,
+  repairCents,
+  settleRace,
+} from './domain/race.js';
 import { ACTIVITIES, COOLDOWN_MS, OWNER_SHARE_BPS, type VenueDirectory, applyLeisure, checkActivity, leisureDto } from './domain/leisure.js';
 import {
   CURE_CHANCE,
@@ -219,7 +237,7 @@ export async function buildApp(
   /** Campeonato de futebol de botão (E3.3). Sem ele, as rotas do campeonato respondem 503. */
   championships: { store: ChampionshipStore; payer: ChampionshipPayer } | null = null,
   /** Veículos (E3.5): agência e IPVA. Sem ele, as rotas de veículos respondem 503. */
-  vehicles: { store: VehicleStore; payer: VehiclePayer } | null = null,
+  vehicles: { store: VehicleStore; payer: VehiclePayer & RacePayer; races?: RaceStore } | null = null,
 ) {
   const app = Fastify({
     trustProxy: config.TRUST_PROXY,
@@ -235,7 +253,7 @@ export async function buildApp(
     : null;
   const p2eRate = new AccountRateLimit(config.RISK_RATE_PER_MINUTE, metrics);
   /** Antes de emitir P2E: velocidade e, com o store, aparelho e rede. */
-  const guardP2E = async (request: FastifyRequest, accountId: string, action: 'work' | 'claim') => {
+  const guardP2E = async (request: FastifyRequest, accountId: string, action: 'work' | 'claim' | 'race') => {
     p2eRate.take(accountId, now().getTime());
     await risk?.assert({ accountId, deviceHeader: request.headers['x-device-id'], ip: request.ip, action }, now());
   };
@@ -626,6 +644,17 @@ export async function buildApp(
       speed: m.speed,
       power: m.power,
     })),
+    races: {
+      per_day: RACES_PER_DAY,
+      rivals: RIVALS,
+      fuel: FUEL_CENTS.toString(),
+      prizes: PRIZES_CENTS.map((p) => p.toString()),
+      breakdown_chance: 0.05,
+      breakdown_chance_revised: 0.02,
+      repairs: Object.entries(SEVERITIES).map(([code, sv]) => ({ code, days: sv.days, share: sv.repairBps / 10_000 })),
+      revision_share: REVISION_BPS / 10_000,
+      revision_days: REVISION_MS / 86_400_000,
+    },
     rules: {
       full_days: FULL_DAYS,
       life_days: LIFE_DAYS,
@@ -709,6 +738,92 @@ export async function buildApp(
     await v.payer.payBuyback({ key: `vehicle-buyback:${car.id}`, accountId: car.accountId, cents, refId: car.id }, request.id);
     await v.store.markSold(car.id, now());
     return { sold: { id: car.id, cents: cents.toString() } };
+  });
+
+  // ---------------------------------------------------------------- corridas e oficina (E3.5)
+
+  const racesOn = () => {
+    const v = vehiclesOn();
+    if (!v.races) throw new AppError('races_disabled', 'As corridas estão desligadas.', 503);
+    return { ...v, races: v.races };
+  };
+  const raceDeps = () => {
+    const v = racesOn();
+    return {
+      races: v.races,
+      payer: v.payer,
+      vehicles: v.store,
+      updateAvatar: (race: { avatarId: string; accountId: string }, apply: (a: Avatar) => Avatar) =>
+        store.updateAvatar(race.avatarId, race.accountId, now(), apply),
+    };
+  };
+
+  // Corrida do dia: `{avatar_id}` é o piloto (habilitado). Gasolina antes, prêmio do pool P2E.
+  app.post('/v1/vehicles/:id/races', async (request, reply) => {
+    const car = await ownVehicle(request);
+    const { avatar_id } = z.object({ avatar_id: z.uuid() }).parse(request.body);
+    const v = racesOn();
+    await guardP2E(request, car.accountId, 'race');
+    const pilot = await store.get(avatar_id);
+    if (!pilot || pilot.accountId !== car.accountId) throw new AppError('not_found', 'Avatar não encontrado.', 404);
+    const at = now();
+    const fresh = decayed(pilot, at);
+    checkRace(car, fresh, await v.races.countToday(fresh.id, dayOf(at)), at);
+    const race = newRace({ id: randomUUID(), vehicle: car, avatar: fresh }, at);
+    if (!(await v.races.createWithinLimit(race, RACES_PER_DAY))) {
+      throw new AppError('race_limit', `Até ${RACES_PER_DAY} corridas por dia para cada piloto.`, 409);
+    }
+    const done = await settleRace(raceDeps(), race, at, request.id);
+    const after = (await store.get(avatar_id))!;
+    return reply.status(201).send({
+      race: raceDto(done),
+      vehicle: vehicleDto((await v.store.get(car.id))!, now()),
+      avatar: avatarDto(decayed(after, now()), now()),
+      races_left_today: RACES_PER_DAY - (await v.races.countToday(avatar_id, dayOf(at))),
+    });
+  });
+
+  app.get('/v1/races', async (request) => {
+    const accountId = await player(request);
+    const v = racesOn();
+    // Corridas paradas no meio (ledger fora): termina antes de listar.
+    for (const r of (await v.races.listByAccount(accountId, 20)).filter((x) => x.status === 'pending' || x.status === 'charged')) {
+      await settleRace(raceDeps(), r, now(), request.id).catch(() => undefined);
+    }
+    return { races: (await v.races.listByAccount(accountId, 20)).map(raceDto) };
+  });
+
+  // Oficina do jogo: conserta a pane em 1, 3 ou 7 dias, pago pelo ledger.
+  app.post('/v1/vehicles/:id/repair', async (request) => {
+    const car = await ownVehicle(request);
+    const v = vehiclesOn();
+    if (!isBroken(car, now()) || !car.breakdown || !car.brokenAt) throw new AppError('not_broken', 'O carro não está com pane.', 409);
+    if (car.repairUntil) throw new AppError('in_repair', 'O carro já está na oficina.', 409);
+    const cents = repairCents(car, car.breakdown, MODELS[car.model].priceCents);
+    await v.payer.chargeVehicle(
+      { key: `vehicle-repair:${car.id}:${car.brokenAt.toISOString()}`, kind: 'vehicle_repair', accountId: car.accountId, cents, sink: 'workshop', refId: car.id },
+      request.id,
+    );
+    const started = await v.store.startRepair(car.id, car.brokenAt, new Date(now().getTime() + SEVERITIES[car.breakdown].days * 86_400_000));
+    // A cobrança tem a chave da pane: tentar de novo não cobra outra vez.
+    if (!started) throw new AppError('repair_conflict', 'A oficina não registrou o reparo. Tente de novo: a cobrança não se repete.', 409);
+    return { vehicle: vehicleDto((await v.store.get(car.id))!, now()), cents: cents.toString() };
+  });
+
+  // Revisão: 30 dias com menos panes.
+  app.post('/v1/vehicles/:id/revision', async (request) => {
+    const car = await ownVehicle(request);
+    const v = vehiclesOn();
+    const at = now();
+    if (car.revisionUntil && car.revisionUntil > at) throw new AppError('revision_valid', 'A revisão ainda está em dia.', 409);
+    const cents = (MODELS[car.model].priceCents * BigInt(REVISION_BPS)) / 10_000n;
+    // Uma revisão por carro por dia de pedido: a chave segura o clique repetido.
+    await v.payer.chargeVehicle(
+      { key: `vehicle-revision:${car.id}:${dayOf(at)}`, kind: 'vehicle_revision', accountId: car.accountId, cents, sink: 'workshop', refId: car.id },
+      request.id,
+    );
+    await v.store.setRevision(car.id, car.revisionUntil, new Date(at.getTime() + REVISION_MS));
+    return { vehicle: vehicleDto((await v.store.get(car.id))!, now()), cents: cents.toString() };
   });
 
   // ---------------------------------------------------------------- campeonato de botão (E3.3)

@@ -18,6 +18,9 @@ import { MemoryChampionshipStore } from './infra/memory-championship-store.js';
 import { settleVehicle } from './domain/vehicle.js';
 import { PostgresVehicleStore } from './infra/db/postgres-vehicle-store.js';
 import { MemoryVehicleStore } from './infra/memory-vehicle-store.js';
+import { settleRace } from './domain/race.js';
+import { PostgresRaceStore } from './infra/db/postgres-race-store.js';
+import { MemoryRaceStore } from './infra/memory-race-store.js';
 import { scheduleDecay } from './jobs/decay.js';
 import { scheduleHospital } from './jobs/hospital.js';
 import { scheduleShifts } from './jobs/shift.js';
@@ -44,7 +47,8 @@ const championshipStore = pool ? new PostgresChampionshipStore(pool) : new Memor
 const championships = payer ? { store: championshipStore, payer } : null;
 // Veículos (E3.5): agência e IPVA pelo mesmo ledger.
 const vehicleStore = pool ? new PostgresVehicleStore(pool) : new MemoryVehicleStore();
-const vehicles = payer ? { store: vehicleStore, payer } : null;
+const raceStore = pool ? new PostgresRaceStore(pool) : new MemoryRaceStore();
+const vehicles = payer ? { store: vehicleStore, payer, races: raceStore } : null;
 const app = await buildApp(config, store, undefined, payer, payer, payer, undefined, riskStore, venues, championships, vehicles);
 
 // Job championship.settle: disputa o campeonato do mês que virou e cobra as inscrições paradas.
@@ -55,6 +59,19 @@ const championshipTimer = championships
         if (vehicles) {
           for (const v of await vehicles.store.pendingOlderThan(new Date(Date.now() - 60_000))) {
             await settleVehicle(vehicles, v).catch(() => undefined);
+          }
+          // Corridas paradas: gasolina cobrada sem efeito ainda, ou prêmio sem pagar (pool vazio).
+          for (const r of await raceStore.stuck(new Date(Date.now() - 60_000))) {
+            await settleRace(
+              {
+                races: raceStore,
+                payer: vehicles.payer,
+                vehicles: vehicleStore,
+                updateAvatar: (race, apply) => store.updateAvatar(race.avatarId, race.accountId, new Date(), apply),
+              },
+              r,
+              new Date(),
+            ).catch(() => undefined);
           }
         }
         for (const m of await championships.store.pendingMembers(new Date(Date.now() - 60_000))) {
