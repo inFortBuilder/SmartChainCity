@@ -116,6 +116,15 @@ export class PostgresPropertyStore implements PropertyStore {
     });
   }
 
+  async skipIncome(propertyId: string, expected: Date, until: Date) {
+    const moved = await this.db
+      .update(propertyT)
+      .set({ lastClaimAt: until })
+      .where(and(eq(propertyT.id, propertyId), eq(propertyT.lastClaimAt, expected)))
+      .returning({ id: propertyT.id });
+    return moved.length > 0;
+  }
+
   async markClaimPaid(id: string) {
     await this.db.update(claimT).set({ status: 'paid' }).where(eq(claimT.id, id));
   }

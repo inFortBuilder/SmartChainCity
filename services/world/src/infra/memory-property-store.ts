@@ -60,6 +60,13 @@ export class MemoryPropertyStore implements PropertyStore {
     return { ...claim };
   }
 
+  async skipIncome(propertyId: string, expected: Date, until: Date) {
+    const p = this.properties.get(propertyId);
+    if (!p || p.lastClaimAt.getTime() !== expected.getTime()) return false;
+    p.lastClaimAt = until;
+    return true;
+  }
+
   async markClaimPaid(id: string) {
     const c = this.claims.get(id);
     if (c) c.status = 'paid';

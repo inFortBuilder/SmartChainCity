@@ -117,6 +117,8 @@ export interface PropertyStore {
    * coletou antes (`lastClaimAt` ainda igual a `expected`). Sem isso, `null`.
    */
   startClaim(claim: PropertyClaim, expected: Date, until: Date): Promise<PropertyClaim | null>;
+  /** Fecha o período até `until` sem renda (donos separados), se `lastClaimAt` ainda é `expected`. */
+  skipIncome(propertyId: string, expected: Date, until: Date): Promise<boolean>;
   markClaimPaid(id: string): Promise<void>;
   pendingClaims(olderThan: Date): Promise<PropertyClaim[]>;
   /** Reparo ou upgrade; `work_in_progress` (409) se o imóvel já tem um pendente. */
@@ -196,6 +198,49 @@ export function accrued(p: Property, now: Date): { cents: number; until: Date; c
   const integral = (x: number) => W0 * x - (k * x * x) / 2;
   const cents = xb > xa ? Math.floor((M / 100) * (integral(xb) - integral(xa))) : 0;
   return { cents, until: now, capped: now > capEnd };
+}
+
+/** Regra do doc 07 §2.2: o imóvel só rende se o dono dele também for o dono do lote. */
+export const rentsHere = (lotOwner: string | null | undefined, propertyOwner: string) => lotOwner === propertyOwner;
+
+/** O imóvel rende agora? (dono do imóvel = dono do lote). Sem `lots`, sim. */
+async function rentsNow(lots: Pick<WorldStore, 'getLot'> | undefined, p: Property) {
+  return !lots || rentsHere((await lots.getLot(p.city, p.lotId))?.ownerAccountId, p.ownerAccountId);
+}
+
+export type IncomeClose = { kind: 'claimed'; claim: PropertyClaim } | { kind: 'forfeited'; cents: number } | { kind: 'none' };
+
+/**
+ * Fecha a renda do imóvel do lote antes de o lote ou o imóvel mudar de dono, para
+ * a renda ser proporcional ao tempo em que os donos coincidiram. Como todo
+ * período entre duas mudanças tem os mesmos donos, basta olhar os donos de agora:
+ * - iguais: a renda até aqui vira uma coleta do dono do imóvel, que o job
+ *   properties.settle paga;
+ * - diferentes: o período não rende e fica fechado.
+ * Chame antes de `transferLot` ou `transferProperty`.
+ */
+export async function closeIncomeBeforeTransfer(
+  deps: { lots: Pick<WorldStore, 'getLot'>; properties: PropertyStore },
+  city: string,
+  lotId: number,
+  now: Date,
+): Promise<IncomeClose> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const p = await deps.properties.propertyOnLot(city, lotId);
+    if (!p || phaseOf(p, now) !== 'ready' || now <= p.lastClaimAt) return { kind: 'none' };
+    const { cents, until } = accrued(p, now);
+    if (await rentsNow(deps.lots, p)) {
+      if (cents <= 0) return { kind: 'none' };
+      const claim = await deps.properties.startClaim(
+        { id: randomUUID(), propertyId: p.id, accountId: p.ownerAccountId, amountCents: cents, status: 'pending', createdAt: now },
+        p.lastClaimAt,
+        until,
+      );
+      if (claim) return { kind: 'claimed', claim };
+    } else if (await deps.properties.skipIncome(p.id, p.lastClaimAt, until)) return { kind: 'forfeited', cents };
+    // Uma coleta entrou no meio: lê de novo.
+  }
+  throw new AppError('claim_in_progress', 'A renda deste imóvel mudou durante a passagem.', 409);
 }
 
 export type PropertyPhase = 'pending_payment' | 'building' | 'ready';
@@ -286,7 +331,12 @@ export async function claimIncome(
 }
 
 /** Job: paga obras e coletas que ficaram pendentes (resposta do ledger perdida). */
-export async function settleProperties(store: PropertyStore, payments: PropertyPayments, now: Date): Promise<number> {
+export async function settleProperties(
+  store: PropertyStore,
+  payments: PropertyPayments,
+  now: Date,
+  lots?: Pick<WorldStore, 'getLot'>,
+): Promise<number> {
   const olderThan = new Date(now.getTime() - 30_000);
   let n = 0;
   for (const p of await store.pendingProperties(olderThan)) {
@@ -304,7 +354,7 @@ export async function settleProperties(store: PropertyStore, payments: PropertyP
   for (const w of await store.pendingWorks(olderThan)) {
     try {
       await payments.chargeWork(w);
-      await finishWork(store, payments, w, () => now);
+      await finishWork(store, payments, w, () => now, undefined, lots);
       n++;
     } catch (error) {
       if (error instanceof AppError && error.code === 'insufficient_thaler') {
@@ -347,12 +397,14 @@ export function applyWorkAt(
   p: Property,
   w: PropertyWork,
   at: Date,
+  /** Os donos do lote e do imóvel coincidem? Se não, o período fecha sem renda. */
+  rents = true,
 ): { property: Property; claim: PropertyClaim | null } {
   // Nunca antes da última coleta: o período já fechado não se repete.
   const t = new Date(Math.max(at.getTime(), p.lastClaimAt.getTime()));
   const { cents } = accrued(p, t);
   const claim: PropertyClaim | null =
-    cents > 0
+    cents > 0 && rents
       ? { id: randomUUID(), propertyId: p.id, accountId: p.ownerAccountId, amountCents: cents, status: 'pending', createdAt: t }
       : null;
   const property: Property =
@@ -362,8 +414,17 @@ export function applyWorkAt(
   return { property, claim };
 }
 
-async function finishWork(store: PropertyStore, payments: PropertyPayments, w: PropertyWork, now: () => Date, requestId?: string) {
-  const result = await store.applyWork(w.id, (p) => applyWorkAt(p, w, now()));
+async function finishWork(
+  store: PropertyStore,
+  payments: PropertyPayments,
+  w: PropertyWork,
+  now: () => Date,
+  requestId?: string,
+  lots?: Pick<WorldStore, 'getLot'>,
+) {
+  const current = await store.getProperty(w.propertyId);
+  const rents = current ? await rentsNow(lots, current) : true;
+  const result = await store.applyWork(w.id, (p) => applyWorkAt(p, w, now(), rents));
   if (!result) throw new AppError('work_not_pending', 'Esta obra já foi resolvida.', 409);
   if (result.claim) {
     try {
@@ -382,6 +443,7 @@ export async function startWork(
   payments: PropertyPayments,
   input: { propertyId: string; accountId: string; kind: WorkKind; requestId?: string },
   now: () => Date,
+  lots?: Pick<WorldStore, 'getLot'>,
 ): Promise<{ work: PropertyWork; property: Property; claim: PropertyClaim | null }> {
   const p = await store.getProperty(input.propertyId);
   if (!p || p.ownerAccountId !== input.accountId) throw new AppError('not_found', 'Imóvel não encontrado.', 404);
@@ -418,6 +480,6 @@ export async function startWork(
     if (error instanceof AppError && error.code === 'insufficient_thaler') await store.failWork(work.id);
     throw error;
   }
-  const { property, claim } = await finishWork(store, payments, work, now, input.requestId);
+  const { property, claim } = await finishWork(store, payments, work, now, input.requestId, lots);
   return { work: { ...work, status: 'applied' }, property, claim };
 }

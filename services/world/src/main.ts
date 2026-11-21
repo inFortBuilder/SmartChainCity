@@ -169,7 +169,7 @@ const timer = setInterval(async () => {
     const n = await settleStale(store, payments, new Date());
     if (n) app.log.info(`purchases.settle: ${n} compra(s) resolvida(s)`);
     if (propertyPayments) {
-      const m = await settleProperties(propertyStore, propertyPayments, new Date());
+      const m = await settleProperties(propertyStore, propertyPayments, new Date(), store);
       if (m) app.log.info(`properties.settle: ${m} obra(s) ou coleta(s) resolvida(s)`);
     }
     if (outorga) {

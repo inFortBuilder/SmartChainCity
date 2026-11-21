@@ -57,7 +57,12 @@ O `LandNFT` e o `PropertyNFT` circulam livres (ADR-0014). O job `chain.sync` (`C
 | O mesmo token vendido de novo | Vale a última transferência; as pendentes dele saem |
 | Mint (de `0x0`) | Nada: é o jogo levando para a carteira o que já era do jogador |
 
-**Renda:** o imóvel só rende para quem também é dono do lote (doc 07 §2.2). Se o lote foi vendido e o imóvel não, a coleta responde `409 lot_not_owned`.
+**Renda:** o imóvel só rende para quem também é dono do lote (doc 07 §2.2), e só pelo tempo em que os dois donos coincidiram. Antes de o lote ou o imóvel mudar de dono, na blockchain (`chain.sync`) ou no leilão, a renda acumulada é fechada:
+
+- se os donos eram os mesmos, ela vira uma coleta do dono do imóvel, paga pelo job `properties.settle`. Quem vende o lote não perde o que já rendeu;
+- se eram diferentes, o período fica fechado sem renda. Juntar o lote e o imóvel de novo não paga o tempo em que estiveram separados.
+
+Com os donos separados, a coleta responde `409 lot_not_owned`, e um reparo ou upgrade fecha o período sem pagar.
 
 Ligue com `CHAIN_INDEXER_URL`, `CHAIN_INDEXER_TOKEN` (o `INTERNAL_TOKEN` do indexer), `GATEWAY_URL` e `GATEWAY_TOKEN`. Testado no anvil em 2026-11-21: o lote vendido de uma carteira para outra passou para a conta do comprador.
 
@@ -122,7 +127,7 @@ O job `auctions.tick` (a cada `AUCTION_EVERY_SECONDS`, 60 s) abre o leilão do l
 | Dono pagou | Se as contas não estão mais pendentes no fim, o leilão é cancelado e ninguém é cobrado |
 | Ninguém pagou | Fica `unsold`, o lote continua com o dono e, se ainda estiver inadimplente, o job abre outro leilão |
 
-O PT continua contando os meses desde a primeira compra: o novo dono herda a escada, como pede o doc 03 §4 contra a especulação. A renda acumulada do imóvel vai com ele.
+O PT continua contando os meses desde a primeira compra: o novo dono herda a escada, como pede o doc 03 §4 contra a especulação. A renda acumulada até a passagem fica com o antigo dono, se ele tinha o lote e o imóvel; o vencedor recebe a partir dali.
 
 **Premissas** (sem fonte no GDD): abre 120 dias depois do vencimento (30 depois do bloqueio de 90), dura 72 h, passo de 5% e extensão de 10 min. Lote com prédio de construtor não vai a leilão, porque o prédio tem regras e NFT próprios.
 
@@ -215,7 +220,7 @@ Esquema próprio `world`: `city` (zonas, bairros abertos, limiar), `lot` (situa�
 
 ## Ainda não
 
-- Imóveis: troca de tipo (T1 → T2 → T3), seguro, aluguel e hotel, lote duplo (Residencial 2 e 3), regularização e água/energia; os outros tipos do doc 03 §6; o catálogo vindo do Strapi (hoje fica no código, igual ao seed); renda proporcional ao tempo em que os donos do lote e do imóvel coincidiram (hoje a regra vale na hora da coleta).
+- Imóveis: troca de tipo (T1 → T2 → T3), seguro, aluguel e hotel, lote duplo (Residencial 2 e 3), regularização e água/energia; os outros tipos do doc 03 §6; o catálogo vindo do Strapi (hoje fica no código, igual ao seed).
 - Prédios: o chain-indexer ler o `BuildingNFT`, unidades e venda (E3.11), taxa de alvará, prazo de obra proporcional à área, IPTU por unidade.
 - Impostos: o leilão tomar também o NFT do lote e do imóvel; IPTU por unidade dos prédios de construtores (doc 13).
 - Mercado secundário entre jogadores, imóveis e utilidades.

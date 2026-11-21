@@ -6,7 +6,7 @@ import type { BuildingStore } from './buildings.js';
 import { propertyTokenId } from './property-voucher.js';
 import { type SeizureStore, newSeizure } from './seizures.js';
 import { AREA_CAP_SHARE, type Lot, type WorldStore } from './lots.js';
-import { DAY_MS, type PropertyStore } from './properties.js';
+import { DAY_MS, type PropertyStore, closeIncomeBeforeTransfer } from './properties.js';
 import { type TaxBill, type TaxStore, totalOf } from './taxes.js';
 
 /**
@@ -247,9 +247,16 @@ async function handOver(
   const winner = a.winnerAccountId!;
   const lot = await deps.lots.getLot(a.city, a.lotId);
   const lotOwner = lot?.ownerAccountId;
-  if (lotOwner && lotOwner !== winner) await deps.lots.transferLot(a.city, a.lotId, lotOwner, winner);
+  // A renda até a passagem fica com quem tinha o imóvel, se ele também tinha o lote.
+  if (lotOwner && lotOwner !== winner) {
+    await closeIncomeBeforeTransfer(deps, a.city, a.lotId, now);
+    await deps.lots.transferLot(a.city, a.lotId, lotOwner, winner);
+  }
   const p = await deps.properties.propertyOnLot(a.city, a.lotId);
-  if (p && p.ownerAccountId !== winner) await deps.properties.transferProperty(p.id, p.ownerAccountId, winner);
+  if (p && p.ownerAccountId !== winner) {
+    await closeIncomeBeforeTransfer(deps, a.city, a.lotId, now);
+    await deps.properties.transferProperty(p.id, p.ownerAccountId, winner);
+  }
   // Se os tokens já estão numa carteira, o vencedor precisa da apreensão para trazê-los.
   if (deps.seizures && lotOwner !== winner) {
     const lotToken = deps.seizures.lotToken(a.city, a.lotId);

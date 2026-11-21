@@ -1,5 +1,5 @@
 import type { WorldStore } from './lots.js';
-import type { PropertyStore } from './properties.js';
+import { type PropertyStore, closeIncomeBeforeTransfer, rentsHere } from './properties.js';
 import type { SeizureStore } from './seizures.js';
 
 /**
@@ -92,12 +92,14 @@ async function apply(deps: Deps, t: PendingTransfer): Promise<boolean> {
     if (!city) return true; // cidade que o world não conhece: nada a fazer
     const lot = await deps.lots.getLot(city, lotId);
     if (!lot?.ownerAccountId || lot.ownerAccountId === accountId) return true;
+    await closeIncomeBeforeTransfer(deps, city, lotId, deps.now?.() ?? new Date());
     await deps.lots.transferLot(city, lotId, lot.ownerAccountId, accountId);
     return true;
   }
   const id = propertyIdOfToken(tokenId);
   const property = id ? await deps.properties.getProperty(id) : null;
   if (!property || property.ownerAccountId === accountId) return true;
+  await closeIncomeBeforeTransfer(deps, property.city, property.lotId, deps.now?.() ?? new Date());
   await deps.properties.transferProperty(property.id, property.ownerAccountId, accountId);
   return true;
 }
@@ -132,5 +134,4 @@ export async function syncChain(deps: Deps, batch = 200) {
   }
 }
 
-/** Regra do doc 07 §2.2: o imóvel só rende se o dono dele também for o dono do lote. */
-export const rentsHere = (lotOwner: string | null | undefined, propertyOwner: string) => lotOwner === propertyOwner;
+export { rentsHere };
