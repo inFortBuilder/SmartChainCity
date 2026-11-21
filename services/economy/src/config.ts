@@ -28,6 +28,18 @@ const schema = z.object({
    * enquanto não existe depósito pela blockchain (Etapa 2). Recusada em produção.
    */
   DEV_FAUCET: z.stringbool().default(false),
+  /**
+   * Saque pelo GameVault (E3.7). Precisa dos cinco: o gateway confere a
+   * carteira, a chave assina o voucher e a RPC diz se ele foi resgatado.
+   */
+  GATEWAY_URL: z.preprocess((v) => (v === '' ? undefined : v), z.url().optional()),
+  GATEWAY_TOKEN: z.preprocess((v) => (v === '' ? undefined : v), z.string().min(32).optional()),
+  RPC_URL: z.preprocess((v) => (v === '' ? undefined : v), z.url().optional()),
+  CHAIN_ID: z.coerce.number().int().positive().default(31337),
+  GAME_VAULT_ADDRESS: z.preprocess((v) => (v === '' ? undefined : v), z.string().regex(/^0x[0-9a-fA-F]{40}$/).optional()),
+  /** Só no MVP local: em produção a chave fica num KMS. */
+  VAULT_SIGNER_KEY: z.preprocess((v) => (v === '' ? undefined : v), z.string().regex(/^0x[0-9a-fA-F]{64}$/).optional()),
+  WITHDRAW_EVERY_SECONDS: z.coerce.number().int().nonnegative().default(60),
 });
 
 export type Config = z.infer<typeof schema>;
@@ -36,6 +48,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const config = schema.parse(env);
   if (config.NODE_ENV === 'production' && config.DEV_FAUCET) {
     throw new Error('DEV_FAUCET é só para desenvolvimento.');
+  }
+  if (config.NODE_ENV === 'production' && config.VAULT_SIGNER_KEY) {
+    throw new Error('VAULT_SIGNER_KEY no .env é só para o MVP local: em produção a chave fica num KMS.');
   }
   return config;
 }

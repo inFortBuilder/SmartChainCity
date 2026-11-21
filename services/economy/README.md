@@ -20,6 +20,26 @@ Ledger de dupla entrada do THALER e do SCITY dentro do jogo (épico **E1.5**, pa
 
 **Teste de propriedade** (critério do E1.5 no [ROADMAP](../../ROADMAP.md)): 10 mil transações aleatórias de 8 tipos (emissão, pagamento pelo pool, transferência, gasto, escrow, taxa de três pernas), com 5% de pedidos repetidos. No fim, a soma de todas as entradas é zero por moeda, o saldo de cada conta é igual à soma das suas entradas e nenhuma conta fica negativa. Roda em memória e no Postgres (cerca de 70 s).
 
+## Saque pelo GameVault (E3.7)
+
+O jogador pede o saque do SCITY que tem no jogo e recebe um voucher EIP-712 para resgatar na carteira com `GameVault.claim`.
+
+| Passo | Como |
+|---|---|
+| Pedido | `POST /v1/economy/withdrawals` com `{wallet, amount_wei}`. O gateway confere que a carteira é da conta e a idade da conta |
+| Regras | Mínimo de 1 SCITY; teto de 1.000 SCITY por conta em 24 h, conferido com a conta travada (dois pedidos juntos não passam do teto); carência de 7 dias para conta nova (doc 04 §5) |
+| Débito | O SCITY sai do jogador para `escrow/withdrawals` (`scity_withdrawal`, chave `withdrawal:<id>`). Sem saldo, `409 insufficient_scity` |
+| Voucher | `{to, amount, nonce, deadline}`, nonce = os 128 bits do id, prazo de 48 h. A resposta traz o contrato, a rede, o voucher e a assinatura |
+| Resgate | O job `withdrawals.settle` (`WITHDRAW_EVERY_SECONDS`, 60 s) lê `nonceUsed` no cofre. Resgatado: o escrow vai para `system/vault` e o saque fica `claimed` |
+| Prazo vencido | Sem resgate, o escrow volta ao jogador (`scity_withdrawal_refund`) e o saque fica `refunded`. O contrato já recusa o voucher vencido, então não há saque em dobro |
+| Queda no meio | Saque `created` parado há mais de 1 min é retomado pelo job, com as mesmas chaves |
+
+Ligue com `GATEWAY_URL`, `GATEWAY_TOKEN`, `RPC_URL`, `GAME_VAULT_ADDRESS` e `VAULT_SIGNER_KEY`; sem os cinco, as rotas de saque respondem 503. A chave no `.env` é só para o MVP local e é recusada em produção (KMS, doc 07 §3).
+
+**Premissas** (doc 04 §5, a calibrar no simulador): mínimo, teto de 24 h, carência e prazo do voucher. Sem spread, porque SCITY sai como SCITY; o spread do doc 04 vale na troca THALER → SCITY, que ainda não existe. O saldo grátis do período inicial (ADR-0014) ainda não é marcado como não sacável.
+
+Testado no anvil em 2026-11-20: 20 SCITY pedidos no economy chegaram à carteira pelo `claim`, o job marcou como resgatado, e um segundo voucher, não resgatado, voltou para o jogador depois do prazo.
+
 ## Painel econômico (E2.8)
 
 Cada transação do ledger vira um fluxo, olhando a parte dos jogadores (doc 04 §7):
@@ -68,6 +88,8 @@ TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc_test pnpm --filter
 | GET | `/v1/economy/ledger?currency=&cursor=&limit=` | jogador (Bearer) | Extrato do mais recente para o mais antigo; `next_cursor` para a próxima página |
 | POST | `/internal/v1/ledger/transactions` | serviços (`X-Service-Token` + `Idempotency-Key`) | Lança `{kind, ref_type, ref_id, legs: [{owner_type, owner_id, currency, amount}]}`: 201 novo, 200 repetido |
 | GET | `/internal/v1/economy/panel` | serviços (`X-Service-Token`) | Painel econômico (`?currency=THALER` ou `SCITY`): emissão, dreno, razão, por tipo, pools, duração do P2E e alertas |
+| POST | `/v1/economy/withdrawals` | jogador (Bearer) | Pede o saque `{wallet, amount_wei}` e recebe o voucher do `GameVault` |
+| GET | `/v1/economy/withdrawals` | jogador (Bearer) | Últimos 50 saques, com o voucher dos pendentes |
 | POST | `/v1/dev/faucet` | jogador (Bearer) | **Só desenvolvimento** (`DEV_FAUCET=true`, recusado em produção): +1.000 SCITY de teste, como um depósito simulado da ponte |
 | GET | `/healthz` | — | `{status: "ok"}` |
 
@@ -85,14 +107,15 @@ Exemplo: pagar um turno de 11,85 THALER a partir do pool P2E.
 }
 ```
 
-Erros com código estável: `invalid_posting`, `insufficient_funds`, `idempotency_conflict`, `missing_idempotency_key`, `forbidden`, `missing_credentials`, `invalid_token`, `token_expired`.
+Erros com código estável: `invalid_posting`, `insufficient_funds`, `idempotency_conflict`, `missing_idempotency_key`, `withdrawals_disabled`, `wallet_not_linked`, `account_too_new`, `below_minimum`, `daily_limit`, `insufficient_scity`, `gateway_unavailable`, `forbidden`, `missing_credentials`, `invalid_token`, `token_expired`.
 
 ## Banco
 
-Esquema próprio `economy` (o serviço não toca as tabelas do gateway): `ledger_account` (com o saldo guardado), `ledger_tx` (com `seq`, cursor do extrato, e a impressão digital do pedido) e `ledger_entry`. Migrações em `drizzle/`, controladas na tabela `drizzle.__economy_migrations`.
+Esquema próprio `economy` (o serviço não toca as tabelas do gateway): `ledger_account` (com o saldo guardado), `ledger_tx` (com `seq`, cursor do extrato, e a impressão digital do pedido), `ledger_entry` e `withdrawal` (saques e vouchers). Migrações em `drizzle/`, controladas na tabela `drizzle.__economy_migrations`.
 
 ## Ainda não
 
-- Impostos, câmbio THALER ↔ SCITY e vouchers de saque (passos 11 e 16 da trilha).
+- Câmbio THALER ↔ SCITY, com o spread e o freio do pool do doc 04 §5 (passo 11 da trilha).
+- KYC para saque acima de um limite (doc 10).
 - `openapi.yaml` deste serviço.
 - Quem chama o lançamento interno: o game-core (turno de trabalho, passo 7) e o world (compra de lote) ainda não existem.

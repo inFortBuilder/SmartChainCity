@@ -140,7 +140,7 @@ Domínio EIP-712: `name` `SCC GameVault`, `version` `1`, `chainId` da rede e o e
 Withdrawal(address to,uint256 amount,uint256 nonce,uint256 deadline)
 ```
 
-`amount` em wei de SCITY. Só `to` resgata, uma vez por `nonce`. Passou do teto do dia, o `claim` reverte com quanto ainda cabe (`DailyLimitExceeded`, `AddressLimitExceeded`), e o mesmo voucher pode ser resgatado no dia seguinte, se ainda estiver no prazo. Quem emite o voucher é o economy (próxima etapa).
+`amount` em wei de SCITY. Só `to` resgata, uma vez por `nonce`. Passou do teto do dia, o `claim` reverte com quanto ainda cabe (`DailyLimitExceeded`, `AddressLimitExceeded`), e o mesmo voucher pode ser resgatado no dia seguinte, se ainda estiver no prazo. Quem emite o voucher é o economy (`POST /v1/economy/withdrawals`).
 
 Testado no anvil em 2026-11-20: a carteira depositou 40 SCITY duas vezes, e o chain-indexer creditou 80 SCITY na conta ligada a ela, sem repetir depois de refazer as projeções.
 

@@ -209,7 +209,7 @@ Autenticação: `Authorization: Bearer <JWT>`. Toda mutação aceita `Idempotenc
 | GET | `/v1/economy/balances` | THALER e SCITY no jogo |
 | GET | `/v1/economy/ledger?cursor=` | Extrato |
 | GET | `/v1/economy/fx` | Câmbio vigente e spread |
-| POST | `/v1/economy/withdrawals` | Pede voucher de saque (aplica limites) |
+| POST | `/v1/economy/withdrawals` | Pede voucher de saque (aplica limites) (pronto, E3.7) |
 | GET | `/v1/market/listings` | Marketplace off-chain |
 
 ### Público (sem autenticação, com cache)

@@ -233,6 +233,8 @@ describe('rota interna de carteiras (para o world)', () => {
     expect(list).toHaveLength(1);
     expect(list[0]!.address.toLowerCase()).toBe(wallet.address.toLowerCase());
     expect(list[0]!.chain_id).toBe(97);
+    // O economy usa a idade da conta na carência do saque.
+    expect(new Date(r.json().account_created_at).getTime()).toBeGreaterThan(0);
   });
 
   it('acha a conta pela carteira, em qualquer caixa do endereço', async () => {

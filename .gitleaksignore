@@ -7,3 +7,5 @@
 2faa561f890e52b9d7e8c89c4bd3e72130a2ba64:services/economy/.env.example:generic-api-key:6
 # Endereço público do contrato SCityToken no anvil (o nome da chave tem "Token"): não é segredo.
 ea56c8ba3556305922fd5f8f1ffd9e5df151ba45:contracts/deployments/anvil.json:generic-api-key:6
+# Falso positivo: VAULT_SIGNER_KEY= vazio no .env.example; o gitleaks leu a linha seguinte (WITHDRAW_EVERY_SECONDS=60) como chave. Corrigido no commit seguinte.
+9cc700ccbe655bd77016e833ba6f94f372690b83:services/economy/.env.example:generic-api-key:33
