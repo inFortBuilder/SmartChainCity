@@ -17,6 +17,7 @@ Lê os eventos dos contratos na rede (anvil, BSC Testnet ou BSC). Espera as conf
 | Avatares | `Transfer` e `AvatarMinted` do `AvatarNFT`: dono, raridade e profissão |
 | Imóveis | `Transfer`, `PropertyMinted` e `PropertyUpgraded` do `PropertyNFT`: dono, lote âncora, tipo e nível |
 | Caixas | `BoxOpened` e `AvatarRevealed` da `LuckyBox`: quem abriu, situação e avatar sorteado |
+| Depósitos | `Deposited` do `GameVault`: vira saldo de SCITY no ledger (veja abaixo). `Withdrawn` fica no feed |
 | Feed | `GET /internal/v1/chain/events?after=<id>` entrega os eventos confirmados, em ordem, para os outros serviços (com `x-service-token`) |
 
 `LotSold` fica só no registro de eventos, porque a posse vem do `Transfer`.
@@ -55,6 +56,16 @@ Testes, com o banco só de testes. A rede de mentira dos testes simula confirma�
 TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc_test pnpm --filter @scc/chain-indexer test
 ```
 
+## Depósitos do GameVault
+
+A cada rodada, depois de ler os blocos confirmados, o indexer credita os depósitos pendentes:
+
+1. pergunta ao gateway de quem é a carteira (`GET /internal/v1/wallets/:address/account`). Carteira sem conta fica `pending` até ser ligada;
+2. lança no ledger do economy o SCITY, em wei, de `system/vault` para o jogador (`scity_deposit`), com a chave `chain:<rede>:<tx>:<log>`;
+3. marca o depósito como `credited`.
+
+O crédito acontece uma vez só: numa reorganização as projeções são refeitas e o depósito volta a `pending`, mas o ledger devolve o lançamento antigo para a mesma chave. Ligue com `GATEWAY_URL`, `GATEWAY_TOKEN`, `ECONOMY_URL` e `ECONOMY_TOKEN`; sem os quatro, os depósitos só ficam registrados.
+
 ## API
 
 | Método | Rota | Quem chama | O que faz |
@@ -63,6 +74,7 @@ TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc_test pnpm --filter
 | GET | `/v1/chain/lots/:tokenId` | público | Dono on-chain do lote, com cidade e número |
 | GET | `/v1/chain/avatars/:tokenId` | público | Dono, raridade e profissão do avatar |
 | GET | `/v1/chain/properties/:tokenId` | público | Dono, lote âncora, tipo e nível do imóvel |
+| GET | `/v1/chain/deposits/:address` | público | Depósitos de uma carteira no `GameVault` e se já viraram saldo (`pending`, `credited`) |
 | GET | `/v1/chain/boxes/:requestId` | público | Caixa aberta: comprador, tier, situação e avatar sorteado |
 | GET | `/v1/chain/owners/:address` | público | Lotes, avatares e imóveis de uma carteira |
 | GET | `/internal/v1/chain/events?after=&limit=` | serviços (`x-service-token`) | Feed de eventos confirmados, em ordem; `next_after` para a próxima página |
@@ -73,12 +85,11 @@ TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc_test pnpm --filter
 O esquema próprio `indexer` tem:
 - `chain_event`: cada evento, com bloco, hash, transação, log, contrato e argumentos;
 - `cursor`: último bloco lido e o hash dele, por rede;
-- as projeções `lot_token`, `avatar_token`, `property_token` e `box_request`, que podem ser refeitas a partir dos eventos.
+- as projeções `lot_token`, `avatar_token`, `property_token`, `deposit` e `box_request`, que podem ser refeitas a partir dos eventos.
 
 As migrações ficam em `drizzle/`, controladas em `drizzle.__indexer_migrations`.
 
 ## Ainda não
 
-- **Depósito SCITY → THALER:** depende do `GameVault` (trilha de contratos, passo 8). O lugar já existe: um handler de `Deposited` vai creditar no ledger com a chave `chain:<chain_id>:<tx_hash>:<log_index>`, então o crédito acontece uma vez só.
 - **Usar o feed no world:** atualizar o dono do lote no jogo quando ele é transferido on-chain, o que pede a ligação carteira → conta do gateway. No game-core, o mesmo para os avatares.
 - **Teste na BSC Testnet:** precisa do VRF da Chainlink e de BNB de teste.

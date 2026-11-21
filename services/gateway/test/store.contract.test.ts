@@ -48,6 +48,8 @@ describe.each(stores)('AuthStore: %s', (_name, make, enabled) => {
     const wallets = await store.listWallets(accounts[0]!.id);
     expect(wallets).toHaveLength(1);
     expect(wallets[0]).toMatchObject({ address: wallet, chainId: 97 });
+    expect(await store.walletOwner(wallet)).toBe(accounts[0]!.id);
+    expect(await store.walletOwner(address())).toBeNull();
   });
 
   it.runIf(enabled)('conta nasce ativa e é encontrada pelo id', async () => {

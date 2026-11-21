@@ -161,6 +161,11 @@ export class PostgresAuthStore implements AuthStore {
     return rows[0] ? toAccount(rows[0]) : null;
   }
 
+  async walletOwner(address: string) {
+    const [row] = await this.db.select({ accountId: walletLink.accountId }).from(walletLink).where(eq(walletLink.address, address));
+    return row?.accountId ?? null;
+  }
+
   async listWallets(accountId: string): Promise<WalletLink[]> {
     return this.db.select().from(walletLink).where(eq(walletLink.accountId, accountId));
   }

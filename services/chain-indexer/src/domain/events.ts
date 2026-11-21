@@ -2,7 +2,7 @@ import { type Hex, hexToString, parseAbi } from 'viem';
 
 /**
  * Eventos que o indexer lê (doc 07 §4), dos contratos que já existem em
- * contracts/src. Os do GameVault (Deposited, Withdrawn) entram quando ele existir.
+ * contracts/src. O depósito do GameVault vira saldo no ledger (deposits.ts).
  */
 export const CONTRACT_ABIS = {
   LandNFT: parseAbi([
@@ -17,6 +17,10 @@ export const CONTRACT_ABIS = {
     'event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)',
     'event PropertyMinted(uint256 indexed tokenId, uint256 indexed lotId, address indexed owner, bytes32 typeCode, uint16 level)',
     'event PropertyUpgraded(uint256 indexed tokenId, uint16 level)',
+  ]),
+  GameVault: parseAbi([
+    'event Deposited(address indexed account, uint256 amount)',
+    'event Withdrawn(address indexed to, uint256 amount, uint256 indexed nonce)',
   ]),
   LuckyBox: parseAbi([
     'event BoxOpened(uint256 indexed requestId, address indexed buyer, uint32 indexed tierId)',
@@ -116,6 +120,7 @@ export type ProjectionOp =
   | { kind: 'property_owner'; tokenId: string; owner: string; block: bigint }
   | { kind: 'property_traits'; tokenId: string; owner: string; lotId: string; typeCode: string; level: number; block: bigint }
   | { kind: 'property_level'; tokenId: string; level: number; block: bigint }
+  | { kind: 'deposit'; txHash: string; logIndex: number; account: string; amountWei: string; block: bigint }
   | { kind: 'box_opened'; value: BoxRequest }
   | { kind: 'box_revealed'; requestId: string; buyer: string; tokenId: string; block: bigint };
 
@@ -159,6 +164,9 @@ export function projectionOps(e: ChainEvent): ProjectionOp[] {
   if (e.contract === 'PropertyNFT' && e.event === 'PropertyUpgraded') {
     return [{ kind: 'property_level', tokenId: a.tokenId as string, level: Number(a.level), block: e.blockNumber }];
   }
+  if (e.contract === 'GameVault' && e.event === 'Deposited') {
+    return [{ kind: 'deposit', txHash: e.txHash, logIndex: e.logIndex, account: a.account as string, amountWei: a.amount as string, block: e.blockNumber }];
+  }
   if (e.contract === 'LuckyBox' && e.event === 'BoxOpened') {
     return [
       {
@@ -177,7 +185,7 @@ export function projectionOps(e: ChainEvent): ProjectionOp[] {
   if (e.contract === 'LuckyBox' && e.event === 'AvatarRevealed') {
     return [{ kind: 'box_revealed', requestId: a.requestId as string, buyer: a.buyer as string, tokenId: a.tokenId as string, block: e.blockNumber }];
   }
-  // LotSold fica só no registro de eventos: a posse vem do Transfer.
+  // LotSold fica só no registro de eventos: a posse vem do Transfer. Withdrawn vai pelo feed para o economy.
   return [];
 }
 

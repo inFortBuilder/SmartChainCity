@@ -9,6 +9,7 @@ import {
   byChainOrder,
   projectionOps,
 } from '../domain/events.js';
+import type { Deposit } from '../domain/deposits.js';
 import type { IndexerStore } from '../domain/indexer.js';
 
 interface ChainState {
@@ -19,6 +20,7 @@ interface ChainState {
   avatars: Map<string, AvatarToken>;
   boxes: Map<string, BoxRequest>;
   properties: Map<string, PropertyToken>;
+  deposits: Map<string, Deposit>;
 }
 
 /** Para testes e desenvolvimento. Uma thread só: cada operação é atômica. */
@@ -29,7 +31,7 @@ export class MemoryIndexerStore implements IndexerStore {
   private state(chainId: number): ChainState {
     let s = this.chains.get(chainId);
     if (!s) {
-      s = { cursor: null, events: [], keys: new Set(), lots: new Map(), avatars: new Map(), boxes: new Map(), properties: new Map() };
+      s = { cursor: null, events: [], keys: new Set(), lots: new Map(), avatars: new Map(), boxes: new Map(), properties: new Map(), deposits: new Map() };
       this.chains.set(chainId, s);
     }
     return s;
@@ -77,6 +79,21 @@ export class MemoryIndexerStore implements IndexerStore {
       case 'property_level': {
         const cur = s.properties.get(op.tokenId);
         if (cur) s.properties.set(op.tokenId, { ...cur, level: op.level, block: op.block });
+        break;
+      }
+      case 'deposit': {
+        const k = `${op.txHash}:${op.logIndex}`;
+        if (!s.deposits.has(k)) {
+          s.deposits.set(k, {
+            txHash: op.txHash,
+            logIndex: op.logIndex,
+            account: op.account,
+            amountWei: op.amountWei,
+            block: op.block,
+            status: 'pending',
+            accountId: null,
+          });
+        }
         break;
       }
       case 'box_opened':
@@ -127,6 +144,7 @@ export class MemoryIndexerStore implements IndexerStore {
     s.avatars.clear();
     s.boxes.clear();
     s.properties.clear();
+    s.deposits.clear();
     for (const e of [...keep].sort(byChainOrder)) for (const op of projectionOps(e)) this.apply(s, op);
     s.cursor = cursor ? { ...cursor } : null;
     return dropped;
@@ -157,6 +175,23 @@ export class MemoryIndexerStore implements IndexerStore {
 
   async propertiesOf(chainId: number, owner: string) {
     return [...this.state(chainId).properties.values()].filter((p) => p.owner === owner.toLowerCase()).map((p) => ({ ...p }));
+  }
+
+  async pendingDeposits(chainId: number, limit: number) {
+    return [...this.state(chainId).deposits.values()]
+      .filter((d) => d.status === 'pending')
+      .sort((x, y) => (x.block === y.block ? x.logIndex - y.logIndex : x.block < y.block ? -1 : 1))
+      .slice(0, limit)
+      .map((d) => ({ ...d }));
+  }
+
+  async markDepositCredited(chainId: number, txHash: string, logIndex: number, accountId: string) {
+    const d = this.state(chainId).deposits.get(`${txHash}:${logIndex}`);
+    if (d) Object.assign(d, { status: 'credited', accountId });
+  }
+
+  async depositsOf(chainId: number, account: string) {
+    return [...this.state(chainId).deposits.values()].filter((d) => d.account === account.toLowerCase()).map((d) => ({ ...d }));
   }
 
   async box(chainId: number, requestId: string) {

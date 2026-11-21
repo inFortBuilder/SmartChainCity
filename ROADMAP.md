@@ -50,9 +50,9 @@ O MVP roda inteiro na máquina local, sem serviços pagos. Por isso, publicar o 
 
 | Área | Situação |
 |------|----------|
-| `contracts/` | Desde 2026-11-20: `LandNFT`, `AvatarNFT`, `LuckyBox`, `SCityToken`, `BuildingNFT` e `PropertyNFT` no anvil. Faltam `GameVault`, `Marketplace`, vesting e a reserva da auditoria (E3.8) |
+| `contracts/` | Desde 2026-11-20: `LandNFT`, `AvatarNFT`, `LuckyBox`, `SCityToken`, `BuildingNFT`, `PropertyNFT` e `GameVault` no anvil. Faltam `Marketplace`, vesting e a reserva da auditoria (E3.8) |
 | `services/world` | Faltam imóveis, impostos, regras de cerco e a cotação EIP-712 |
-| `services/chain-indexer` | Começou em 2026-11-20; espera o `GameVault` para os depósitos. O `services/realtime` também começou nesse dia |
+| `services/chain-indexer` | Começou em 2026-11-20; credita os depósitos do `GameVault` no ledger. O `services/realtime` também começou nesse dia |
 | Etapa 0 sem código | E0.2 (trocar as credenciais legadas), E0.8 (parecer jurídico), o tomate duplicado e a calibração da elasticidade e do dinheiro novo no simulador |
 | `client-unity/` | Plano B ([ADR-0009](docs/adr/0009-cliente-web-nativo.md)): E0.3 e E0.6 saíram do caminho crítico |
 
@@ -65,7 +65,7 @@ O MVP roda inteiro na máquina local, sem serviços pagos. Por isso, publicar o 
    - 🟡 Imóveis com obra, desgaste e renda (E2.5, 2026-11-20). A Casa T1 está pronta, com reparo e upgrade de nível e valores provisórios. O `PropertyNFT` também: o imóvel pronto vira NFT na carteira do dono do lote, o nível sobe com voucher do world e o chain-indexer espelha tudo, testado no anvil. Faltam aluguel, os outros tipos e a renda conferir o dono on-chain.
    - 🟡 Impostos (E2.6, 2026-11-20). IPTU e PT com débito automático, multa, bloqueio e leilão do lote inadimplente (o lote vai com o imóvel), com valores provisórios. Falta o leilão tomar o NFT do lote quando ele já está na blockchain.
 3. **Blockchain e prédios no servidor.**
-   - 🟡 `chain-indexer` (2026-11-20): lê os eventos com confirmações e trata reorganização. Espelha lotes, avatares e caixas, e foi testado no anvil. Falta o depósito creditar o THALER uma única vez, que espera o `GameVault`.
+   - 🟡 `chain-indexer` (2026-11-20): lê os eventos com confirmações e trata reorganização. Espelha lotes, avatares, imóveis e caixas, e foi testado no anvil. O depósito do `GameVault` vira SCITY na conta uma única vez (E3.7, adiantado); falta o saque por voucher no economy.
    - 🟡 Validação dos prédios no servidor (E2.10, 2026-11-20). O world manda o polígono e as regras do próprio banco para o SCC Builder, cobra a outorga e guarda o prédio para o alvará; testado com o Builder real. O `BuildingNFT` (E2.11) também está pronto: o prédio aprovado vira NFT na carteira do construtor, testado no anvil.
 4. **Fechar a Etapa 2.**
    - 🟡 Multiplayer no `realtime` (E2.7, 2026-11-20). Salas por bairro, presença, chat moderado e eventos, com 100 clientes numa sala, p95 de 72 ms e nenhuma queda. O mapa de Pittsburg mostra os outros jogadores do bairro e o chat.

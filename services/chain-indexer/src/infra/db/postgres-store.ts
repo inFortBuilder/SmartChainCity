@@ -16,12 +16,14 @@ import {
   byChainOrder,
   projectionOps,
 } from '../../domain/events.js';
+import type { Deposit } from '../../domain/deposits.js';
 import type { IndexerStore } from '../../domain/indexer.js';
 import {
   avatarToken as avatarT,
   boxRequest as boxT,
   chainEvent as eventT,
   cursor as cursorT,
+  deposit as depositT,
   lotToken as lotT,
   propertyToken as propT,
 } from './schema.js';
@@ -40,6 +42,8 @@ const toEvent = (r: typeof eventT.$inferSelect): ChainEvent & { id: number } => 
   event: r.event,
   args: r.args as EventArgs,
 });
+
+const toDeposit = ({ chainId: _c, ...r }: typeof depositT.$inferSelect): Deposit => ({ ...r, status: r.status as Deposit['status'] });
 
 async function apply(tx: Tx, chainId: number, op: ProjectionOp) {
   switch (op.kind) {
@@ -84,6 +88,13 @@ async function apply(tx: Tx, chainId: number, op: ProjectionOp) {
         .update(propT)
         .set({ level: op.level, block: op.block })
         .where(and(eq(propT.chainId, chainId), eq(propT.tokenId, op.tokenId)));
+      return;
+    case 'deposit':
+      // Já creditado continua creditado; a chave do ledger segura o resto.
+      await tx
+        .insert(depositT)
+        .values({ chainId, txHash: op.txHash, logIndex: op.logIndex, account: op.account, amountWei: op.amountWei, block: op.block, status: 'pending' })
+        .onConflictDoNothing();
       return;
     case 'box_opened':
       await tx
@@ -163,6 +174,7 @@ export class PostgresIndexerStore implements IndexerStore {
       await tx.delete(avatarT).where(eq(avatarT.chainId, chainId));
       await tx.delete(boxT).where(eq(boxT.chainId, chainId));
       await tx.delete(propT).where(eq(propT.chainId, chainId));
+      await tx.delete(depositT).where(eq(depositT.chainId, chainId));
       const keep = await tx
         .select()
         .from(eventT)
@@ -214,6 +226,32 @@ export class PostgresIndexerStore implements IndexerStore {
       .where(and(eq(propT.chainId, chainId), eq(propT.owner, owner.toLowerCase())))
       .orderBy(asc(sql`${propT.tokenId}::numeric`));
     return rows.map(({ chainId: _c, ...rest }) => rest as PropertyToken);
+  }
+
+  async pendingDeposits(chainId: number, limit: number) {
+    const rows = await this.db
+      .select()
+      .from(depositT)
+      .where(and(eq(depositT.chainId, chainId), eq(depositT.status, 'pending')))
+      .orderBy(asc(depositT.block), asc(depositT.logIndex))
+      .limit(limit);
+    return rows.map(toDeposit);
+  }
+
+  async markDepositCredited(chainId: number, txHash: string, logIndex: number, accountId: string) {
+    await this.db
+      .update(depositT)
+      .set({ status: 'credited', accountId })
+      .where(and(eq(depositT.chainId, chainId), eq(depositT.txHash, txHash), eq(depositT.logIndex, logIndex)));
+  }
+
+  async depositsOf(chainId: number, account: string) {
+    const rows = await this.db
+      .select()
+      .from(depositT)
+      .where(and(eq(depositT.chainId, chainId), eq(depositT.account, account.toLowerCase())))
+      .orderBy(asc(depositT.block), asc(depositT.logIndex));
+    return rows.map(toDeposit);
   }
 
   async box(chainId: number, requestId: string) {

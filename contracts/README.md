@@ -16,6 +16,7 @@ Mudanças aqui exigem 2 aprovações. Os endereços implantados ficam em `deploy
 | [`LuckyBox`](src/LuckyBox.sol) | Caixas por tier: moeda, preço e tabela de probabilidades por raridade, pública on-chain. `open` cobra e pede um número ao Chainlink VRF v2.5; o callback sorteia a raridade e a profissão e cria o avatar. A tabela vale como estava no momento da compra |
 | [`BuildingNFT`](src/BuildingNFT.sol) | Prédio de construtor (doc 13 §7). Guarda o lote, o hash do GLB aprovado (`modelHash`), os andares e o construtor. O mint usa o voucher EIP-712 do world, dado só a prédio com alvará. O construtor precisa ser dono do lote no `LandNFT`, e cada lote tem no máximo um prédio vigente. `demolish` (dono do prédio e do lote) libera o lote |
 | [`PropertyNFT`](src/PropertyNFT.sol) | Imóvel do catálogo (Casa T1 e os próximos) sobre um lote âncora (doc 07 §2.2). Guarda o lote, o tipo (`bytes32`, ex.: `t1`) e o nível; desgaste e renda ficam no world. O id do token é o id do imóvel no world (os 128 bits do UUID), então o mesmo imóvel não vira dois tokens. O mint usa o voucher do world, dado só a imóvel pronto, e exige que a carteira seja dona do lote no `LandNFT`; um imóvel por lote. `upgrade` leva o nível novo com outro voucher e só aceita nível maior. Depois do mint, a transferência é livre |
+| [`GameVault`](src/GameVault.sol) | Cofre do SCITY entre a carteira e o jogo (doc 07 §2.4). `deposit` guarda o SCITY e emite `Deposited`; o chain-indexer credita no ledger depois das confirmações. `claim` paga o saque assinado pelo servidor (EIP-712, um nonce por voucher), só para o destinatário. Circuit breaker: teto de saque por dia, no total e por endereço; pausa. Sem proxy no MVP: o UUPS atrás de timelock (doc 07 §5) entra antes da mainnet |
 | [`SCityToken`](src/SCityToken.sol) | SCITY: ERC-20 com Permit e oferta fixa de 1 bilhão, criada uma única vez no deploy. Não tem função de mint |
 | [`LocalVRFCoordinator`](src/dev/LocalVRFCoordinator.sol) | Coordenador VRF **só para o anvil e os testes**: qualquer um entrega o sorteio. Na BSC entra o coordenador real da Chainlink |
 
@@ -62,7 +63,8 @@ forge script script/DeployLocal.s.sol --rpc-url http://127.0.0.1:8545 --broadcas
 ```
 
 O script:
-- sobe os sete contratos (o `BuildingNFT` e o `PropertyNFT` por último, para os outros endereços não mudarem);
+- sobe os oito contratos (o `BuildingNFT`, o `PropertyNFT` e o `GameVault` por último, para os outros endereços não mudarem);
+- põe 1 milhão de SCITY no `GameVault` como reserva de saque, com tetos de 1 milhão por dia e 10 mil por endereço (**premissa**);
 - dá ao `LuckyBox` o papel de criar avatares;
 - carrega as 44 profissões do seed do CMS (`cms-strapi/seed/profissoes.json`), separadas por raridade;
 - cria o tier 1 (0,05 BNB);
@@ -129,6 +131,18 @@ Os campos:
 - `nonce`: único por prédio.
 
 Testado no anvil em 2026-11-20: o world assinou a cotação do lote e o voucher; a carteira do jogador comprou o lote e mintou o prédio, e o mesmo voucher foi recusado na segunda vez.
+
+## Voucher de saque (GameVault)
+
+Domínio EIP-712: `name` `SCC GameVault`, `version` `1`, `chainId` da rede e o endereço do cofre.
+
+```
+Withdrawal(address to,uint256 amount,uint256 nonce,uint256 deadline)
+```
+
+`amount` em wei de SCITY. Só `to` resgata, uma vez por `nonce`. Passou do teto do dia, o `claim` reverte com quanto ainda cabe (`DailyLimitExceeded`, `AddressLimitExceeded`), e o mesmo voucher pode ser resgatado no dia seguinte, se ainda estiver no prazo. Quem emite o voucher é o economy (próxima etapa).
+
+Testado no anvil em 2026-11-20: a carteira depositou 40 SCITY duas vezes, e o chain-indexer creditou 80 SCITY na conta ligada a ela, sem repetir depois de refazer as projeções.
 
 ## Vouchers de imóvel (para o serviço world)
 

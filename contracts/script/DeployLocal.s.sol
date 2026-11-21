@@ -5,6 +5,7 @@ import {Script, console} from "forge-std/Script.sol";
 
 import {AvatarNFT} from "../src/AvatarNFT.sol";
 import {BuildingNFT} from "../src/BuildingNFT.sol";
+import {GameVault} from "../src/GameVault.sol";
 import {LandNFT} from "../src/LandNFT.sol";
 import {LuckyBox} from "../src/LuckyBox.sol";
 import {PropertyNFT} from "../src/PropertyNFT.sol";
@@ -96,6 +97,11 @@ contract DeployLocal is Script {
         PropertyNFT propertyNft =
             new PropertyNFT(deployer, land, "http://localhost:8030/v1/world/nft/properties/");
         propertyNft.grantRole(propertyNft.SIGNER_ROLE(), worldSigner);
+        // Cofre: limites de partida (PREMISSA) e uma reserva para os saques. No MVP local, o mesmo signer.
+        GameVault vault = new GameVault(deployer, scity, 1_000_000 ether, 10_000 ether);
+        vault.grantRole(vault.SIGNER_ROLE(), worldSigner);
+        // forge-lint: disable-next-line(erc20-unchecked-transfer)
+        scity.transfer(address(vault), 1_000_000 ether);
 
         vm.stopBroadcast();
 
@@ -108,6 +114,7 @@ contract DeployLocal is Script {
         vm.serializeAddress(key, "LocalVRFCoordinator", address(vrf));
         vm.serializeAddress(key, "BuildingNFT", address(buildingNft));
         vm.serializeAddress(key, "PropertyNFT", address(propertyNft));
+        vm.serializeAddress(key, "GameVault", address(vault));
         string memory json = vm.serializeAddress(key, "worldSigner", worldSigner);
         vm.writeJson(json, "deployments/anvil.json");
 
