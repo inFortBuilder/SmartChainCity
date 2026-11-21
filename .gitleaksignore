@@ -9,3 +9,5 @@
 ea56c8ba3556305922fd5f8f1ffd9e5df151ba45:contracts/deployments/anvil.json:generic-api-key:6
 # Falso positivo: VAULT_SIGNER_KEY= vazio no .env.example; o gitleaks leu a linha seguinte (WITHDRAW_EVERY_SECONDS=60) como chave. Corrigido no commit seguinte.
 9cc700ccbe655bd77016e833ba6f94f372690b83:services/economy/.env.example:generic-api-key:33
+# Nome da variável SCITY_TOKEN_ADDRESS (endereço público do contrato, vazio), já renomeada para SCITY_ADDRESS: não é segredo.
+37137323884ad6dc1b475de9bac2cb73aa203dd1:services/economy/.env.example:generic-api-key:35
