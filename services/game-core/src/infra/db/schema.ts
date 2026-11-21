@@ -52,6 +52,8 @@ export const avatar = game.table(
     pantry: jsonb('pantry').notNull().default({}),
     /** Pet do avatar (E3.1), com as datas em ISO; null sem pet. */
     pet: jsonb('pet'),
+    /** Escola (E3.2): última aula e troca de profissão em curso, com as datas em ISO. */
+    school: jsonb('school'),
     createdAt: timestamptz('created_at').notNull(),
     updatedAt: timestamptz('updated_at').notNull(),
   },

@@ -51,6 +51,7 @@ const left = (iso) => {
   const ms = new Date(iso).getTime() - Date.now();
   if (ms <= 0) return 'concluindo…';
   const m = Math.ceil(ms / 60_000);
+  if (m >= 48 * 60) return `${Math.floor(m / 1440)} d ${Math.floor((m % 1440) / 60)} h`;
   return m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min`;
 };
 
@@ -273,6 +274,8 @@ export function createServidor(map) {
   /** Alimentos do mercado do jogo, com o preço de uma unidade em centavos de THALER. */
   let foods = [];
   let petshop = null;
+  let school = null;
+  let jobs = [];
   let message = '';
   let messageOk = false;
   let busy = false;
@@ -312,6 +315,9 @@ export function createServidor(map) {
       // Lista do mercado: pública, busca uma vez (se o game-core for antigo, só não aparece).
       // Pet Shop (E3.1): preços e serviços, uma vez.
       if (!petshop) petshop = await call(API.game, '/v1/catalog/petshop').catch(() => null);
+      // Escola (E3.2): preços e as profissões, para a troca na mesma raridade.
+      if (!school) school = await call(API.game, '/v1/catalog/school').catch(() => null);
+      if (!jobs.length) jobs = await call(API.game, '/v1/catalog/professions').then((r) => r.professions).catch(() => []);
       if (!foods.length) {
         foods = await call(API.game, '/v1/catalog/foods')
           .then((r) => r.foods)
@@ -553,6 +559,36 @@ export function createServidor(map) {
   const vaultError = (error) => (error instanceof ApiError ? error : new ApiError(400, 'tx', txError(error, VAULT_ERRORS)));
 
   /**
+   * Escola (E3.2): aula do dia (+educação) e troca de profissão (4 dias sem
+   * trabalhar, só na mesma raridade). A educação nunca se perde.
+   */
+  const schoolSection = (a) => {
+    const sc = a.school;
+    const ed = a.attributes.education;
+    let html = `<h3>🎓 Escola <span class="muted pequeno">· grau ${sc.grade}${sc.next_grade_at ? ` · próximo em ${sc.next_grade_at}` : ''} · turno ×${(1 + ed / 50).toLocaleString('pt-BR')}</span></h3>`;
+    if (sc.changing_to) {
+      return `${html}<p class="muted pequeno">Na escola para virar <strong>${esc(sc.changing_to.label)}</strong>: falta ${left(sc.changing_to.ends_at)}. Até lá, sem trabalho e sem aula.</p>`;
+    }
+    const off = busy ? 'disabled' : '';
+    html += `<div class="linha">
+        <button class="btn btn--blue pequeno" type="button" data-s="aula" ${off || (sc.class_today || ed >= 100 || a.attributes.energy < 2 ? 'disabled' : '')}>Aula · ${thaler(school.class.price)}</button>
+        <span class="muted pequeno">${ed >= 100 ? 'Educação no máximo.' : sc.class_today ? 'Aula de hoje feita.' : `+${school.class.education} de educação, ${String(school.class.energy).replace('-', '−')} de energia. Uma por dia.`}</span>
+      </div>`;
+    const options = jobs
+      .filter((j) => j.rarity === a.rarity && j.code !== a.job.code)
+      .map((j) => `<option value="${esc(j.code)}">${esc(j.label)} · ${j.thaler_per_day} THALER/dia</option>`)
+      .join('');
+    if (options) {
+      html += `<form data-form="trocar" class="comer">
+          <div class="linha"><select class="campo" name="job" aria-label="Nova profissão">${options}</select>
+          <button class="btn btn--ghost" type="submit" ${off}>Trocar · ${thaler(school.change.price)}</button></div>
+          <p class="muted pequeno">${school.change.days} dias de escola sem trabalhar, com mais felicidade nos 2 primeiros. A educação continua.</p>
+        </form>`;
+    }
+    return html;
+  };
+
+  /**
    * Pet do avatar (E3.1): adoção no Pet Shop, os atributos de 0 a 5, o nível
    * (multiplica a experiência no turno) e os cuidados. Quem decide é o game-core.
    */
@@ -688,6 +724,7 @@ export function createServidor(map) {
           <p class="muted pequeno">Cada refeição dá +3 de alimentação; o pacote vai para a despensa.${foods.some((f) => f.provisional_price) ? ' Preço provisório até o game designer definir.' : ''}</p>
         </form>`;
       }
+      if (!internado && school && a.school) body += schoolSection(a);
       if (!internado && petshop) body += petSection(a);
       if (running) {
         const total = new Date(running.ends_at) - new Date(running.starts_at);
@@ -755,6 +792,20 @@ export function createServidor(map) {
     const form = e.target.closest('form[data-form]');
     if (!form || busy) return;
     const field = new FormData(form);
+    if (form.dataset.form === 'trocar') {
+      const job = String(field.get('job') ?? '');
+      const label = jobs.find((j) => j.code === job)?.label ?? job;
+      return act(async () => {
+        const r = await call(API.game, `/v1/avatars/${data.avatar.id}/school/change`, {
+          method: 'POST',
+          token: session.token,
+          body: { job },
+          headers: { 'idempotency-key': crypto.randomUUID() },
+        });
+        message = `Matrícula para ${label}: −${thaler(r.purchase.price)} THALER. Volta a trabalhar em ${left(r.avatar.school.changing_to.ends_at)}.`;
+        messageOk = true;
+      });
+    }
     if (form.dataset.form === 'adotar') {
       const species = String(field.get('species') ?? '');
       const name = String(field.get('name') ?? '').trim();
@@ -962,6 +1013,17 @@ export function createServidor(map) {
       return act(() =>
         call(API.game, `/v1/avatars/${data.avatar.id}/work`, { method: 'POST', token: session.token, body: { shift: Number(b.dataset.h) } }),
       );
+    }
+    if (what === 'aula') {
+      return act(async () => {
+        const r = await call(API.game, `/v1/avatars/${data.avatar.id}/school/class`, {
+          method: 'POST',
+          token: session.token,
+          headers: { 'idempotency-key': crypto.randomUUID() },
+        });
+        message = `Aula: −${thaler(r.purchase.price)} THALER, educação ${r.avatar.attributes.education}/100.`;
+        messageOk = true;
+      });
     }
     if (what === 'pet-shop') {
       const service = b.dataset.v;

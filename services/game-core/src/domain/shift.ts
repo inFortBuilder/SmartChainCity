@@ -7,6 +7,7 @@ import { BASE_RANGE, profession } from './catalog.js';
 import { CONDITIONS, assertCanWorkHealthy, catchCondition, yieldFactor } from './conditions.js';
 import { assertNotInHospital } from './hospital.js';
 import { happinessWithPet, petFactors } from './pet.js';
+import { assertNotInSchool } from './school.js';
 
 /**
  * Turno de trabalho (E1.4; doc 02 §3.2, doc 04 §4). O ganho segue a mesma
@@ -123,6 +124,7 @@ export function startShift(
   }
   // Primeiro as regras do turno; depois o estado do avatar.
   assertNotInHospital(avatar, now);
+  assertNotInSchool(avatar, now);
   assertCanWorkHealthy(avatar.conditions, now);
   const cost = ENERGY_COST[hours];
   const a = avatar.attributes;
