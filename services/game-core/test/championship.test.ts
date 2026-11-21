@@ -113,7 +113,7 @@ describe('disputa', () => {
       kind: 'championship_entry',
       legs: [
         { owner_type: 'player', owner_id: m.accountId, amount: '-1000' },
-        { owner_type: 'escrow', owner_id: 'championship-2026-11', amount: '1000' },
+        { owner_type: 'escrow', owner_id: 'championship_2026_11', amount: '1000' },
       ],
     });
     expect(keys[0]).toBe(`championship-entry:2026-11:${m.accountId}`);
@@ -131,7 +131,7 @@ describe('disputa', () => {
     expect(bodies[1]).toMatchObject({
       kind: 'championship_payout',
       legs: [
-        { owner_type: 'escrow', owner_id: 'championship-2026-11', amount: '-1000' },
+        { owner_type: 'escrow', owner_id: 'championship_2026_11', amount: '-1000' },
         { owner_id: 'a', amount: '700' },
         { owner_id: 'b', amount: '50' },
         { owner_type: 'burn', owner_id: 'championship', amount: '250' },

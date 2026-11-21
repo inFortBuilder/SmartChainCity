@@ -12,6 +12,9 @@ import type { Payer, Shift } from '../domain/shift.js';
  * se perder no caminho e o lançamento for repetido, o ledger devolve a mesma
  * transação em vez de lançar duas vezes.
  */
+/** Escrow do campeonato no ledger: o id de sistema só aceita letras, números e _ (AAAA-MM → championship_AAAA_MM). */
+const escrowOf = (month: string) => `championship_${month.replace('-', '_')}`;
+
 export class EconomyPayer implements Payer, MealPayer, HospitalPayer, ChampionshipPayer {
   constructor(
     private readonly baseUrl: string,
@@ -119,7 +122,7 @@ export class EconomyPayer implements Payer, MealPayer, HospitalPayer, Championsh
         ref_id: m.championshipId,
         legs: [
           { owner_type: 'player', owner_id: m.accountId, currency: 'THALER', amount: `-${m.feeCents}` },
-          { owner_type: 'escrow', owner_id: `championship-${m.championshipId}`, currency: 'THALER', amount: `${m.feeCents}` },
+          { owner_type: 'escrow', owner_id: escrowOf(m.championshipId), currency: 'THALER', amount: `${m.feeCents}` },
         ],
       },
       requestId,
@@ -138,7 +141,7 @@ export class EconomyPayer implements Payer, MealPayer, HospitalPayer, Championsh
     for (const p of result.payouts) byAccount.set(p.accountId, (byAccount.get(p.accountId) ?? 0n) + BigInt(p.cents));
     const burn = BigInt(result.burnCents);
     const legs = [
-      { owner_type: 'escrow', owner_id: `championship-${c.id}`, currency: 'THALER', amount: `-${pool}` },
+      { owner_type: 'escrow', owner_id: escrowOf(c.id), currency: 'THALER', amount: `-${pool}` },
       ...[...byAccount].filter(([, v]) => v > 0n).map(([id, v]) => ({ owner_type: 'player', owner_id: id, currency: 'THALER', amount: `${v}` })),
       ...(burn > 0n ? [{ owner_type: 'burn', owner_id: 'championship', currency: 'THALER', amount: `${burn}` }] : []),
     ];
