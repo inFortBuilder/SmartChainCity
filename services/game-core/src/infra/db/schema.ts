@@ -291,11 +291,41 @@ export const vehicle = game.table(
     ipvaPaidUntil: timestamptz('ipva_paid_until'),
     status: text('status').notNull(),
     soldAt: timestamptz('sold_at'),
+    /** Pane da corrida (E3.5) e a oficina: leve, moderado ou grave; o conserto termina em repair_until. */
+    breakdown: text('breakdown'),
+    brokenAt: timestamptz('broken_at'),
+    repairUntil: timestamptz('repair_until'),
+    revisionUntil: timestamptz('revision_until'),
   },
   (t) => [
     index('vehicle_account_idx').on(t.accountId, t.boughtAt),
     index('vehicle_pending_idx').on(t.status, t.boughtAt),
     check('vehicle_kind_check', sql`${t.kind} in ('owned', 'rental')`),
     check('vehicle_status_check', sql`${t.status} in ('pending', 'active', 'sold')`),
+  ],
+);
+
+/** Corridas diárias (E3.5): o resultado sai da semente, gravada junto. */
+export const vehicleRace = game.table(
+  'vehicle_race',
+  {
+    id: uuid('id').primaryKey(),
+    vehicleId: uuid('vehicle_id')
+      .notNull()
+      .references(() => vehicle.id),
+    avatarId: uuid('avatar_id').notNull(),
+    accountId: uuid('account_id').notNull(),
+    day: text('day').notNull(),
+    seed: text('seed').notNull(),
+    result: jsonb('result').notNull(),
+    fuelCents: numeric('fuel_cents', { precision: 38, scale: 0 }).notNull(),
+    status: text('status').notNull(),
+    createdAt: timestamptz('created_at').notNull(),
+  },
+  (t) => [
+    index('vehicle_race_avatar_day_idx').on(t.avatarId, t.day),
+    index('vehicle_race_account_idx').on(t.accountId, t.createdAt),
+    index('vehicle_race_stuck_idx').on(t.status, t.createdAt),
+    check('vehicle_race_status_check', sql`${t.status} in ('pending', 'charged', 'done', 'failed')`),
   ],
 );

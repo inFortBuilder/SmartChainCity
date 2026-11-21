@@ -66,7 +66,18 @@ export interface Vehicle {
   ipvaPaidUntil: Date | null;
   status: VehicleStatus;
   soldAt: Date | null;
+  /** Pane da última corrida (E3.5): leve, moderada ou grave; null sem pane. */
+  breakdown: 'leve' | 'moderado' | 'grave' | null;
+  brokenAt: Date | null;
+  /** Na oficina até aqui; passou, está consertado. */
+  repairUntil: Date | null;
+  /** Revisão em dia até aqui: menos panes. */
+  revisionUntil: Date | null;
 }
+
+/** Com pane e sem conserto pronto? */
+export const isBroken = (v: Pick<Vehicle, 'breakdown' | 'repairUntil'>, now: Date) =>
+  !!v.breakdown && (!v.repairUntil || v.repairUntil > now);
 
 /** Fator dos atributos pela idade: 1 até 90 dias, cai a 0,5 em 180 dias. */
 export function conditionFactor(v: Pick<Vehicle, 'boughtAt'>, now: Date) {
@@ -93,13 +104,16 @@ export const buybackCents = (v: Pick<Vehicle, 'model' | 'boughtAt'>, now: Date) 
 export const ipvaCents = (model: ModelCode) => (MODELS[model].priceCents * BigInt(IPVA_BPS)) / 10_000n;
 export const rentCents = (model: ModelCode) => (MODELS[model].priceCents * BigInt(RENT_BPS)) / 10_000n;
 
-export type VehicleState = 'pending' | 'ok' | 'suspended' | 'worn_out' | 'expired' | 'sold';
+export type VehicleState = 'pending' | 'ok' | 'suspended' | 'worn_out' | 'expired' | 'sold' | 'broken' | 'repairing';
 
 /** Situação de agora: o que a tela mostra e o que as corridas vão conferir. */
 export function stateOf(v: Vehicle, now: Date): VehicleState {
   if (v.status === 'sold') return 'sold';
   if (v.status === 'pending') return 'pending';
-  if (v.kind === 'rental') return v.rentalUntil && v.rentalUntil > now ? 'ok' : 'expired';
+  if (v.kind === 'rental' && !(v.rentalUntil && v.rentalUntil > now)) return 'expired';
+  if (v.breakdown && v.repairUntil && v.repairUntil > now) return 'repairing';
+  if (v.breakdown && !v.repairUntil) return 'broken';
+  if (v.kind === 'rental') return 'ok';
   if (v.ipvaPaidUntil && v.ipvaPaidUntil <= now) return 'suspended';
   if (now.getTime() - v.boughtAt.getTime() >= LIFE_DAYS * DAY) return 'worn_out';
   return 'ok';
@@ -119,6 +133,10 @@ export function newVehicle(input: { id: string; accountId: string; model: string
     ipvaPaidUntil: input.rent ? null : new Date(now.getTime() + IPVA_PERIOD_MS),
     status: 'pending',
     soldAt: null,
+    breakdown: null,
+    brokenAt: null,
+    repairUntil: null,
+    revisionUntil: null,
   };
 }
 
@@ -185,6 +203,12 @@ export interface VehicleStore {
   /** active → sold. */
   markSold(id: string, now: Date): Promise<boolean>;
   pendingOlderThan(t: Date): Promise<Vehicle[]>;
+  /** Pane da corrida: grava se o carro não tem pane aberta (sem pane, ou com o conserto já pronto em `now`). */
+  setBreakdown(id: string, severity: 'leve' | 'moderado' | 'grave', now: Date): Promise<boolean>;
+  /** Entra na oficina: só a pane de `brokenAt`, ainda sem conserto marcado. */
+  startRepair(id: string, brokenAt: Date, until: Date): Promise<boolean>;
+  /** Revisão: só se a de agora ainda for `expected` (null sem revisão). */
+  setRevision(id: string, expected: Date | null, until: Date): Promise<boolean>;
 }
 
 /** Quem cobra e paga no ledger. Cada chamada tem a sua chave de idempotência. */
@@ -228,5 +252,8 @@ export function vehicleDto(v: Vehicle, now: Date) {
     attributes: attributesAt(v, now),
     value_cents: v.kind === 'owned' ? depreciatedCents(v, now).toString() : null,
     buyback_cents: v.kind === 'owned' && v.status === 'active' ? buybackCents(v, now).toString() : null,
+    breakdown: isBroken(v, now) ? v.breakdown : null,
+    repair_until: state === 'repairing' ? v.repairUntil!.toISOString() : null,
+    revision_until: v.revisionUntil && v.revisionUntil > now ? v.revisionUntil.toISOString() : null,
   };
 }

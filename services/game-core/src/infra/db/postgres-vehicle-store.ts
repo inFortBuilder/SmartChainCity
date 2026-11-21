@@ -1,4 +1,4 @@
-import { and, desc, eq, lte } from 'drizzle-orm';
+import { and, desc, eq, isNull, lte, or, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import type { Pool } from 'pg';
 
@@ -10,6 +10,7 @@ const toVehicle = (r: typeof vehicle.$inferSelect): Vehicle => ({
   model: r.model as ModelCode,
   kind: r.kind as Vehicle['kind'],
   status: r.status as Vehicle['status'],
+  breakdown: r.breakdown as Vehicle['breakdown'],
   paidCents: BigInt(r.paidCents),
 });
 
@@ -56,6 +57,33 @@ export class PostgresVehicleStore implements VehicleStore {
       .update(vehicle)
       .set({ status: 'sold', soldAt: now })
       .where(and(eq(vehicle.id, id), eq(vehicle.status, 'active')))
+      .returning({ id: vehicle.id });
+    return rows.length > 0;
+  }
+
+  async setBreakdown(id: string, severity: 'leve' | 'moderado' | 'grave', now: Date) {
+    const rows = await this.db
+      .update(vehicle)
+      .set({ breakdown: severity, brokenAt: now, repairUntil: null })
+      .where(and(eq(vehicle.id, id), or(isNull(vehicle.breakdown), lte(vehicle.repairUntil, now))))
+      .returning({ id: vehicle.id });
+    return rows.length > 0;
+  }
+
+  async startRepair(id: string, brokenAt: Date, until: Date) {
+    const rows = await this.db
+      .update(vehicle)
+      .set({ repairUntil: until })
+      .where(and(eq(vehicle.id, id), eq(vehicle.brokenAt, brokenAt), isNull(vehicle.repairUntil)))
+      .returning({ id: vehicle.id });
+    return rows.length > 0;
+  }
+
+  async setRevision(id: string, expected: Date | null, until: Date) {
+    const rows = await this.db
+      .update(vehicle)
+      .set({ revisionUntil: until })
+      .where(and(eq(vehicle.id, id), expected ? eq(vehicle.revisionUntil, expected) : sql`${vehicle.revisionUntil} is null`))
       .returning({ id: vehicle.id });
     return rows.length > 0;
   }

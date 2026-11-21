@@ -593,16 +593,45 @@ export function createServidor(map) {
     } else {
       html += '<p class="muted pequeno">🪪 Habilitado para dirigir.</p>';
     }
-    const label = { ok: 'em dia', suspended: 'suspenso: IPVA atrasado', worn_out: 'gasto (só vende)', expired: 'aluguel vencido', pending: 'processando' };
+    const label = {
+      ok: 'em dia',
+      suspended: 'suspenso: IPVA atrasado',
+      worn_out: 'gasto (só vende)',
+      expired: 'aluguel vencido',
+      pending: 'processando',
+      broken: 'com pane',
+      repairing: 'na oficina',
+    };
+    const rc = carCatalog.races;
+    const priceOf = (c) => BigInt(carCatalog.models.find((m) => m.code === c.model)?.price ?? '0');
+    const pct = (c, share) => ((priceOf(c) * BigInt(Math.round(share * 10_000))) / 10_000n).toString();
+    const canRace = a.license?.licensed && a.status.canLeisure;
     if (cars.length) {
       html += `<ul class="lista-saques">${cars
         .map((c) => {
           const info = c.kind === 'rental' ? `alugado até ${day(c.rental_until)}` : `IPVA até ${day(c.ipva_paid_until)}`;
+          const repair = c.breakdown ? rc.repairs.find((x) => x.code === c.breakdown) : null;
           const buttons = [
+            c.state === 'ok'
+              ? `<button class="btn btn--primary pequeno" type="button" data-s="correr" data-c="${esc(c.id)}" ${off || (canRace ? '' : 'disabled')} title="${canRace ? '' : 'Precisa de habilitação e 2 de energia'}">🏁 Correr · ${thaler(rc.fuel)}</button>`
+              : '',
+            c.state === 'broken' && repair
+              ? `<button class="btn btn--blue pequeno" type="button" data-s="oficina" data-c="${esc(c.id)}" ${off}>Oficina · ${thaler(pct(c, repair.share))} (${repair.days} d)</button>`
+              : '',
+            c.state === 'ok' && !c.revision_until
+              ? `<button class="btn btn--ghost pequeno" type="button" data-s="revisao" data-c="${esc(c.id)}" ${off}>Revisão · ${thaler(pct(c, rc.revision_share))}</button>`
+              : '',
             c.ipva_payable ? `<button class="btn btn--blue pequeno" type="button" data-s="ipva" data-c="${esc(c.id)}" ${off}>IPVA · ${thaler(c.ipva_cents)}</button>` : '',
             c.buyback_cents !== null && c.state !== 'suspended' ? `<button class="btn btn--ghost pequeno" type="button" data-s="vender-carro" data-c="${esc(c.id)}" data-v="${esc(c.buyback_cents)}" ${off}>Vender · ${thaler(c.buyback_cents)}</button>` : '',
           ].join('');
-          return `<li><span>${esc(c.label)} · vel. ${c.attributes.speed} · força ${c.attributes.power} · ${esc(label[c.state] ?? c.state)} · ${info}</span><span class="linha">${buttons}</span></li>`;
+          const extra = [
+            c.breakdown && c.state === 'broken' ? `pane ${esc(c.breakdown)}` : '',
+            c.repair_until ? `pronto em ${left(c.repair_until)}` : '',
+            c.revision_until ? `revisão até ${day(c.revision_until)}` : '',
+          ]
+            .filter(Boolean)
+            .join(' · ');
+          return `<li><span>${esc(c.label)} · vel. ${c.attributes.speed} · força ${c.attributes.power} · ${esc(label[c.state] ?? c.state)} · ${info}${extra ? ` · ${extra}` : ''}</span><span class="linha">${buttons}</span></li>`;
         })
         .join('')}</ul>`;
     }
@@ -613,6 +642,7 @@ export function createServidor(map) {
         <div class="linha"><select class="campo" name="model" aria-label="Modelo">${options}</select></div>
         <div class="linha"><button class="btn btn--blue pequeno" type="submit" name="acao" value="comprar" ${off}>Comprar</button>
         <button class="btn btn--ghost pequeno" type="submit" name="acao" value="alugar" ${off}>Alugar ${r.rent_days} dias</button></div>
+        <p class="muted pequeno">Corrida: até ${rc.per_day} por dia com ${rc.rivals} rivais; prêmios de ${rc.prizes.map(thaler).join(' / ')} para os 3 primeiros. A revisão reduz as panes por ${rc.revision_days} dias.</p>
         <p class="muted pequeno">Atributos no máximo por ${r.full_days} dias, depois caem até a metade em ${r.life_days}. IPVA de ${Math.round(r.ipva_share * 100)}% a cada ${r.ipva_days} dias; atrasado, suspende. A agência recompra por ${Math.round(r.buyback_share * 100)}% do valor depreciado. Preços provisórios.</p>
       </form>`;
     return html;
@@ -1177,6 +1207,29 @@ export function createServidor(map) {
           headers: { 'idempotency-key': crypto.randomUUID() },
         });
         message = `Autoescola: −${thaler(r.purchase.price)} THALER. Habilitado em ${left(r.avatar.license.ready_at)}.`;
+        messageOk = true;
+      });
+    }
+    if (what === 'correr') {
+      return act(async () => {
+        const r = await call(API.game, `/v1/vehicles/${b.dataset.c}/races`, { method: 'POST', token: session.token, body: { avatar_id: data.avatar.id } });
+        const race = r.race;
+        const prize = BigInt(race.prize) > 0n ? ` +${thaler(race.prize)} THALER.` : ' Sem prêmio.';
+        message = `🏁 ${race.position}º lugar de ${race.of}.${prize} Gasolina ${thaler(race.fuel)}.${race.breakdown ? ` Pane ${race.breakdown}: leve à oficina.` : ''} Restam ${r.races_left_today} corridas hoje.`;
+        messageOk = !race.breakdown;
+      });
+    }
+    if (what === 'oficina') {
+      return act(async () => {
+        const r = await call(API.game, `/v1/vehicles/${b.dataset.c}/repair`, { method: 'POST', token: session.token });
+        message = `Na oficina: −${thaler(r.cents)} THALER, pronto em ${left(r.vehicle.repair_until)}.`;
+        messageOk = true;
+      });
+    }
+    if (what === 'revisao') {
+      return act(async () => {
+        const r = await call(API.game, `/v1/vehicles/${b.dataset.c}/revision`, { method: 'POST', token: session.token });
+        message = `Revisão feita: −${thaler(r.cents)} THALER, em dia até ${new Date(r.vehicle.revision_until).toLocaleDateString('pt-BR')}.`;
         messageOk = true;
       });
     }

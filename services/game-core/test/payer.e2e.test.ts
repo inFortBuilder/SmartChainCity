@@ -10,6 +10,7 @@ import { ENTRY_CENTS, type Member, newChampionship, play } from '../src/domain/c
 import { checkActivity } from '../src/domain/leisure.js';
 import { planLeisure, planLicense, planPetShop, planSchool } from '../src/domain/meal.js';
 import { ipvaCents, newVehicle, settleVehicle } from '../src/domain/vehicle.js';
+import { newRace } from '../src/domain/race.js';
 import { MemoryVehicleStore } from '../src/infra/memory-vehicle-store.js';
 import { checkAdoption } from '../src/domain/pet.js';
 import { checkClass } from '../src/domain/school.js';
@@ -108,5 +109,30 @@ describe('cobranças no economy de verdade', () => {
     await payer.payBuyback({ key: `vehicle-buyback:${car.id}`, accountId: a.accountId, cents: 100_000n, refId: car.id });
     // 400.000 − 5.000 − 300.000 − 6.000 + 100.000 (uma vez).
     expect(await thaler('player', a.accountId)).toBe(189_000n);
+  });
+
+  it('corrida: gasolina para a queima e prêmio do pool P2E, uma vez', async () => {
+    const a = { ...avatar(), license: { readyAt: t0 } };
+    await credit(a.accountId, 1000n);
+    await economy.inject({
+      method: 'POST',
+      url: '/internal/v1/ledger/transactions',
+      headers: { 'x-service-token': LEDGER_TOKEN, 'idempotency-key': 'pool-corrida' },
+      payload: {
+        kind: 'test_credit',
+        legs: [
+          { owner_type: 'system', owner_id: 'bridge', currency: 'THALER', amount: '-100000' },
+          { owner_type: 'pool', owner_id: 'p2e', currency: 'THALER', amount: '100000' },
+        ],
+      },
+    });
+    const car = { ...newVehicle({ id: randomUUID(), accountId: a.accountId, model: 'super', rent: false }, t0), status: 'active' as const };
+    const race = newRace({ id: randomUUID(), vehicle: car, avatar: a }, t0);
+    const forced = { ...race, result: { ...race.result, prizeCents: '2000' } };
+    await payer.chargeFuel(forced);
+    await payer.payPrize(forced);
+    await payer.payPrize(forced);
+    // 1.000 − 300 de gasolina + 2.000 de prêmio (uma vez).
+    expect(await thaler('player', a.accountId)).toBe(2700n);
   });
 });

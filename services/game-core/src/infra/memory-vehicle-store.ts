@@ -1,4 +1,4 @@
-import type { Vehicle, VehicleStore } from '../domain/vehicle.js';
+import { type Vehicle, type VehicleStore, isBroken } from '../domain/vehicle.js';
 
 /** Para testes e desenvolvimento. Uma thread só: cada operação é atômica. */
 export class MemoryVehicleStore implements VehicleStore {
@@ -41,6 +41,27 @@ export class MemoryVehicleStore implements VehicleStore {
     if (!v || v.status !== 'active') return false;
     v.status = 'sold';
     v.soldAt = now;
+    return true;
+  }
+
+  async setBreakdown(id: string, severity: 'leve' | 'moderado' | 'grave', now: Date) {
+    const v = this.vehicles.get(id);
+    if (!v || isBroken(v, now)) return false;
+    Object.assign(v, { breakdown: severity, brokenAt: now, repairUntil: null });
+    return true;
+  }
+
+  async startRepair(id: string, brokenAt: Date, until: Date) {
+    const v = this.vehicles.get(id);
+    if (!v || v.brokenAt?.getTime() !== brokenAt.getTime() || v.repairUntil) return false;
+    v.repairUntil = until;
+    return true;
+  }
+
+  async setRevision(id: string, expected: Date | null, until: Date) {
+    const v = this.vehicles.get(id);
+    if (!v || (v.revisionUntil?.getTime() ?? null) !== (expected?.getTime() ?? null)) return false;
+    v.revisionUntil = until;
     return true;
   }
 
