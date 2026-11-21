@@ -233,7 +233,11 @@ export function createMultiplayer(map) {
   const districtHere = () => {
     const lots = map.getLots();
     const t = controls.target;
-    const i = map.lotAt(t.x, t.z);
+    // Na rua não há lote embaixo: vale o lote mais perto, até 40 m.
+    let i = map.lotAt(t.x, t.z);
+    for (let r = 5; i === null && r <= 40; r += 5) {
+      for (let k = 0; k < 8 && i === null; k++) i = map.lotAt(t.x + Math.cos((k / 8) * Math.PI * 2) * r, t.z + Math.sin((k / 8) * Math.PI * 2) * r);
+    }
     if (i === null || !lots?.district) return null;
     return lots.district[i];
   };
