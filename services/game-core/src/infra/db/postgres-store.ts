@@ -15,7 +15,7 @@ import {
   tooManyAvatars,
 } from '../../domain/avatar.js';
 import type { Rarity } from '../../domain/catalog.js';
-import { type Condition, type ConditionCode, SERIOUS_CODES } from '../../domain/conditions.js';
+import { type Condition, type ConditionCode, drainMarks } from '../../domain/conditions.js';
 import {
   type FeeStatus,
   type HospitalReason,
@@ -97,10 +97,6 @@ const resultJson = (result: ShiftResult) => ({ damaged: result.damaged, factors:
 type Row = typeof avatar.$inferSelect;
 
 /** No jsonb as datas vão como texto ISO. */
-/** Avatar com doença grave gravada (febre, enxaqueca, virose): a saúde dele cai com o tempo. */
-const hasSerious = sql.raw(
-  `jsonb_path_exists("conditions", '$[*] ? (${SERIOUS_CODES.map((c) => `@.code == "${c}"`).join(' || ')})')`,
-);
 
 const toConditions = (value: unknown): Condition[] =>
   ((value ?? []) as { code: string; startsAt: string; endsAt: string; drained?: number }[]).map((c) => ({
@@ -150,7 +146,14 @@ const toRow = (a: Avatar) => ({
   pantry: a.pantry,
   createdAt: a.createdAt,
   updatedAt: a.updatedAt,
+  ...marks(a),
 });
+
+/** Próxima queda de saúde e saúde 0 pelas doenças graves, para o banco filtrar. */
+const marks = (a: Avatar) => {
+  const m = drainMarks(a.conditions, a.attributes.health);
+  return { healthDrainAt: m.nextDrainAt, healthZeroAt: m.zeroAt };
+};
 
 export class PostgresAvatarStore implements AvatarStore, ShiftStore, MealStore, HospitalStore {
   private readonly db;
@@ -194,15 +197,18 @@ export class PostgresAvatarStore implements AvatarStore, ShiftStore, MealStore, 
             (${avatar.food} > 0 and ${avatar.foodAt} <= ${limit(DECAY.food.everyMs)}) or
             (${avatar.happiness} > 0 and ${avatar.happinessAt} <= ${limit(DECAY.happiness.everyMs)}) or
             (${avatar.hygiene} > 0 and ${avatar.hygieneAt} <= ${limit(DECAY.hygiene.everyMs)}) or
-            (${avatar.health} > 0 and ${hasSerious})
+            (${avatar.health} > 0 and ${avatar.healthDrainAt} <= ${now})
           )`,
         )
         .limit(batch)
         .for('update', { skipLocked: true });
-      let done = 0;
       for (const row of rows) {
         const current = toAvatar(row);
-        if (!decayDue(current, now)) continue;
+        if (!decayDue(current, now)) {
+          // Marca antiga (ou da migração): recalcula para o avatar não voltar à fila à toa.
+          await tx.update(avatar).set(marks(current)).where(eq(avatar.id, row.id));
+          continue;
+        }
         const next = decayed(current, now);
         await tx
           .update(avatar)
@@ -216,12 +222,14 @@ export class PostgresAvatarStore implements AvatarStore, ShiftStore, MealStore, 
             // Doenças graves tiram saúde com o tempo (conditions.ts, drainHealth).
             health: next.attributes.health,
             conditions: toRow(next).conditions,
+            ...marks(next),
             updatedAt: now,
           })
           .where(eq(avatar.id, row.id));
-        done++;
       }
-      return done;
+      // Todo avatar lido sai da fila (queda gravada ou marca refeita), então o lote cheio
+      // quer dizer "pode haver mais", e o laço do job termina.
+      return rows.length;
     });
   }
 
@@ -383,7 +391,7 @@ export class PostgresAvatarStore implements AvatarStore, ShiftStore, MealStore, 
     return this.db.transaction(async (tx) => {
       // Energia ou saúde em 0, fora do hospital e sem turno rodando (o que já venceu conta como acabado).
       // Doença grave também entra: a saúde pode ter chegado a 0 desde a última gravação (admit confere pelo decayed).
-      const due = sql`(${avatar.energy} = 0 or ${avatar.health} = 0 or ${hasSerious})
+      const due = sql`(${avatar.energy} = 0 or ${avatar.health} = 0 or ${avatar.healthZeroAt} <= ${now})
         and (${avatar.hospitalUntil} is null or ${avatar.hospitalUntil} <= ${now})
         and not exists (
           select 1 from game.work_shift s where s.avatar_id = ${avatar.id} and s.status = 'running' and s.ends_at > ${now}
@@ -397,8 +405,13 @@ export class PostgresAvatarStore implements AvatarStore, ShiftStore, MealStore, 
       const rows = await (avatarId ? query.for('update') : query.for('update', { skipLocked: true }));
       const stays: HospitalStay[] = [];
       for (const row of rows) {
-        const admitted = admit(decayed(toAvatar(row), now), randomUUID(), now);
-        if (!admitted) continue;
+        const current = decayed(toAvatar(row), now);
+        const admitted = admit(current, randomUUID(), now);
+        if (!admitted) {
+          // Marca de saúde 0 antiga: recalcula para não voltar aqui à toa.
+          await tx.update(avatar).set(marks(current)).where(eq(avatar.id, row.id));
+          continue;
+        }
         await tx.update(avatar).set(toRow(admitted.avatar)).where(eq(avatar.id, row.id));
         const s = admitted.stay;
         const [created] = await tx

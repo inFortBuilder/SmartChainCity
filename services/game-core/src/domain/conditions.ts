@@ -121,6 +121,32 @@ export function drainHealth(conditions: Condition[], health: number, now: Date):
   return { health: h, conditions: next };
 }
 
+/** Instantes futuros em que as doenças graves vão tirar 1 de saúde (depois do que já foi tirado), em ordem. */
+export function drainSchedule(conditions: Condition[]): number[] {
+  const times: number[] = [];
+  for (const c of conditions) {
+    if (!isSerious(c.code)) continue;
+    for (let k = (c.drained ?? 0) + 1; ; k++) {
+      const t = c.startsAt.getTime() + k * SERIOUS_DRAIN_MS;
+      if (t > c.endsAt.getTime()) break;
+      times.push(t);
+    }
+  }
+  return times.sort((x, y) => x - y);
+}
+
+/**
+ * Para o banco achar o avatar sem varrer todos (postgres-store): quando cai a
+ * próxima saúde e quando a saúde gravada chega a 0 só pelas doenças.
+ */
+export function drainMarks(conditions: Condition[], health: number) {
+  const times = drainSchedule(conditions);
+  return {
+    nextDrainAt: times.length ? new Date(times[0]!) : null,
+    zeroAt: health > 0 && times.length >= health ? new Date(times[health - 1]!) : null,
+  };
+}
+
 /** Alguma doença grave ainda vai tirar saúde (para o job da queda achar o avatar). */
 export const drainDue = (conditions: Condition[], health: number, now: Date) =>
   health > 0 && drainHealth(conditions, health, now).health < health;

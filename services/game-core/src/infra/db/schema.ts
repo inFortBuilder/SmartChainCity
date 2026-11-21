@@ -34,6 +34,13 @@ export const avatar = game.table(
     /** Internado até este instante (E2.3); null fora do hospital. */
     hospitalUntil: timestamptz('hospital_until'),
     /**
+     * Doenças graves (E2.3): quando cai a próxima saúde e quando a saúde gravada
+     * chega a 0 só por elas. Calculados ao gravar (drainMarks), para o job da
+     * queda e a internação acharem o avatar sem varrer todos.
+     */
+    healthDrainAt: timestamptz('health_drain_at'),
+    healthZeroAt: timestamptz('health_zero_at'),
+    /**
      * Doenças leves em curso ou marcadas para o fim do turno (E2.3): a
      * `avatar_condition` do doc 06 §2, guardada no próprio avatar porque é
      * sempre lida e gravada junto com ele. [{code, startsAt, endsAt}]
@@ -46,6 +53,9 @@ export const avatar = game.table(
   },
   (t) => [
     index('avatar_account_idx').on(t.accountId),
+    // Só os avatares com doença grave: o job da queda e a internação procuram por aqui.
+    index('avatar_health_drain_idx').on(t.healthDrainAt).where(sql`health_drain_at is not null`),
+    index('avatar_health_zero_idx').on(t.healthZeroAt).where(sql`health_zero_at is not null`),
     check('avatar_rarity_check', sql`${t.rarity} in ('common', 'rare', 'epic', 'legendary')`),
     check('avatar_energy_check', range(t.energy, 10)),
     check('avatar_health_check', range(t.health, 10)),
