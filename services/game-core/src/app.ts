@@ -67,6 +67,35 @@ import {
   vehicleDto,
 } from './domain/vehicle.js';
 import {
+  CROPS,
+  FARMER_JOBS,
+  FARM_CENTS,
+  type FarmPayer,
+  type FarmStore,
+  HARVESTS_TO_LEVEL,
+  HIRED_PLOW_CENTS,
+  LEVEL_CENTS,
+  MACHINES,
+  OWN_PLOW_ENERGY,
+  PLOTS,
+  SEASONS as FARM_SEASONS,
+  SEED_CENTS,
+  type Farm,
+  applyHarvest,
+  applyLevelUp,
+  applyMachine,
+  applyPlant,
+  applyPlow,
+  checkHarvest,
+  checkLevelUp,
+  checkMachine,
+  checkPlant,
+  checkPlow,
+  farmDto,
+  newFarm,
+  plan as planCrop,
+} from './domain/farm.js';
+import {
   EVENT_FACTOR,
   type GamePassPayer,
   type GamePassStore,
@@ -257,6 +286,8 @@ export async function buildApp(
   vehicles: { store: VehicleStore; payer: VehiclePayer & RacePayer; races?: RaceStore } | null = null,
   /** GamePass (E3.10). Sem ele, os eventos funcionam e o GamePass responde 503. */
   passes: { store: GamePassStore; payer: GamePassPayer } | null = null,
+  /** Fazenda (E3.4). Sem ela, as rotas da fazenda respondem 503. */
+  farms: { store: FarmStore; payer: FarmPayer } | null = null,
 ) {
   const app = Fastify({
     trustProxy: config.TRUST_PROXY,
@@ -761,6 +792,130 @@ export async function buildApp(
     await v.payer.payBuyback({ key: `vehicle-buyback:${car.id}`, accountId: car.accountId, cents, refId: car.id }, request.id);
     await v.store.markSold(car.id, now());
     return { sold: { id: car.id, cents: cents.toString() } };
+  });
+
+  // ---------------------------------------------------------------- fazenda (E3.4)
+
+  const farmsOn = () => {
+    if (!farms) throw new AppError('farms_disabled', 'A fazenda está desligada: o ledger não está ligado.', 503);
+    return farms;
+  };
+  const myFarm = async (accountId: string) => {
+    const f = await farmsOn().store.get(accountId);
+    if (!f) throw new AppError('no_farm', 'Você ainda não tem fazenda. Compre um slot da Prefeitura.', 404);
+    return f;
+  };
+  /** Grava com a trava otimista; outra gravação no meio é 409 (a cobrança tem chave: tentar de novo não cobra outra vez). */
+  const saveFarm = async (f: Farm) => {
+    if (!(await farmsOn().store.save(f))) {
+      throw new AppError('farm_conflict', 'A fazenda mudou agora. Tente de novo: a cobrança não se repete.', 409);
+    }
+    return (await farmsOn().store.get(f.accountId))!;
+  };
+  const charge = (accountId: string, key: string, kind: string, cents: bigint, requestId: string) =>
+    farmsOn().payer.chargeFarm({ key, kind, accountId, cents }, requestId);
+  const plotParam = z.object({ i: z.coerce.number().int().min(1).max(PLOTS) });
+
+  app.get('/v1/farm', async (request) => {
+    const accountId = await player(request);
+    const f = farms ? await farms.store.get(accountId) : null;
+    return {
+      price: FARM_CENTS.toString(),
+      plots: PLOTS,
+      seed_price: SEED_CENTS.toString(),
+      hired_plow_price: HIRED_PLOW_CENTS.toString(),
+      farmer_jobs: FARMER_JOBS,
+      harvests_to_level: HARVESTS_TO_LEVEL,
+      level_prices: Object.fromEntries(Object.entries(LEVEL_CENTS).map(([k, v]) => [k, v.toString()])),
+      seasons: FARM_SEASONS,
+      crops: Object.entries(CROPS).map(([code, c]) => ({ code, ...c })),
+      machines: Object.entries(MACHINES).map(([code, m]) => ({ code, label: m.label, price: m.cents.toString() })),
+      region: 'A3 (zona rural): a fazenda ganha lugar no mapa quando a região abrir',
+      farm: f ? farmDto(f, now()) : null,
+    };
+  });
+
+  // Slot da Prefeitura: 4 canteiros e a casa, um por conta.
+  app.post('/v1/farm', async (request, reply) => {
+    const accountId = await player(request);
+    const fs = farmsOn();
+    if (await fs.store.get(accountId)) throw new AppError('farm_owned', 'Você já tem fazenda.', 409);
+    await charge(accountId, `farm-buy:${accountId}`, 'farm_buy', FARM_CENTS, request.id);
+    await fs.store.create(newFarm(accountId, now()));
+    return reply.status(201).send({ farm: farmDto((await fs.store.get(accountId))!, now()) });
+  });
+
+  app.post('/v1/farm/machines', async (request, reply) => {
+    const accountId = await player(request);
+    const { machine } = z.object({ machine: z.string() }).parse(request.body);
+    const f = await myFarm(accountId);
+    const { cents, code } = checkMachine(f, machine);
+    await charge(accountId, `farm-machine:${accountId}:${code}`, 'farm_machine', cents, request.id);
+    return reply.status(201).send({ farm: farmDto(await saveFarm(applyMachine(f, code)), now()) });
+  });
+
+  // Arar: com o próprio agricultor (`avatar_id`, −1 de energia) ou contratado (10 THALER).
+  app.post('/v1/farm/plots/:i/plow', async (request) => {
+    const accountId = await player(request);
+    const { i } = plotParam.parse(request.params);
+    const { avatar_id } = z.object({ avatar_id: z.uuid().optional() }).parse(request.body ?? {});
+    const f = await myFarm(accountId);
+    const plot = checkPlow(f, i - 1);
+    if (avatar_id) {
+      const a = await store.get(avatar_id);
+      if (!a || a.accountId !== accountId) throw new AppError('not_found', 'Avatar não encontrado.', 404);
+      if (!(FARMER_JOBS as readonly string[]).includes(a.jobCode)) {
+        throw new AppError('not_a_farmer', 'Só agricultor, fazendeiro ou agrônomo ara. Ou contrate a aragem.', 409);
+      }
+      if (decayed(a, now()).attributes.energy < OWN_PLOW_ENERGY) throw new AppError('too_tired', 'Arar gasta 1 de energia.', 409);
+      const saved = await saveFarm(applyPlow(f, i - 1));
+      await store.updateAvatar(a.id, accountId, now(), (cur) => ({
+        ...cur,
+        attributes: { ...cur.attributes, energy: Math.max(0, cur.attributes.energy - OWN_PLOW_ENERGY) },
+        updatedAt: now(),
+      }));
+      return { farm: farmDto(saved, now()), hired: false };
+    }
+    await charge(accountId, `farm-plow:${accountId}:${i}:${plot.cycle}`, 'farm_plow', HIRED_PLOW_CENTS, request.id);
+    return { farm: farmDto(await saveFarm(applyPlow(f, i - 1)), now()), hired: true };
+  });
+
+  app.post('/v1/farm/plots/:i/plant', async (request) => {
+    const accountId = await player(request);
+    const { i } = plotParam.parse(request.params);
+    const { crop } = z.object({ crop: z.string() }).parse(request.body);
+    const f = await myFarm(accountId);
+    const plot = checkPlant(f, i - 1, crop);
+    await charge(accountId, `farm-seed:${accountId}:${i}:${plot.cycle}`, 'farm_seed', SEED_CENTS, request.id);
+    return { farm: farmDto(await saveFarm(applyPlant(f, i - 1, planCrop(f, crop as keyof typeof CROPS, now()))), now()) };
+  });
+
+  // Colhe para a despensa de um avatar da conta.
+  app.post('/v1/farm/plots/:i/harvest', async (request) => {
+    const accountId = await player(request);
+    const { i } = plotParam.parse(request.params);
+    const { avatar_id } = z.object({ avatar_id: z.uuid() }).parse(request.body);
+    const a = await store.get(avatar_id);
+    if (!a || a.accountId !== accountId) throw new AppError('not_found', 'Avatar não encontrado.', 404);
+    const f = await myFarm(accountId);
+    const { planting, units } = checkHarvest(f, i - 1, now());
+    const saved = await saveFarm(applyHarvest(f, i - 1));
+    if (units > 0) {
+      await store.updateAvatar(a.id, accountId, now(), (cur) => ({
+        ...cur,
+        pantry: { ...cur.pantry, [planting.crop]: (cur.pantry[planting.crop] ?? 0) + units },
+        updatedAt: now(),
+      }));
+    }
+    return { farm: farmDto(saved, now()), harvest: { crop: planting.crop, units, damage: planting.damage, seed: planting.seed } };
+  });
+
+  app.post('/v1/farm/level', async (request) => {
+    const accountId = await player(request);
+    const f = await myFarm(accountId);
+    const { cents, to } = checkLevelUp(f);
+    await charge(accountId, `farm-level:${accountId}:${to}`, 'farm_level', cents, request.id);
+    return { farm: farmDto(await saveFarm(applyLevelUp(f)), now()) };
   });
 
   // ---------------------------------------------------------------- eventos semanais e GamePass (E3.10)

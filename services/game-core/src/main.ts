@@ -23,6 +23,8 @@ import { PostgresRaceStore } from './infra/db/postgres-race-store.js';
 import { MemoryRaceStore } from './infra/memory-race-store.js';
 import { PostgresGamePassStore } from './infra/db/postgres-gamepass-store.js';
 import { MemoryGamePassStore } from './infra/memory-gamepass-store.js';
+import { PostgresFarmStore } from './infra/db/postgres-farm-store.js';
+import { MemoryFarmStore } from './infra/memory-farm-store.js';
 import { scheduleDecay } from './jobs/decay.js';
 import { scheduleHospital } from './jobs/hospital.js';
 import { scheduleShifts } from './jobs/shift.js';
@@ -54,7 +56,10 @@ const vehicles = payer ? { store: vehicleStore, payer, races: raceStore } : null
 // GamePass (E3.10): SCITY para a queima no mesmo ledger.
 const passStore = pool ? new PostgresGamePassStore(pool) : new MemoryGamePassStore();
 const passes = payer ? { store: passStore, payer } : null;
-const app = await buildApp(config, store, undefined, payer, payer, payer, undefined, riskStore, venues, championships, vehicles, passes);
+// Fazenda (E3.4): slot, máquinas e plantio pelo mesmo ledger.
+const farmStore = pool ? new PostgresFarmStore(pool) : new MemoryFarmStore();
+const farms = payer ? { store: farmStore, payer } : null;
+const app = await buildApp(config, store, undefined, payer, payer, payer, undefined, riskStore, venues, championships, vehicles, passes, farms);
 
 // Job championship.settle: disputa o campeonato do mês que virou e cobra as inscrições paradas.
 const championshipTimer = championships

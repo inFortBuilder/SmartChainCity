@@ -282,6 +282,7 @@ export function createServidor(map) {
   let cup = null;
   let carCatalog = null;
   let events = null;
+  let farm = null;
   let pass = null;
   let cars = null;
   let message = '';
@@ -332,6 +333,8 @@ export function createServidor(map) {
         .catch(() => []);
       // Campeonato de botão (E3.3): o do mês e o resultado do anterior.
       cup = await call(API.game, '/v1/championships/current', { token: session.token }).catch(() => null);
+      // Fazenda (E3.4): o catálogo e o slot da conta.
+      farm = await call(API.game, '/v1/farm', { token: session.token }).catch(() => null);
       // Evento da semana e GamePass da temporada (E3.10).
       [events, pass] = await Promise.all([
         call(API.game, '/v1/events').catch(() => null),
@@ -582,6 +585,59 @@ export function createServidor(map) {
 
   /** Erro de transação no cofre em texto curto. */
   const vaultError = (error) => (error instanceof ApiError ? error : new ApiError(400, 'tx', txError(error, VAULT_ERRORS)));
+
+  /**
+   * Fazenda (E3.4): slot da Prefeitura com 4 canteiros. Arar (com enxada),
+   * plantar pelo nível, colher para a despensa do avatar e subir de nível.
+   */
+  const farmSection = (a) => {
+    const off = busy ? 'disabled' : '';
+    const f = farm.farm;
+    const crops = { uva: 'Uva', morango: 'Morango', tomate: 'Tomate', cenoura: 'Cenoura', laranja: 'Laranja', beterraba: 'Beterraba', milho: 'Milho', maca: 'Maçã', trigo: 'Trigo', batata: 'Batata' };
+    const damage = { apodreceu: 'apodreceu', passaros: 'pássaros', corvos: 'corvos', coelhos: 'coelhos' };
+    if (!f) {
+      return `<h3>🌾 Fazenda</h3>
+        <p class="muted pequeno">Slot da Prefeitura com 4 canteiros e a casa, na ${esc(farm.region)}.</p>
+        <button class="btn btn--blue pequeno" type="button" data-s="fazenda-comprar" ${off}>Comprar slot · ${thaler(farm.price)}</button>`;
+    }
+    const farmer = farm.farmer_jobs.includes(a.job.code);
+    let html = `<h3>🌾 Fazenda <span class="muted pequeno">· nível ${f.level} · ${esc(f.season.label)} (produção ×${f.season.factor.toLocaleString('pt-BR')} até ${new Date(f.season.ends_at).toLocaleDateString('pt-BR')}) · ${f.harvests_at_level}/${farm.harvests_to_level} colheitas</span></h3>`;
+    const options = f.crops.map((c) => `<option value="${esc(c.code)}">${esc(crops[c.code] ?? c.code)} (${c.days.toLocaleString('pt-BR')} d)</option>`).join('');
+    html += `<ul class="lista-saques">${f.plots
+      .map((pl) => {
+        const n = pl.index + 1;
+        let state;
+        let action = '';
+        if (pl.crop && pl.ready) {
+          state = `${esc(crops[pl.crop] ?? pl.crop)} pronta: ${pl.units_now} un.${pl.damage ? ` (${damage[pl.damage] ?? pl.damage})` : ''}`;
+          action = `<button class="btn btn--primary pequeno" type="button" data-s="fazenda-colher" data-p="${n}" ${off}>Colher</button>`;
+        } else if (pl.crop) {
+          state = `${esc(crops[pl.crop] ?? pl.crop)} crescendo: pronta em ${left(pl.ready_at)}`;
+        } else if (pl.plowed) {
+          state = 'arado';
+          action = `<select class="campo" data-crop="${n}" aria-label="Cultura do canteiro ${n}">${options}</select>
+            <button class="btn btn--blue pequeno" type="button" data-s="fazenda-plantar" data-p="${n}" ${off}>Plantar · ${thaler(farm.seed_price)}</button>`;
+        } else {
+          state = 'para arar';
+          action = f.machines.includes('enxada')
+            ? `${farmer ? `<button class="btn btn--ghost pequeno" type="button" data-s="fazenda-arar" data-p="${n}" data-own="1" ${off}>Arar (−1 energia)</button>` : ''}
+               <button class="btn btn--ghost pequeno" type="button" data-s="fazenda-arar" data-p="${n}" ${off}>Contratar · ${thaler(farm.hired_plow_price)}</button>`
+            : '<span class="muted pequeno">precisa de enxada</span>';
+        }
+        return `<li><span>Canteiro ${n} · ${state}</span><span class="linha">${action}</span></li>`;
+      })
+      .join('')}</ul>`;
+    const missing = farm.machines.filter((m) => !f.machines.includes(m.code));
+    if (missing.length) {
+      html += `<div class="linha"><select class="campo" data-maquina aria-label="Máquina">${missing
+        .map((m) => `<option value="${esc(m.code)}">${esc(m.label)} · ${thaler(m.price)}</option>`)
+        .join('')}</select><button class="btn btn--ghost pequeno" type="button" data-s="fazenda-maquina" ${off}>Comprar máquina</button></div>`;
+    }
+    if (f.machines.length) html += `<p class="muted pequeno">Máquinas: ${f.machines.map((c) => esc(farm.machines.find((m) => m.code === c)?.label ?? c)).join(', ')}.</p>`;
+    if (f.can_level_up) html += `<button class="btn btn--blue pequeno" type="button" data-s="fazenda-nivel" ${off}>Subir para o nível ${f.level + 1} · ${thaler(f.level_up_cents)}</button>`;
+    html += '<p class="muted pequeno">A colheita vai para a despensa deste avatar. Riscos: apodrecer, pássaros (frutas), corvos (grãos) e coelhos; agrotóxico, espantalho e cão protegem. Sem colher, perde 5% por dia. Preços provisórios.</p>';
+    return html;
+  };
 
   /**
    * Evento semanal por profissão e GamePass da temporada (E3.10): o evento dá
@@ -924,6 +980,7 @@ export function createServidor(map) {
       if (!internado && leisure && a.leisure) body += leisureSection(a);
       if (cup) body += cupSection(a);
       if (carCatalog && cars) body += carSection(a);
+      if (farm) body += farmSection(a);
       if (!internado && school && a.school) body += schoolSection(a);
       if (!internado && petshop) body += petSection(a);
       if (running) {
@@ -1242,6 +1299,32 @@ export function createServidor(map) {
           headers: { 'idempotency-key': crypto.randomUUID() },
         });
         message = `Autoescola: −${thaler(r.purchase.price)} THALER. Habilitado em ${left(r.avatar.license.ready_at)}.`;
+        messageOk = true;
+      });
+    }
+    if (what && what.startsWith('fazenda-')) {
+      const n = b.dataset.p;
+      const req = {
+        'fazenda-comprar': () => call(API.game, '/v1/farm', { method: 'POST', token: session.token }),
+        'fazenda-maquina': () => call(API.game, '/v1/farm/machines', { method: 'POST', token: session.token, body: { machine: panel.querySelector('[data-maquina]')?.value } }),
+        'fazenda-arar': () =>
+          call(API.game, `/v1/farm/plots/${n}/plow`, { method: 'POST', token: session.token, body: b.dataset.own ? { avatar_id: data.avatar.id } : {} }),
+        'fazenda-plantar': () =>
+          call(API.game, `/v1/farm/plots/${n}/plant`, { method: 'POST', token: session.token, body: { crop: panel.querySelector(`[data-crop="${n}"]`)?.value } }),
+        'fazenda-colher': () => call(API.game, `/v1/farm/plots/${n}/harvest`, { method: 'POST', token: session.token, body: { avatar_id: data.avatar.id } }),
+        'fazenda-nivel': () => call(API.game, '/v1/farm/level', { method: 'POST', token: session.token }),
+      }[what];
+      if (!req) return;
+      return act(async () => {
+        const r = await req();
+        message = {
+          'fazenda-comprar': 'Fazenda comprada: 4 canteiros esperando a enxada.',
+          'fazenda-maquina': 'Máquina comprada.',
+          'fazenda-arar': r.hired ? `Canteiro ${n} arado (contratado).` : `Canteiro ${n} arado pelo seu agricultor.`,
+          'fazenda-plantar': `Canteiro ${n} plantado.`,
+          'fazenda-colher': r.harvest ? `Colheita: ${r.harvest.units} un. de ${r.harvest.crop} na despensa${r.harvest.damage ? ` (${r.harvest.damage})` : ''}.` : '',
+          'fazenda-nivel': `Fazenda no nível ${r.farm?.level}.`,
+        }[what];
         messageOk = true;
       });
     }
