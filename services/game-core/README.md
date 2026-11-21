@@ -131,6 +131,24 @@ No mapa de Pittsburg, a doença grave mostra a queda de saúde e o botão "Hospi
 
 Depois de atualizar o código, rode `pnpm db:migrate`: a migração `0007_tratamento` aceita o motivo `treatment`.
 
+## Escola (E3.2)
+
+Aula e troca de profissão ([school.ts](src/domain/school.ts), GDD §3.2 e ADR-0013). A escola mora no próprio avatar (coluna `school`, jsonb) e anda na leitura, como a queda dos atributos.
+
+| Regra | Como |
+|---|---|
+| Educação | De 0 a 100, cumulativa: nunca se perde, nem ao trocar de profissão. Multiplica o turno de 1× a 3×. Graus 1 a 3 nos marcos 33, 66 e 100 (ADR-0013) |
+| Aula | `POST /v1/avatars/:id/school/class`: +2 de educação, −2 de energia, uma por dia (UTC). Recusa com `class_taken`, `max_education`, `too_tired`, `in_hospital` e `in_school` |
+| Troca de profissão | `POST /v1/avatars/:id/school/change` com `{job}`: só para outra profissão da mesma raridade (a raridade é do NFT). São 4 dias de escola: o turno recusa com `in_school`. Dá +2 de felicidade na matrícula e +2 depois de 24 h (GDD: "+felicidade nos 2 primeiros dias"). A nova profissão vale no fim dos 4 dias. Recusa com turno rodando (`shift_running`) |
+| Cobrança | Pelo ledger, como as refeições (`school_buy`, para a queima `burn/school`), com `Idempotency-Key` |
+
+**Premissas** (a calibrar no simulador):
+- Aula de 15 THALER, com +2 de educação. Chegar a 100 leva 50 dias de aula.
+- Troca de profissão por 100 THALER.
+- "+felicidade" vira +2 por dia nos 2 primeiros dias.
+
+Depois de atualizar o código, rode `pnpm db:migrate`: a migração `0011_escola` cria a coluna `school`.
+
 ## Pets e Pet Shop (E3.1)
 
 Cada avatar pode ter um gato ou um cachorro ([pet.ts](src/domain/pet.ts), GDD §3 e §2.4). O pet mora no próprio avatar (coluna `pet`, jsonb) e cai junto com ele na leitura.
@@ -216,6 +234,9 @@ TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc_test pnpm --filter
 | POST | `/v1/avatars/:id/consume` | jogador (Bearer) | Come uma unidade `{food}` da despensa, sem cobrar. Devolve o avatar |
 | POST | `/v1/avatars/:id/medicine` | jogador (Bearer) | Compra e toma o remédio `{condition}`. Aceita `Idempotency-Key`. Devolve o remédio, `cured` e o avatar |
 | GET | `/v1/catalog/pharmacy` | público | Preço do remédio, chance de cura e a tabela das doenças |
+| GET | `/v1/catalog/school` | público | Preço e efeito da aula, preço e dias da troca de profissão, e os marcos dos graus |
+| POST | `/v1/avatars/:id/school/class` | jogador (Bearer) | Aula do dia, paga pelo ledger. Aceita `Idempotency-Key`. Devolve a compra e o avatar (com `school`) |
+| POST | `/v1/avatars/:id/school/change` | jogador (Bearer) | Troca de profissão `{job}`, na mesma raridade, paga pelo ledger: 4 dias de escola |
 | GET | `/v1/catalog/petshop` | público | Espécies e serviços do Pet Shop com o preço, o passeio, a queda e a tabela de nível → multiplicador |
 | POST | `/v1/avatars/:id/pet` | jogador (Bearer) | Adota `{species: cat \| dog, name}`, pago pelo ledger. Aceita `Idempotency-Key`. Devolve a compra e o avatar (com `pet`) |
 | POST | `/v1/avatars/:id/pet/services` | jogador (Bearer) | Serviço do Pet Shop `{service: racao \| banho \| tosa \| hotel}`, pago pelo ledger. Aceita `Idempotency-Key` |
