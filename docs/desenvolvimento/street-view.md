@@ -43,19 +43,47 @@ Análise do pacote [Universal Animation Library](https://quaternius.com/packs/un
 | Formatos | FBX e glTF/GLB (a página também cita OBJ e Blend) | O GLB entra direto no three.js, sem conversão |
 | Esqueleto | Rig humanoide universal, pronto para retarget; testado em Godot, Unity e Unreal | No three.js, os clipes funcionam direto num personagem com os mesmos nomes de ossos. Para os avatares próprios do jogo, use esse mesmo rig ou faça o retarget no Blender antes de exportar |
 
-**Recomendação:** adotar a Universal Animation Library como biblioteca de movimento dos avatares. Ela é CC0, gratuita, traz o GLB e tem um rig único para todos os personagens. Para os avatares próprios do jogo, siga uma regra: todo modelo de avatar é entregue no rig universal. Assim, um único arquivo de animações serve para todos os personagens.
+**Recomendação:** adotar a Universal Animation Library como biblioteca de movimento dos avatares. Ela é CC0, gratuita, traz o GLB e tem um rig único para todos os personagens. Adotada em 2026-11-21 (abaixo). Para os avatares próprios do jogo, siga uma regra: todo modelo de avatar é entregue no rig universal. Assim, um único arquivo de animações serve para todos os personagens.
 
-### Como ligar no MVP local
+### Os manequins do jogo: Man e Human
 
-O pacote não vai para o repositório: o arquivo é grande, e o pacote não foi baixado nesta sessão.
+Desde 2026-11-21, o avatar do street view, do interior e dos outros jogadores é o manequim da UAL. O jogador escolhe o tipo na barra do street view ("Avatar: Man | Human"). A escolha fica no navegador e vai para os outros jogadores pelo `realtime` (campo `skin`).
 
-1. Baixe a versão Standard ou Pro na página do pacote.
-2. Coloque dois GLB em `.local/animacoes/ual/`:
-   - `personagem.glb`: o manequim ou o avatar no rig universal;
-   - `animacoes.glb`: os clipes.
-3. Recarregue o mapa. O street view tenta esses arquivos primeiro e, se não os encontra, usa o RobotExpressive (Quaternius, CC0) do repositório do three.js. A origem fica em `window.__pittsburg.streetView.avatar.source`.
+| Tipo | Modelo | Clipes |
+|---|---|---|
+| **Man** | Manequim masculino do `UAL1_Standard.glb` | Os 9 clipes do jogo, dentro do próprio arquivo |
+| **Human** | Manequim feminino (`Mannequin_F.glb`, da pasta `UAL-Human`) | Os mesmos clipes do Man: os dois manequins têm o mesmo esqueleto de 65 ossos e os mesmos nomes |
 
-Os clipes são escolhidos pelo nome: `idle`; `walk`/`walking` (sem "back"); e `run`/`jog`/`sprint`.
+A pasta `UAL-Human` traz a biblioteca de animações vol. 2 (`UAL2_Standard.glb`), com o mesmo manequim masculino e outras ações: telefone, plantio, carregar caixa, sim/não e outras. Ela não tem as animações de andar, então serve para ações futuras.
+
+**Clipes do jogo** (vol. 1, versão sem root motion, porque quem move o avatar é o jogo):
+
+| Uso | Clipes |
+|---|---|
+| Rua | `Idle_Loop` (parado), `Walk_Loop` (andar), `Jog_Fwd_Loop` (Shift) e `Sprint_Loop` |
+| Interior | `Sitting_Enter`, `Sitting_Idle_Loop`, `Sitting_Exit`, `Interact` e `Idle_Talking_Loop` |
+
+**Pacote:** `tools/scc-builder/bin/avatar-pack.js` lê as pastas `UAL-Man` e `UAL-Human`. Ele deixa só esses clipes, comprime com meshopt e grava em `docs/proposta-cidade-realista/assets/avatar/`:
+
+| Arquivo | Original | Pacote |
+|---|---|---|
+| `avatar-man.glb` | 7,4 MB | 3,1 MB |
+| `avatar-human.glb` | 1,4 MB | 0,3 MB |
+
+A licença vai junto, em `LICENSE-UAL.txt`. As pastas originais ficam fora do repositório. Para refazer o pacote:
+
+```
+cd tools/scc-builder
+node bin/avatar-pack.js ../../../UAL-Man ../../../UAL-Human ../../docs/proposta-cidade-realista/assets/avatar
+```
+
+O código compartilhado fica em `docs/proposta-cidade-realista/avatar.js`: os tipos, a escolha, a carga, a instância por jogador (`SkeletonUtils.clone`) e os clipes por papel. Se os arquivos não carregarem, o avatar volta a ser o RobotExpressive (CC0).
+
+**Testado** em 2026-11-21 no navegador:
+- o Man andou pela rua de costas para a câmera, na direção do movimento;
+- a troca para Human aconteceu na hora, com o idle tocando;
+- a escolha ficou salva, e o interior da residência abriu com o Human;
+- o `realtime` aceita `skin` `man` e `human` e ignora outro valor, coberto por teste.
 
 ## Entrar nos imóveis
 
