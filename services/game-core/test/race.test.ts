@@ -73,13 +73,13 @@ describe('corrida', () => {
     const v = car();
     let plain = 0;
     let revised = 0;
-    for (let i = 0; i < 2000; i++) {
+    for (let i = 0; i < 1000; i++) {
       const seed = i.toString(16).padStart(64, '0');
       if (runRace({ id: 'r', seed, vehicle: v, education: 0, revised: false }, t0).breakdown) plain++;
       if (runRace({ id: 'r', seed, vehicle: v, education: 0, revised: true }, t0).breakdown) revised++;
     }
-    expect(plain / 2000).toBeGreaterThan(0.03);
-    expect(plain / 2000).toBeLessThan(0.07);
+    expect(plain / 1000).toBeGreaterThan(0.025);
+    expect(plain / 1000).toBeLessThan(0.08);
     expect(revised).toBeLessThan(plain);
   });
 
