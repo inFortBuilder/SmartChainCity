@@ -108,3 +108,20 @@ export const boxRequest = indexer.table(
   },
   (t) => [primaryKey({ columns: [t.chainId, t.requestId] })],
 );
+
+/** Listagens do Marketplace (E3.6). `items`: [{collection, tokenId}]. */
+export const marketListing = indexer.table(
+  'market_listing',
+  {
+    chainId: integer('chain_id').notNull(),
+    listingId: text('listing_id').notNull(),
+    seller: text('seller').notNull(),
+    priceWei: text('price_wei').notNull(),
+    expiresAt: bigint('expires_at', { mode: 'number' }).notNull(),
+    items: jsonb('items').notNull(),
+    status: text('status').notNull(),
+    buyer: text('buyer'),
+    block: block('block').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.chainId, t.listingId] }), index('market_listing_status_idx').on(t.chainId, t.status)],
+);

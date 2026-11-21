@@ -4,7 +4,7 @@ import Fastify from 'fastify';
 import { z } from 'zod';
 
 import type { Config } from './config.js';
-import type { AvatarToken, BoxRequest, LotToken, PropertyToken } from './domain/events.js';
+import type { AvatarToken, BoxRequest, LotToken, PropertyToken, MarketListing } from './domain/events.js';
 import type { IndexerStore } from './domain/indexer.js';
 
 /** Estado do laço de leitura, para `/v1/chain/status`. */
@@ -128,6 +128,62 @@ export async function buildApp(config: Config, store: IndexerStore, status: Inde
         status: d.status,
       })),
     };
+  });
+
+  // ---------------------------------------------------------------- Marketplace (E3.6)
+
+  // Nome da coleção pelo endereço, e o dono atual de cada NFT pelas projeções de posse.
+  const collectionName = new Map(
+    Object.entries(config.contracts)
+      .filter(([, a]) => a)
+      .map(([name, a]) => [(a as string).toLowerCase(), name]),
+  );
+  const ownerNow = async (name: string | undefined, tokenId: string) => {
+    if (name === 'LandNFT') return (await store.lot(chainId, tokenId))?.owner;
+    if (name === 'PropertyNFT') return (await store.property(chainId, tokenId))?.owner;
+    if (name === 'AvatarNFT') return (await store.avatar(chainId, tokenId))?.owner;
+    return undefined;
+  };
+  /**
+   * `stale`: o vendedor já não tem algum dos NFTs (vendeu fora do mercado ou o leilão apreendeu); a compra
+   * reverteria. `expired`: passou do prazo. O mapa mostra só as que estão valendo.
+   */
+  const listingDto = async (l: MarketListing, nowSec: number) => {
+    const items = await Promise.all(
+      l.items.map(async (i) => {
+        const name = collectionName.get(i.collection);
+        const owner = await ownerNow(name, i.tokenId);
+        return { collection: name ?? i.collection, address: i.collection, token_id: i.tokenId, owner: owner ?? null };
+      }),
+    );
+    return {
+      listing_id: l.listingId,
+      seller: l.seller,
+      price_wei: l.priceWei,
+      expires_at: new Date(l.expiresAt * 1000).toISOString(),
+      status: l.status,
+      buyer: l.buyer,
+      items,
+      stale: items.some((i) => i.owner !== null && i.owner !== l.seller),
+      expired: l.expiresAt <= nowSec,
+      block: l.block.toString(),
+    };
+  };
+
+  app.get('/v1/market/listings', async (request) => {
+    const q = z
+      .object({ limit: z.coerce.number().int().min(1).max(200).default(50), all: z.stringbool().default(false) })
+      .parse(request.query);
+    const nowSec = Math.floor(Date.now() / 1000);
+    const list = await Promise.all((await store.activeListings(chainId, q.limit)).map((l) => listingDto(l, nowSec)));
+    return { marketplace: config.contracts.Marketplace ?? null, listings: q.all ? list : list.filter((l) => !l.stale && !l.expired) };
+  });
+
+  app.get('/v1/market/listings/:id', async (request) => {
+    const { id } = z.object({ id: z.string().regex(/^[0-9]{1,78}$/) }).parse(request.params);
+    const l = await store.listing(chainId, id);
+    if (!l) throw new AppError('not_found', 'Listagem não encontrada.', 404);
+    return { listing: await listingDto(l, Math.floor(Date.now() / 1000)) };
   });
 
   // Feed para os outros serviços (world, game-core): eventos confirmados, em ordem.

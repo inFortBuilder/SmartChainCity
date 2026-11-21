@@ -6,6 +6,7 @@ import {
   type ChainEvent,
   type Cursor,
   type LotToken,
+  type MarketListing,
   type PropertyToken,
   byChainOrder,
 } from './events.js';
@@ -41,6 +42,9 @@ export interface IndexerStore {
   property(chainId: number, tokenId: string): Promise<PropertyToken | null>;
   propertiesOf(chainId: number, owner: string): Promise<PropertyToken[]>;
   box(chainId: number, requestId: string): Promise<BoxRequest | null>;
+  /** Listagens do Marketplace ainda abertas no contrato, as mais novas primeiro. */
+  activeListings(chainId: number, limit: number): Promise<MarketListing[]>;
+  listing(chainId: number, listingId: string): Promise<MarketListing | null>;
   /** Depósitos do GameVault ainda não creditados no ledger, os mais antigos primeiro. */
   pendingDeposits(chainId: number, limit: number): Promise<Deposit[]>;
   markDepositCredited(chainId: number, txHash: string, logIndex: number, accountId: string): Promise<void>;

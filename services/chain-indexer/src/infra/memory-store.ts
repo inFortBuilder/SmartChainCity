@@ -4,6 +4,7 @@ import {
   type ChainEvent,
   type Cursor,
   type LotToken,
+  type MarketListing,
   type ProjectionOp,
   type PropertyToken,
   byChainOrder,
@@ -21,6 +22,7 @@ interface ChainState {
   boxes: Map<string, BoxRequest>;
   properties: Map<string, PropertyToken>;
   deposits: Map<string, Deposit>;
+  listings: Map<string, MarketListing>;
 }
 
 /** Para testes e desenvolvimento. Uma thread só: cada operação é atômica. */
@@ -31,7 +33,7 @@ export class MemoryIndexerStore implements IndexerStore {
   private state(chainId: number): ChainState {
     let s = this.chains.get(chainId);
     if (!s) {
-      s = { cursor: null, events: [], keys: new Set(), lots: new Map(), avatars: new Map(), boxes: new Map(), properties: new Map(), deposits: new Map() };
+      s = { cursor: null, events: [], keys: new Set(), lots: new Map(), avatars: new Map(), boxes: new Map(), properties: new Map(), deposits: new Map(), listings: new Map() };
       this.chains.set(chainId, s);
     }
     return s;
@@ -99,6 +101,20 @@ export class MemoryIndexerStore implements IndexerStore {
       case 'box_opened':
         s.boxes.set(op.value.requestId, { ...op.value });
         break;
+      case 'listing_created': {
+        // A listagem velha de um NFT listado de novo fecha (o contrato faz o mesmo, sem evento).
+        for (const l of s.listings.values()) {
+          if (l.status !== 'active') continue;
+          if (l.items.some((i) => op.value.items.some((n) => n.collection === i.collection && n.tokenId === i.tokenId))) l.status = 'replaced';
+        }
+        s.listings.set(op.value.listingId, { ...op.value, items: op.value.items.map((i) => ({ ...i })) });
+        break;
+      }
+      case 'listing_closed': {
+        const l = s.listings.get(op.listingId);
+        if (l) Object.assign(l, { status: op.status, buyer: op.buyer, block: op.block });
+        break;
+      }
       case 'box_revealed': {
         const cur = s.boxes.get(op.requestId);
         s.boxes.set(op.requestId, {
@@ -145,6 +161,7 @@ export class MemoryIndexerStore implements IndexerStore {
     s.boxes.clear();
     s.properties.clear();
     s.deposits.clear();
+    s.listings.clear();
     for (const e of [...keep].sort(byChainOrder)) for (const op of projectionOps(e)) this.apply(s, op);
     s.cursor = cursor ? { ...cursor } : null;
     return dropped;
@@ -204,5 +221,18 @@ export class MemoryIndexerStore implements IndexerStore {
       .events.filter((e) => e.id > afterId)
       .slice(0, limit)
       .map((e) => ({ ...e }));
+  }
+
+  async activeListings(chainId: number, limit: number) {
+    return [...this.state(chainId).listings.values()]
+      .filter((l) => l.status === 'active')
+      .sort((a, b) => Number(BigInt(b.listingId) - BigInt(a.listingId)))
+      .slice(0, limit)
+      .map((l) => ({ ...l, items: l.items.map((i) => ({ ...i })) }));
+  }
+
+  async listing(chainId: number, listingId: string) {
+    const l = this.state(chainId).listings.get(listingId);
+    return l ? { ...l, items: l.items.map((i) => ({ ...i })) } : null;
   }
 }

@@ -8,6 +8,7 @@ import {BuildingNFT} from "../src/BuildingNFT.sol";
 import {GameVault} from "../src/GameVault.sol";
 import {LandNFT} from "../src/LandNFT.sol";
 import {LuckyBox} from "../src/LuckyBox.sol";
+import {Marketplace} from "../src/Marketplace.sol";
 import {PropertyNFT} from "../src/PropertyNFT.sol";
 import {SCityToken} from "../src/SCityToken.sol";
 import {LocalDexPool, LocalUSD} from "../src/dev/LocalDexPool.sol";
@@ -55,6 +56,18 @@ contract DeployLocal is Script {
 
     address localUsd;
     address localDexPool;
+    address marketplace;
+
+    /// Mercado secundário (E3.6): SCITY, taxa de 2,5% para a tesouraria (aqui, o deployer), lote, imóvel e avatar.
+    function _deployMarket(address scity, address deployer, address land, address property, address avatar)
+        internal
+    {
+        Marketplace m = new Marketplace(deployer, SCityToken(scity), deployer, 250);
+        m.setCollection(land, true);
+        m.setCollection(property, true);
+        m.setCollection(avatar, true);
+        marketplace = address(m);
+    }
 
     /// Fora do `run` para não estourar a pilha.
     function _deployDex(address scity, address deployer) internal {
@@ -114,6 +127,8 @@ contract DeployLocal is Script {
         scity.transfer(address(vault), 1_000_000 ether);
         // Par SCITY/dólar de teste para o TWAP do câmbio, a US$ 1 (tick 0). Depois do cofre, pelo mesmo motivo.
         _deployDex(address(scity), deployer);
+        // Por último, para os endereços de antes não mudarem.
+        _deployMarket(address(scity), deployer, address(land), address(propertyNft), address(avatar));
 
         vm.stopBroadcast();
 
@@ -129,6 +144,7 @@ contract DeployLocal is Script {
         vm.serializeAddress(key, "GameVault", address(vault));
         vm.serializeAddress(key, "LocalUSD", localUsd);
         vm.serializeAddress(key, "LocalDexPool", localDexPool);
+        vm.serializeAddress(key, "Marketplace", marketplace);
         string memory json = vm.serializeAddress(key, "worldSigner", worldSigner);
         vm.writeJson(json, "deployments/anvil.json");
 

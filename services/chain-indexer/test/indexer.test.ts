@@ -285,3 +285,77 @@ describe('API', () => {
     expect(feed.next_after).toBe(feed.events[1].id);
   });
 });
+
+describe('Marketplace no indexer', () => {
+  const LAND = '0x00000000000000000000000000000000000000aa';
+  const AVATAR = '0x00000000000000000000000000000000000000bb';
+  const MARKET = '0x00000000000000000000000000000000000000cc';
+  const lotId = mintLot(ALICE, 1, 9).tokenId;
+  const later = () => String(Math.floor(Date.now() / 1000) + 86_400);
+  const listed = (listingId: string, seller: string, collections: string[], tokenIds: string[], price = '1000', expiresAt = later()) => ({
+    listingId,
+    seller,
+    price,
+    expiresAt,
+    collections: collections.join(','),
+    tokenIds: tokenIds.join(','),
+  });
+
+  it.each([
+    ['memória', () => new MemoryIndexerStore() as IndexerStore, true],
+    ['postgres', () => new PostgresIndexerStore(pool!) as IndexerStore, pool !== null],
+  ] as const)('listagens: aberta, velha, substituída, vendida e cancelada (%s)', async (_n, make, enabled) => {
+    if (!enabled) return;
+    const id = newChainId();
+    const chain = new FakeChain(id);
+    const store = make();
+    const opt = options(id, { confirmations: 0 });
+    chain.mine(1);
+    chain.emit('LandNFT', 'Transfer', mintLot(ALICE, 1, 9));
+    chain.emit('AvatarNFT', 'Transfer', { from: ZERO, to: ALICE, tokenId: '5' });
+    chain.emit('Marketplace', 'Listed', listed('1', ALICE, [LAND], [lotId]));
+    chain.emit('Marketplace', 'Listed', listed('2', ALICE, [AVATAR], ['5'], '300'));
+    chain.emit('Marketplace', 'Listed', listed('3', ALICE, [AVATAR], ['6'], '1', '100')); // já vencida
+    chain.mine(1);
+    await drain(chain, store, opt);
+    expect((await store.activeListings(id, 10)).map((l) => l.listingId)).toEqual(['3', '2', '1']);
+    expect(await store.listing(id, '1')).toMatchObject({ seller: ALICE, priceWei: '1000', items: [{ collection: LAND, tokenId: lotId }] });
+
+    const app = await buildApp(
+      { ...loadConfig({ NODE_ENV: 'test', CHAIN_ID: String(id) }), contracts: { LandNFT: LAND, AvatarNFT: AVATAR, Marketplace: MARKET } },
+      store,
+    );
+    const list = async (q = '') => (await app.inject({ method: 'GET', url: `/v1/market/listings${q}` })).json();
+    expect((await list()).listings.map((l: { listing_id: string }) => l.listing_id)).toEqual(['2', '1']);
+    expect((await list()).listings[1]).toMatchObject({ items: [{ collection: 'LandNFT', token_id: lotId, owner: ALICE }], stale: false });
+
+    // Alice vende o lote fora do mercado: a listagem 1 fica velha e sai da lista.
+    chain.mine(1);
+    chain.emit('LandNFT', 'Transfer', { from: ALICE, to: BOB, tokenId: lotId });
+    chain.mine(1);
+    await drain(chain, store, opt);
+    expect((await list()).listings.map((l: { listing_id: string }) => l.listing_id)).toEqual(['2']);
+    expect((await list('?all=true')).listings.find((l: { listing_id: string }) => l.listing_id === '1')).toMatchObject({ stale: true });
+
+    // Bob lista o lote: a velha é substituída. A 2 é vendida e a 4 cancelada.
+    chain.mine(1);
+    chain.emit('Marketplace', 'Listed', listed('4', BOB, [LAND], [lotId], '2000'));
+    chain.emit('Marketplace', 'Sold', { listingId: '2', seller: ALICE, buyer: BOB, price: '300', fee: '7', royalty: '7' });
+    chain.mine(1);
+    await drain(chain, store, opt);
+    expect((await store.listing(id, '1'))!.status).toBe('replaced');
+    expect(await store.listing(id, '2')).toMatchObject({ status: 'sold', buyer: BOB });
+    expect((await list()).listings.map((l: { listing_id: string }) => l.listing_id)).toEqual(['4']);
+    chain.mine(1);
+    chain.emit('Marketplace', 'Cancelled', { listingId: '4' });
+    chain.mine(1);
+    await drain(chain, store, opt);
+    expect((await list()).listings).toEqual([]);
+    expect((await app.inject({ method: 'GET', url: '/v1/market/listings/2' })).json().listing).toMatchObject({ status: 'sold', buyer: BOB });
+    expect((await app.inject({ method: 'GET', url: '/v1/market/listings/99' })).statusCode).toBe(404);
+
+    // Reorganização: as listagens são refeitas a partir dos eventos que ficaram.
+    await store.rewind(id, { block: 1n, hash: (await chain.blockHash(1n))! });
+    expect((await store.activeListings(id, 10)).map((l) => l.listingId)).toEqual(['3', '2', '1']);
+  });
+});
