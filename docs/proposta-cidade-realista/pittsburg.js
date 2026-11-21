@@ -175,7 +175,7 @@ const VISIT_ERRORS = {
 
 /** Clique fora da rua no street view: se for um lote perto do avatar, tenta entrar. */
 function clickPlace(p) {
-  const i = lotAt(p.x, p.z);
+  const i = lotNear(p.x, p.z);
   if (i === null) return false;
   const a = streetView.position();
   if (Math.hypot(a.x - p.x, a.z - p.z) > VISIT_REACH) {
@@ -184,6 +184,19 @@ function clickPlace(p) {
   }
   enterLot(i);
   return true;
+}
+
+/** O lote no ponto ou, no recuo entre a rua e o lote, o mais perto até 8 m. */
+function lotNear(x, z) {
+  const here = lotAt(x, z);
+  if (here !== null) return here;
+  for (const r of [2, 4, 6, 8]) {
+    for (let k = 0; k < 16; k++) {
+      const i = lotAt(x + Math.cos((k / 16) * Math.PI * 2) * r, z + Math.sin((k / 16) * Math.PI * 2) * r);
+      if (i !== null) return i;
+    }
+  }
+  return null;
 }
 
 /** Centro aproximado do lote (média dos vértices). */
@@ -720,7 +733,7 @@ try {
       history.replaceState(null, '', location.pathname);
     }
   }
-  window.__pittsburg = { scene, camera, controls, renderer, buildings, pick, showBuilding, pickLot, showLot, getLots: () => lots, gestao, civicBuilding, progressiveBuilding, loadLotsFor, servidor, multiplayer, streetView };
+  window.__pittsburg = { scene, camera, controls, renderer, buildings, pick, showBuilding, pickLot, showLot, getLots: () => lots, gestao, civicBuilding, progressiveBuilding, loadLotsFor, servidor, multiplayer, streetView, lotAt };
 
   // Spike E0.9: ?spike (ou ?spike=20) mede download, FPS e 20 prédios com LOD.
   const spikeParam = new URLSearchParams(location.search).get('spike');

@@ -411,8 +411,11 @@ export function createStreetView({ THREE, scene, camera, controls, canvas, roads
     heading: () => view.yaw,
     say,
     exit,
-    /** Gira a câmera (e o "para frente") para o rumo `yaw`, em radianos. */
-    look: (yaw) => { view.yaw = yaw; },
+    /** Gira a câmera (e o "para frente") para o rumo `yaw` e, se vier, a inclinação `pitch`, em radianos. */
+    look: (yaw, pitch) => {
+      view.yaw = yaw;
+      if (pitch !== undefined) view.pitch = THREE.MathUtils.clamp(pitch, -0.35, 1.2);
+    },
     isRoad: (x, z) => ensureIndex().isRoad(x, z),
     avatar,
   };

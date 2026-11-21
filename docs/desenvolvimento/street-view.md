@@ -57,9 +57,31 @@ O pacote não vai para o repositório: o arquivo é grande, e o pacote não foi 
 
 Os clipes são escolhidos pelo nome: `idle`; `walk`/`walking` (sem "back"); e `run`/`jog`/`sprint`.
 
+## Entrar nos imóveis
+
+No street view, clique no lote de uma residência ou de um escritório perto do avatar, a até 45 m. O clique no recuo entre a rua e o lote vale para o lote mais perto, a até 8 m. O world confere se o jogador é o dono ou um convidado ([regras](../../services/world/README.md#visitas-entrar-nos-imóveis-pelo-street-view)). Se for, abre o interior:
+
+- `escritorio.html?tipo=home|office&titulo=…&voltar=pittsburg.html?rua=x,z,rumo`;
+- o mesmo spike do escritório ([ADR-0015](../adr/0015-render-realista-e-biblioteca-3d.md)), com luz assada e o mesmo avatar;
+- a residência tem estar com TV, cozinha, mesa de jantar e quarto;
+- o avatar chega já dentro, junto à porta;
+- sair pela porta, ou pelo botão "Sair para a rua", volta o avatar à mesma rua e com o mesmo rumo;
+- o endereço de volta só aceita `pittsburg.html`, então o link não redireciona para fora.
+
+Na ficha do lote, o dono vê o botão "Entrar", a lista de convidados e o campo para convidar pela carteira. No painel "Jogo no servidor", a seção "Convites" lista onde o jogador foi convidado, com "Ir até lá", que põe o avatar na rua mais perto do lote.
+
+**Testado** em 2026-11-21, no navegador e com os serviços locais:
+- o jogador comprou um lote e construiu a Casa T1. Para não esperar as 24 h de obra, o fim da obra foi adiantado só no banco local;
+- "Entrar", na ficha, abriu a residência;
+- "Sair para a rua" voltou à mesma rua, no street view;
+- o clique no lote, no street view, abriu a residência;
+- o clique no lote vizinho, sem imóvel, mostrou o aviso.
+
+As regras de convite estão cobertas pelos testes do world.
+
 ## Próximos passos
 
-1. **Entrar nos imóveis:** clicar num escritório ou numa residência do jogador, ou de quem o convidou, abre o interior, que é o spike do escritório ([ADR-0015](../adr/0015-render-realista-e-biblioteca-3d.md)), com o mesmo avatar e as mesmas animações. Para isso, falta a regra de convite no world.
-2. Posição do avatar no multiplayer do bairro (`realtime`).
-3. Colisão da câmera com os prédios, e faixas de pedestre e calçadas como área preferida.
+1. Posição do avatar no multiplayer do bairro (`realtime`).
+2. Colisão da câmera com os prédios, e faixas de pedestre e calçadas como área preferida.
+3. Interiores próprios para cada tipo de imóvel e de negócio, e o modelo do prédio aprovado no lugar do escritório padrão.
 4. Animações de interior da UAL (sentar e, se houver, digitar) no escritório.
