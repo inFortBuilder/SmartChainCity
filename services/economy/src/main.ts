@@ -44,6 +44,7 @@ const app = await buildApp(
         signer,
         accounts: new GatewayAccountDirectory(config.GATEWAY_URL!, config.GATEWAY_TOKEN!),
         vault: { contract: config.GAME_VAULT_ADDRESS!, chainId: config.CHAIN_ID },
+        reader: vault,
       }
     : null,
   { store: exchangeStore, earnings: store, poolStart: config.P2E_START ?? null, freeUntil: config.FREE_PERIOD_UNTIL ?? null },
@@ -59,8 +60,10 @@ const timer =
         settling = true;
         try {
           const r = await settleWithdrawals({ ledger: store, store: withdrawalStore, signer, vault }, new Date());
-          if (r.resumed || r.claimed || r.refunded) {
-            app.log.info(`withdrawals.settle: ${r.resumed} retomado(s), ${r.claimed} resgatado(s), ${r.refunded} devolvido(s)`);
+          if (r.resumed || r.claimed || r.refunded || r.cancelled) {
+            app.log.info(
+              `withdrawals.settle: ${r.resumed} retomado(s), ${r.claimed} resgatado(s), ${r.refunded} devolvido(s), ${r.cancelled} cancelado(s)`,
+            );
           }
         } catch (error) {
           app.log.error(error);

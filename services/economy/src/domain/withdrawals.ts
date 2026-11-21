@@ -12,10 +12,15 @@ import type { LedgerStore, PostingRequest } from './ledger.js';
  *    (gateway), a carência da conta nova e o teto de 24 h.
  * 2. Grava o saque (`created`), tira o SCITY do jogador para o escrow
  *    (`escrow/withdrawals`) e assina o voucher EIP-712 (`pending`).
- * 3. A carteira resgata no `GameVault.claim`. O job confere o `nonceUsed` do
+ * 3. A carteira resgata no `GameVault.claim`. O job confere o nonce no
  *    contrato: resgatado vira `claimed` (o escrow vai para `system/vault`, o
- *    SCITY que saiu do cofre); vencido sem resgate vira `refunded` (o escrow
- *    volta ao jogador).
+ *    SCITY que saiu do cofre); vencido sem resgate vira `refunded` e cancelado
+ *    pela carteira (`cancelVoucher`) vira `cancelled`: nos dois, o escrow volta
+ *    ao jogador.
+ *
+ * Antes de assinar, o economy lê o teto do dia no contrato (`available`): se o
+ * cofre está pausado ou o teto de hoje não cobre o pedido, recusa sem debitar.
+ * Sem a RPC, assina mesmo assim: o contrato confere o teto no resgate.
  *
  * Cada passo tem a sua chave no ledger, então o job pode repetir qualquer um.
  * Um saque `created` que ficou para trás (queda no meio) é retomado pelo job.
@@ -40,7 +45,7 @@ export const KYC_LEVEL_FOR_WITHDRAWAL = 1;
 export const VOUCHER_TTL_MS = 48 * 3_600_000;
 const DAY_MS = 86_400_000;
 
-export type WithdrawalStatus = 'created' | 'pending' | 'claimed' | 'refunded' | 'failed';
+export type WithdrawalStatus = 'created' | 'pending' | 'claimed' | 'refunded' | 'cancelled' | 'failed';
 
 export interface Withdrawal {
   id: string;
@@ -81,9 +86,23 @@ export interface VoucherSigner {
   sign(v: { to: Address; amount: bigint; nonce: bigint; deadline: bigint }): Promise<Hex>;
 }
 
+/** Nonce no `GameVault`: livre, pago (`claim`) ou cancelado pela carteira (`cancelVoucher`). */
+export type VoucherState = 'open' | 'claimed' | 'cancelled';
+
+/** O que o cofre ainda libera hoje (`available`), os tetos e a pausa. */
+export interface VaultStatus {
+  paused: boolean;
+  dailyLimitWei: bigint;
+  perAddressLimitWei: bigint;
+  /** Ainda sai hoje, somando todos (limitado pela reserva do cofre). */
+  totalLeftWei: bigint;
+  /** Ainda sai hoje para esta carteira. */
+  walletLeftWei: bigint;
+}
+
 export interface VaultReader {
-  /** O `GameVault` já pagou este nonce? */
-  nonceUsed(nonce: bigint): Promise<boolean>;
+  voucherState(nonce: bigint): Promise<VoucherState>;
+  status(wallet: Address): Promise<VaultStatus>;
 }
 
 export interface AccountDirectory {
@@ -130,8 +149,31 @@ async function debitAndSign(deps: Deps, w: Withdrawal, now: Date): Promise<Withd
   return { ...w, status: 'pending', signature };
 }
 
+/** Teto do contrato antes de assinar. Sem a RPC, segue: o `claim` confere de novo. */
+async function checkVault(vault: VaultReader | undefined, wallet: Address, amountWei: bigint) {
+  if (!vault) return;
+  const s = await vault.status(wallet).catch(() => null);
+  if (!s) return;
+  if (s.paused) throw new AppError('vault_paused', 'O cofre está pausado. O saque volta quando ele reabrir.', 503);
+  if (amountWei > s.walletLeftWei) {
+    throw new AppError(
+      'vault_limit',
+      `Hoje o cofre libera até ${formatScity(s.walletLeftWei)} SCITY para esta carteira (teto do contrato). Peça menos ou tente amanhã.`,
+      409,
+    );
+  }
+}
+
+/** 12345600000000000000000 → "12.345,6" (até 4 casas, para mensagens). */
+export const formatScity = (wei: bigint) => {
+  const whole = wei / WEI;
+  const frac = ((wei % WEI) * 10_000n) / WEI;
+  const int = whole.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  return frac === 0n ? int : `${int},${frac.toString().padStart(4, '0').replace(/0+$/, '')}`;
+};
+
 export async function requestWithdrawal(
-  deps: Deps & { accounts: AccountDirectory },
+  deps: Deps & { accounts: AccountDirectory; vault?: VaultReader },
   input: { accountId: string; wallet: string; amountWei: bigint },
   now: Date,
 ): Promise<Withdrawal> {
@@ -145,6 +187,7 @@ export async function requestWithdrawal(
   if (now.getTime() - acc.createdAt.getTime() < NEW_ACCOUNT_DAYS * DAY_MS) {
     throw new AppError('account_too_new', `Conta nova: o saque abre ${NEW_ACCOUNT_DAYS} dias depois do cadastro.`, 409);
   }
+  await checkVault(deps.vault, wallet, input.amountWei);
   const id = randomUUID();
   const w: Withdrawal = {
     id,
@@ -175,12 +218,28 @@ export async function requestWithdrawal(
   return debitAndSign(deps, w, now);
 }
 
+/** Escrow de volta ao jogador: o voucher venceu ou a carteira desistiu. A chave é a mesma, então devolve uma vez. */
+const refund = (deps: Deps, w: Withdrawal, now: Date) =>
+  deps.ledger.post(
+    {
+      kind: 'scity_withdrawal_refund',
+      refType: 'withdrawal',
+      refId: w.id,
+      idempotencyKey: `withdrawal-refund:${w.id}`,
+      legs: [
+        { account: ESCROW, amount: -w.amountWei },
+        { account: player(w.accountId), amount: w.amountWei },
+      ],
+    },
+    now,
+  );
+
 /**
  * Job `withdrawals.settle`: retoma os `created` parados, marca os resgatados e
- * devolve os vencidos sem resgate. Sem a rede (RPC fora), não devolve nada.
+ * devolve os vencidos sem resgate e os cancelados. Sem a rede (RPC fora), não devolve nada.
  */
 export async function settleWithdrawals(deps: Deps & { vault: VaultReader }, now: Date) {
-  const r = { resumed: 0, claimed: 0, refunded: 0 };
+  const r = { resumed: 0, claimed: 0, refunded: 0, cancelled: 0 };
   for (const w of await deps.store.open(new Date(now.getTime() - 60_000), 200)) {
     if (w.status === 'created') {
       await debitAndSign(deps, w, now).then(
@@ -189,7 +248,13 @@ export async function settleWithdrawals(deps: Deps & { vault: VaultReader }, now
       );
       continue;
     }
-    if (await deps.vault.nonceUsed(w.nonce)) {
+    const state = await deps.vault.voucherState(w.nonce);
+    if (state === 'cancelled') {
+      await refund(deps, w, now);
+      if (await deps.store.transition(w.id, 'pending', { status: 'cancelled', closedAt: now })) r.cancelled++;
+      continue;
+    }
+    if (state === 'claimed') {
       await deps.ledger.post(
         {
           kind: 'scity_withdrawal_claimed',
@@ -208,19 +273,7 @@ export async function settleWithdrawals(deps: Deps & { vault: VaultReader }, now
     }
     // Vencido e não resgatado: o contrato recusa o voucher daqui em diante, então devolve.
     if (w.deadline.getTime() < now.getTime()) {
-      await deps.ledger.post(
-        {
-          kind: 'scity_withdrawal_refund',
-          refType: 'withdrawal',
-          refId: w.id,
-          idempotencyKey: `withdrawal-refund:${w.id}`,
-          legs: [
-            { account: ESCROW, amount: -w.amountWei },
-            { account: player(w.accountId), amount: w.amountWei },
-          ],
-        },
-        now,
-      );
+      await refund(deps, w, now);
       if (await deps.store.transition(w.id, 'pending', { status: 'refunded', closedAt: now })) r.refunded++;
     }
   }

@@ -181,4 +181,126 @@ contract GameVaultTest is Test {
         assertLe(paid, PER_ADDRESS);
         assertEq(scity.balanceOf(bob), paid);
     }
+
+    function permitSig(uint256 key, address owner, uint256 amount, uint256 deadline)
+        internal
+        view
+        returns (uint8 v, bytes32 r, bytes32 s)
+    {
+        bytes32 typehash = keccak256(
+            "Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)"
+        );
+        bytes32 structHash =
+            keccak256(abi.encode(typehash, owner, address(vault), amount, scity.nonces(owner), deadline));
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", scity.DOMAIN_SEPARATOR(), structHash));
+        (v, r, s) = vm.sign(key, digest);
+    }
+
+    function test_depositWithPermitInOneTx() public {
+        (address carol, uint256 carolKey) = makeAddrAndKey("carol");
+        vm.prank(admin);
+        // forge-lint: disable-next-line(erc20-unchecked-transfer)
+        scity.transfer(carol, 50 ether);
+        uint256 deadline = block.timestamp + 600;
+        (uint8 v, bytes32 r, bytes32 s) = permitSig(carolKey, carol, 50 ether, deadline);
+        vm.expectEmit(address(vault));
+        emit GameVault.Deposited(carol, 50 ether);
+        vm.prank(carol);
+        vault.depositWithPermit(50 ether, deadline, v, r, s);
+        assertEq(scity.balanceOf(carol), 0);
+        assertEq(scity.allowance(carol, address(vault)), 0);
+    }
+
+    function test_depositWithPermitSurvivesFrontRunAndRejectsBadSig() public {
+        (address carol, uint256 carolKey) = makeAddrAndKey("carol");
+        vm.prank(admin);
+        // forge-lint: disable-next-line(erc20-unchecked-transfer)
+        scity.transfer(carol, 50 ether);
+        uint256 deadline = block.timestamp + 600;
+        (uint8 v, bytes32 r, bytes32 s) = permitSig(carolKey, carol, 20 ether, deadline);
+        // Alguém usa o permit antes: o depósito passa mesmo assim.
+        scity.permit(carol, address(vault), 20 ether, deadline, v, r, s);
+        vm.prank(carol);
+        vault.depositWithPermit(20 ether, deadline, v, r, s);
+        assertEq(scity.balanceOf(carol), 30 ether);
+        // Assinatura de outra chave: sem autorização, a transferência reverte.
+        (v, r, s) = permitSig(signerKey, carol, 10 ether, deadline);
+        vm.prank(carol);
+        vm.expectRevert();
+        vault.depositWithPermit(10 ether, deadline, v, r, s);
+        vm.prank(carol);
+        vm.expectRevert(GameVault.ZeroAmount.selector);
+        vault.depositWithPermit(0, deadline, v, r, s);
+    }
+
+    function test_cancelVoucherBurnsNonceWithoutPaying() public {
+        GameVault.Withdrawal memory w = voucher(bob, 100 ether, 9);
+        bytes memory sig = sign(w, signerKey);
+        // Só o destinatário cancela, e só um voucher assinado pelo servidor.
+        vm.prank(alice);
+        vm.expectRevert(GameVault.NotRecipient.selector);
+        vault.cancelVoucher(w, sig);
+        bytes memory fake = sign(w, 0xBEEF);
+        vm.prank(bob);
+        vm.expectRevert();
+        vault.cancelVoucher(w, fake);
+        // Vale com o cofre pausado: nada sai dele.
+        vm.prank(admin);
+        vault.pause();
+        vm.expectEmit(address(vault));
+        emit GameVault.VoucherCancelled(bob, 9);
+        vm.prank(bob);
+        vault.cancelVoucher(w, sig);
+        assertTrue(vault.nonceUsed(9));
+        assertTrue(vault.nonceCancelled(9));
+        assertEq(scity.balanceOf(bob), 0);
+        vm.prank(admin);
+        vault.unpause();
+        vm.prank(bob);
+        vm.expectRevert(GameVault.NonceAlreadyUsed.selector);
+        vault.claim(w, sig);
+        vm.prank(bob);
+        vm.expectRevert(GameVault.NonceAlreadyUsed.selector);
+        vault.cancelVoucher(w, sig);
+    }
+
+    function test_claimedVoucherCannotBeCancelled() public {
+        GameVault.Withdrawal memory w = voucher(bob, 10 ether, 3);
+        claimAs(bob, w);
+        bytes memory sig = sign(w, signerKey);
+        vm.prank(bob);
+        vm.expectRevert(GameVault.NonceAlreadyUsed.selector);
+        vault.cancelVoucher(w, sig);
+        assertFalse(vault.nonceCancelled(3));
+    }
+
+    function test_availableTracksLimitsReserveAndLoweredLimit() public {
+        (uint256 total, uint256 mine) = vault.available(bob);
+        assertEq(total, DAILY);
+        assertEq(mine, PER_ADDRESS);
+        claimAs(bob, voucher(bob, 300 ether, 1));
+        (total, mine) = vault.available(bob);
+        assertEq(total, 700 ether);
+        assertEq(mine, 100 ether);
+        (, mine) = vault.available(alice);
+        assertEq(mine, PER_ADDRESS);
+        // O admin baixa o teto abaixo do que já saiu: nada sobra, e o claim reverte com 0 (sem underflow).
+        vm.prank(admin);
+        vault.setLimits(200 ether, 100 ether);
+        (total, mine) = vault.available(alice);
+        assertEq(total, 0);
+        assertEq(mine, 0);
+        GameVault.Withdrawal memory w = voucher(alice, 1 ether, 2);
+        bytes memory sig = sign(w, signerKey);
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(GameVault.DailyLimitExceeded.selector, 0));
+        vault.claim(w, sig);
+        // A reserva do cofre também limita.
+        vm.prank(admin);
+        vault.setLimits(1_000_000 ether, 1_000_000 ether);
+        vm.warp(block.timestamp + 1 days);
+        (total, mine) = vault.available(alice);
+        assertEq(total, scity.balanceOf(address(vault)));
+        assertEq(mine, total);
+    }
 }
