@@ -19,6 +19,15 @@ A cidade precisa de imagem mais realista. Também precisa de uma biblioteca de b
 
 Fontes: [licença Evermotion](https://evermotion.org/main/license), [EULA Evermotion](https://evermotion.org/shop/page/5/eula), [licença Relebook](https://www.relebook.com/serviceCenter/rulesDetail/8) e [termos Relebook](https://www.relebook.com/serviceCenter/rulesDetail/4), lidos em 2026-11-21. A página do produto da Evermotion bloqueia acesso automatizado, então os detalhes do bundle vêm de bundles e volumes parecidos e precisam ser conferidos antes da compra.
 
+**Blocos grátis da Relebook (vistos em 2026-11-21).** A categoria Office tem 10 modelos a $0 "por tempo limitado". Dois foram abertos:
+
+| Modelo | Polígonos | Arquivos | Render | Tamanho |
+|---|---|---|---|---|
+| [ggach660634](https://www.relebook.com/model-detail/ggach660634) (escritório com sofá e pendentes) | 13,1 milhões | MAX (3ds Max 2010) e SKP | V-Ray | 296 MB |
+| [ggach605634](https://www.relebook.com/model-detail/ggach605634) (estações de trabalho) | 12,4 milhões | MAX (3ds Max 2010) e SKP | V-Ray | 363 MB |
+
+Os outros 8 são cenas do mesmo tipo (escritório completo com luz e câmera). Os grátis usam a "Royalty Free License": uso comercial sem royalties, mas o modelo "não pode ser vendido, dado ou cedido" na forma em que foi baixado. A licença geral continua valendo: nada de revenda, mesmo modificada, e jogo só com malha protegida. Cada cena tem cerca de 40 vezes o orçamento de um prédio inteiro (300 mil triângulos), não tem FBX nem GLB e usa material de V-Ray. Para o jogo, seria refazer a cena do zero. Servem como referência visual de layout e para render de marketing, não para o SCC Kit.
+
 Problemas para o nosso caso:
 
 1. **Vender os blocos ao jogador é revenda.** As duas licenças proíbem isso. O mesmo vale para colocar o modelo num prédio que vira `BuildingNFT` ou `PropertyNFT` e é vendido.
