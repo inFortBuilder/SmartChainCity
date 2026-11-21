@@ -4,7 +4,7 @@ import Fastify from 'fastify';
 import { z } from 'zod';
 
 import type { Config } from './config.js';
-import type { AvatarToken, BoxRequest, LotToken, PropertyToken, MarketListing } from './domain/events.js';
+import type { AvatarToken, BoxRequest, LotToken, PropertyToken, MarketListing, MarketAuction } from './domain/events.js';
 import type { IndexerStore } from './domain/indexer.js';
 
 /** Estado do laço de leitura, para `/v1/chain/status`. */
@@ -184,6 +184,42 @@ export async function buildApp(config: Config, store: IndexerStore, status: Inde
     const l = await store.listing(chainId, id);
     if (!l) throw new AppError('not_found', 'Listagem não encontrada.', 404);
     return { listing: await listingDto(l, Math.floor(Date.now() / 1000)) };
+  });
+
+  /** `ended`: passou do prazo e falta alguém chamar `settle` (qualquer um pode). */
+  const auctionDto = async (a: MarketAuction, nowSec: number) => ({
+    auction_id: a.auctionId,
+    seller: a.seller,
+    start_price_wei: a.startPriceWei,
+    highest_bid_wei: a.highestBidWei,
+    highest_bidder: a.highestBidder,
+    bids: a.bids,
+    // Lance mínimo agora: o inicial ou 5% acima do maior (a mesma conta do contrato).
+    minimum_bid_wei: a.highestBidWei
+      ? (BigInt(a.highestBidWei) + (BigInt(a.highestBidWei) * 500n) / 10_000n || 1n).toString()
+      : a.startPriceWei,
+    ends_at: new Date(a.endsAt * 1000).toISOString(),
+    ended: a.endsAt <= nowSec,
+    status: a.status,
+    winner: a.winner,
+    items: a.items.map((i) => ({ collection: collectionName.get(i.collection) ?? i.collection, address: i.collection, token_id: i.tokenId })),
+    block: a.block.toString(),
+  });
+
+  app.get('/v1/market/auctions', async (request) => {
+    const q = z.object({ limit: z.coerce.number().int().min(1).max(200).default(50) }).parse(request.query);
+    const nowSec = Math.floor(Date.now() / 1000);
+    return {
+      marketplace: config.contracts.Marketplace ?? null,
+      auctions: await Promise.all((await store.activeAuctions(chainId, q.limit)).map((a) => auctionDto(a, nowSec))),
+    };
+  });
+
+  app.get('/v1/market/auctions/:id', async (request) => {
+    const { id } = z.object({ id: z.string().regex(/^[0-9]{1,78}$/) }).parse(request.params);
+    const a = await store.auction(chainId, id);
+    if (!a) throw new AppError('not_found', 'Leilão não encontrado.', 404);
+    return { auction: await auctionDto(a, Math.floor(Date.now() / 1000)) };
   });
 
   // Feed para os outros serviços (world, game-core): eventos confirmados, em ordem.

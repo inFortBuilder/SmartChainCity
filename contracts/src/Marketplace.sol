@@ -19,7 +19,9 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 ///   declara; o resto vai para o vendedor. Se o vendedor já não tem algum NFT (vendeu fora, apreensão do leilão),
 ///   a compra reverte.
 /// - A regra de bairro fica só no jogo (ADR-0014): o contrato não restringe quem compra.
-/// MVP: sem proxy e sem leilão com prazo. O UUPS atrás de timelock e o leilão entram antes da mainnet (doc 07 §5).
+/// - Leilão com prazo: os NFTs ficam guardados aqui até o fim; lances em SCITY também (o anterior volta na hora),
+///   5% acima do maior, e um lance nos últimos 10 minutos estica o prazo. No fim, qualquer um fecha.
+/// MVP: sem proxy. O UUPS atrás de timelock entra antes da mainnet (doc 07 §5).
 contract Marketplace is AccessControl, Pausable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
@@ -85,6 +87,53 @@ contract Marketplace is AccessControl, Pausable, ReentrancyGuard {
     error ListingStale(address collection, uint256 tokenId);
     error NotSeller();
     error SelfPurchase();
+
+    // ------------------------------------------------------------------ leilão (estado)
+
+    /// @notice Lance mínimo acima do atual: 5%.
+    uint16 public constant MIN_BID_INCREMENT_BPS = 500;
+    /// @notice Lance nos últimos 10 minutos empurra o fim para 10 minutos depois dele (contra o lance de última hora).
+    uint64 public constant EXTENSION = 10 minutes;
+    uint64 public constant MIN_DURATION = 1 hours;
+    uint64 public constant MAX_DURATION = 14 days;
+
+    struct Auction {
+        address seller;
+        uint64 endsAt;
+        bool active;
+        address highestBidder;
+        uint256 startPrice;
+        uint256 highestBid;
+    }
+
+    uint256 public nextAuctionId = 1;
+    mapping(uint256 auctionId => Auction) public auctions;
+    mapping(uint256 auctionId => Item[]) internal _auctionItems;
+
+    event AuctionCreated(
+        uint256 indexed auctionId,
+        address indexed seller,
+        uint256 startPrice,
+        uint64 endsAt,
+        address[] collections,
+        uint256[] tokenIds
+    );
+    event BidPlaced(uint256 indexed auctionId, address indexed bidder, uint256 amount, uint64 endsAt);
+    event AuctionSettled(
+        uint256 indexed auctionId,
+        address indexed seller,
+        address indexed winner,
+        uint256 price,
+        uint256 fee,
+        uint256 royalty
+    );
+    event AuctionCancelled(uint256 indexed auctionId);
+
+    error BadDuration();
+    error AuctionEnded();
+    error AuctionNotEnded();
+    error BidTooLow(uint256 minimum);
+    error HasBids();
 
     constructor(address admin, IERC20 currency_, address treasury_, uint16 feeBps_) {
         if (admin == address(0) || address(currency_) == address(0) || treasury_ == address(0)) {
@@ -196,10 +245,139 @@ contract Marketplace is AccessControl, Pausable, ReentrancyGuard {
         }
     }
 
+    // ------------------------------------------------------------------ leilão
+
+    /// @notice Leiloa os NFTs: eles ficam guardados neste contrato até o fim (o vendedor não os move no meio).
+    /// O primeiro lance é de pelo menos `startPrice`; o leilão dura `duration` segundos, de 1 h a 14 dias.
+    function createAuction(Item[] calldata items, uint256 startPrice, uint64 duration)
+        external
+        nonReentrant
+        whenNotPaused
+        returns (uint256 auctionId)
+    {
+        if (items.length == 0 || items.length > MAX_ITEMS) revert BadItems();
+        if (startPrice == 0) revert ZeroPrice();
+        if (duration < MIN_DURATION || duration > MAX_DURATION) revert BadDuration();
+        auctionId = nextAuctionId++;
+        uint64 endsAt = uint64(block.timestamp) + duration;
+        address[] memory collections = new address[](items.length);
+        uint256[] memory tokenIds = new uint256[](items.length);
+        for (uint256 i; i < items.length; ++i) {
+            Item calldata it = items[i];
+            if (!allowedCollection[it.collection]) revert CollectionNotAllowed(it.collection);
+            for (uint256 j; j < i; ++j) {
+                if (items[j].collection == it.collection && items[j].tokenId == it.tokenId) {
+                    revert BadItems();
+                }
+            }
+            IERC721 nft = IERC721(it.collection);
+            if (nft.ownerOf(it.tokenId) != msg.sender) revert NotOwner(it.collection, it.tokenId);
+            if (
+                !nft.isApprovedForAll(msg.sender, address(this))
+                    && nft.getApproved(it.tokenId) != address(this)
+            ) {
+                revert NotApproved(it.collection, it.tokenId);
+            }
+            // A venda a preço fixo do mesmo NFT acaba: ele vai para o leilão.
+            uint256 previous = listingOf[it.collection][it.tokenId];
+            if (previous != 0 && listings[previous].active) {
+                _close(previous);
+                emit Cancelled(previous);
+            }
+            _auctionItems[auctionId].push(it);
+            collections[i] = it.collection;
+            tokenIds[i] = it.tokenId;
+        }
+        auctions[auctionId] = Auction({
+            seller: msg.sender,
+            endsAt: endsAt,
+            active: true,
+            highestBidder: address(0),
+            startPrice: startPrice,
+            highestBid: 0
+        });
+        emit AuctionCreated(auctionId, msg.sender, startPrice, endsAt, collections, tokenIds);
+        for (uint256 i; i < items.length; ++i) {
+            IERC721(items[i].collection).transferFrom(msg.sender, address(this), items[i].tokenId);
+        }
+    }
+
+    /// @notice O lance mínimo agora: o preço inicial ou 5% acima do maior lance.
+    function minimumBid(uint256 auctionId) public view returns (uint256) {
+        Auction storage a = auctions[auctionId];
+        if (a.highestBid == 0) return a.startPrice;
+        uint256 step = (a.highestBid * MIN_BID_INCREMENT_BPS) / 10_000;
+        return a.highestBid + (step == 0 ? 1 : step);
+    }
+
+    /// @notice Dá um lance: o SCITY fica guardado aqui e o lance anterior volta na hora para quem o deu.
+    function bid(uint256 auctionId, uint256 amount) external nonReentrant whenNotPaused {
+        Auction storage a = auctions[auctionId];
+        if (!a.active) revert NotActive();
+        if (block.timestamp >= a.endsAt) revert AuctionEnded();
+        if (msg.sender == a.seller) revert SelfPurchase();
+        uint256 minimum = minimumBid(auctionId);
+        if (amount < minimum) revert BidTooLow(minimum);
+        address previousBidder = a.highestBidder;
+        uint256 previousBid = a.highestBid;
+        a.highestBidder = msg.sender;
+        a.highestBid = amount;
+        if (a.endsAt - block.timestamp < EXTENSION) a.endsAt = uint64(block.timestamp) + EXTENSION;
+        emit BidPlaced(auctionId, msg.sender, amount, a.endsAt);
+        currency.safeTransferFrom(msg.sender, address(this), amount);
+        if (previousBidder != address(0)) currency.safeTransfer(previousBidder, previousBid);
+    }
+
+    /// @notice Fecha o leilão vencido (qualquer um chama). Com lance, paga taxa, royalties e vendedor e entrega os
+    /// NFTs ao vencedor; sem lance, devolve os NFTs ao vendedor. Se algum NFT saiu daqui (apreensão do leilão por
+    /// imposto, ADR-0016), o leilão é desfeito: o lance volta e o que restou volta ao vendedor.
+    function settle(uint256 auctionId) external nonReentrant whenNotPaused {
+        Auction memory a = auctions[auctionId];
+        if (!a.active) revert NotActive();
+        if (block.timestamp < a.endsAt) revert AuctionNotEnded();
+        auctions[auctionId].active = false;
+        Item[] memory items = _auctionItems[auctionId];
+        if (a.highestBidder == address(0) || !_holdsAll(items)) {
+            if (a.highestBidder == address(0)) emit AuctionSettled(auctionId, a.seller, address(0), 0, 0, 0);
+            else emit AuctionCancelled(auctionId);
+            _unwind(a, items);
+            return;
+        }
+        uint256 fee = (a.highestBid * feeBps) / 10_000;
+        (address[] memory receivers, uint256[] memory amounts, uint256 royalty) =
+            _royalties(items, a.highestBid);
+        if (fee + royalty > a.highestBid) revert FeeTooHigh();
+        emit AuctionSettled(auctionId, a.seller, a.highestBidder, a.highestBid, fee, royalty);
+        for (uint256 i; i < items.length; ++i) {
+            if (amounts[i] > 0) currency.safeTransfer(receivers[i], amounts[i]);
+        }
+        if (fee > 0) currency.safeTransfer(treasury, fee);
+        currency.safeTransfer(a.seller, a.highestBid - fee - royalty);
+        for (uint256 i; i < items.length; ++i) {
+            IERC721(items[i].collection).safeTransferFrom(address(this), a.highestBidder, items[i].tokenId);
+        }
+    }
+
+    /// @notice O vendedor cancela enquanto não há lance; o admin cancela sempre (moderação), devolvendo o lance.
+    function cancelAuction(uint256 auctionId) external nonReentrant {
+        Auction memory a = auctions[auctionId];
+        if (!a.active) revert NotActive();
+        bool admin = hasRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        if (msg.sender != a.seller && !admin) revert NotSeller();
+        if (a.highestBidder != address(0) && !admin) revert HasBids();
+        auctions[auctionId].active = false;
+        emit AuctionCancelled(auctionId);
+        _unwind(a, _auctionItems[auctionId]);
+    }
+
     // ------------------------------------------------------------------ leitura
 
     function itemsOf(uint256 listingId) external view returns (Item[] memory) {
         return _items[listingId];
+    }
+
+    function auctionItemsOf(uint256 auctionId) external view returns (Item[] memory) {
+        return _auctionItems[auctionId];
     }
 
     // ------------------------------------------------------------------ admin
@@ -239,6 +417,41 @@ contract Marketplace is AccessControl, Pausable, ReentrancyGuard {
         for (uint256 i; i < items.length; ++i) {
             if (listingOf[items[i].collection][items[i].tokenId] == listingId) {
                 delete listingOf[items[i].collection][items[i].tokenId];
+            }
+        }
+    }
+
+    /// @dev Royalties de cada NFT sobre a parte dele no preço.
+    function _royalties(Item[] memory items, uint256 price)
+        internal
+        view
+        returns (address[] memory receivers, uint256[] memory amounts, uint256 total)
+    {
+        receivers = new address[](items.length);
+        amounts = new uint256[](items.length);
+        uint256 share = price / items.length;
+        for (uint256 i; i < items.length; ++i) {
+            (receivers[i], amounts[i]) = _royalty(items[i], share);
+            if (receivers[i] == address(0)) amounts[i] = 0;
+            total += amounts[i];
+        }
+    }
+
+    /// @dev Todos os NFTs do leilão ainda estão guardados aqui?
+    function _holdsAll(Item[] memory items) internal view returns (bool) {
+        for (uint256 i; i < items.length; ++i) {
+            if (IERC721(items[i].collection).ownerOf(items[i].tokenId) != address(this)) return false;
+        }
+        return true;
+    }
+
+    /// @dev Desfaz o leilão: o lance volta para quem o deu e os NFTs que ainda estão aqui voltam ao vendedor.
+    function _unwind(Auction memory a, Item[] memory items) internal {
+        if (a.highestBidder != address(0)) currency.safeTransfer(a.highestBidder, a.highestBid);
+        for (uint256 i; i < items.length; ++i) {
+            IERC721 nft = IERC721(items[i].collection);
+            if (nft.ownerOf(items[i].tokenId) == address(this)) {
+                nft.safeTransferFrom(address(this), a.seller, items[i].tokenId);
             }
         }
     }

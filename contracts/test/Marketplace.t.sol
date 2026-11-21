@@ -222,4 +222,139 @@ contract MarketplaceTest is Test {
         vm.expectRevert();
         market.setFee(treasury, 100);
     }
+
+    // ------------------------------------------------------------------ leilão
+
+    address bidder2 = makeAddr("bidder2");
+
+    function auctionOne(address c, uint256 id, uint256 start) internal returns (uint256) {
+        vm.prank(seller);
+        return market.createAuction(one(c, id), start, 1 days);
+    }
+
+    function fund(address who, uint256 amount) internal {
+        vm.prank(admin);
+        // forge-lint: disable-next-line(erc20-unchecked-transfer)
+        scity.transfer(who, amount);
+        vm.prank(who);
+        scity.approve(address(market), type(uint256).max);
+    }
+
+    function test_LeilaoGuardaONftLancesDevolvemOAnteriorEVencedorLeva() public {
+        fund(bidder2, 10_000 ether);
+        uint256 id = auctionOne(address(land), 1, 100 ether);
+        assertEq(land.ownerOf(1), address(market)); // guardado até o fim
+        vm.prank(buyer);
+        vm.expectRevert(abi.encodeWithSelector(Marketplace.BidTooLow.selector, 100 ether));
+        market.bid(id, 99 ether);
+        vm.prank(buyer);
+        market.bid(id, 100 ether);
+        assertEq(market.minimumBid(id), 105 ether); // +5%
+        vm.prank(bidder2);
+        vm.expectRevert(abi.encodeWithSelector(Marketplace.BidTooLow.selector, 105 ether));
+        market.bid(id, 104 ether);
+        vm.prank(bidder2);
+        market.bid(id, 200 ether);
+        assertEq(scity.balanceOf(buyer), 10_000 ether); // o lance anterior voltou
+        assertEq(scity.balanceOf(address(market)), 200 ether);
+
+        vm.prank(buyer);
+        vm.expectRevert(Marketplace.AuctionNotEnded.selector);
+        market.settle(id);
+        vm.warp(block.timestamp + 1 days);
+        vm.prank(buyer);
+        vm.expectRevert(Marketplace.AuctionEnded.selector);
+        market.bid(id, 300 ether);
+        vm.prank(other); // qualquer um fecha
+        market.settle(id);
+        assertEq(land.ownerOf(1), bidder2);
+        assertEq(scity.balanceOf(treasury), 5 ether);
+        assertEq(scity.balanceOf(seller), 195 ether);
+        assertEq(scity.balanceOf(address(market)), 0);
+        vm.expectRevert(Marketplace.NotActive.selector);
+        market.settle(id);
+    }
+
+    function test_LanceNoFimEsticaOPrazo() public {
+        uint256 id = auctionOne(address(land), 1, 100 ether);
+        (, uint64 endsAt,,,,) = market.auctions(id);
+        vm.warp(endsAt - 60);
+        vm.prank(buyer);
+        market.bid(id, 100 ether);
+        (, uint64 newEnd,,,,) = market.auctions(id);
+        assertEq(newEnd, uint64(block.timestamp) + 10 minutes);
+    }
+
+    function test_SemLanceVoltaAoVendedorECancelamento() public {
+        uint256 id = auctionOne(address(land), 1, 100 ether);
+        vm.warp(block.timestamp + 1 days);
+        market.settle(id);
+        assertEq(land.ownerOf(1), seller);
+
+        vm.prank(seller);
+        land.setApprovalForAll(address(market), true);
+        uint256 id2 = auctionOne(address(land), 1, 100 ether);
+        vm.prank(seller);
+        market.cancelAuction(id2); // sem lance, o vendedor cancela
+        assertEq(land.ownerOf(1), seller);
+
+        uint256 id3 = auctionOne(address(land), 1, 100 ether);
+        vm.prank(buyer);
+        market.bid(id3, 100 ether);
+        vm.prank(seller);
+        vm.expectRevert(Marketplace.HasBids.selector);
+        market.cancelAuction(id3);
+        vm.prank(admin); // moderação: devolve o lance e o lote
+        market.cancelAuction(id3);
+        assertEq(land.ownerOf(1), seller);
+        assertEq(scity.balanceOf(buyer), 10_000 ether);
+    }
+
+    function test_ComboComRoyaltyEVendaAPrecoFixoDoMesmoNftCai() public {
+        uint256 listing = listOne(address(avatar), 7, 50 ether);
+        Marketplace.Item[] memory items = new Marketplace.Item[](2);
+        items[0] = Marketplace.Item(address(land), 1);
+        items[1] = Marketplace.Item(address(avatar), 7);
+        vm.prank(seller);
+        uint256 id = market.createAuction(items, 1000 ether, 2 hours);
+        (,, bool listed,) = market.listings(listing);
+        assertFalse(listed); // o avatar foi para o leilão
+        vm.prank(buyer);
+        market.bid(id, 1000 ether);
+        vm.warp(block.timestamp + 2 hours);
+        market.settle(id);
+        assertEq(land.ownerOf(1), buyer);
+        assertEq(avatar.ownerOf(7), buyer);
+        assertEq(scity.balanceOf(creator), 12.5 ether); // 2,5% da metade do preço
+        assertEq(scity.balanceOf(treasury), 25 ether);
+        assertEq(scity.balanceOf(seller), 962.5 ether);
+    }
+
+    function test_NftQueSaiuDoLeilaoDesfazAVenda() public {
+        uint256 id = auctionOne(address(land), 1, 100 ether);
+        vm.prank(buyer);
+        market.bid(id, 100 ether);
+        // Simula a apreensão (ADR-0016): o token sai do contrato sem passar pelo mercado.
+        vm.prank(address(market));
+        land.transferFrom(address(market), other, 1);
+        vm.warp(block.timestamp + 1 days);
+        market.settle(id);
+        assertEq(scity.balanceOf(buyer), 10_000 ether); // o lance voltou
+        assertEq(land.ownerOf(1), other);
+    }
+
+    function test_LeilaoRecusaPrazoProprioLanceEPausa() public {
+        vm.prank(seller);
+        vm.expectRevert(Marketplace.BadDuration.selector);
+        market.createAuction(one(address(land), 1), 1 ether, 30 minutes);
+        uint256 id = auctionOne(address(land), 1, 1 ether);
+        vm.prank(seller);
+        vm.expectRevert(Marketplace.SelfPurchase.selector);
+        market.bid(id, 1 ether);
+        vm.prank(admin);
+        market.pause();
+        vm.prank(buyer);
+        vm.expectRevert(Pausable.EnforcedPause.selector);
+        market.bid(id, 1 ether);
+    }
 }

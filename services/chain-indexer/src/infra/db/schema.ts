@@ -125,3 +125,23 @@ export const marketListing = indexer.table(
   },
   (t) => [primaryKey({ columns: [t.chainId, t.listingId] }), index('market_listing_status_idx').on(t.chainId, t.status)],
 );
+
+/** Leilões do Marketplace (E3.6). */
+export const marketAuction = indexer.table(
+  'market_auction',
+  {
+    chainId: integer('chain_id').notNull(),
+    auctionId: text('auction_id').notNull(),
+    seller: text('seller').notNull(),
+    startPriceWei: text('start_price_wei').notNull(),
+    endsAt: bigint('ends_at', { mode: 'number' }).notNull(),
+    items: jsonb('items').notNull(),
+    status: text('status').notNull(),
+    highestBidWei: text('highest_bid_wei'),
+    highestBidder: text('highest_bidder'),
+    bids: integer('bids').notNull(),
+    winner: text('winner'),
+    block: block('block').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.chainId, t.auctionId] }), index('market_auction_status_idx').on(t.chainId, t.status)],
+);

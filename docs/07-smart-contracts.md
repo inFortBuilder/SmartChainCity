@@ -62,7 +62,7 @@ function claim(Withdrawal calldata w, bytes calldata sig) external; // EIP-712
 - Chave do assinante em **KMS**, rotacionável (`setSigner` via timelock).
 
 ### 2.5 `Marketplace`
-**Pronto no anvil (2026-11-21):** listagem on-chain com preço fixo em SCITY, combo de até 5 NFTs na mesma transação, taxa de 2,5% para a tesouraria, royalties EIP-2981 e pausa ([contracts](../contracts/README.md#marketplace-e36)). O chain-indexer serve as listagens em `/v1/market/listings`. A tela no mapa também: painel Mercado, compra, venda pela ficha do lote e cancelamento. Faltam o leilão com prazo e o proxy UUPS.
+**Pronto no anvil (2026-11-21):** listagem on-chain com preço fixo em SCITY, combo de até 5 NFTs na mesma transação, taxa de 2,5% para a tesouraria, royalties EIP-2981 e pausa ([contracts](../contracts/README.md#marketplace-e36)). O chain-indexer serve as listagens em `/v1/market/listings`. A tela no mapa também: painel Mercado, compra, venda pela ficha do lote e cancelamento. O leilão com prazo também: NFTs guardados no contrato, lances 5% acima com devolução na hora, extensão de 10 minutos e encerramento por qualquer um. Falta o proxy UUPS.
 - Ordens assinadas off-chain (estilo Seaport simplificado) ou listagens on-chain simples no MVP.
 - Taxa de protocolo proposta: 2,5% → Treasury; royalties EIP-2981 (proposto: 2,5% para o projeto em avatares e imóveis raros).
 - Suporte a *bundle* (lote + imóvel).
