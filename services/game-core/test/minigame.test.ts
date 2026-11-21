@@ -105,7 +105,10 @@ describe('API', () => {
     const avatar = (await app.inject({ method: 'POST', url: '/v1/dev/avatar', headers })).json().avatar;
     const work = await app.inject({ method: 'POST', url: `/v1/avatars/${avatar.id}/work`, headers, payload: { shift: 6 } });
     expect(work.statusCode).toBe(201);
-    expect(work.json().shift.minigame).toMatchObject({ current: 0, progress: 0 });
+    // O avatar grátis sai com profissão sorteada: tarefas de 0 min no começo (Motorista: "Pegar seu carro") já nascem feitas.
+    const mg = work.json().shift.minigame;
+    expect(mg.progress).toBe(0);
+    expect(mg.current).toBe(mg.tasks.findIndex((t: { starts_at: string; ends_at: string }) => t.ends_at > t.starts_at));
 
     clock = new Date(T0.getTime() + 3 * HOUR);
     const list = (await app.inject({ method: 'GET', url: `/v1/avatars/${avatar.id}/shifts`, headers })).json().shifts;
