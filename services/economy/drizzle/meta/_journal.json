@@ -15,6 +15,13 @@
       "when": 1795221964152,
       "tag": "0001_saques",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1795226386635,
+      "tag": "0002_cambio",
+      "breakpoints": true
     }
   ]
 }

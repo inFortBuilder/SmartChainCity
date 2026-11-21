@@ -161,6 +161,20 @@ export class PostgresLedgerStore implements LedgerStore, PanelStore {
     return rows.map((r) => ({ currency: r.currency as Currency, amount: BigInt(r.balance) }));
   }
 
+  /** Período grátis do câmbio (ADR-0014): THALER ganho em `kinds` antes de `before` e tudo o que já saiu. */
+  async earnedAndSpent(accountId: string, kinds: string[], before: Date) {
+    const [row] = await this.db
+      .select({
+        earned: sql<string>`coalesce(sum(${ledgerEntry.amount}) filter (where ${ledgerEntry.amount} > 0 and ${ledgerTx.kind} in ${kinds.length ? sql`(${sql.join(kinds.map((k) => sql`${k}`), sql`, `)})` : sql`('')`} and ${ledgerTx.createdAt} < ${before}), 0)`,
+        spent: sql<string>`coalesce(-sum(${ledgerEntry.amount}) filter (where ${ledgerEntry.amount} < 0), 0)`,
+      })
+      .from(ledgerEntry)
+      .innerJoin(ledgerAccount, eq(ledgerAccount.id, ledgerEntry.accountId))
+      .innerJoin(ledgerTx, eq(ledgerTx.id, ledgerEntry.txId))
+      .where(and(eq(ledgerAccount.ownerType, 'player'), eq(ledgerAccount.ownerId, accountId), eq(ledgerAccount.currency, 'THALER')));
+    return { earned: BigInt(row?.earned ?? '0'), spent: BigInt(row?.spent ?? '0') };
+  }
+
   async statement(
     ownerType: OwnerType,
     ownerId: string,

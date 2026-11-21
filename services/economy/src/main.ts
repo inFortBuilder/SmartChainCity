@@ -5,6 +5,9 @@ import { loadConfig } from './config.js';
 import { PostgresLedgerStore } from './infra/db/postgres-store.js';
 import { MemoryLedgerStore } from './infra/memory-store.js';
 import { settleWithdrawals } from './domain/withdrawals.js';
+import { rateFromUsd } from './domain/exchange.js';
+import { PostgresExchangeStore } from './infra/db/postgres-exchange-store.js';
+import { MemoryExchangeStore } from './infra/memory-exchange-store.js';
 import { PostgresWithdrawalStore } from './infra/db/postgres-withdrawal-store.js';
 import { MemoryWithdrawalStore } from './infra/memory-withdrawal-store.js';
 import { GatewayAccountDirectory, LocalKeyVoucherSigner, RpcVaultReader } from './infra/vault-chain.js';
@@ -25,6 +28,10 @@ const withdrawalStore = pool ? new PostgresWithdrawalStore(pool) : new MemoryWit
 const signer = vaultOn ? new LocalKeyVoucherSigner(config.VAULT_SIGNER_KEY as `0x${string}`, config.CHAIN_ID, config.GAME_VAULT_ADDRESS as `0x${string}`) : null;
 const vault = vaultOn ? new RpcVaultReader(config.RPC_URL!, config.GAME_VAULT_ADDRESS as `0x${string}`) : null;
 
+// Câmbio: a primeira cotação sai do SCITY_USD; depois, de POST /internal/v1/economy/fx.
+const exchangeStore = pool ? new PostgresExchangeStore(pool) : new MemoryExchangeStore();
+if (!(await exchangeStore.latestRate(new Date()))) await exchangeStore.setRate(rateFromUsd(config.SCITY_USD, new Date(), 'config'));
+
 const app = await buildApp(
   config,
   store,
@@ -37,6 +44,7 @@ const app = await buildApp(
         vault: { contract: config.GAME_VAULT_ADDRESS!, chainId: config.CHAIN_ID },
       }
     : null,
+  { store: exchangeStore, earnings: store, poolStart: config.P2E_START ?? null, freeUntil: config.FREE_PERIOD_UNTIL ?? null },
 );
 app.log.info(`armazenamento: ${pool ? 'postgres' : 'memória'}; saque: ${vaultOn ? `${config.GAME_VAULT_ADDRESS} (signer ${signer!.address})` : 'desligado'}`);
 

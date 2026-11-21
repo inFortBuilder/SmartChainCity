@@ -197,5 +197,5 @@ Esquema próprio `world`: `city` (zonas, bairros abertos, limiar), `lot` (situa�
 - Imóveis: troca de tipo (T1 → T2 → T3), seguro, aluguel e hotel, lote duplo (Residencial 2 e 3), regularização e água/energia; os outros tipos do doc 03 §6; o catálogo vindo do Strapi (hoje fica no código, igual ao seed); a renda conferir o dono on-chain do imóvel e do lote (doc 07 §2.2), que pede o feed do chain-indexer.
 - Prédios: o chain-indexer ler o `BuildingNFT`, unidades e venda (E3.11), taxa de alvará, prazo de obra proporcional à área, IPTU por unidade.
 - Impostos: o leilão tomar também o NFT do lote e do imóvel; IPTU por unidade dos prédios de construtores (doc 13).
-- Câmbio THALER ↔ SCITY e cotação do dia (passo 11 da trilha); hoje `SCITY_USD` é fixo.
+- Ler a cotação do dia do economy (`GET /v1/economy/fx`) no lugar do `SCITY_USD` fixo.
 - Mercado secundário entre jogadores, imóveis e utilidades.

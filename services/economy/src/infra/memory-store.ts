@@ -64,6 +64,21 @@ export class MemoryLedgerStore implements LedgerStore, PanelStore {
     return { tx, replayed: false };
   }
 
+  /** Período grátis do câmbio (ADR-0014): THALER ganho em `kinds` antes de `before` e tudo o que já saiu. */
+  async earnedAndSpent(accountId: string, kinds: string[], before: Date) {
+    let earned = 0n;
+    let spent = 0n;
+    for (const tx of this.txs) {
+      for (const leg of tx.legs) {
+        const a = leg.account;
+        if (a.ownerType !== 'player' || a.ownerId !== accountId || a.currency !== 'THALER') continue;
+        if (leg.amount < 0n) spent -= leg.amount;
+        else if (kinds.includes(tx.kind) && tx.createdAt.getTime() < before.getTime()) earned += leg.amount;
+      }
+    }
+    return { earned, spent };
+  }
+
   async balances(ownerType: OwnerType, ownerId: string): Promise<Balance[]> {
     return [...this.accounts.values()]
       .filter((r) => r.ref.ownerType === ownerType && r.ref.ownerId === ownerId)
