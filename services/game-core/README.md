@@ -131,6 +131,24 @@ No mapa de Pittsburg, a doença grave mostra a queda de saúde e o botão "Hospi
 
 Depois de atualizar o código, rode `pnpm db:migrate`: a migração `0007_tratamento` aceita o motivo `treatment`.
 
+## Lazer (E3.3)
+
+Atividades de lazer ([leisure.ts](src/domain/leisure.ts), GDD §2.3 e §6). Precisam de 2 de energia (`too_tired`), fora do hospital, e cada uma vale uma vez a cada 4 h (`leisure_cooldown`, guardado na coluna `leisure` do avatar).
+
+| Atividade | Onde | Efeito (premissa) |
+|---|---|---|
+| Skate | Parque, de graça | −1 de energia, +2 de felicidade (GDD) |
+| Basquete | Parque, de graça | −1 de energia, +2 de felicidade (GDD), +1 de saúde |
+| Academia | Negócio de jogador no world | −2 de energia, +2 de saúde, +1 de felicidade |
+| Galeria | Negócio de jogador no world | −1 de energia, +2 de felicidade, +1 de educação |
+
+**Na academia e na galeria:**
+- O game-core pergunta ao world (`WORLD_URL`, `WORLD_TOKEN`) o dono, a entrada e se está aberta. Sem os dois, só o parque funciona (`503 venues_unavailable`).
+- A entrada é cobrada pelo ledger antes do efeito, pelo mesmo caminho das refeições (`leisure_fee`): 90% vão para o dono e 10% para a queima (`burn/leisure`, taxa da Prefeitura, **premissa**). No negócio próprio, não paga.
+- Recusa com `venue_required`, `venue_not_found` e `venue_closed`.
+
+Depois de atualizar o código, rode `pnpm db:migrate`: a migração `0012_lazer` cria a coluna `leisure`.
+
 ## Escola (E3.2)
 
 Aula e troca de profissão ([school.ts](src/domain/school.ts), GDD §3.2 e ADR-0013). A escola mora no próprio avatar (coluna `school`, jsonb) e anda na leitura, como a queda dos atributos.
@@ -234,6 +252,8 @@ TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc_test pnpm --filter
 | POST | `/v1/avatars/:id/consume` | jogador (Bearer) | Come uma unidade `{food}` da despensa, sem cobrar. Devolve o avatar |
 | POST | `/v1/avatars/:id/medicine` | jogador (Bearer) | Compra e toma o remédio `{condition}`. Aceita `Idempotency-Key`. Devolve o remédio, `cured` e o avatar |
 | GET | `/v1/catalog/pharmacy` | público | Preço do remédio, chance de cura e a tabela das doenças |
+| GET | `/v1/catalog/leisure` | público | As atividades, onde acontecem, a direção (+/−) dos efeitos, o intervalo e a parte do dono |
+| POST | `/v1/avatars/:id/leisure` | jogador (Bearer) | Atividade `{activity, venue_id?}`. No parque é de graça; na academia ou na galeria, cobra a entrada (aceita `Idempotency-Key`). Devolve a compra (ou null) e o avatar (com `leisure`) |
 | GET | `/v1/catalog/school` | público | Preço e efeito da aula, preço e dias da troca de profissão, e os marcos dos graus |
 | POST | `/v1/avatars/:id/school/class` | jogador (Bearer) | Aula do dia, paga pelo ledger. Aceita `Idempotency-Key`. Devolve a compra e o avatar (com `school`) |
 | POST | `/v1/avatars/:id/school/change` | jogador (Bearer) | Troca de profissão `{job}`, na mesma raridade, paga pelo ledger: 4 dias de escola |
