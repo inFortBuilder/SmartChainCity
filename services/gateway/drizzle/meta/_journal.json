@@ -15,6 +15,13 @@
       "when": 1794588962980,
       "tag": "0001_complex_the_executioner",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1795261915225,
+      "tag": "0002_kyc",
+      "breakpoints": true
     }
   ]
 }

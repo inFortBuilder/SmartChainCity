@@ -10,6 +10,7 @@ import { z } from 'zod';
 import type { Config } from './config.js';
 import { AuthService } from './domain/auth.js';
 import { Captcha } from './domain/captcha.js';
+import { type KycStore, decideKyc, kycDto, startKyc } from './domain/kyc.js';
 import { EmailLogin, type Mailer } from './domain/email-login.js';
 import type { Account, AuthStore, WalletLink } from './domain/ports.js';
 import { verifyToken } from './domain/token.js';
@@ -36,7 +37,7 @@ const accountDto = (account: Account) => ({
   created_at: account.createdAt.toISOString(),
 });
 
-export async function buildApp(config: Config, store: AuthStore, now?: () => Date, mailer?: Mailer) {
+export async function buildApp(config: Config, store: AuthStore & KycStore, now?: () => Date, mailer?: Mailer) {
   const app = Fastify({
     trustProxy: config.TRUST_PROXY,
     ...serverOptions({
@@ -219,6 +220,46 @@ export async function buildApp(config: Config, store: AuthStore, now?: () => Dat
     return meDto(await auth.me(accountId));
   });
 
+  // KYC (doc 10): o jogador pede a verificação; a revisão (ou o webhook do provedor) decide.
+  const clock = now ?? (() => new Date());
+  app.get('/v1/me/kyc', async (request) => {
+    const accountId = await authenticate(request);
+    const { account } = await auth.me(accountId);
+    const last = await store.latestKyc(accountId);
+    return { level: account.kycLevel, request: last ? kycDto(last) : null };
+  });
+
+  app.post('/v1/me/kyc', { config: authLimit }, async (request, reply) => {
+    const accountId = await authenticate(request);
+    const r = await startKyc(store, accountId, clock());
+    return reply.status(202).send({ request: kycDto(r) });
+  });
+
+  const internalOn = (request: FastifyRequest) => {
+    if (!config.INTERNAL_TOKEN) {
+      throw new AppError('internal_disabled', 'Rotas internas desligadas: defina INTERNAL_TOKEN.', 503);
+    }
+    requireServiceToken(request.headers['x-service-token'], config.INTERNAL_TOKEN);
+  };
+
+  // Fila da revisão: pedidos pendentes, do mais antigo para o mais novo.
+  app.get('/internal/v1/kyc', async (request) => {
+    internalOn(request);
+    const q = z
+      .object({ status: z.enum(['pending', 'approved', 'rejected']).default('pending'), limit: z.coerce.number().int().min(1).max(500).default(100) })
+      .parse(request.query);
+    return { requests: (await store.listKyc(q.status, q.limit)).map((r) => ({ ...kycDto(r), account_id: r.accountId })) };
+  });
+
+  // Decisão da revisão; o webhook do provedor de KYC vai chamar a mesma rota.
+  app.post('/internal/v1/kyc/:id', async (request) => {
+    internalOn(request);
+    const { id } = z.object({ id: z.uuid() }).parse(request.params);
+    const body = z.object({ decision: z.enum(['approve', 'reject']), note: z.string().max(500).optional() }).parse(request.body);
+    const r = await decideKyc(store, id, body.decision === 'approve' ? 'approved' : 'rejected', body.note ?? null, clock());
+    return { request: { ...kycDto(r), account_id: r.accountId } };
+  });
+
   // Carteiras de uma conta, para os outros serviços (world: cotação on-chain do lote).
   app.get('/internal/v1/accounts/:id/wallets', async (request) => {
     if (!config.INTERNAL_TOKEN) {
@@ -229,8 +270,9 @@ export async function buildApp(config: Config, store: AuthStore, now?: () => Dat
     const { account, wallets } = await auth.me(id);
     return {
       wallets: wallets.map((w) => ({ address: w.address, chain_id: w.chainId })),
-      // O economy usa para a carência do saque da conta nova.
+      // O economy usa para a carência do saque da conta nova e para o limite sem KYC.
       account_created_at: account.createdAt.toISOString(),
+      kyc_level: account.kycLevel,
     };
   });
 

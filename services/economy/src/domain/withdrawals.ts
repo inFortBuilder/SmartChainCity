@@ -23,6 +23,8 @@ import type { LedgerStore, PostingRequest } from './ledger.js';
  * PREMISSAS (doc 04 §5, valores a calibrar no simulador):
  * - Mínimo de 1 SCITY por saque; teto de 1.000 SCITY por conta em 24 h.
  * - Carência de 7 dias para conta nova (doc 04 §5).
+ * - Sem KYC, até 300 SCITY em 30 dias; acima disso, a conta precisa do nível 1
+ *   de KYC no gateway (doc 10: "KYC progressivo para saques acima de um limite").
  * - Voucher vale 48 h (passa da virada do teto diário do contrato).
  * - Sem spread: SCITY sai como SCITY. O spread do doc 04 vale na troca THALER → SCITY.
  * - O saldo grátis do período inicial (ADR-0014) ainda não é marcado: entra com o câmbio.
@@ -31,6 +33,10 @@ export const WEI = 10n ** 18n;
 export const MIN_WITHDRAWAL_WEI = 1n * WEI;
 export const DAILY_LIMIT_WEI = 1000n * WEI;
 export const NEW_ACCOUNT_DAYS = 7;
+/** Quanto a conta sem KYC pode sacar em 30 dias (PREMISSA). */
+export const KYC_FREE_WEI = 300n * WEI;
+export const KYC_WINDOW_DAYS = 30;
+export const KYC_LEVEL_FOR_WITHDRAWAL = 1;
 export const VOUCHER_TTL_MS = 48 * 3_600_000;
 const DAY_MS = 86_400_000;
 
@@ -52,16 +58,22 @@ export interface Withdrawal {
 
 export interface WithdrawalStore {
   /**
-   * Grava o saque se a conta ainda cabe no teto: soma o que ela pediu desde
-   * `since` (menos os devolvidos e os que falharam). Atômico por conta. false se passou do teto.
+   * Grava o saque se a conta ainda cabe em todos os tetos: para cada um, soma
+   * o que ela pediu desde `since` (menos os devolvidos e os que falharam).
+   * Atômico por conta. Devolve o índice do primeiro teto estourado, ou -1 se gravou.
    */
-  createWithinLimit(w: Withdrawal, since: Date, limitWei: bigint): Promise<boolean>;
+  createWithinLimit(w: Withdrawal, limits: WithdrawalLimit[]): Promise<number>;
   get(id: string): Promise<Withdrawal | null>;
   listOf(accountId: string, limit: number): Promise<Withdrawal[]>;
   /** `created` parados há mais de `olderThan` e todos os `pending`, para o job. */
   open(olderThan: Date, limit: number): Promise<Withdrawal[]>;
   /** Muda a situação se ela ainda for `from`. */
   transition(id: string, from: WithdrawalStatus, patch: Partial<Pick<Withdrawal, 'status' | 'signature' | 'closedAt'>>): Promise<boolean>;
+}
+
+export interface WithdrawalLimit {
+  since: Date;
+  limitWei: bigint;
 }
 
 export interface VoucherSigner {
@@ -75,8 +87,8 @@ export interface VaultReader {
 }
 
 export interface AccountDirectory {
-  /** Carteiras ligadas e quando a conta nasceu. */
-  account(accountId: string): Promise<{ wallets: string[]; createdAt: Date }>;
+  /** Carteiras ligadas, quando a conta nasceu e o nível de KYC. */
+  account(accountId: string): Promise<{ wallets: string[]; createdAt: Date; kycLevel: number }>;
 }
 
 export const withdrawalNonce = (id: string) => BigInt(`0x${id.replace(/-/g, '')}`);
@@ -146,8 +158,19 @@ export async function requestWithdrawal(
     createdAt: now,
     closedAt: null,
   };
-  if (!(await deps.store.createWithinLimit(w, new Date(now.getTime() - DAY_MS), DAILY_LIMIT_WEI))) {
-    throw new AppError('daily_limit', 'Passou do teto de saque de 24 h (1.000 SCITY).', 409);
+  const limits: WithdrawalLimit[] = [{ since: new Date(now.getTime() - DAY_MS), limitWei: DAILY_LIMIT_WEI }];
+  // Sem KYC, o saque tem um teto de 30 dias; com KYC, só o de 24 h.
+  if (acc.kycLevel < KYC_LEVEL_FOR_WITHDRAWAL) {
+    limits.push({ since: new Date(now.getTime() - KYC_WINDOW_DAYS * DAY_MS), limitWei: KYC_FREE_WEI });
+  }
+  const over = await deps.store.createWithinLimit(w, limits);
+  if (over === 0) throw new AppError('daily_limit', 'Passou do teto de saque de 24 h (1.000 SCITY).', 409);
+  if (over === 1) {
+    throw new AppError(
+      'kyc_required',
+      `Sem verificação de identidade, o saque vai até ${KYC_FREE_WEI / WEI} SCITY em ${KYC_WINDOW_DAYS} dias. Verifique a conta para sacar mais.`,
+      403,
+    );
   }
   return debitAndSign(deps, w, now);
 }

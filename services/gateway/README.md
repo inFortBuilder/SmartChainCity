@@ -27,6 +27,7 @@ pnpm --filter @scc/gateway login:dev   # entra com uma carteira descartável e i
 | JWT HS256 aceito pelo SCC Builder | ✅ testado com a API PHP real |
 | Rate limit, CORS por lista, logs sem token nem assinatura | ✅ |
 | Captcha de prova de trabalho no login SIWE e no pedido do código por e-mail (`GET /v1/auth/captcha`) | ✅ sem serviço de terceiros; veja [Captcha no cadastro](#captcha-no-cadastro) |
+| KYC progressivo para o saque (`/v1/me/kyc` e a revisão em `/internal/v1/kyc`) | 🟡 situação e revisão manual prontas; falta o provedor de KYC. Veja [KYC no saque](#kyc-no-saque) |
 | Armazenamento em Postgres (Drizzle) | ✅ sem `DATABASE_URL` usa memória, e em produção recusa subir |
 | `POST /v1/auth/email/start` e `/verify`: login por código de 6 dígitos no e-mail | ✅ no MVP local o código sai no log do gateway (`EMAIL_LOGIN=log`), sem provedor de e-mail |
 | Carteira embutida para quem entra por e-mail, vínculo de carteira à conta, 2FA | ❌ a conta de e-mail entra sem carteira; joga, mas ainda não assina na rede |
@@ -72,6 +73,24 @@ A conta nasce no primeiro login, então o captcha fica nas duas portas de entrad
 | `403 captcha_invalid` | Número errado, assinatura forjada, salt trocado, desafio vencido ou já usado |
 
 `CAPTCHA=off` desliga o captcha (a rota responde `{enabled: false}`), e o gateway recusa subir assim em produção. Em teste, o padrão é desligado. O resolvedor do mapa é SHA-256 em JavaScript puro, porque o `crypto.subtle` não existe em HTTP pela rede local. O `login:dev` resolve sozinho. O gateway não guarda IP nem dado da pessoa.
+
+## KYC no saque
+
+O doc 10 pede "KYC progressivo para saques acima de um limite". O economy deixa a conta sem KYC sacar até 300 SCITY em 30 dias (premissa). Acima disso, a conta precisa do nível 1, que mora aqui (`account.kyc_level`).
+
+| Rota | Quem chama | O que faz |
+|---|---|---|
+| `GET /v1/me/kyc` | jogador (Bearer) | `{level, request}`: o nível da conta e o último pedido |
+| `POST /v1/me/kyc` | jogador (Bearer) | Abre o pedido de verificação (`202`). Se já há um pendente, devolve ele. Conta verificada: `409 already_verified` |
+| `GET /internal/v1/kyc?status=pending` | revisão (`X-Service-Token`) | Fila de pedidos, do mais antigo para o mais novo |
+| `POST /internal/v1/kyc/:id` | revisão ou webhook do provedor (`X-Service-Token`) | `{decision: approve \| reject, note}`. Aprovado, a conta sobe para o nível 1 (nunca desce). Pedido já decidido: `409 not_pending` |
+
+- **Sem dado pessoal aqui (LGPD):** a tabela `kyc_request` guarda só a situação, o nível, quem verificou (`provider`) e a nota da revisão. Documento e foto ficam com o provedor de KYC.
+- **No MVP local** não há provedor (sem custo). O pedido fica pendente e a revisão decide pela rota interna. A mesma rota recebe depois o webhook do provedor (Sumsub, Persona ou outro, a escolher com o parecer jurídico, E0.8).
+- **Recusado:** o nível fica em 0 e o jogador pode pedir de novo.
+- **Economy:** `/internal/v1/accounts/:id/wallets` passa `kyc_level` junto com as carteiras e a data da conta.
+
+O mapa mostra a situação na seção de saque, com o botão **Verificar identidade**. Depois de atualizar, rode `pnpm db:migrate`: a tabela `kyc_request` é nova.
 
 ## Vincular carteira e e-mail
 

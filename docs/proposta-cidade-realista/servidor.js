@@ -266,7 +266,7 @@ export function createServidor(map) {
   } catch {
     session = null;
   }
-  let data = { avatar: null, balance: '0', scity: '0', lots: [], shifts: [], fx: null, withdrawals: null };
+  let data = { avatar: null, balance: '0', scity: '0', lots: [], shifts: [], fx: null, withdrawals: null, kyc: null };
   /** Alimentos do mercado do jogo, com o preço de uma unidade em centavos de THALER. */
   let foods = [];
   let message = '';
@@ -285,7 +285,7 @@ export function createServidor(map) {
     me = null;
     linkSent = null;
     storage.set(TOKEN_KEY, null);
-    data = { avatar: null, balance: '0', scity: '0', lots: [], shifts: [], fx: null, withdrawals: null };
+    data = { avatar: null, balance: '0', scity: '0', lots: [], shifts: [], fx: null, withdrawals: null, kyc: null };
     drawLots();
     message = why;
     render();
@@ -319,12 +319,14 @@ export function createServidor(map) {
         .catch(() => data.lots);
       drawLots();
       // Câmbio e saque (economy): se estiverem desligados (503), a seção some.
-      [data.fx, data.withdrawals] = await Promise.all([
+      [data.fx, data.withdrawals, data.kyc] = await Promise.all([
         call(API.economy, '/v1/economy/fx').catch(() => null),
         call(API.economy, '/v1/economy/withdrawals', { token: session.token }).catch((error) => {
           if (error.status === 401) throw error;
           return null;
         }),
+        // KYC no gateway: nível da conta e o último pedido de verificação.
+        call(API.gateway, '/v1/me/kyc', { token: session.token }).catch(() => null),
       ]);
       data.shifts = data.avatar
         ? (await call(API.game, `/v1/avatars/${data.avatar.id}/shifts`, { token: session.token })).shifts
@@ -396,6 +398,19 @@ export function createServidor(map) {
         <button class="btn btn--blue pequeno" type="submit" ${busy ? 'disabled' : ''}>Sacar para ${short(wallets[0])}</button>
       </form>
       <p class="muted pequeno">O SCITY sai do jogo agora; a carteira resgata no GameVault em até 48 h, ou ele volta.</p>`;
+    // KYC: sem verificação, até 300 SCITY em 30 dias (premissa do economy).
+    if (data.kyc) {
+      const pending = data.kyc.request?.status === 'pending';
+      const rejected = data.kyc.request?.status === 'rejected';
+      if (data.kyc.level >= 1) {
+        html += '<p class="muted pequeno">🪪 Identidade verificada: só o teto de 1.000 SCITY em 24 h vale.</p>';
+      } else if (pending) {
+        html += '<p class="muted pequeno">🪪 Verificação de identidade em análise. Até lá, o saque vai até 300 SCITY em 30 dias.</p>';
+      } else {
+        html += `<p class="muted pequeno">🪪 Sem verificação de identidade, o saque vai até 300 SCITY em 30 dias.${rejected ? ' A última verificação foi recusada.' : ''}</p>
+          <button class="btn btn--ghost pequeno" type="button" data-s="kyc" ${busy ? 'disabled' : ''}>Verificar identidade</button>`;
+      }
+    }
     const list = data.withdrawals.withdrawals.slice(0, 5);
     if (list.length) {
       const label = { pending: 'pronto para resgatar', claimed: 'resgatado', refunded: 'venceu, voltou ao jogo', failed: 'falhou', created: 'processando' };
@@ -727,6 +742,13 @@ export function createServidor(map) {
       return act(async () => {
         const hash = await claimVoucher(w);
         message = `Resgate enviado (${short(hash)}). O jogo marca como resgatado em até 1 min.`;
+        messageOk = true;
+      });
+    }
+    if (what === 'kyc') {
+      return act(async () => {
+        await call(API.gateway, '/v1/me/kyc', { method: 'POST', token: session.token });
+        message = 'Pedido de verificação enviado. No MVP local, a aprovação é pela rota interna do gateway (veja o README).';
         messageOk = true;
       });
     }

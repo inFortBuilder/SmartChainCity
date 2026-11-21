@@ -73,8 +73,12 @@ export class GatewayAccountDirectory implements AccountDirectory {
     }
     if (r.status === 403) throw new AppError('account_blocked', 'Conta bloqueada.', 403);
     if (!r.ok) throw new AppError('gateway_unavailable', 'Não deu para conferir a carteira agora.', 503);
-    const body = (await r.json()) as { wallets: { address: string }[]; account_created_at?: string };
-    // Sem a data (gateway antigo), trata como conta nova: o saque espera.
-    return { wallets: body.wallets.map((w) => w.address), createdAt: body.account_created_at ? new Date(body.account_created_at) : new Date() };
+    const body = (await r.json()) as { wallets: { address: string }[]; account_created_at?: string; kyc_level?: number };
+    // Sem a data (gateway antigo), trata como conta nova: o saque espera. Sem o nível, sem KYC.
+    return {
+      wallets: body.wallets.map((w) => w.address),
+      createdAt: body.account_created_at ? new Date(body.account_created_at) : new Date(),
+      kycLevel: body.kyc_level ?? 0,
+    };
   }
 }

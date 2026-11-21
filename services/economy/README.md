@@ -43,7 +43,7 @@ O jogador pede o saque do SCITY que tem no jogo e recebe um voucher EIP-712 para
 | Passo | Como |
 |---|---|
 | Pedido | `POST /v1/economy/withdrawals` com `{wallet, amount_wei}`. O gateway confere que a carteira é da conta e a idade da conta |
-| Regras | Mínimo de 1 SCITY; teto de 1.000 SCITY por conta em 24 h, conferido com a conta travada (dois pedidos juntos não passam do teto); carência de 7 dias para conta nova (doc 04 §5) |
+| Regras | Mínimo de 1 SCITY; teto de 1.000 SCITY por conta em 24 h, conferido com a conta travada (dois pedidos juntos não passam do teto); carência de 7 dias para conta nova (doc 04 §5). **Sem KYC, até 300 SCITY em 30 dias** (premissa), conferido na mesma trava; acima disso, `403 kyc_required` até a conta ter o nível 1 no gateway ([KYC](../gateway/README.md#kyc-no-saque)) |
 | Débito | O SCITY sai do jogador para `escrow/withdrawals` (`scity_withdrawal`, chave `withdrawal:<id>`). Sem saldo, `409 insufficient_scity` |
 | Voucher | `{to, amount, nonce, deadline}`, nonce = os 128 bits do id, prazo de 48 h. A resposta traz o contrato, a rede, o voucher e a assinatura |
 | Resgate | O job `withdrawals.settle` (`WITHDRAW_EVERY_SECONDS`, 60 s) lê `nonceUsed` no cofre. Resgatado: o escrow vai para `system/vault` e o saque fica `claimed` |
@@ -127,7 +127,7 @@ Exemplo: pagar um turno de 11,85 THALER a partir do pool P2E.
 }
 ```
 
-Erros com código estável: `invalid_posting`, `insufficient_funds`, `idempotency_conflict`, `missing_idempotency_key`, `fx_disabled`, `fx_unavailable`, `amount_too_small`, `pool_brake`, `free_period_locked`, `insufficient_thaler`, `conversion_failed`, `withdrawals_disabled`, `wallet_not_linked`, `account_too_new`, `below_minimum`, `daily_limit`, `insufficient_scity`, `gateway_unavailable`, `forbidden`, `missing_credentials`, `invalid_token`, `token_expired`.
+Erros com código estável: `invalid_posting`, `insufficient_funds`, `idempotency_conflict`, `missing_idempotency_key`, `fx_disabled`, `fx_unavailable`, `amount_too_small`, `pool_brake`, `free_period_locked`, `insufficient_thaler`, `conversion_failed`, `withdrawals_disabled`, `wallet_not_linked`, `account_too_new`, `below_minimum`, `daily_limit`, `kyc_required`, `insufficient_scity`, `gateway_unavailable`, `forbidden`, `missing_credentials`, `invalid_token`, `token_expired`.
 
 ## Banco
 

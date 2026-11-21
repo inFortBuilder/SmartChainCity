@@ -1,4 +1,4 @@
-import { and, eq, gt, isNull, lt, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, isNull, lt, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { TransactionRollbackError } from 'drizzle-orm';
 import type { Pool } from 'pg';
@@ -11,7 +11,8 @@ import type {
   SetEmailResult,
   WalletLink,
 } from '../../domain/ports.js';
-import { account, authNonce, emailCode, walletLink } from './schema.js';
+import type { KycRequest, KycStatus, KycStore } from '../../domain/kyc.js';
+import { account, authNonce, emailCode, kycRequest, walletLink } from './schema.js';
 
 /** Violação de unicidade do Postgres, venha crua ou embrulhada pelo Drizzle. */
 const isUniqueViolation = (error: unknown) => {
@@ -24,7 +25,9 @@ const toAccount = (row: typeof account.$inferSelect): Account => ({
   status: row.status as AccountStatus,
 });
 
-export class PostgresAuthStore implements AuthStore {
+const toKyc = (r: typeof kycRequest.$inferSelect): KycRequest => ({ ...r, status: r.status as KycStatus });
+
+export class PostgresAuthStore implements AuthStore, KycStore {
   private readonly db;
 
   constructor(pool: Pool) {
@@ -35,6 +38,49 @@ export class PostgresAuthStore implements AuthStore {
     await this.db.insert(authNonce).values({ nonce, expiresAt });
     // Unused nonces would pile up forever; this keeps the table small with no job.
     await this.db.delete(authNonce).where(lt(authNonce.expiresAt, new Date()));
+  }
+
+  async openKyc(accountId: string, level: number, now: Date) {
+    // O índice único parcial (um pendente por conta) segura dois pedidos juntos.
+    const [created] = await this.db
+      .insert(kycRequest)
+      .values({ accountId, level, status: 'pending', provider: 'manual', createdAt: now })
+      .onConflictDoNothing()
+      .returning();
+    if (created) return toKyc(created);
+    const [pending] = await this.db
+      .select()
+      .from(kycRequest)
+      .where(and(eq(kycRequest.accountId, accountId), eq(kycRequest.status, 'pending')));
+    return toKyc(pending!);
+  }
+
+  async latestKyc(accountId: string) {
+    const [r] = await this.db.select().from(kycRequest).where(eq(kycRequest.accountId, accountId)).orderBy(desc(kycRequest.createdAt)).limit(1);
+    return r ? toKyc(r) : null;
+  }
+
+  async listKyc(status: KycStatus, limit: number) {
+    const rows = await this.db.select().from(kycRequest).where(eq(kycRequest.status, status)).orderBy(asc(kycRequest.createdAt)).limit(limit);
+    return rows.map(toKyc);
+  }
+
+  async decideKyc(id: string, decision: 'approved' | 'rejected', note: string | null, now: Date) {
+    return this.db.transaction(async (tx) => {
+      const [r] = await tx
+        .update(kycRequest)
+        .set({ status: decision, note, decidedAt: now })
+        .where(and(eq(kycRequest.id, id), eq(kycRequest.status, 'pending')))
+        .returning();
+      if (!r) return null;
+      if (decision === 'approved') {
+        await tx
+          .update(account)
+          .set({ kycLevel: sql`greatest(${account.kycLevel}, ${r.level})` })
+          .where(eq(account.id, r.accountId));
+      }
+      return toKyc(r);
+    });
   }
 
   /** A single DELETE is what makes this atomic: only one caller gets the row back. */

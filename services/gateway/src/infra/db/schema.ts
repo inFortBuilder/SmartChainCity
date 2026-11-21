@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import {
   check,
+  index,
   integer,
   pgTable,
   primaryKey,
@@ -58,3 +59,28 @@ export const authNonce = pgTable('auth_nonce', {
   nonce: text('nonce').primaryKey(),
   expiresAt: timestamptz('expires_at').notNull(),
 });
+
+/**
+ * Pedido de verificação de identidade (KYC). Só a situação: documento e foto
+ * ficam com o provedor, nunca aqui (LGPD). Um pendente por conta.
+ */
+export const kycRequest = pgTable(
+  'kyc_request',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    accountId: uuid('account_id')
+      .notNull()
+      .references(() => account.id),
+    level: smallint('level').notNull(),
+    status: text('status').notNull(),
+    provider: text('provider').notNull(),
+    note: text('note'),
+    createdAt: timestamptz('created_at').notNull(),
+    decidedAt: timestamptz('decided_at'),
+  },
+  (t) => [
+    uniqueIndex('kyc_request_pending_unique').on(t.accountId).where(sql`status = 'pending'`),
+    index('kyc_request_status_idx').on(t.status, t.createdAt),
+    check('kyc_request_status_check', sql`${t.status} in ('pending', 'approved', 'rejected')`),
+  ],
+);
