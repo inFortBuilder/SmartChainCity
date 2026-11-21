@@ -12,6 +12,7 @@ import { HOSPITAL_FEE_CENTS, type HospitalStore, TREATMENT_STAY_MS, admit, treat
 import { planMedicine } from '../src/domain/meal.js';
 import { PostgresAvatarStore } from '../src/infra/db/postgres-store.js';
 import { MemoryAvatarStore } from '../src/infra/memory-store.js';
+import { runDecay } from '../src/jobs/decay.js';
 
 const MIN = 60_000;
 const HOUR = 60 * MIN;
@@ -117,6 +118,21 @@ describe.each(stores)('store: %s', (_name, mk, enabled) => {
     expect(await store.admitDue(from(60), 5, a.id)).toHaveLength(0);
     expect(await store.admitDue(from(160), 5, a.id)).toMatchObject([{ reason: 'health' }]);
     expect((await store.get(a.id))!.conditions).toEqual([]);
+  });
+
+  it.runIf(enabled)('doentes sem queda devida não seguram a fila do job nem a da internação', async () => {
+    const store = mk();
+    // Doença que só começa no fim de um turno futuro: nada a tirar ainda, mas o avatar tem a doença gravada.
+    // Recém-alimentados (âncoras de agora): só a doença os põe na fila.
+    for (let k = 0; k < 6; k++) await store.create(make(catchCondition([], 'febre', from(14 * 60)), {}, from(13 * 60)));
+    const hungry = await store.create(make([], {}, base));
+    const tired = await store.create(make([], { energy: 0 }, base));
+    // Lotes de 2: antes do conserto, os 6 doentes enchiam o lote e o job parava sem chegar no faminto.
+    await runDecay(store, from(13 * 60), 2);
+    expect((await store.get(hungry.id))!.attributes.food).toBeLessThan(10);
+    const admitted = [];
+    for (let i = 0; i < 10; i++) admitted.push(...(await store.admitDue(from(13 * 60), 2)));
+    expect(admitted.map((s) => s.avatarId)).toContain(tired.id);
   });
 });
 
