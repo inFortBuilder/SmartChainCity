@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { check, index, jsonb, numeric, pgSchema, smallint, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { check, index, integer, jsonb, numeric, pgSchema, smallint, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 
 /**
  * Esquema próprio `game` (o serviço não toca o banco dos outros). Tabela
@@ -18,6 +18,8 @@ export const avatar = game.table(
     id: uuid('id').primaryKey(),
     tokenId: numeric('token_id', { precision: 78, scale: 0 }).unique(),
     accountId: uuid('account_id').notNull(),
+    /** Desde quando é desta conta (criação ou compra na blockchain): os mais antigos trabalham. */
+    ownedSince: timestamptz('owned_since').notNull(),
     rarity: text('rarity').notNull(),
     jobCode: text('job_code').notNull(),
     energy: attr('energy'),
@@ -186,3 +188,21 @@ export const riskDecision = game.table(
   },
   (t) => [check('risk_decision_check', sql`${t.decision} in ('allow', 'block')`)],
 );
+
+/** Até onde o job chain.sync leu o feed do chain-indexer. */
+export const chainCursor = game.table('chain_cursor', {
+  name: text('name').primaryKey(),
+  after: integer('after').notNull(),
+});
+
+/**
+ * AvatarNFT numa carteira sem conta: uma linha por token, aplicada quando a
+ * carteira for ligada. `rarity` e `job_code` só no mint ainda não aplicado.
+ */
+export const chainAvatarPending = game.table('chain_avatar_pending', {
+  tokenId: text('token_id').primaryKey(),
+  eventId: integer('event_id').notNull(),
+  toAddress: text('to_address').notNull(),
+  rarity: smallint('rarity'),
+  jobCode: text('job_code'),
+});

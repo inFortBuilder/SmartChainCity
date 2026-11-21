@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { buildApp } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
+import { newAvatar } from '../src/domain/avatar.js';
 import { MemoryAvatarStore } from '../src/infra/memory-store.js';
 
 const SECRET = 'segredo-de-teste-com-mais-de-32-caracteres'; // gitleaks:allow (só no teste)
@@ -74,6 +75,26 @@ describe('API do game-core', () => {
     const account = randomUUID();
     for (let k = 0; k < 3; k++) expect((await create(account)).statusCode).toBe(201);
     expect((await create(account)).json().error.code).toBe('avatar_limit');
+  });
+
+  it('com um avatar da blockchain acima do limite, só os 3 mais antigos na conta trabalham', async () => {
+    const store = new MemoryAvatarStore();
+    const api = await buildApp(config, store, () => clock);
+    const account = randomUUID();
+    const headers = await auth(account);
+    for (let k = 0; k < 3; k++) {
+      await store.create(newAvatar({ id: randomUUID(), accountId: account, rarity: 'common', jobCode: 'padeiro' }, new Date(clock.getTime() - (k + 1) * HOUR)));
+    }
+    const bought = newAvatar({ id: randomUUID(), tokenId: '42', accountId: randomUUID(), rarity: 'common', jobCode: 'padeiro' }, clock);
+    await store.createFromChain({ ...bought, tokenId: '42' });
+    await store.transfer(bought.id, bought.accountId, account, clock);
+    const list = (await api.inject({ method: 'GET', url: '/v1/avatars', headers })).json().avatars;
+    expect(list.find((a: { id: string }) => a.id === bought.id).token_id).toBe('42');
+    const refused = await api.inject({ method: 'POST', url: `/v1/avatars/${bought.id}/work`, headers, payload: { shift: 6 } });
+    expect(refused.statusCode).toBe(409);
+    expect(refused.json().error.code).toBe('avatar_limit');
+    const oldest = (await store.listByAccount(account))[0]!;
+    expect((await api.inject({ method: 'POST', url: `/v1/avatars/${oldest.id}/work`, headers, payload: { shift: 6 } })).statusCode).toBe(201);
   });
 });
 

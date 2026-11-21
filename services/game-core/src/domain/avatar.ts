@@ -37,7 +37,11 @@ export interface Attributes {
 
 export interface Avatar {
   id: string;
+  /** Token do AvatarNFT (texto, uint256); null no avatar que só existe no jogo. */
+  tokenId: string | null;
   accountId: string;
+  /** Desde quando é desta conta: na conta com mais avatares que o limite, trabalham os mais antigos. */
+  ownedSince: Date;
   rarity: Rarity;
   jobCode: string;
   attributes: Attributes;
@@ -102,14 +106,19 @@ export function status(avatar: Avatar, now: Date = new Date()) {
   };
 }
 
-export function newAvatar(input: { id: string; accountId: string; rarity: string; jobCode: string }, now: Date): Avatar {
+export function newAvatar(
+  input: { id: string; accountId: string; rarity: string; jobCode: string; tokenId?: string },
+  now: Date,
+): Avatar {
   if (!isRarity(input.rarity)) throw new AppError('invalid_rarity', 'Raridade inválida.', 400);
   if (!professionFits(input.rarity, input.jobCode)) {
     throw new AppError('invalid_job', 'Profissão não existe nessa raridade.', 400);
   }
   return {
     id: input.id,
+    tokenId: input.tokenId ?? null,
     accountId: input.accountId,
+    ownedSince: now,
     rarity: input.rarity,
     jobCode: input.jobCode,
     attributes: { energy: 10, health: 10, happiness: 10, food: 10, hygiene: 10, education: 0 },
@@ -125,10 +134,38 @@ export function newAvatar(input: { id: string; accountId: string; rarity: string
 export const tooManyAvatars = () =>
   new AppError('avatar_limit', `Cada conta pode ter até ${MAX_AVATARS_PER_ACCOUNT} avatares.`, 409);
 
+/**
+ * O avatar que chega da blockchain (mint da Lucky Box ou compra de outro
+ * jogador) entra mesmo com a conta no limite: o NFT é do jogador. Para o
+ * antifraude continuar valendo, só os 3 (MAX_AVATARS_PER_ACCOUNT) mais antigos na conta trabalham.
+ */
+export function mayWork(owned: Avatar[], avatarId: string) {
+  if (owned.length <= MAX_AVATARS_PER_ACCOUNT) return true;
+  return [...owned]
+    .sort((a, b) => a.ownedSince.getTime() - b.ownedSince.getTime() || a.id.localeCompare(b.id))
+    .slice(0, MAX_AVATARS_PER_ACCOUNT)
+    .some((a) => a.id === avatarId);
+}
+
+export const overAvatarLimit = () =>
+  new AppError(
+    'avatar_limit',
+    `A conta tem mais de ${MAX_AVATARS_PER_ACCOUNT} avatares: só os ${MAX_AVATARS_PER_ACCOUNT} que estão nela há mais tempo trabalham.`,
+    409,
+  );
+
 /** Persistência dos avatares. Memória e Postgres passam pelo mesmo teste de contrato. */
 export interface AvatarStore {
   /** Cria respeitando o limite por conta, mesmo com pedidos em paralelo. */
   create(avatar: Avatar): Promise<Avatar>;
+  /**
+   * Avatar mintado na blockchain: entra fora do limite e uma vez só por token.
+   * Se o token já tem avatar, devolve o que existe.
+   */
+  createFromChain(avatar: Avatar & { tokenId: string }): Promise<Avatar>;
+  getByToken(tokenId: string): Promise<Avatar | null>;
+  /** Passa o avatar de `from` para `to`; não faz nada se o dono já não for `from`. */
+  transfer(id: string, from: string, to: string, now: Date): Promise<boolean>;
   get(id: string): Promise<Avatar | null>;
   listByAccount(accountId: string): Promise<Avatar[]>;
   /**

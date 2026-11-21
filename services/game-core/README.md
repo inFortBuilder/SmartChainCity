@@ -149,6 +149,21 @@ O limite de 3 avatares por conta (ADR-0013) já vale na criação. O resto do do
 
 Cliente sem `x-device-id` não é bloqueado, só aparece em `risk_signals_total{device="nao"}`. Os clientes oficiais mandam o cabeçalho.
 
+## Avatar na blockchain (AvatarNFT)
+
+O job `chain.sync` (`CHAIN_SYNC_SECONDS`, 30 s) lê o feed de eventos confirmados do chain-indexer:
+
+| Evento | O que acontece |
+|---|---|
+| `AvatarMinted` (Lucky Box revelou) | O avatar nasce no jogo para a conta dona da carteira, com a raridade e a profissão gravadas no token. Uma vez por token |
+| `Transfer` entre carteiras (venda fora do jogo) | O avatar passa para a conta da carteira que recebeu, com os atributos, a despensa e as doenças de agora |
+| Carteira sem conta | Fica pendente, uma por token, e sai quando a carteira for ligada. Se o token muda de mão antes, vale a última carteira, inclusive para um mint ainda pendente |
+| Profissão fora do catálogo | O mint fica pendente até o catálogo ter a profissão |
+
+**Limite de 3 por conta:** o avatar que chega da blockchain entra mesmo com a conta no limite, porque o NFT é do jogador. Para o antifraude continuar valendo, só os 3 que estão na conta há mais tempo trabalham; o turno dos outros responde `409 avatar_limit`. O turno começado antes da venda é pago a quem o começou.
+
+Ligue com `CHAIN_INDEXER_URL`, `CHAIN_INDEXER_TOKEN` (o `INTERNAL_TOKEN` do indexer), `GATEWAY_URL` e `GATEWAY_TOKEN`. Testado no anvil em 2026-11-21: o avatar mintado (épico, arquiteto) entrou no jogo e passou para a conta do comprador.
+
 ## Rodar
 
 ```bash
@@ -182,7 +197,7 @@ TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc_test pnpm --filter
 | GET | `/v1/avatars/:id/hospital` | jogador (Bearer) | Últimas 20 internações, com motivo, alta e situação da taxa (`pending`, `paid`, `waived`) |
 | POST | `/v1/avatars/:id/hospital/treat` | jogador (Bearer) | Tratamento das doenças graves: 4 h internado, taxa de 30 THALER, sai curado |
 | POST | `/v1/dev/avatar` | jogador (Bearer) | **Só desenvolvimento** (`DEV_FREE_AVATAR=true`): dá um avatar comum a quem não tem; desligado, 404 |
-| POST | `/internal/v1/avatars` | serviços (`X-Service-Token`) | Cria `{account_id, rarity, job_code}`; na Etapa 2, chamado ao ver o mint da Lucky Box |
+| POST | `/internal/v1/avatars` | serviços (`X-Service-Token`) | Cria `{account_id, rarity, job_code}` só no jogo, dentro do limite. O avatar da Lucky Box entra pelo `chain.sync` |
 | GET | `/internal/v1/risk/devices` | revisão (`X-Service-Token`) | Aparelhos com mais contas que o limite (`?days=30`) |
 | POST | `/internal/v1/risk/accounts/:accountId` | revisão (`X-Service-Token`) | `{decision: allow | block, note}`: libera ou bloqueia os ganhos da conta |
 | POST | `/internal/v1/catalog/refresh` | Strapi (webhook, `X-Service-Token`) | Recarrega o catálogo publicado no Strapi; catálogo quebrado ou sem uma profissão em uso é recusado (`422 catalog_rejected`). Com `model: "food"`, recarrega só os alimentos; outros tipos do catálogo são ignorados |
@@ -194,7 +209,7 @@ Erros com código estável: `invalid_rarity`, `invalid_job`, `avatar_limit`, `in
 
 ## Banco
 
-Esquema próprio `game`: tabela `avatar` do doc 06, com os instantes de referência da queda, `work_shift`, com a semente e o resultado, `meal`, com o preço, os efeitos e a situação da refeição, e `hospital_stay`, com o motivo, a alta e a taxa. Migrações em `drizzle/`, controladas em `drizzle.__game_core_migrations`.
+Esquema próprio `game`: tabela `avatar` do doc 06, com os instantes de referência da queda, `work_shift`, com a semente e o resultado, `chain_cursor` e `chain_avatar_pending` (AvatarNFT → jogo), `meal`, com o preço, os efeitos e a situação da refeição, e `hospital_stay`, com o motivo, a alta e a taxa. Migrações em `drizzle/`, controladas em `drizzle.__game_core_migrations`.
 
 ## Ainda não
 
