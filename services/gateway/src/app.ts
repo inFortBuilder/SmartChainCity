@@ -1,3 +1,5 @@
+import { createHmac } from 'node:crypto';
+
 import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
 import { AppError, observe, requireServiceToken, serverOptions } from '@scc/shared';
@@ -7,18 +9,23 @@ import { z } from 'zod';
 
 import type { Config } from './config.js';
 import { AuthService } from './domain/auth.js';
+import { Captcha } from './domain/captcha.js';
 import { EmailLogin, type Mailer } from './domain/email-login.js';
 import type { Account, AuthStore, WalletLink } from './domain/ports.js';
 import { verifyToken } from './domain/token.js';
 import { LogMailer } from './infra/log-mailer.js';
 
+/** Solução do captcha (base64), nas rotas onde a conta pode nascer. */
+const captchaField = z.string().max(2048).optional();
+
 const verifyBody = z.object({
   message: z.string().min(1).max(4096),
   signature: z.string().regex(/^0x[0-9a-fA-F]+$/),
+  captcha: captchaField,
 });
 
 const emailField = z.email().max(254);
-const emailStartBody = z.object({ email: emailField });
+const emailStartBody = z.object({ email: emailField, captcha: captchaField });
 const emailVerifyBody = z.object({ email: emailField, code: z.string().regex(/^[0-9]{6}$/) });
 
 const accountDto = (account: Account) => ({
@@ -36,7 +43,7 @@ export async function buildApp(config: Config, store: AuthStore, now?: () => Dat
       service: 'gateway',
       nodeEnv: config.NODE_ENV,
       logLevel: config.LOG_LEVEL,
-      redact: ['req.body.signature', 'req.body.code'],
+      redact: ['req.body.signature', 'req.body.code', 'req.body.captcha'],
     }),
   });
   observe(app, { service: 'gateway', nodeEnv: config.NODE_ENV, metricsToken: config.METRICS_TOKEN });
@@ -69,6 +76,20 @@ export async function buildApp(config: Config, store: AuthStore, now?: () => Dat
     },
     now,
   );
+
+  const captcha =
+    config.CAPTCHA === 'pow'
+      ? new Captcha(
+          store,
+          {
+            // Chave própria, derivada: o segredo do JWT nunca assina outra coisa.
+            secret: createHmac('sha256', config.JWT_SECRET).update('scc-captcha').digest('hex'),
+            maxNumber: config.CAPTCHA_MAX_NUMBER,
+            ttlSeconds: config.CAPTCHA_TTL_SECONDS,
+          },
+          now,
+        )
+      : null;
 
   await app.register(cors, { origin: config.CORS_ORIGINS });
   await app.register(rateLimit, {
@@ -106,6 +127,11 @@ export async function buildApp(config: Config, store: AuthStore, now?: () => Dat
 
   app.get('/healthz', { config: { rateLimit: false } }, async () => ({ status: 'ok' }));
 
+  // Desafio do captcha. Desligado, o cliente recebe enabled: false e não manda nada.
+  app.get('/v1/auth/captcha', { config: authLimit }, async () =>
+    captcha ? { enabled: true, ...(await captcha.challenge()) } : { enabled: false },
+  );
+
   app.post('/v1/auth/siwe/nonce', { config: authLimit }, async () => {
     const { nonce, expiresAt } = await auth.createNonce();
     return { nonce, expires_at: expiresAt.toISOString() };
@@ -113,6 +139,7 @@ export async function buildApp(config: Config, store: AuthStore, now?: () => Dat
 
   app.post('/v1/auth/siwe/verify', { config: authLimit }, async (request) => {
     const body = verifyBody.parse(request.body);
+    await captcha?.verify(body.captcha);
     const result = await auth.verifySiwe(body.message, body.signature as `0x${string}`);
     return {
       access_token: result.token,
@@ -129,7 +156,8 @@ export async function buildApp(config: Config, store: AuthStore, now?: () => Dat
   // Passo 1: manda o código. A resposta é sempre a mesma, para não revelar quem joga.
   app.post('/v1/auth/email/start', { config: authLimit }, async (request, reply) => {
     emailOn();
-    const { email } = emailStartBody.parse(request.body);
+    const { email, captcha: solution } = emailStartBody.parse(request.body);
+    await captcha?.verify(solution);
     const { expiresIn } = await emailLogin.start(email);
     return reply.status(202).send({ expires_in: expiresIn });
   });

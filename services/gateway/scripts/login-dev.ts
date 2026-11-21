@@ -7,6 +7,8 @@
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import { createSiweMessage } from 'viem/siwe';
 
+import { type CaptchaChallenge, solveCaptcha } from '../src/domain/captcha.js';
+
 const base = process.argv[2] ?? 'http://127.0.0.1:8000';
 const domain = process.env.SIWE_DOMAIN ?? 'localhost:5173';
 const wallet = privateKeyToAccount(generatePrivateKey());
@@ -32,7 +34,10 @@ const message = createSiweMessage({
   version: '1',
 });
 const signature = await wallet.signMessage({ message });
-const { access_token: token, account } = await post('/v1/auth/siwe/verify', { message, signature });
+// Captcha do cadastro (desligado, o gateway responde enabled: false).
+const challenge = (await (await fetch(base + '/v1/auth/captcha')).json()) as CaptchaChallenge & { enabled: boolean };
+const captcha = challenge.enabled ? solveCaptcha(challenge) : undefined;
+const { access_token: token, account } = await post('/v1/auth/siwe/verify', { message, signature, captcha });
 
 console.error(`conta ${account.id}, carteira ${wallet.address}`);
 console.log(token);
