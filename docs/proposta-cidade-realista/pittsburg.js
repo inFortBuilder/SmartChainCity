@@ -13,6 +13,7 @@ import { createGestao } from './gestao.js';
 import { createServidor } from './servidor.js';
 import { createMultiplayer } from './multiplayer.js';
 import { createStreetView } from './streetview.js';
+import { createMercado } from './mercado.js';
 
 const BASE = '../../.local/cidades/pittsburg';
 const $ = (s) => document.querySelector(s);
@@ -162,6 +163,7 @@ let lotToggle = null;
 let lotsPromise = null;
 let gestao = null;
 let streetView = null;
+let mercado = null;
 
 // ---------- Visitas: entrar nos imóveis pelo street view ----------
 const VISIT_REACH = 45; // m: o avatar precisa estar perto do imóvel
@@ -496,6 +498,8 @@ function showLot(i) {
   // Com login, a situação real vem do world; a compra simulada da gestão sai de cena.
   const servidorAtivo = servidor?.decorateLot(i, ficha) ?? false;
   gestao?.decorateLot(i, ficha, servidorAtivo);
+  // Mercado (E3.6): vender o lote que já está na carteira.
+  mercado?.decorateLot(i, ficha);
 }
 
 async function loadCivic() {
@@ -715,6 +719,18 @@ try {
   });
   // Célula jogável (E1.6): login, avatar, THALER e turno pelos serviços.
   servidor = createServidor({ THREE, scene, lotRing, loadLotsFor, showLot, walkTo: (i) => walkToLot(i), enterLot: (i) => enterLot(i) });
+  // Mercado (E3.6): listagens do Marketplace, compra e venda pela carteira.
+  mercado = createMercado({
+    getSession: () => servidor.getSession(),
+    showLot,
+    focusLot: async (i) => {
+      await loadLotsFor([i]);
+      const [x, z] = lotCenter(i);
+      controls.target.set(x, 0, z);
+      camera.position.set(x - 160, 220, z + 160);
+      showLot(i);
+    },
+  });
   // Multiplayer (E2.7): outros jogadores do bairro e o chat, pelo serviço realtime.
   const multiplayer = createMultiplayer({
     THREE, scene, camera, controls, lotAt, getLots: () => lots,
