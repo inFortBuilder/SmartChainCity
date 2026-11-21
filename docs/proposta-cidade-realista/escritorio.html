@@ -26,6 +26,12 @@
   body.visita .hud dl, body.visita [data-toggle], body.visita [data-acao="porta"] { display: none; }
   body.visita .hud { min-width: 0; }
   .botoes .sair { border-color: var(--ok); color: var(--ok); font-weight: 700; }
+  .acao { position: fixed; left: 50%; bottom: 120px; transform: translateX(-50%); background: var(--panel); border: 1px solid var(--accent); color: var(--text);
+    border-radius: 999px; padding: 8px 16px; font: 600 14px system-ui, sans-serif; cursor: pointer; }
+  .acao kbd { background: var(--accent); color: #0b1220; border-radius: 4px; padding: 0 6px; margin-right: 6px; }
+  .acao[hidden] { display: none; }
+  .aviso-acao { position: fixed; left: 50%; top: 64px; transform: translateX(-50%); background: var(--panel); border: 1px solid var(--line);
+    border-radius: 999px; padding: 6px 14px; font-size: 13px; pointer-events: none; }
   @media (max-width: 640px) { .hud { min-width: 0; font-size: 12px; } .botoes { top: auto; bottom: 12px; max-width: none; left: 12px; justify-content: flex-start; } .ajuda { font-size: 12px; bottom: 56px; } }
 </style>
 <script type="importmap">
@@ -55,8 +61,10 @@
   <button type="button" data-toggle="post" aria-pressed="true">Pós (AO)</button>
   <button type="button" data-toggle="lightmap" aria-pressed="true">Luz assada</button>
   <button type="button" data-acao="porta">Ir até a porta</button>
+  <button type="button" data-acao="conversar">💬 Conversar</button>
   <button type="button" class="sair" data-acao="sair" hidden>Sair para a rua</button>
 </div>
+<button type="button" class="acao" data-acao="usar" hidden></button>
 
 <p class="ajuda"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> ou setas para andar, <kbd>Shift</kbd> para correr; arraste para girar a câmera. No celular, toque no chão para andar até lá. O interior carrega quando o avatar chega perto da porta.</p>
 
@@ -177,6 +185,7 @@ const mat = {
   tecido: new THREE.MeshStandardMaterial({ color: 0x1f2937, roughness: 0.95 }),
   sofa: new THREE.MeshStandardMaterial({ color: 0xc2410c, roughness: 0.85 }),
   tela: new THREE.MeshStandardMaterial({ color: 0x0b0f14, roughness: 0.2, emissive: 0x0e3a5c, emissiveIntensity: 0.6 }),
+  tv: new THREE.MeshStandardMaterial({ color: 0x0b0f14, roughness: 0.2, emissive: 0x4f9cf9, emissiveIntensity: 0 }),
   estante: new THREE.MeshStandardMaterial({ map: madeira, roughness: 0.6 }),
   vaso: new THREE.MeshStandardMaterial({ color: 0xe7e5e4, roughness: 0.7 }),
   folha: new THREE.MeshStandardMaterial({ color: 0x2f6f3a, roughness: 0.8 }),
@@ -189,6 +198,13 @@ const mat = {
 // ---------- Colisão: caixas no plano XZ ----------
 /** {minX, maxX, minZ, maxZ, interior} — o avatar é um círculo de raio RAIO_AVATAR. */
 const colisores = [];
+/**
+ * Onde sentar e com o que interagir, montados com o interior.
+ * Assento: {x, z, rumo} — o avatar fica no centro do assento, de costas para o encosto.
+ * Ponto: {x, z, rumo, rotulo, usar()} — o avatar para em (x, z) virado para o objeto.
+ */
+const assentos = [];
+const pontos = [];
 const caixa = (cx, cz, sx, sz, interior = false) => colisores.push({ minX: cx - sx / 2, maxX: cx + sx / 2, minZ: cz - sz / 2, maxZ: cz + sz / 2, interior });
 
 function resolverColisao(p) {
@@ -272,6 +288,8 @@ function construirInterior() {
   const casco = [];       // superfícies com luz assada
   const sombras = [];     // móveis que projetam sombra durante o bake
   const antes = colisores.length;
+  assentos.length = 0;
+  pontos.length = 0;
   const W = SALA.largura, D = SALA.fundo, H = SALA.pe;
 
   // Casco: um plano por superfície, cada um com UV próprio sem sobreposição (exigência do lightmap).
@@ -322,7 +340,7 @@ function construirInterior() {
   const balcao = peca('balcao', new THREE.BoxGeometry(2.0, 1.05, 0.6), mat.tampo);
   const tapete = peca('tapete', new THREE.BoxGeometry(3.2, 0.012, 2.2), mat.tapete);
   const rack = peca('rack', new THREE.BoxGeometry(0.45, 0.5, 1.8), mat.estante);
-  const tv = peca('tv', new THREE.BoxGeometry(0.05, 0.8, 1.4), mat.tela);
+  const tv = peca('tv', new THREE.BoxGeometry(0.05, 0.8, 1.4), mat.tv);
   const mesaJantar = peca('mesaJantar', new THREE.BoxGeometry(1.6, 0.05, 0.9), mat.tampo);
   const cama = peca('cama', new THREE.BoxGeometry(2.1, 0.5, 1.6), mat.tecido);
   const cabeceira = peca('cabeceira', new THREE.BoxGeometry(0.08, 1.1, 1.7), mat.estante);
@@ -333,7 +351,11 @@ function construirInterior() {
     base(x, 0.02, z); haste(x, 0.25, z); assento(x, 0.48, z, ry);
     const off = new THREE.Vector3(0, 0, 0.22).applyEuler(new THREE.Euler(0, ry, 0));
     encosto(x + off.x, 0.8, z + off.z, ry);
+    // O encosto fica em +z local: a pessoa olha para -z local.
+    assentos.push({ x, z, rumo: ry + Math.PI, rotulo: 'Sentar' });
   };
+  // Sofá encostado na parede esquerda, de frente para +x: três lugares.
+  const lugaresSofa = () => { for (const z of [0.45, 1.0, 1.55]) assentos.push({ x: -5.3, z, rumo: Math.PI / 2, rotulo: 'Sentar no sofá' }); };
   const luzesPos = [];
   if (TIPO === 'office') {
   // Estações de trabalho: 2 ilhas de 2 × 3 mesas.
@@ -360,25 +382,39 @@ function construirInterior() {
   const q = Math.PI / 2;
   tapete(-4.7, 0.006, 1.0, q);
   sofaBase(-5.45, 0.21, 1.0, q); sofaCostas(-5.8, 0.6, 1.0, q); sofaBraco(-5.45, 0.3, 0.0, q); sofaBraco(-5.45, 0.3, 2.0, q);
+  lugaresSofa();
   mesaCentro(-4.3, 0.2, 1.0);
   caixa(-5.45, 1.0, 0.95, 2.2, true); caixa(-4.3, 1.0, 0.9, 0.9, true);
   luzesPos.push([-4.6, 1.0]);
   // Recepção à direita da porta.
   balcao(-1.2, 0.525, 3.3);
   caixa(-1.2, 3.3, 2.0, 0.6, true);
+  pontos.push({ x: -1.2, z: 2.55, rumo: 0, rotulo: 'Atender na recepção', usar: () => aviso('Recepção: ninguém na fila agora.') });
   luzesPos.push([-2.4, 2.8]);
   } else {
     // Residência: estar com TV, cozinha no fundo, mesa de jantar e quarto à direita.
     const q = Math.PI / 2;
     tapete(-4.7, 0.006, 1.0, q);
     sofaBase(-5.45, 0.21, 1.0, q); sofaCostas(-5.8, 0.6, 1.0, q); sofaBraco(-5.45, 0.3, 0.0, q); sofaBraco(-5.45, 0.3, 2.0, q);
+    lugaresSofa();
     mesaCentro(-4.3, 0.2, 1.0);
     caixa(-5.45, 1.0, 0.95, 2.2, true); caixa(-4.3, 1.0, 0.9, 0.9, true);
     rack(-2.9, 0.25, 1.0); tv(-2.9, 0.92, 1.0);
+    mat.tv.emissiveIntensity = 0;
+    pontos.push({
+      x: -3.55, z: 1.0, rumo: Math.PI / 2, rotulo: 'Ligar a TV',
+      usar(ponto) {
+        const ligada = mat.tv.emissiveIntensity > 0;
+        mat.tv.emissiveIntensity = ligada ? 0 : 1.4;
+        ponto.rotulo = ligada ? 'Ligar a TV' : 'Desligar a TV';
+        aviso(ligada ? 'TV desligada.' : 'TV ligada: sente no sofá para assistir.');
+      },
+    });
     caixa(-2.9, 1.0, 0.5, 1.9, true);
     luzesPos.push([-4.3, 1.0]);
     // Cozinha: bancadas na parede do fundo.
     balcao(-2.6, 0.525, -4.1); balcao(-0.6, 0.525, -4.1);
+    pontos.push({ x: -1.6, z: -3.45, rumo: Math.PI, rotulo: 'Usar a cozinha', usar: () => aviso('Um café passado na hora.') });
     caixa(-1.6, -4.1, 4.0, 0.6, true);
     // Jantar: mesa e quatro cadeiras.
     mesaJantar(-1.4, 0.74, -2.2); pe(-2.1, 0.36, -2.2); pe(-0.7, 0.36, -2.2);
@@ -387,6 +423,7 @@ function construirInterior() {
     luzesPos.push([-1.4, -2.6]);
     // Quarto: cama de casal com cabeceira na parede direita e criados-mudos.
     cama(4.7, 0.25, 2.4); cabeceira(5.82, 0.55, 2.4); travesseiro(5.4, 0.55, 1.95); travesseiro(5.4, 0.55, 2.85);
+    assentos.push({ x: 3.85, z: 2.4, rumo: -Math.PI / 2, rotulo: 'Sentar na cama' });
     criado(5.6, 0.25, 0.95); criado(5.6, 0.25, 3.85);
     caixa(4.7, 2.4, 2.2, 1.7, true); caixa(5.6, 0.95, 0.5, 0.45, true); caixa(5.6, 3.85, 0.5, 0.45, true);
     luzesPos.push([4.5, 2.4]);
@@ -397,6 +434,7 @@ function construirInterior() {
     lateral(5.82, 1.0, z - 1.1, Math.PI / 2); lateral(5.82, 1.0, z + 1.1, Math.PI / 2);
     for (let n = 0; n < 5; n++) prateleira(5.82, 0.1 + n * 0.45, z, Math.PI / 2);
     caixa(5.82, z, 0.4, 2.3, true);
+    pontos.push({ x: 5.0, z, rumo: Math.PI / 2, rotulo: 'Pegar um livro', usar: () => aviso('Você folheou um livro da estante.') });
   }
   // Plantas nos cantos.
   for (const [x, z] of TIPO === 'office' ? [[-5.6, -4.0], [5.4, -4.1], [-0.2, 4.0], [-0.6, -4.0]] : [[-5.6, -4.0], [5.4, -4.1], [-0.2, 4.0]]) {
@@ -529,7 +567,7 @@ if (VOLTAR) {
   const titulo = (PARAMS.get('titulo') ?? '').slice(0, 80) || (TIPO === 'home' ? 'Residência' : 'Escritório');
   qs('.hud h1').textContent = titulo;
   document.title = titulo;
-  qs('.ajuda').innerHTML = '<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> ou setas para andar, <kbd>Shift</kbd> para correr; arraste para girar a câmera. Saia pela porta, ou pelo botão, para voltar à rua.';
+  qs('.ajuda').innerHTML = '<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> ou setas para andar, <kbd>Shift</kbd> para correr; arraste para girar a câmera. Clique numa cadeira, no sofá ou num objeto para sentar ou usar (<kbd>E</kbd> quando estiver perto). Saia pela porta, ou pelo botão, para voltar à rua.';
   avatar.pos.set(PORTA.x, 0, SALA.fundo / 2 - 1.2);
   avatar.rumo = Math.PI;
   const sair = qs('[data-acao="sair"]');
@@ -543,9 +581,94 @@ function saiuPelaPorta() {
   location.assign(VOLTAR);
 }
 
+// ---------- Sentar e interagir ----------
+// Clique (ou toque) num assento ou objeto: o avatar vai até ele e age ao chegar.
+// Com o avatar perto, E faz a ação. Qualquer movimento levanta ou para a ação.
+const ALCANCE = 1.6;   // m: perto o bastante para agir
+const TOQUE = 0.8;     // m: o clique no chão vale para o item mais perto até aqui
+let pendente = null;   // item escolhido pelo clique, ainda longe
+let estado = null;     // null | { tipo: 'sentado' | 'usando' | 'conversando', item?, volta? }
+const itens = () => [...assentos.map((a) => ({ ...a, assento: a })), ...pontos.map((p) => ({ ...p, ponto: p }))];
+const distAte = (i) => Math.hypot(avatar.pos.x - i.x, avatar.pos.z - i.z);
+function maisPerto(x, z, max) {
+  let melhor = null, d = max;
+  for (const i of itens()) {
+    const di = Math.hypot(x - i.x, z - i.z);
+    if (di < d) { d = di; melhor = i; }
+  }
+  return melhor;
+}
+let avisoTimer = null;
+function aviso(texto) {
+  let el = qs('.aviso-acao');
+  if (!el) { el = document.createElement('div'); el.className = 'aviso-acao'; document.body.append(el); }
+  el.textContent = texto;
+  clearTimeout(avisoTimer);
+  avisoTimer = setTimeout(() => el.remove(), 2500);
+}
+function agir(item) {
+  pendente = null;
+  avatar.alvo = null;
+  if (item.assento) {
+    // Guarda onde estava (um lugar livre) para levantar ali.
+    estado = { tipo: 'sentado', item: item.assento, volta: avatar.pos.clone() };
+    avatar.pos.set(item.assento.x, 0, item.assento.z);
+    avatar.rumo = item.assento.rumo;
+    avatar.inst?.playOnce('sitEnter', () => estado?.tipo === 'sentado' && avatar.inst.play('sit'));
+  } else {
+    estado = { tipo: 'usando', item: item.ponto };
+    avatar.rumo = item.ponto.rumo;
+    item.ponto.usar?.(item.ponto);
+    avatar.inst?.playOnce('interact', () => { if (estado?.tipo === 'usando') { estado = null; avatar.inst.play('idle'); } });
+  }
+}
+function levantar() {
+  if (estado?.tipo !== 'sentado') { estado = null; return; }
+  const volta = estado.volta;
+  estado = { tipo: 'levantando' };
+  avatar.inst?.playOnce('sitExit', () => {
+    avatar.pos.copy(volta);
+    estado = null;
+    avatar.inst.play('idle');
+  });
+  if (!avatar.inst) { avatar.pos.copy(volta); estado = null; }
+}
+function conversar() {
+  if (estado?.tipo === 'conversando') { estado = null; avatar.inst?.play('idle'); return; }
+  if (estado?.tipo === 'sentado') return aviso('Levante-se para conversar.');
+  estado = { tipo: 'conversando' };
+  avatar.alvo = null;
+  avatar.inst?.play('talk');
+}
+qs('[data-acao="conversar"]').addEventListener('click', conversar);
+const botaoUsar = qs('[data-acao="usar"]');
+function itemDaVez() {
+  if (estado?.tipo === 'sentado') return { rotulo: 'Levantar', levantar: true };
+  if (estado) return null;
+  const i = maisPerto(avatar.pos.x, avatar.pos.z, ALCANCE);
+  return i;
+}
+function usarDaVez() {
+  const i = itemDaVez();
+  if (!i) return;
+  if (i.levantar) levantar(); else agir(i);
+}
+botaoUsar.addEventListener('click', usarDaVez);
+function atualizarDica() {
+  const i = itemDaVez();
+  botaoUsar.hidden = !i;
+  if (i) botaoUsar.innerHTML = `<kbd>E</kbd>${i.rotulo}`;
+}
+
 // ---------- Controles ----------
 const teclas = new Set();
-addEventListener('keydown', (e) => { teclas.add(e.key.toLowerCase()); avatar.alvo = null; });
+addEventListener('keydown', (e) => {
+  const k = e.key.toLowerCase();
+  if (k === 'e') { if (!e.repeat) usarDaVez(); return; }
+  teclas.add(k);
+  avatar.alvo = null;
+  pendente = null;
+});
 addEventListener('keyup', (e) => teclas.delete(e.key.toLowerCase()));
 let orbita = { yaw: 0, pitch: 0.38, dist: 6 };
 let arrasto = null;
@@ -563,7 +686,14 @@ addEventListener('pointerup', (e) => {
     const ray = new THREE.Raycaster();
     ray.setFromCamera(new THREE.Vector2((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1), camera);
     const p = ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), new THREE.Vector3());
-    if (p) avatar.alvo = p;
+    // Clique num assento ou objeto: vai até ele e age ao chegar.
+    const item = p && maisPerto(p.x, p.z, TOQUE);
+    if (estado?.tipo === 'sentado') levantar();
+    else if (item) {
+      estado = null;
+      if (distAte(item) < ALCANCE) agir(item);
+      else { pendente = item; avatar.alvo = new THREE.Vector3(item.x, 0, item.z); }
+    } else if (p) { estado = null; pendente = null; avatar.alvo = p; }
   }
   arrasto = null;
 });
@@ -597,6 +727,19 @@ const portaPos = new THREE.Vector3(PORTA.x, 0, SALA.fundo / 2);
 const tmp = new THREE.Vector3();
 
 function andar(dt) {
+  const mexendo = ['w', 's', 'a', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].some((k) => teclas.has(k));
+  if (estado) {
+    // Sentado, usando ou conversando: o avatar fica parado; mexer termina a ação.
+    if (mexendo && estado.tipo === 'sentado') levantar();
+    else if (mexendo && estado.tipo !== 'levantando') { estado = null; }
+    if (estado) {
+      avatar.obj.position.copy(avatar.pos);
+      avatar.obj.rotation.y = avatar.rumo;
+      return;
+    }
+  }
+  // Chegou perto do item clicado: age.
+  if (pendente && distAte(pendente) < ALCANCE) agir(pendente);
   const frente = new THREE.Vector3(-Math.sin(orbita.yaw), 0, -Math.cos(orbita.yaw));
   const direita = new THREE.Vector3(-frente.z, 0, frente.x);
   const dir = new THREE.Vector3();
@@ -658,6 +801,7 @@ renderer.setAnimationLoop(() => {
   avatar.mixer?.update(dt);
   streaming();
   saiuPelaPorta();
+  atualizarDica();
   seguirCamera();
   renderer.info.reset();
   passoBake();
@@ -686,6 +830,8 @@ window.spike = {
   quadro: () => { seguirCamera(); if (opcoes.post) composer.render(); else renderer.render(scene, camera); }, get plm() { return interior?.plm; }, get casco() { return interior?.casco; },
   get interior() { return interior && { amostras: interior.amostras, msConstruir: interior.msConstruir, msBake: interior.msBake, objetos: interior.grupo.children.length }; },
   irPara: (x, z) => { avatar.alvo = new THREE.Vector3(x, 0, z); },
+  get assentos() { return assentos; }, get pontos() { return pontos; }, get estado() { return estado; },
+  usar: () => usarDaVez(), conversar: () => conversar(),
   teleporte: (x, z) => { avatar.pos.set(x, 0, z); avatar.alvo = null; },
   olhar: (yaw, pitch, dist) => { orbita = { yaw, pitch, dist }; },
   vista: (de, para) => { vistaFixa = de ? { de: new THREE.Vector3(...de), para: new THREE.Vector3(...para) } : null; },

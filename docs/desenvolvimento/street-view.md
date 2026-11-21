@@ -107,6 +107,27 @@ Na ficha do lote, o dono vê o botão "Entrar", a lista de convidados e o campo 
 
 As regras de convite estão cobertas pelos testes do world.
 
+### Sentar e interagir no interior
+
+Com o avatar dentro da residência ou do escritório:
+
+| Item | Onde | Clipe |
+|---|---|---|
+| Sentar | Cadeiras da mesa de jantar, das estações e da sala de reunião; os três lugares do sofá; a beira da cama. O avatar fica no assento, de costas para o encosto | `Sitting_Enter`, depois `Sitting_Idle_Loop`; ao levantar, `Sitting_Exit` e volta ao lugar livre de onde veio |
+| Interagir | TV (liga e desliga a tela), cozinha, estante e recepção do escritório | `Interact`, uma vez, com um aviso na tela |
+| Conversar | Botão "💬 Conversar" | `Idle_Talking_Loop` até o avatar se mexer |
+
+Como usar:
+- clique no assento ou no objeto: o avatar vai até ele e age quando chega a até 1,6 m;
+- perto de um item, o botão no rodapé mostra a ação, por exemplo "E · Sentar no sofá", e a tecla E faz a ação;
+- qualquer movimento levanta o avatar ou encerra a ação.
+
+**Testado** em 2026-11-21 no navegador:
+- na residência, o avatar sentou no sofá e na cadeira da mesa de jantar, de frente para a mesa, e levantou de volta ao lugar livre;
+- a TV ligou, com o clipe Interact, e voltou ao idle;
+- no escritório, sentou na cadeira da estação;
+- "Conversar" tocou o clipe de conversa e parou ao andar.
+
 ## Outros jogadores na rua (multiplayer)
 
 A sala do bairro no `realtime` sincroniza, para cada jogador:
@@ -133,5 +154,5 @@ O avatar dos outros segue a posição recebida na velocidade de caminhada, sem p
 
 1. Colisão da câmera com os prédios, e faixas de pedestre e calçadas como área preferida.
 2. Interiores próprios para cada tipo de imóvel e de negócio, e o modelo do prédio aprovado no lugar do escritório padrão.
-3. Animações de interior da UAL (sentar e, se houver, digitar) no escritório.
+3. Digitar no computador sentado: a UAL vol. 1 não tem esse clipe; a vol. 2 tem ações de mão que podem servir.
 4. Visitas com outros jogadores dentro do imóvel (a sala do interior).

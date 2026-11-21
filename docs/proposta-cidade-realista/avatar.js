@@ -101,13 +101,37 @@ export function makeAvatar(THREE, assets) {
   const actions = {};
   for (const [role, clip] of Object.entries(clipsByRole(assets.clips))) if (clip) actions[role] = mixer.clipAction(clip);
   let current = null;
+  let onDone = null;
   /** Troca de animação com transição; `walk` e `run` caem no que existir. */
   const play = (role, fade = 0.2) => {
     const a = actions[role] ?? (role === 'run' ? actions.walk : null) ?? actions.idle;
     if (!a || a === current) return;
+    onDone = null;
+    a.setLoop(THREE.LoopRepeat, Infinity);
+    a.clampWhenFinished = false;
     a.reset().fadeIn(fade).play();
     current?.fadeOut(fade);
     current = a;
   };
-  return { body, mixer, actions, play, type: assets.type, source: assets.source };
+  /**
+   * Toca um clipe uma vez (sentar, levantar, interagir) e, no fim, chama `then`
+   * (que em geral passa para um clipe em laço). Sem o clipe, chama `then` direto.
+   */
+  const playOnce = (role, then, fade = 0.2) => {
+    const a = actions[role];
+    if (!a) return then?.();
+    a.setLoop(THREE.LoopOnce, 1);
+    a.clampWhenFinished = true;
+    a.reset().fadeIn(fade).play();
+    if (current !== a) current?.fadeOut(fade);
+    current = a;
+    onDone = { action: a, then };
+  };
+  mixer.addEventListener('finished', (e) => {
+    if (!onDone || e.action !== onDone.action) return;
+    const { then } = onDone;
+    onDone = null;
+    then?.();
+  });
+  return { body, mixer, actions, play, playOnce, current: () => current, type: assets.type, source: assets.source };
 }
