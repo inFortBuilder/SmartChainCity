@@ -3,20 +3,17 @@
 // Google). A área de caminhada é a própria camada `roads` da cidade (OSM): um
 // índice em grade dos triângulos das ruas responde "este ponto é rua?".
 //
-// Avatar: o personagem e as animações da Universal Animation Library
-// (Quaternius, CC0) quando estão em .local/animacoes/ual/ (fora do repositório,
-// ver docs/desenvolvimento/street-view.md); sem eles, o RobotExpressive (CC0) do
-// repositório do three.js.
+// Avatar: os manequins da Universal Animation Library (Quaternius, CC0), Man ou
+// Human, escolhidos na barra do street view (ver avatar.js).
 //
 // Fica para depois: clicar num escritório ou numa residência (do jogador ou de
 // quem o convidou) para entrar no interior (spike do escritório, ADR-0015).
 
+import { AVATAR_TYPES, getAvatarType, loadAvatarAssets, makeAvatar, setAvatarType } from './avatar.js';
+
 const CELL = 32; // m por célula do índice
 const SPEED = { walk: 1.5, run: 4.2 }; // m/s
 const CAM = { dist: 4.5, minDist: 2, maxDist: 14, height: 1.6 };
-const AVATAR_HEIGHT = 1.75;
-const UAL = '../../.local/animacoes/ual';
-const ROBOT = 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r170/examples/models/gltf/RobotExpressive/RobotExpressive.glb';
 
 /** Índice dos triângulos das ruas no plano XZ, em grade (formato CSR). */
 export function buildRoadIndex(mesh) {
@@ -89,7 +86,7 @@ export function createStreetView({ THREE, scene, camera, controls, canvas, roads
   let index = null;
   let active = false;
   let saved = null;
-  const avatar = { obj: new THREE.Group(), mixer: null, actions: {}, current: null, heading: 0, target: null, speed: 0, model: null, clips: [] };
+  const avatar = { obj: new THREE.Group(), mixer: null, heading: 0, target: null, speed: 0, model: null, clips: [], type: null, source: null };
   avatar.obj.visible = false;
   scene.add(avatar.obj);
   const view = { yaw: 0, pitch: 0.12, dist: CAM.dist };
@@ -109,6 +106,9 @@ export function createStreetView({ THREE, scene, camera, controls, canvas, roads
     .sv-bar { position: fixed; left: 16px; top: 16px; z-index: 7; display: flex; gap: 8px; align-items: center; padding: 8px 10px;
       border-radius: 12px; background: rgba(15,23,42,.82); color: #fff; font: 13px system-ui, sans-serif; }
     .sv-bar[hidden] { display: none; }
+    .sv-tipo { display: inline-flex; gap: 4px; align-items: center; }
+    .sv-tipo button { background: rgba(255,255,255,.15) !important; color: #fff !important; font-weight: 600 !important; padding: 5px 10px !important; }
+    .sv-tipo button[aria-pressed="true"] { background: #f59e0b !important; color: #0b1220 !important; }
     .sv-bar button { border: 0; border-radius: 8px; padding: 7px 12px; font-weight: 700; cursor: pointer; background: #fff; color: #0b1220; }
     .sv-help { opacity: .8; }
     body.sv-on .topbar, body.sv-on .layers, body.sv-on .ficha, body.sv-on .servidor { display: none !important; }
@@ -124,9 +124,21 @@ export function createStreetView({ THREE, scene, camera, controls, canvas, roads
   const bar = document.createElement('div');
   bar.className = 'sv-bar';
   bar.hidden = true;
-  bar.innerHTML = '<button type="button">← Voltar ao mapa</button><span class="sv-help">W A S D ou setas para andar · Shift corre · clique na rua para ir até lá · arraste para olhar</span>';
+  bar.innerHTML = `<button type="button" data-sair>← Voltar ao mapa</button>
+    <span class="sv-tipo" role="group" aria-label="Tipo de avatar">Avatar:
+      ${Object.entries(AVATAR_TYPES).map(([k, t]) => `<button type="button" data-tipo="${k}">${t.label}</button>`).join('')}</span>
+    <span class="sv-help">W A S D ou setas para andar · Shift corre · clique na rua para ir até lá · clique num imóvel para entrar · arraste para olhar</span>`;
   document.body.append(bar);
-  bar.querySelector('button').addEventListener('click', () => exit());
+  bar.querySelector('[data-sair]').addEventListener('click', () => exit());
+  const markType = (t) => bar.querySelectorAll('[data-tipo]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.tipo === t)));
+  markType(getAvatarType());
+  bar.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-tipo]');
+    if (!b) return;
+    setAvatarType(b.dataset.tipo);
+    markType(b.dataset.tipo);
+    loadAvatar(b.dataset.tipo).catch(() => say('O avatar não carregou.'));
+  });
   let tip = null;
   const say = (text, ms = 1800) => {
     tip?.remove();
@@ -210,44 +222,27 @@ export function createStreetView({ THREE, scene, camera, controls, canvas, roads
     else say('Aqui não é rua. Solte o boneco numa rua azul.');
   }
 
-  // ---------- Avatar ----------
+  // ---------- Avatar: Man ou Human da Universal Animation Library (avatar.js) ----------
+  let inst = null; // { body, mixer, play, type, source }
   let loading = null;
-  const loadAvatar = () => (loading ??= (async () => {
-    let model = null;
-    let clips = [];
-    try {
-      // Universal Animation Library (CC0), se baixada para .local/animacoes/ual/.
-      const [person, anims] = await Promise.all([loadGltf(`${UAL}/personagem.glb`), loadGltf(`${UAL}/animacoes.glb`)]);
-      model = person.scene;
-      clips = [...anims.animations, ...person.animations];
-      avatar.source = 'Universal Animation Library';
-    } catch {
-      const robot = await loadGltf(ROBOT);
-      model = robot.scene;
-      clips = robot.animations;
-      avatar.source = 'RobotExpressive';
-    }
-    const bb = new THREE.Box3().setFromObject(model);
-    model.scale.setScalar(AVATAR_HEIGHT / (bb.max.y - bb.min.y));
-    model.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; } });
-    avatar.obj.add(model);
-    avatar.model = model;
-    avatar.clips = clips;
-    avatar.mixer = new THREE.AnimationMixer(model);
-    const find = (...res) => clips.find((c) => res.some((re) => re.test(c.name)));
-    const idle = find(/^idle$/i, /idle/i);
-    const walk = find(/^walk(ing)?$/i, /walk(?!.*back)/i);
-    const run = find(/^(running|run|jog)$/i, /jog|run|sprint/i);
-    for (const [k, clip] of Object.entries({ idle, walk, run })) if (clip) avatar.actions[k] = avatar.mixer.clipAction(clip);
-    play('idle');
-  })());
-  const play = (name) => {
-    const a = avatar.actions[name] ?? avatar.actions.walk ?? avatar.actions.idle;
-    if (!a || a === avatar.current) return;
-    a.reset().fadeIn(0.2).play();
-    avatar.current?.fadeOut(0.2);
-    avatar.current = a;
+  const loadAvatar = (type = getAvatarType()) => {
+    if (inst?.type === type) return Promise.resolve(inst);
+    loading = (async () => {
+      const assets = await loadAvatarAssets(loadGltf, type);
+      if (inst?.type === assets.type) return inst;
+      if (inst) {
+        inst.mixer.stopAllAction();
+        avatar.obj.remove(inst.body);
+      }
+      inst = makeAvatar(THREE, assets);
+      avatar.obj.add(inst.body);
+      Object.assign(avatar, { model: assets.model, clips: assets.clips, source: assets.source, type: assets.type, mixer: inst.mixer });
+      inst.play('idle', 0);
+      return inst;
+    })();
+    return loading;
   };
+  const play = (name) => inst?.play(name);
 
   // A rua mais longa a partir do ponto: o avatar começa olhando para ela.
   const bestHeading = (x, z) => {
@@ -416,11 +411,10 @@ export function createStreetView({ THREE, scene, camera, controls, canvas, roads
     speed: () => avatar.speed,
     /** Altura do chão das ruas. */
     groundY: () => index?.y ?? 0,
-    /** O modelo e os clipes do avatar (carrega se preciso), para desenhar os outros jogadores. */
-    avatarTemplate: async () => {
-      await loadAvatar();
-      return { model: avatar.model, clips: avatar.clips };
-    },
+    /** Modelo e clipes de um tipo de avatar (`man`, `human`), para desenhar os outros jogadores. */
+    avatarAssets: (type) => loadAvatarAssets(loadGltf, type),
+    /** O tipo de avatar escolhido neste navegador. */
+    avatarType: () => getAvatarType(),
     heading: () => view.yaw,
     say,
     exit,

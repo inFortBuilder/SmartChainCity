@@ -63,6 +63,8 @@
 <script type="module">
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+import { loadAvatarAssets, makeAvatar } from './avatar.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { ProgressiveLightMap } from 'three/addons/misc/ProgressiveLightMap.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
@@ -73,7 +75,8 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 // ---------------------------------------------------------------------------
 // Padrão SCC Kit (ADR-0015): metros, Y para cima, porta 1,0 × 2,1 m, pé-direito 2,8 m.
 // Tudo aqui é geometria própria, feita em código: nenhum modelo de terceiros.
-// O avatar é o RobotExpressive (Quaternius, CC0), do repositório do three.js.
+// O avatar é o manequim da Universal Animation Library (Quaternius, CC0), Man ou Human,
+// o mesmo escolhido no street view (avatar.js).
 // ---------------------------------------------------------------------------
 const SALA = { largura: 12, fundo: 9, pe: 2.8 };          // interior: x ∈ [-6, 6], z ∈ [-4.5, 4.5]
 const PORTA = { x: -4.2, largura: 1.0, altura: 2.1 };     // na parede da frente (z = +4.5)
@@ -507,23 +510,17 @@ function passoBake() {
 // ---------- Avatar ----------
 const avatar = { obj: new THREE.Group(), mixer: null, acoes: {}, atual: null, pos: new THREE.Vector3(-4.2, 0, 9), rumo: Math.PI, alvo: null };
 scene.add(avatar.obj);
-new GLTFLoader().load('https://cdn.jsdelivr.net/gh/mrdoob/three.js@r170/examples/models/gltf/RobotExpressive/RobotExpressive.glb', (gltf) => {
-  const m = gltf.scene;
-  const bb = new THREE.Box3().setFromObject(m);
-  const altura = bb.max.y - bb.min.y;
-  m.scale.setScalar(1.75 / altura); // padrão do kit: avatar de 1,75 m
-  m.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
-  avatar.obj.add(m);
-  avatar.mixer = new THREE.AnimationMixer(m);
-  for (const clip of gltf.animations) avatar.acoes[clip.name] = avatar.mixer.clipAction(clip);
+loadAvatarAssets((url) => new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).loadAsync(url)).then((assets) => {
+  const inst = makeAvatar(THREE, assets);
+  avatar.obj.add(inst.body);
+  avatar.mixer = inst.mixer;
+  avatar.inst = inst;
+  avatar.fonte = assets.source;
   tocar('Idle');
 });
+// Nomes do spike → papéis do avatar (avatar.js).
 function tocar(nome) {
-  const a = avatar.acoes[nome];
-  if (!a || avatar.atual === a) return;
-  a.reset().fadeIn(0.2).play();
-  avatar.atual?.fadeOut(0.2);
-  avatar.atual = a;
+  avatar.inst?.play({ Idle: 'idle', Walking: 'walk', Running: 'run' }[nome] ?? 'idle');
 }
 
 // ---------- Visita ----------

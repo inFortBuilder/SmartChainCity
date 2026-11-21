@@ -105,7 +105,7 @@ async function waitFor(cond: () => boolean, ms = 3000) {
   }
 }
 
-const players = (room: Room) => room.state.players as Map<string, { name: string; x: number; z: number; mode: string; speed: number }>;
+const players = (room: Room) => room.state.players as Map<string, { name: string; x: number; z: number; mode: string; speed: number; skin: string }>;
 const messages = (room: Room, type: string) => {
   const got: Record<string, unknown>[] = [];
   room.onMessage(type, (m: Record<string, unknown>) => got.push(m));
@@ -148,7 +148,14 @@ describe('sala do bairro', () => {
     expect(players(b).get(a.sessionId)?.speed).toBe(10);
     a.send('move', { x: 126, z: -42, mode: 'voando', speed: 3 });
     await waitFor(() => players(b).get(a.sessionId)?.x === 126);
-    expect(players(b).get(a.sessionId)).toMatchObject({ mode: 'map', speed: 0 });
+    expect(players(b).get(a.sessionId)).toMatchObject({ mode: 'map', speed: 0, skin: 'man' });
+
+    // Tipo de avatar: human passa; desconhecido mantém o atual.
+    a.send('move', { x: 127, z: -42, mode: 'street', speed: 0, skin: 'human' });
+    await waitFor(() => players(b).get(a.sessionId)?.skin === 'human');
+    a.send('move', { x: 128, z: -42, mode: 'street', speed: 0, skin: 'dragao' });
+    await waitFor(() => players(b).get(a.sessionId)?.x === 128);
+    expect(players(b).get(a.sessionId)?.skin).toBe('human');
 
     await b.leave();
     await waitFor(() => players(a).size === 1);
