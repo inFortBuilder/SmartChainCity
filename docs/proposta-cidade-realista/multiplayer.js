@@ -2,14 +2,18 @@
 // com o nome, e o chat do bairro fica num painel. A sala é a do serviço realtime
 // (services/realtime, Colyseus): uma por bairro, até 100 jogadores.
 //
-// "Onde estou" é para onde a câmera olha (o alvo dos controles): o mapa ainda não
-// tem um avatar andando. Mudou de bairro, troca de sala sozinho.
+// "Onde estou" é para onde a câmera olha (o alvo dos controles) ou, no street view,
+// onde o avatar está. Mudou de bairro, troca de sala sozinho.
+//
+// No mapa, cada jogador é um alfinete. No street view, quem também está na rua
+// aparece como avatar, com o mesmo modelo e a animação pela velocidade.
+import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 
 const params = new URLSearchParams(location.search);
 const REALTIME = params.get('realtime') ?? 'http://127.0.0.1:8050';
 const SDK = 'https://cdn.jsdelivr.net/npm/@colyseus/sdk@0.18.9/+esm';
 const CITY = 'pittsburg';
-const MOVE_EVERY_MS = 500;
+const MOVE_EVERY_MS = 200;
 const MAX_LINES = 40;
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
@@ -26,7 +30,7 @@ const ERRORS = {
 /**
  * @param {{ THREE, scene, camera, controls, lotAt: (x:number,z:number)=>number|null,
  *           getLots: ()=>any, getSession: ()=>({token:string,address?:string}|null),
- *           getAvatar: ()=>any }} map
+ *           getAvatar: ()=>any, getStreetView?: ()=>any }} map
  */
 export function createMultiplayer(map) {
   const { THREE, scene, controls } = map;
@@ -90,6 +94,48 @@ export function createMultiplayer(map) {
     return s;
   }
 
+  // Nome pequeno sobre o avatar no street view (em metros, diminui com a distância).
+  function streetLabel(text) {
+    const s = labelSprite(text);
+    s.material.sizeAttenuation = true;
+    const ratio = s.scale.x / s.scale.y;
+    s.scale.set(0.32 * ratio, 0.32, 1);
+    s.position.y = 2.15;
+    return s;
+  }
+
+  // Avatar dos outros jogadores: clone do modelo do street view, com os mesmos clipes.
+  let template = null;
+  const loadTemplate = () => (template ??= map.getStreetView?.()?.avatarTemplate() ?? Promise.reject(new Error('sem street view')));
+  function makeWalker(pin, name) {
+    loadTemplate()
+      .then(({ model, clips }) => {
+        if (!pins.has(pin.id) || pin.walker) return;
+        const obj = new THREE.Group();
+        const body = SkeletonUtils.clone(model);
+        obj.add(body, streetLabel(name));
+        const mixer = new THREE.AnimationMixer(body);
+        const find = (...res) => clips.find((c) => res.some((re) => re.test(c.name)));
+        const actions = {};
+        for (const [k, clip] of Object.entries({ idle: find(/^idle$/i, /idle/i), walk: find(/^walk(ing)?$/i, /walk(?!.*back)/i), run: find(/^(running|run|jog)$/i, /jog|run|sprint/i) })) {
+          if (clip) actions[k] = mixer.clipAction(clip);
+        }
+        obj.position.set(pin.x, map.getStreetView().groundY(), pin.z);
+        obj.rotation.y = pin.rot;
+        obj.visible = false;
+        group.add(obj);
+        pin.walker = { obj, mixer, actions, current: null };
+      })
+      .catch(() => {});
+  }
+  function playWalker(w, name) {
+    const a = w.actions[name] ?? w.actions.walk ?? w.actions.idle;
+    if (!a || a === w.current) return;
+    a.reset().fadeIn(0.2).play();
+    w.current?.fadeOut(0.2);
+    w.current = a;
+  }
+
   function makePin(name) {
     const obj = new THREE.Group();
     obj.add(new THREE.Mesh(pinGeo, pinMat));
@@ -98,11 +144,14 @@ export function createMultiplayer(map) {
     return obj;
   }
 
+  function removePin(pin) {
+    pin.obj.traverse((o) => o.material?.map?.dispose?.());
+    group.remove(pin.obj);
+    if (pin.walker) group.remove(pin.walker.obj);
+  }
+
   function dropPins() {
-    for (const p of pins.values()) {
-      p.obj.traverse((o) => o.material?.map?.dispose?.());
-      group.remove(p.obj);
-    }
+    for (const p of pins.values()) removePin(p);
     pins.clear();
   }
 
@@ -116,25 +165,58 @@ export function createMultiplayer(map) {
       alive.add(id);
       let pin = pins.get(id);
       if (!pin) {
-        pin = { obj: makePin(p.name), x: p.x, z: p.z };
+        pin = { id, name: p.name, obj: makePin(p.name), x: p.x, z: p.z, rot: p.rot, walker: null };
         pins.set(id, pin);
       }
       pin.x = p.x;
       pin.z = p.z;
+      pin.rot = p.rot;
+      pin.mode = p.mode ?? 'map';
+      pin.speed = p.speed ?? 0;
+      if (pin.mode === 'street' && !pin.walker) makeWalker(pin, p.name);
     });
     for (const [id, pin] of pins) {
       if (alive.has(id)) continue;
-      group.remove(pin.obj);
+      removePin(pin);
       pins.delete(id);
     }
     panel.querySelector('[data-mp-count]').textContent = count === 1 ? 'só você aqui' : `${count} jogadores aqui`;
   }
 
-  /** Desliza os alfinetes até a posição nova (as mensagens chegam a cada meio segundo). */
-  function tick() {
+  /**
+   * Desliza alfinetes e avatares até a posição nova (as mensagens chegam a cada
+   * 200 ms). Eu no street view: vejo os avatares de quem está na rua. Eu no mapa:
+   * vejo todos como alfinetes.
+   */
+  let lastTick = performance.now();
+  function tick(now) {
+    const dt = Math.min(0.1, (now - lastTick) / 1000);
+    lastTick = now;
+    const street = !!map.getStreetView?.()?.active();
     for (const pin of pins.values()) {
+      pin.obj.visible = !street;
       pin.obj.position.x += (pin.x - pin.obj.position.x) * 0.2;
       pin.obj.position.z += (pin.z - pin.obj.position.z) * 0.2;
+      const w = pin.walker;
+      if (!w) continue;
+      w.obj.visible = street && pin.mode === 'street';
+      if (!w.obj.visible) {
+        w.obj.position.set(pin.x, w.obj.position.y, pin.z); // sem deslizar de longe quando reaparecer
+        continue;
+      }
+      // Segue a posição recebida na velocidade de caminhada; longe demais, salta.
+      const dx = pin.x - w.obj.position.x, dz = pin.z - w.obj.position.z;
+      const gap = Math.hypot(dx, dz);
+      if (gap > 30) w.obj.position.set(pin.x, w.obj.position.y, pin.z);
+      else if (gap > 0.01) {
+        const step = Math.min(gap, Math.max(pin.speed, gap * 4) * dt);
+        w.obj.position.x += (dx / gap) * step;
+        w.obj.position.z += (dz / gap) * step;
+      }
+      const d = Math.atan2(Math.sin(pin.rot - w.obj.rotation.y), Math.cos(pin.rot - w.obj.rotation.y));
+      w.obj.rotation.y += d * Math.min(1, dt * 10);
+      playWalker(w, pin.speed > 2.5 ? 'run' : pin.speed > 0.2 || gap > 0.3 ? 'walk' : 'idle');
+      w.mixer.update(dt);
     }
     requestAnimationFrame(tick);
   }
@@ -146,12 +228,16 @@ export function createMultiplayer(map) {
   let roomDistrict = null;
   let joining = false;
   let token = null;
-  let lastSent = { x: NaN, z: NaN };
+  let lastSent = { x: NaN, z: NaN, mode: 'map', speed: 0, rot: 0 };
 
   const districtHere = () => {
     const lots = map.getLots();
     const t = controls.target;
-    const i = map.lotAt(t.x, t.z);
+    // Na rua não há lote embaixo: vale o lote mais perto, até 40 m.
+    let i = map.lotAt(t.x, t.z);
+    for (let r = 5; i === null && r <= 40; r += 5) {
+      for (let k = 0; k < 8 && i === null; k++) i = map.lotAt(t.x + Math.cos((k / 8) * Math.PI * 2) * r, t.z + Math.sin((k / 8) * Math.PI * 2) * r);
+    }
     if (i === null || !lots?.district) return null;
     return lots.district[i];
   };
@@ -181,7 +267,7 @@ export function createMultiplayer(map) {
       await leave();
       room = r;
       roomDistrict = district;
-      lastSent = { x: t.x, z: t.z };
+      lastSent = { x: t.x, z: t.z, mode: 'map', speed: 0, rot: 0 };
       panel.querySelector('[data-mp-bairro]').textContent = String(district + 1);
       chatEl.innerHTML = '';
       line(`<span class="muted">Você entrou no bairro ${district + 1}.</span>`);
@@ -229,10 +315,25 @@ export function createMultiplayer(map) {
       await join(district);
       return;
     }
+    if (!room) return;
+    const sv = map.getStreetView?.();
+    if (sv?.active()) {
+      // No street view, a posição é a do avatar, com o rumo do corpo e a velocidade.
+      const p = sv.position();
+      const msg = { x: p.x, z: p.z, rot: sv.bodyHeading(), mode: 'street', speed: sv.speed() };
+      const changed =
+        lastSent.mode !== 'street' || Math.hypot(p.x - lastSent.x, p.z - lastSent.z) > 0.05 || msg.speed !== lastSent.speed || Math.abs(msg.rot - lastSent.rot) > 0.05;
+      if (changed) {
+        room.send('move', msg);
+        lastSent = msg;
+      }
+      return;
+    }
     const t = controls.target;
-    if (room && Math.hypot(t.x - lastSent.x, t.z - lastSent.z) > 1) {
-      room.send('move', { x: t.x, z: t.z, rot: Math.atan2(map.camera.position.x - t.x, map.camera.position.z - t.z) });
-      lastSent = { x: t.x, z: t.z };
+    if (lastSent.mode !== 'map' || Math.hypot(t.x - lastSent.x, t.z - lastSent.z) > 1) {
+      const msg = { x: t.x, z: t.z, rot: Math.atan2(map.camera.position.x - t.x, map.camera.position.z - t.z), mode: 'map', speed: 0 };
+      room.send('move', msg);
+      lastSent = msg;
     }
   }
   setInterval(() => loop().catch((e) => console.warn('multiplayer', e)), MOVE_EVERY_MS);
@@ -249,7 +350,7 @@ export function createMultiplayer(map) {
 
   return {
     /** Quem está no bairro (para testes e para a tela). */
-    players: () => [...pins.entries()].map(([id, p]) => ({ id, x: p.x, z: p.z })),
+    players: () => [...pins.entries()].map(([id, p]) => ({ id, x: p.x, z: p.z, mode: p.mode, speed: p.speed, avatar: !!p.walker, visible: !!p.walker?.obj.visible })),
     room: () => room,
     district: () => roomDistrict,
     report: (sessionId, reason = '') => room?.send('report', { sessionId, reason }),

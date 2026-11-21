@@ -89,7 +89,7 @@ export function createStreetView({ THREE, scene, camera, controls, canvas, roads
   let index = null;
   let active = false;
   let saved = null;
-  const avatar = { obj: new THREE.Group(), mixer: null, actions: {}, current: null, heading: 0, target: null, speed: 0 };
+  const avatar = { obj: new THREE.Group(), mixer: null, actions: {}, current: null, heading: 0, target: null, speed: 0, model: null, clips: [] };
   avatar.obj.visible = false;
   scene.add(avatar.obj);
   const view = { yaw: 0, pitch: 0.12, dist: CAM.dist };
@@ -231,6 +231,8 @@ export function createStreetView({ THREE, scene, camera, controls, canvas, roads
     model.scale.setScalar(AVATAR_HEIGHT / (bb.max.y - bb.min.y));
     model.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; } });
     avatar.obj.add(model);
+    avatar.model = model;
+    avatar.clips = clips;
     avatar.mixer = new THREE.AnimationMixer(model);
     const find = (...res) => clips.find((c) => res.some((re) => re.test(c.name)));
     const idle = find(/^idle$/i, /idle/i);
@@ -377,6 +379,7 @@ export function createStreetView({ THREE, scene, camera, controls, canvas, roads
       // A câmera acompanha devagar quando o avatar vai até um ponto clicado.
       if (!keys.size && avatar.target) view.yaw += Math.atan2(Math.sin(avatar.heading - view.yaw), Math.cos(avatar.heading - view.yaw)) * Math.min(1, dt * 1.5);
     }
+    avatar.speed = moving ? (run ? SPEED.run : SPEED.walk) : 0;
     play(moving ? (run ? 'run' : 'walk') : 'idle');
     avatar.mixer?.update(dt);
 
@@ -408,6 +411,16 @@ export function createStreetView({ THREE, scene, camera, controls, canvas, roads
       return null;
     },
     position: () => avatar.obj.position.clone(),
+    /** Para onde o corpo do avatar está virado e a velocidade agora (m/s): o multiplayer manda isso aos outros. */
+    bodyHeading: () => avatar.heading,
+    speed: () => avatar.speed,
+    /** Altura do chão das ruas. */
+    groundY: () => index?.y ?? 0,
+    /** O modelo e os clipes do avatar (carrega se preciso), para desenhar os outros jogadores. */
+    avatarTemplate: async () => {
+      await loadAvatar();
+      return { model: avatar.model, clips: avatar.clips };
+    },
     heading: () => view.yaw,
     say,
     exit,

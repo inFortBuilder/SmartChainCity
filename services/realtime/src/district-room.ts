@@ -19,6 +19,10 @@ export const Player = schema(
     x: t.float32().default(0),
     z: t.float32().default(0),
     rot: t.float32().default(0),
+    /** `map`: olhando o mapa de cima (alfinete). `street`: caminhando no street view (avatar). */
+    mode: t.string().default('map'),
+    /** Velocidade no street view, em m/s: escolhe a animação (parado, andando, correndo). */
+    speed: t.float32().default(0),
   },
   'Player',
 );
@@ -46,6 +50,8 @@ export interface RoomDeps {
 
 /** Limite do mapa em metros (Pittsburg tem 34,6 km de base). Fora disso, o movimento é ignorado. */
 const MAX_COORD = 200_000;
+const MODES = new Set(['map', 'street']);
+const MAX_SPEED = 10; // m/s: acima disso não é caminhada
 
 export class DistrictRoom extends Room {
   static deps: RoomDeps;
@@ -77,16 +83,20 @@ export class DistrictRoom extends Room {
     this.setMetadata({ city, district });
     deps.registry.add(this);
 
-    this.onMessage('move', (client, msg: { x?: unknown; z?: unknown; rot?: unknown }) => {
+    this.onMessage('move', (client, msg: { x?: unknown; z?: unknown; rot?: unknown; mode?: unknown; speed?: unknown }) => {
       const p = this.state.players.get(client.sessionId);
       if (!p || !this.moves.take(client.sessionId)) return;
       const x = Number(msg?.x);
       const z = Number(msg?.z);
       const rot = Number(msg?.rot ?? 0);
-      if (![x, z, rot].every(Number.isFinite) || Math.abs(x) > MAX_COORD || Math.abs(z) > MAX_COORD) return;
+      const speed = Number(msg?.speed ?? 0);
+      if (![x, z, rot, speed].every(Number.isFinite) || Math.abs(x) > MAX_COORD || Math.abs(z) > MAX_COORD) return;
       p.x = x;
       p.z = z;
       p.rot = rot;
+      // Modo desconhecido vira mapa; velocidade fica entre 0 e o limite.
+      p.mode = typeof msg?.mode === 'string' && MODES.has(msg.mode) ? msg.mode : 'map';
+      p.speed = p.mode === 'street' ? Math.min(MAX_SPEED, Math.max(0, speed)) : 0;
     });
 
     this.onMessage('chat', (client, msg: { text?: unknown }) => {

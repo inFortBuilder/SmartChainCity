@@ -79,9 +79,31 @@ Na ficha do lote, o dono vê o botão "Entrar", a lista de convidados e o campo 
 
 As regras de convite estão cobertas pelos testes do world.
 
+## Outros jogadores na rua (multiplayer)
+
+A sala do bairro no `realtime` sincroniza, para cada jogador:
+- a posição;
+- o rumo;
+- o modo: `map`, olhando o mapa de cima, ou `street`, caminhando;
+- a velocidade, até 10 m/s.
+
+No street view, a posição é a do avatar, e o cliente manda até 5 atualizações por segundo, só quando algo muda. Na rua, o bairro da sala é o do lote mais perto, a até 40 m.
+
+| Eu estou | Vejo os outros |
+|---|---|
+| No mapa | Todos como alfinete com o nome |
+| No street view | Quem também está na rua como avatar, com o mesmo modelo, o nome em cima e a animação pela velocidade (parado, andando, correndo). Quem está no mapa não aparece na rua |
+
+O avatar dos outros segue a posição recebida na velocidade de caminhada, sem pular a cada mensagem. Se a distância passa de 30 m, ele salta direto para a posição.
+
+**Testado** em 2026-11-21, com dois jogadores em duas abas e o `realtime` local:
+- B, na rua, apareceu como avatar para A, com o nome e a 3,2 m;
+- A voltou ao mapa e viu B como alfinete;
+- B voltou ao mapa e saiu da rua de A.
+
 ## Próximos passos
 
-1. Posição do avatar no multiplayer do bairro (`realtime`).
-2. Colisão da câmera com os prédios, e faixas de pedestre e calçadas como área preferida.
-3. Interiores próprios para cada tipo de imóvel e de negócio, e o modelo do prédio aprovado no lugar do escritório padrão.
-4. Animações de interior da UAL (sentar e, se houver, digitar) no escritório.
+1. Colisão da câmera com os prédios, e faixas de pedestre e calçadas como área preferida.
+2. Interiores próprios para cada tipo de imóvel e de negócio, e o modelo do prédio aprovado no lugar do escritório padrão.
+3. Animações de interior da UAL (sentar e, se houver, digitar) no escritório.
+4. Visitas com outros jogadores dentro do imóvel (a sala do interior).
