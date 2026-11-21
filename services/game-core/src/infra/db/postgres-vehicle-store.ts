@@ -74,7 +74,8 @@ export class PostgresVehicleStore implements VehicleStore {
     const rows = await this.db
       .update(vehicle)
       .set({ repairUntil: until })
-      .where(and(eq(vehicle.id, id), eq(vehicle.brokenAt, brokenAt), isNull(vehicle.repairUntil)))
+      // O JavaScript guarda milissegundos e o Postgres, microssegundos: compara no milissegundo.
+      .where(and(eq(vehicle.id, id), sql`date_trunc('milliseconds', ${vehicle.brokenAt}) = ${brokenAt}`, isNull(vehicle.repairUntil)))
       .returning({ id: vehicle.id });
     return rows.length > 0;
   }

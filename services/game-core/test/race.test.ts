@@ -290,3 +290,15 @@ describe('API das corridas e da oficina', () => {
     expect(nope.json().error.code).toBe('not_licensed');
   });
 });
+
+describe.skipIf(!pool)('oficina no Postgres', () => {
+  it('a pane gravada com microssegundos ainda entra na oficina', async () => {
+    const vehicles = new PostgresVehicleStore(pool!);
+    const v = car();
+    await vehicles.create(v);
+    await pool!.query(`update game.vehicle set breakdown = 'leve', broken_at = '2026-11-21T08:00:00.123456Z' where id = $1`, [v.id]);
+    const broken = (await vehicles.get(v.id))!;
+    expect(broken.brokenAt).toEqual(new Date('2026-11-21T08:00:00.123Z'));
+    expect(await vehicles.startRepair(v.id, broken.brokenAt!, new Date(t0.getTime() + DAY))).toBe(true);
+  });
+});

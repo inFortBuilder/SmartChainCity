@@ -804,7 +804,9 @@ export async function buildApp(
       { key: `vehicle-repair:${car.id}:${car.brokenAt.toISOString()}`, kind: 'vehicle_repair', accountId: car.accountId, cents, sink: 'workshop', refId: car.id },
       request.id,
     );
-    await v.store.startRepair(car.id, car.brokenAt, new Date(now().getTime() + SEVERITIES[car.breakdown].days * 86_400_000));
+    const started = await v.store.startRepair(car.id, car.brokenAt, new Date(now().getTime() + SEVERITIES[car.breakdown].days * 86_400_000));
+    // A cobrança tem a chave da pane: tentar de novo não cobra outra vez.
+    if (!started) throw new AppError('repair_conflict', 'A oficina não registrou o reparo. Tente de novo: a cobrança não se repete.', 409);
     return { vehicle: vehicleDto((await v.store.get(car.id))!, now()), cents: cents.toString() };
   });
 
