@@ -69,3 +69,28 @@ export const ledgerEntry = economy.table(
     check('ledger_entry_amount_check', sql`${t.amount} <> 0`),
   ],
 );
+
+/**
+ * Saques pelo GameVault (E3.7): o voucher assinado e a situação. O nonce é o id
+ * (128 bits), então é único sem índice extra.
+ */
+export const withdrawal = economy.table(
+  'withdrawal',
+  {
+    id: uuid('id').primaryKey(),
+    accountId: text('account_id').notNull(),
+    wallet: text('wallet').notNull(),
+    amountWei: numeric('amount_wei', { precision: 78, scale: 0 }).notNull(),
+    nonce: numeric('nonce', { precision: 78, scale: 0 }).notNull().unique(),
+    deadline: timestamptz('deadline').notNull(),
+    signature: text('signature'),
+    status: text('status').notNull(),
+    createdAt: timestamptz('created_at').notNull(),
+    closedAt: timestamptz('closed_at'),
+  },
+  (t) => [
+    index('withdrawal_account_idx').on(t.accountId, t.createdAt),
+    index('withdrawal_open_idx').on(t.status, t.createdAt),
+    check('withdrawal_status_check', sql`${t.status} in ('created', 'pending', 'claimed', 'refunded', 'failed')`),
+  ],
+);

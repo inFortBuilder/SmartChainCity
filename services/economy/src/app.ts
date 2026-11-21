@@ -6,6 +6,14 @@ import { z } from 'zod';
 import type { Config } from './config.js';
 import { type PanelStore, buildPanel, panelGauges } from './domain/panel.js';
 import {
+  type AccountDirectory,
+  type VoucherSigner,
+  type Withdrawal,
+  type WithdrawalStore,
+  deadlineSeconds,
+  requestWithdrawal,
+} from './domain/withdrawals.js';
+import {
   CURRENCIES,
   type Currency,
   type LedgerStore,
@@ -55,7 +63,34 @@ const txDto = (tx: PostedTx) => ({
   })),
 });
 
-export async function buildApp(config: Config, store: LedgerStore & Partial<PanelStore>, now: () => Date = () => new Date()) {
+/** Saque pelo GameVault (E3.7): sem isso, as rotas de saque respondem 503. */
+export interface WithdrawalsWiring {
+  store: WithdrawalStore;
+  signer: VoucherSigner;
+  accounts: AccountDirectory;
+  vault: { contract: string; chainId: number };
+}
+
+const withdrawalDto = (w: Withdrawal) => ({
+  id: w.id,
+  wallet: w.wallet,
+  amount_wei: w.amountWei.toString(),
+  status: w.status,
+  created_at: w.createdAt.toISOString(),
+  deadline: w.deadline.toISOString(),
+  // O voucher só serve enquanto está pendente: com ele, a carteira chama GameVault.claim.
+  voucher:
+    w.status === 'pending' && w.signature
+      ? { to: w.wallet, amount: w.amountWei.toString(), nonce: w.nonce.toString(), deadline: deadlineSeconds(w).toString(), signature: w.signature }
+      : null,
+});
+
+export async function buildApp(
+  config: Config,
+  store: LedgerStore & Partial<PanelStore>,
+  now: () => Date = () => new Date(),
+  withdrawals: WithdrawalsWiring | null = null,
+) {
   const app = Fastify({
     ...serverOptions({
       service: 'economy',
@@ -169,6 +204,31 @@ export async function buildApp(config: Config, store: LedgerStore & Partial<Pane
       now(),
     );
     return reply.status(result.replayed ? 200 : 201).send({ transaction: txDto(result.tx), replayed: result.replayed });
+  });
+
+  // ---------------------------------------------------------------- saques (E3.7)
+
+  const withdrawalsOn = () => {
+    if (!withdrawals) throw new AppError('withdrawals_disabled', 'O saque ainda não está ligado.', 503);
+    return withdrawals;
+  };
+
+  app.post('/v1/economy/withdrawals', async (request, reply) => {
+    const accountId = await player(request);
+    const w = withdrawalsOn();
+    const body = z.object({ wallet: z.string(), amount_wei: z.string().regex(/^\d{1,40}$/) }).parse(request.body);
+    const created = await requestWithdrawal(
+      { ledger: store, store: w.store, signer: w.signer, accounts: w.accounts },
+      { accountId, wallet: body.wallet, amountWei: BigInt(body.amount_wei) },
+      now(),
+    );
+    return reply.status(201).send({ contract: w.vault.contract, chain_id: w.vault.chainId, withdrawal: withdrawalDto(created) });
+  });
+
+  app.get('/v1/economy/withdrawals', async (request) => {
+    const accountId = await player(request);
+    const w = withdrawalsOn();
+    return { contract: w.vault.contract, chain_id: w.vault.chainId, withdrawals: (await w.store.listOf(accountId, 50)).map(withdrawalDto) };
   });
 
   // ---------------------------------------------------------------- painel econômico (E2.8)

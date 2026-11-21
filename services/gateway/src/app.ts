@@ -198,8 +198,12 @@ export async function buildApp(config: Config, store: AuthStore, now?: () => Dat
     }
     requireServiceToken(request.headers['x-service-token'], config.INTERNAL_TOKEN);
     const { id } = z.object({ id: z.uuid() }).parse(request.params);
-    const { wallets } = await auth.me(id);
-    return { wallets: wallets.map((w) => ({ address: w.address, chain_id: w.chainId })) };
+    const { account, wallets } = await auth.me(id);
+    return {
+      wallets: wallets.map((w) => ({ address: w.address, chain_id: w.chainId })),
+      // O economy usa para a carência do saque da conta nova.
+      account_created_at: account.createdAt.toISOString(),
+    };
   });
 
   // Conta dona da carteira, para o chain-indexer creditar o depósito do GameVault na conta certa.
