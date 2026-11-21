@@ -163,12 +163,12 @@ describe('sala do bairro', () => {
     await waitFor(() => players(b).get(a.sessionId)?.x === 126);
     expect(players(b).get(a.sessionId)).toMatchObject({ mode: 'map', speed: 0, skin: 'man' });
 
-    // Tipo de avatar: human passa; desconhecido mantém o atual.
+    // Tipo de avatar: woman passa (e o nome antigo human vira woman); desconhecido mantém o atual.
     a.send('move', { x: 127, z: -42, mode: 'street', speed: 0, skin: 'human' });
-    await waitFor(() => players(b).get(a.sessionId)?.skin === 'human');
+    await waitFor(() => players(b).get(a.sessionId)?.skin === 'woman');
     a.send('move', { x: 128, z: -42, mode: 'street', speed: 0, skin: 'dragao' });
     await waitFor(() => players(b).get(a.sessionId)?.x === 128);
-    expect(players(b).get(a.sessionId)?.skin).toBe('human');
+    expect(players(b).get(a.sessionId)?.skin).toBe('woman');
 
     await b.leave();
     await waitFor(() => players(a).size === 1);
@@ -260,11 +260,11 @@ describe('sala do interior', () => {
     await expect(enter(randomUUID())).rejects.toBeTruthy();
     await expect(enter(OWNER, { lot: 8 })).rejects.toBeTruthy();
 
-    const dono = await enter(OWNER, { name: 'Dona', skin: 'human' });
+    const dono = await enter(OWNER, { name: 'Dona', skin: 'woman' });
     const conv = await enter(GUEST, { name: 'Amigo' });
     expect(dono.roomId).toBe(conv.roomId);
     await waitFor(() => visitors(dono).size === 2);
-    expect(visitors(conv).get(dono.sessionId)).toMatchObject({ name: 'Dona', skin: 'human', role: 'owner' });
+    expect(visitors(conv).get(dono.sessionId)).toMatchObject({ name: 'Dona', skin: 'woman', role: 'owner' });
     expect(visitors(dono).get(conv.sessionId)).toMatchObject({ role: 'guest', skin: 'man' });
 
     conv.send('move', { x: -5.3, z: 1.0, rot: 1.57, pose: 'sit' });

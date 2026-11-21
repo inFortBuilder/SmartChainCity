@@ -2,10 +2,10 @@
 /**
  * Pacote do avatar do jogo a partir da Universal Animation Library (Quaternius, CC0).
  *
- *   node bin/avatar-pack.js <UAL-Man> <UAL-Human> <pasta-de-saída>
+ *   node bin/avatar-pack.js <UAL-Man> <UAL-Woman> <pasta-de-saída>
  *
  * - avatar-man.glb: o manequim masculino do UAL1 com só os clipes que o jogo usa.
- * - avatar-human.glb: o manequim feminino (sem clipes; o cliente toca os do man,
+ * - avatar-woman.glb: o manequim feminino (sem clipes; o cliente toca os do man,
  *   porque os dois têm o mesmo esqueleto e os mesmos nomes de ossos).
  *
  * Usa a versão sem root motion (Standard): quem move o avatar é o jogo. As
@@ -32,9 +32,9 @@ export const CLIPS = [
   'Idle_Talking_Loop',
 ];
 
-const [manDir, humanDir, outDir] = process.argv.slice(2);
-if (!manDir || !humanDir || !outDir) {
-  console.error('Uso: node bin/avatar-pack.js <UAL-Man> <UAL-Human> <pasta-de-saída>');
+const [manDir, womanDir, outDir] = process.argv.slice(2);
+if (!manDir || !womanDir || !outDir) {
+  console.error('Uso: node bin/avatar-pack.js <UAL-Man> <UAL-Woman> <pasta-de-saída>');
   process.exit(1);
 }
 
@@ -59,5 +59,5 @@ async function pack(src, dst, keepClips) {
 }
 
 await pack(join(manDir, 'Unreal-Godot', 'UAL1_Standard.glb'), join(outDir, 'avatar-man.glb'), CLIPS);
-await pack(join(humanDir, 'Female Mannequin', 'Unreal-Godot', 'Mannequin_F.glb'), join(outDir, 'avatar-human.glb'), []);
+await pack(join(womanDir, 'Female Mannequin', 'Unreal-Godot', 'Mannequin_F.glb'), join(outDir, 'avatar-woman.glb'), []);
 copyFileSync(join(manDir, 'License.txt'), join(outDir, 'LICENSE-UAL.txt'));

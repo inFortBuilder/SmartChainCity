@@ -2,7 +2,7 @@
 // Os arquivos saem de tools/scc-builder/bin/avatar-pack.js para assets/avatar/.
 //
 // - Man: o manequim masculino, com os clipes do jogo.
-// - Human: o manequim feminino, que toca os mesmos clipes (mesmo esqueleto).
+// - Woman: o manequim feminino, que toca os mesmos clipes (mesmo esqueleto).
 //
 // A escolha fica neste navegador (localStorage) e vale para o street view, o
 // interior e o que os outros jogadores veem (o realtime leva o tipo).
@@ -16,13 +16,17 @@ export const AVATAR_HEIGHT = 1.75;
 
 export const AVATAR_TYPES = {
   man: { label: 'Man', file: 'avatar-man.glb' },
-  human: { label: 'Human', file: 'avatar-human.glb' },
+  woman: { label: 'Woman', file: 'avatar-woman.glb' },
 };
 export const isAvatarType = (t) => Object.hasOwn(AVATAR_TYPES, t);
 
+/** Nomes antigos que ainda podem estar salvos no navegador. */
+const OLD_NAMES = { human: 'woman' };
+
 export function getAvatarType() {
   try {
-    const t = localStorage.getItem(KEY);
+    const saved = localStorage.getItem(KEY);
+    const t = OLD_NAMES[saved] ?? saved;
     return isAvatarType(t) ? t : 'man';
   } catch {
     return 'man';

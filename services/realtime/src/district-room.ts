@@ -24,7 +24,7 @@ export const Player = schema(
     mode: t.string().default('map'),
     /** Velocidade no street view, em m/s: escolhe a animação (parado, andando, correndo). */
     speed: t.float32().default(0),
-    /** Tipo de avatar no street view: `man` ou `human` (manequins da Universal Animation Library). */
+    /** Tipo de avatar no street view: `man` ou `woman` (manequins da Universal Animation Library). */
     skin: t.string().default('man'),
   },
   'Player',
@@ -55,7 +55,9 @@ export interface RoomDeps {
 const MAX_COORD = 200_000;
 const MODES = new Set(['map', 'street']);
 const MAX_SPEED = 10; // m/s: acima disso não é caminhada
-const SKINS = new Set(['man', 'human']);
+const SKINS = new Set(['man', 'woman']);
+/** Nome antigo do manequim feminino, de clientes que ainda não atualizaram. */
+const skinOf = (v: unknown) => (v === 'human' ? 'woman' : v);
 
 export class DistrictRoom extends Room {
   static deps: RoomDeps;
@@ -102,7 +104,8 @@ export class DistrictRoom extends Room {
       p.mode = typeof msg?.mode === 'string' && MODES.has(msg.mode) ? msg.mode : 'map';
       p.speed = p.mode === 'street' ? Math.min(MAX_SPEED, Math.max(0, speed)) : 0;
       // Tipo de avatar desconhecido não muda o atual.
-      if (typeof msg?.skin === 'string' && SKINS.has(msg.skin)) p.skin = msg.skin;
+      const skin = skinOf(msg?.skin);
+      if (typeof skin === 'string' && SKINS.has(skin)) p.skin = skin;
     });
 
     registerChat(this, {

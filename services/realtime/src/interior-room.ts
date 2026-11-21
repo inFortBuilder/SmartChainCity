@@ -55,7 +55,9 @@ export interface InteriorDeps {
 /** O interior tem 12 × 9 m; com folga para a calçada da porta. */
 const MAX_COORD = 20;
 const POSES = new Set(['idle', 'walk', 'run', 'sit', 'interact', 'talk']);
-const SKINS = new Set(['man', 'human']);
+const SKINS = new Set(['man', 'woman']);
+/** Nome antigo do manequim feminino, de clientes que ainda não atualizaram. */
+const skinOf = (v: unknown) => (v === 'human' ? 'woman' : v);
 const MAX_VISITORS = 25; // o dono e até 20 convidados, com folga
 
 const validCity = (c: unknown) => (typeof c === 'string' && /^[a-z][a-z0-9-]{1,30}$/.test(c) ? c : null);
@@ -108,7 +110,8 @@ export class InteriorRoom extends Room {
       p.z = z;
       p.rot = rot;
       p.pose = typeof msg?.pose === 'string' && POSES.has(msg.pose) ? msg.pose : 'idle';
-      if (typeof msg?.skin === 'string' && SKINS.has(msg.skin)) p.skin = msg.skin;
+      const skin = skinOf(msg?.skin);
+      if (typeof skin === 'string' && SKINS.has(skin)) p.skin = skin;
     });
 
     registerChat(this, {
@@ -127,7 +130,8 @@ export class InteriorRoom extends Room {
     const p = new Visitor();
     p.name = cleanName(options?.name);
     p.role = auth.role;
-    if (typeof options?.skin === 'string' && SKINS.has(options.skin)) p.skin = options.skin;
+    const skin = skinOf(options?.skin);
+    if (typeof skin === 'string' && SKINS.has(skin)) p.skin = skin;
     this.state.players.set(client.sessionId, p);
     InteriorRoom.deps.log('interior.join', { room: this.roomId, city: this.state.city, lot: this.state.lot, role: auth.role });
   }

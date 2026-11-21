@@ -45,16 +45,16 @@ Análise do pacote [Universal Animation Library](https://quaternius.com/packs/un
 
 **Recomendação:** adotar a Universal Animation Library como biblioteca de movimento dos avatares. Ela é CC0, gratuita, traz o GLB e tem um rig único para todos os personagens. Adotada em 2026-11-21 (abaixo). Para os avatares próprios do jogo, siga uma regra: todo modelo de avatar é entregue no rig universal. Assim, um único arquivo de animações serve para todos os personagens.
 
-### Os manequins do jogo: Man e Human
+### Os manequins do jogo: Man e Woman
 
-Desde 2026-11-21, o avatar do street view, do interior e dos outros jogadores é o manequim da UAL. O jogador escolhe o tipo na barra do street view ("Avatar: Man | Human"). A escolha fica no navegador e vai para os outros jogadores pelo `realtime` (campo `skin`).
+Desde 2026-11-21, o avatar do street view, do interior e dos outros jogadores é o manequim da UAL. O jogador escolhe o tipo na barra do street view ("Avatar: Man | Woman"). A escolha fica no navegador e vai para os outros jogadores pelo `realtime` (campo `skin`).
 
 | Tipo | Modelo | Clipes |
 |---|---|---|
 | **Man** | Manequim masculino do `UAL1_Standard.glb` | Os 9 clipes do jogo, dentro do próprio arquivo |
-| **Human** | Manequim feminino (`Mannequin_F.glb`, da pasta `UAL-Human`) | Os mesmos clipes do Man: os dois manequins têm o mesmo esqueleto de 65 ossos e os mesmos nomes |
+| **Woman** | Manequim feminino (`Mannequin_F.glb`, da pasta `UAL-Woman`) | Os mesmos clipes do Man: os dois manequins têm o mesmo esqueleto de 65 ossos e os mesmos nomes |
 
-A pasta `UAL-Human` traz a biblioteca de animações vol. 2 (`UAL2_Standard.glb`), com o mesmo manequim masculino e outras ações: telefone, plantio, carregar caixa, sim/não e outras. Ela não tem as animações de andar, então serve para ações futuras.
+A pasta `UAL-Woman` traz a biblioteca de animações vol. 2 (`UAL2_Standard.glb`), com o mesmo manequim masculino e outras ações: telefone, plantio, carregar caixa, sim/não e outras. Ela não tem as animações de andar, então serve para ações futuras.
 
 **Clipes do jogo** (vol. 1, versão sem root motion, porque quem move o avatar é o jogo):
 
@@ -63,27 +63,27 @@ A pasta `UAL-Human` traz a biblioteca de animações vol. 2 (`UAL2_Standard.glb`
 | Rua | `Idle_Loop` (parado), `Walk_Loop` (andar), `Jog_Fwd_Loop` (Shift) e `Sprint_Loop` |
 | Interior | `Sitting_Enter`, `Sitting_Idle_Loop`, `Sitting_Exit`, `Interact` e `Idle_Talking_Loop` |
 
-**Pacote:** `tools/scc-builder/bin/avatar-pack.js` lê as pastas `UAL-Man` e `UAL-Human`. Ele deixa só esses clipes, comprime com meshopt e grava em `docs/proposta-cidade-realista/assets/avatar/`:
+**Pacote:** `tools/scc-builder/bin/avatar-pack.js` lê as pastas `UAL-Man` e `UAL-Woman`. Ele deixa só esses clipes, comprime com meshopt e grava em `docs/proposta-cidade-realista/assets/avatar/`:
 
 | Arquivo | Original | Pacote |
 |---|---|---|
 | `avatar-man.glb` | 7,4 MB | 3,1 MB |
-| `avatar-human.glb` | 1,4 MB | 0,3 MB |
+| `avatar-woman.glb` | 1,4 MB | 0,3 MB |
 
 A licença vai junto, em `LICENSE-UAL.txt`. As pastas originais ficam fora do repositório. Para refazer o pacote:
 
 ```
 cd tools/scc-builder
-node bin/avatar-pack.js ../../../UAL-Man ../../../UAL-Human ../../docs/proposta-cidade-realista/assets/avatar
+node bin/avatar-pack.js ../../../UAL-Man ../../../UAL-Woman ../../docs/proposta-cidade-realista/assets/avatar
 ```
 
 O código compartilhado fica em `docs/proposta-cidade-realista/avatar.js`: os tipos, a escolha, a carga, a instância por jogador (`SkeletonUtils.clone`) e os clipes por papel. Se os arquivos não carregarem, o avatar volta a ser o RobotExpressive (CC0).
 
 **Testado** em 2026-11-21 no navegador:
 - o Man andou pela rua de costas para a câmera, na direção do movimento;
-- a troca para Human aconteceu na hora, com o idle tocando;
-- a escolha ficou salva, e o interior da residência abriu com o Human;
-- o `realtime` aceita `skin` `man` e `human` e ignora outro valor, coberto por teste.
+- a troca para Woman aconteceu na hora, com o idle tocando;
+- a escolha ficou salva, e o interior da residência abriu com a Woman;
+- o `realtime` aceita `skin` `man` e `woman` (e trata o antigo `human` como `woman`) e ignora outro valor, coberto por teste.
 
 ## Entrar nos imóveis
 
@@ -131,7 +131,7 @@ Como usar:
 ### Visitas com outros jogadores
 
 Quem está no mesmo imóvel, o dono e os convidados, se vê dentro dele. Cada pessoa aparece com:
-- o tipo de avatar (Man ou Human);
+- o tipo de avatar (Man ou Woman);
 - o nome, com "(dono)" para quem é dono;
 - a pose: andando, correndo, sentada, interagindo ou conversando.
 
@@ -144,7 +144,7 @@ O painel "💬 Aqui dentro" mostra quantas pessoas estão no imóvel e tem um ch
 
 **Testado** em 2026-11-21, com duas abas no mesmo imóvel e os serviços locais:
 - o world autorizou as duas entradas;
-- A viu B (Human, dono) entrar e sentar no sofá;
+- A viu B (Woman, dona) entrar e sentar no sofá;
 - a mensagem de B chegou a A pelo chat.
 
 A recusa para quem não foi convidado está coberta pelo teste do `realtime`.

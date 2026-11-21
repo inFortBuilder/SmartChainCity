@@ -4,7 +4,7 @@
 // índice em grade dos triângulos das ruas responde "este ponto é rua?".
 //
 // Avatar: os manequins da Universal Animation Library (Quaternius, CC0), Man ou
-// Human, escolhidos na barra do street view (ver avatar.js).
+// Woman, escolhidos na barra do street view (ver avatar.js).
 //
 // Fica para depois: clicar num escritório ou numa residência (do jogador ou de
 // quem o convidou) para entrar no interior (spike do escritório, ADR-0015).
@@ -222,7 +222,7 @@ export function createStreetView({ THREE, scene, camera, controls, canvas, roads
     else say('Aqui não é rua. Solte o boneco numa rua azul.');
   }
 
-  // ---------- Avatar: Man ou Human da Universal Animation Library (avatar.js) ----------
+  // ---------- Avatar: Man ou Woman da Universal Animation Library (avatar.js) ----------
   let inst = null; // { body, mixer, play, type, source }
   let loading = null;
   const loadAvatar = (type = getAvatarType()) => {
@@ -411,7 +411,7 @@ export function createStreetView({ THREE, scene, camera, controls, canvas, roads
     speed: () => avatar.speed,
     /** Altura do chão das ruas. */
     groundY: () => index?.y ?? 0,
-    /** Modelo e clipes de um tipo de avatar (`man`, `human`), para desenhar os outros jogadores. */
+    /** Modelo e clipes de um tipo de avatar (`man`, `woman`), para desenhar os outros jogadores. */
     avatarAssets: (type) => loadAvatarAssets(loadGltf, type),
     /** O tipo de avatar escolhido neste navegador. */
     avatarType: () => getAvatarType(),
