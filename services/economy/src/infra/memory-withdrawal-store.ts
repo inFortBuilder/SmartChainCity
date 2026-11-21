@@ -1,4 +1,4 @@
-import type { Withdrawal, WithdrawalStatus, WithdrawalStore } from '../domain/withdrawals.js';
+import type { Withdrawal, WithdrawalLimit, WithdrawalStatus, WithdrawalStore } from '../domain/withdrawals.js';
 
 const COUNTED: WithdrawalStatus[] = ['created', 'pending', 'claimed'];
 
@@ -6,13 +6,15 @@ const COUNTED: WithdrawalStatus[] = ['created', 'pending', 'claimed'];
 export class MemoryWithdrawalStore implements WithdrawalStore {
   private readonly rows = new Map<string, Withdrawal>();
 
-  async createWithinLimit(w: Withdrawal, since: Date, limitWei: bigint) {
-    const used = [...this.rows.values()]
-      .filter((x) => x.accountId === w.accountId && COUNTED.includes(x.status) && x.createdAt.getTime() >= since.getTime())
-      .reduce((s, x) => s + x.amountWei, 0n);
-    if (used + w.amountWei > limitWei) return false;
+  async createWithinLimit(w: Withdrawal, limits: WithdrawalLimit[]) {
+    const usedSince = (since: Date) =>
+      [...this.rows.values()]
+        .filter((x) => x.accountId === w.accountId && COUNTED.includes(x.status) && x.createdAt.getTime() >= since.getTime())
+        .reduce((s, x) => s + x.amountWei, 0n);
+    const over = limits.findIndex((l) => usedSince(l.since) + w.amountWei > l.limitWei);
+    if (over >= 0) return over;
     this.rows.set(w.id, { ...w });
-    return true;
+    return -1;
   }
 
   async get(id: string) {

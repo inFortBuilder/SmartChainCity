@@ -1,12 +1,47 @@
 import { randomUUID } from 'node:crypto';
 
+import type { KycRequest, KycStatus, KycStore } from '../domain/kyc.js';
 import type { Account, AuthStore, LinkWalletResult, SetEmailResult, WalletLink } from '../domain/ports.js';
 
 /**
  * Development and test store. Everything is lost on restart, and main.ts refuses
  * to start with it in production. The Postgres adapter implements the same port.
  */
-export class MemoryAuthStore implements AuthStore {
+export class MemoryAuthStore implements AuthStore, KycStore {
+  private readonly kyc = new Map<string, KycRequest>();
+
+  async openKyc(accountId: string, level: number, now: Date) {
+    const pending = [...this.kyc.values()].find((r) => r.accountId === accountId && r.status === 'pending');
+    if (pending) return { ...pending };
+    const r: KycRequest = { id: randomUUID(), accountId, level, status: 'pending', provider: 'manual', note: null, createdAt: now, decidedAt: null };
+    this.kyc.set(r.id, r);
+    return { ...r };
+  }
+
+  async latestKyc(accountId: string) {
+    const mine = [...this.kyc.values()].filter((r) => r.accountId === accountId);
+    const last = mine.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
+    return last ? { ...last } : null;
+  }
+
+  async listKyc(status: KycStatus, limit: number) {
+    return [...this.kyc.values()]
+      .filter((r) => r.status === status)
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+      .slice(0, limit)
+      .map((r) => ({ ...r }));
+  }
+
+  async decideKyc(id: string, decision: 'approved' | 'rejected', note: string | null, now: Date) {
+    const r = this.kyc.get(id);
+    if (!r || r.status !== 'pending') return null;
+    const decided = { ...r, status: decision, note, decidedAt: now };
+    this.kyc.set(id, decided);
+    const acc = this.accounts.get(r.accountId);
+    if (decision === 'approved' && acc) this.accounts.set(acc.id, { ...acc, kycLevel: Math.max(acc.kycLevel, r.level) });
+    return { ...decided };
+  }
+
   private readonly nonces = new Map<string, Date>();
   private readonly accounts = new Map<string, Account>();
   private readonly wallets = new Map<string, WalletLink>();

@@ -9,6 +9,7 @@ import { buildApp } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
 import type { LedgerStore } from '../src/domain/ledger.js';
 import {
+  KYC_FREE_WEI,
   DAILY_LIMIT_WEI,
   VOUCHER_TTL_MS,
   WEI,
@@ -89,7 +90,8 @@ describe.each(
   let store: WithdrawalStore;
   let signer: LocalKeyVoucherSigner;
   let used: Set<bigint>;
-  const old = { wallets: [wallet as string], createdAt: at(-30 * DAY) };
+  // Conta antiga e verificada: os testes do teto de 24 h não esbarram no limite sem KYC.
+  const old = { wallets: [wallet as string], createdAt: at(-30 * DAY), kycLevel: 1 };
 
   beforeEach(() => {
     if (!enabled) return;
@@ -162,6 +164,22 @@ describe.each(
     expect(failed.status).toBe('failed');
   });
 
+  it.skipIf(!enabled)('sem KYC, até 300 SCITY em 30 dias; com KYC, só o teto de 24 h', async () => {
+    const me = randomUUID();
+    await deposit(ledger, me, 5000n * WEI);
+    const semKyc = { account: async () => ({ ...old, kycLevel: 0 }) };
+    const ask = (amountWei: bigint, when = T0, accounts = semKyc) => requestWithdrawal(deps(accounts), { accountId: me, wallet, amountWei }, when);
+    await ask(KYC_FREE_WEI - 50n * WEI);
+    await expect(ask(100n * WEI, at(2 * DAY))).rejects.toMatchObject({ code: 'kyc_required', status: 403 });
+    // O que ainda cabe no teto passa.
+    await ask(50n * WEI, at(2 * DAY));
+    await expect(ask(1n * WEI, at(29 * DAY))).rejects.toMatchObject({ code: 'kyc_required' });
+    // Passados 30 dias do primeiro, o teto volta.
+    await ask(250n * WEI, at(30 * DAY + 1));
+    // Verificada, a mesma conta saca acima de 300 SCITY (só o teto de 24 h vale).
+    await ask(600n * WEI, at(32 * DAY), { account: async () => old });
+  });
+
   it.skipIf(!enabled)('pedidos em paralelo não passam juntos do teto', async () => {
     const me = randomUUID();
     await deposit(ledger, me, 5000n * WEI);
@@ -186,7 +204,7 @@ describe('API', () => {
     const app = await buildApp(config, ledger, () => T0, {
       store: new MemoryWithdrawalStore(),
       signer,
-      accounts: { account: async () => ({ wallets: [wallet], createdAt: at(-30 * DAY) }) },
+      accounts: { account: async () => ({ wallets: [wallet], createdAt: at(-30 * DAY), kycLevel: 0 }) },
       vault: { contract: ANVIL_VAULT, chainId: 31337 },
     });
     const headers = {
