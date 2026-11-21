@@ -18,6 +18,8 @@ import { chargeTaxes } from './domain/taxes.js';
 import { tickAuctions } from './domain/auctions.js';
 import { syncChain } from './domain/chain-sync.js';
 import { GatewayWalletOwners, IndexerChainFeed } from './infra/chain-feed.js';
+import { PostgresGuestStore } from './infra/db/postgres-guest-store.js';
+import { MemoryGuestStore } from './infra/memory-guest-store.js';
 import { PostgresChainSyncStore } from './infra/db/postgres-chain-sync-store.js';
 import { MemoryChainSyncStore } from './infra/memory-chain-sync-store.js';
 import { PostgresPropertyStore } from './infra/db/postgres-property-store.js';
@@ -86,6 +88,7 @@ const taxPayments =
 
 // Apreensão do NFT no leilão (ADR-0016): mesma chave do world (papel SIGNER) nos dois contratos.
 const seizureStore = pool ? new PostgresSeizureStore(pool) : new MemorySeizureStore();
+const guestStore = pool ? new PostgresGuestStore(pool) : new MemoryGuestStore();
 const lotToken = (city: string, lotId: number) => {
   const n = config.LAND_CITY_IDS[city];
   return n ? lotTokenId(n, lotId) : null;
@@ -150,6 +153,10 @@ const app = await buildApp(
     signers: seizureSigners,
     chain: config.CHAIN_INDEXER_URL ? new IndexerChainTokens(config.CHAIN_INDEXER_URL) : null,
     chainId: config.CHAIN_ID,
+  },
+  {
+    store: guestStore,
+    owners: config.GATEWAY_URL && config.GATEWAY_TOKEN ? new GatewayWalletOwners(config.GATEWAY_URL, config.GATEWAY_TOKEN) : null,
   },
 );
 const priceTimer = price ? setInterval(() => void price.refresh(), 60_000) : null;

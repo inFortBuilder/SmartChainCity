@@ -39,6 +39,7 @@ import {
   submitBuilding,
 } from './domain/buildings.js';
 import { type ChainTokens, type SeizureKind, type SeizureSigner, type SeizureStore, issueSeizureVoucher, seizureDto } from './domain/seizures.js';
+import { type GuestStore, type PlaceKind, guestDto, invite, ownedPlace, placeDto, visit } from './domain/visits.js';
 import { type TaxPayments, type TaxStore, assertNotInDefault, payMyTaxes, totalOf } from './domain/taxes.js';
 import { type Auction, type AuctionStore, minBid, placeBid } from './domain/auctions.js';
 import { rentsHere } from './domain/chain-sync.js';
@@ -90,6 +91,12 @@ export async function buildApp(
     signers: Partial<Record<SeizureKind, SeizureSigner>>;
     chain?: ChainTokens | null;
     chainId: number;
+  } | null = null,
+  /** Visitas pelo street view: dono e convidados entram no interior. */
+  visits: {
+    store: GuestStore;
+    /** Carteira → conta, para convidar pela carteira (gateway). */
+    owners: { ownerOf(wallet: string): Promise<string | null> } | null;
   } | null = null,
 ) {
   const app = Fastify({
@@ -633,6 +640,78 @@ export async function buildApp(
       signature: r.signature,
     };
   });
+
+
+  // ---------------------------------------------------------------- visitas (street view)
+
+  const visitsOn = () => {
+    if (!visits) throw new AppError('visits_disabled', 'As visitas ainda não estão ligadas.', 503);
+    return visits;
+  };
+  const placeDeps = () => ({ properties: properties?.store ?? null, buildings: buildings?.store ?? null, guests: visitsOn().store });
+  const placeParams = z.object({ kind: z.enum(['property', 'building']), id: z.uuid() });
+
+  // Posso entrar no imóvel deste lote? O dono e os convidados dele, sim.
+  app.get('/v1/world/cities/:code/lots/:id/visit', async (request) => {
+    const me = await player(request);
+    const { code, id } = lotParams.parse(request.params);
+    const { place, role } = await visit(placeDeps(), code, id, me, now());
+    return { place: placeDto(place), role };
+  });
+
+  app.get('/v1/world/places/:kind/:id/guests', async (request) => {
+    const me = await player(request);
+    const { kind, id } = placeParams.parse(request.params);
+    await ownedPlace(placeDeps(), kind, id, me, now());
+    return { guests: (await visitsOn().store.guestsOf(kind, id, me)).map(guestDto) };
+  });
+
+  // Convida pela conta ou pela carteira ligada a ela.
+  app.post('/v1/world/places/:kind/:id/guests', async (request, reply) => {
+    const me = await player(request);
+    const { kind, id } = placeParams.parse(request.params);
+    const body = z
+      .object({ account_id: z.uuid().optional(), wallet: z.string().regex(/^0x[0-9a-fA-F]{40}$/).optional() })
+      .refine((b) => !!b.account_id !== !!b.wallet, 'Informe account_id ou wallet.')
+      .parse(request.body);
+    let guest = body.account_id ?? null;
+    if (body.wallet) {
+      const owners = visitsOn().owners;
+      if (!owners) throw new AppError('gateway_unavailable', 'Convidar pela carteira precisa do gateway.', 503);
+      guest = await owners.ownerOf(body.wallet.toLowerCase());
+      if (!guest) throw new AppError('wallet_unknown', 'Esta carteira não está ligada a nenhuma conta.', 404);
+    }
+    const g = await invite(placeDeps(), { kind: kind as PlaceKind, placeId: id, ownerAccountId: me, guestAccountId: guest! }, now());
+    return reply.status(201).send({ guest: guestDto(g) });
+  });
+
+  app.delete('/v1/world/places/:kind/:id/guests/:account', async (request) => {
+    const me = await player(request);
+    const { kind, id } = placeParams.parse(request.params);
+    const { account } = z.object({ account: z.uuid() }).parse(request.params);
+    await ownedPlace(placeDeps(), kind, id, me, now());
+    return { removed: await visitsOn().store.removeGuest(kind, id, account) };
+  });
+
+  // Onde fui convidado (só os convites que ainda valem).
+  app.get('/v1/world/me/invitations', async (request) => {
+    const me = await player(request);
+    const out = [];
+    for (const g of await visitsOn().store.invitationsOf(me)) {
+      try {
+        const { place } = await visit(placeDeps(), ...(await placeCityLot(g)), me, now());
+        out.push({ place: placeDto(place), invited_at: g.createdAt.toISOString() });
+      } catch {
+        // Convite que não vale mais (dono mudou, imóvel em obra): fica de fora.
+      }
+    }
+    return { invitations: out };
+  });
+  const placeCityLot = async (g: { kind: PlaceKind; placeId: string }): Promise<[string, number]> => {
+    const w = g.kind === 'building' ? await buildings?.store.getBuilding(g.placeId) : await properties?.store.getProperty(g.placeId);
+    if (!w) throw new AppError('not_found', 'Imóvel não encontrado.', 404);
+    return [w.city, w.lotId];
+  };
 
   return app;
 }

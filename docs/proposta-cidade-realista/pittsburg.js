@@ -162,6 +162,63 @@ let lotToggle = null;
 let lotsPromise = null;
 let gestao = null;
 let streetView = null;
+
+// ---------- Visitas: entrar nos imóveis pelo street view ----------
+const VISIT_REACH = 45; // m: o avatar precisa estar perto do imóvel
+const VISIT_ERRORS = {
+  no_session: 'Entre no jogo (painel "Jogo no servidor") para visitar imóveis.',
+  not_invited: 'Este imóvel é de outra pessoa: só entra quem ela convidou.',
+  nothing_to_visit: 'Não há imóvel pronto neste lote.',
+  under_construction: 'Este imóvel ainda está em obra.',
+  offline: 'O serviço world está fora do ar.',
+};
+
+/** Clique fora da rua no street view: se for um lote perto do avatar, tenta entrar. */
+function clickPlace(p) {
+  const i = lotAt(p.x, p.z);
+  if (i === null) return false;
+  const a = streetView.position();
+  if (Math.hypot(a.x - p.x, a.z - p.z) > VISIT_REACH) {
+    streetView.say('Chegue mais perto do imóvel para entrar.');
+    return true;
+  }
+  enterLot(i);
+  return true;
+}
+
+/** Centro aproximado do lote (média dos vértices). */
+function lotCenter(i) {
+  const ring = lotRing(i);
+  return ring.reduce((acc, [x, z]) => [acc[0] + x / ring.length, acc[1] + z / ring.length], [0, 0]);
+}
+
+/** Leva o avatar para a rua mais perto do lote (street view). */
+async function walkToLot(i) {
+  await loadLotsFor([i]);
+  const [x, z] = lotCenter(i);
+  const p = streetView?.nearestRoad(x, z);
+  if (!p) return false;
+  if (streetView.active()) streetView.exit();
+  streetView.enterAt(p.x, p.z);
+  streetView.look(Math.atan2(x - p.x, z - p.z));
+  return true;
+}
+
+/** Pergunta ao world se pode entrar e abre o interior; a volta traz o avatar à mesma rua. */
+async function enterLot(i) {
+  if (!streetView?.active()) await walkToLot(i);
+  if (!streetView?.active()) return;
+  streetView.say('Batendo na porta…', 0);
+  try {
+    const { place, role } = await servidor.visit(i);
+    const a = streetView.position();
+    const voltar = `pittsburg.html?rua=${a.x.toFixed(1)},${a.z.toFixed(1)},${streetView.heading().toFixed(2)}`;
+    const titulo = `${place.label} · lote ${i}${role === 'guest' ? ' · convidado' : ''}`;
+    location.assign(`escritorio.html?${new URLSearchParams({ tipo: place.interior, titulo, voltar })}`);
+  } catch (error) {
+    streetView.say(VISIT_ERRORS[error.code] ?? error.message, 3500);
+  }
+}
 let shownLot = null;
 let servidor = null;
 
@@ -641,7 +698,7 @@ try {
     loadGlb: (buffer) => new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).parseAsync(buffer, ''),
   });
   // Célula jogável (E1.6): login, avatar, THALER e turno pelos serviços.
-  servidor = createServidor({ THREE, scene, lotRing, loadLotsFor, showLot });
+  servidor = createServidor({ THREE, scene, lotRing, loadLotsFor, showLot, walkTo: (i) => walkToLot(i), enterLot: (i) => enterLot(i) });
   // Multiplayer (E2.7): outros jogadores do bairro e o chat, pelo serviço realtime.
   const multiplayer = createMultiplayer({
     THREE, scene, camera, controls, lotAt, getLots: () => lots,
@@ -653,7 +710,15 @@ try {
     streetView = createStreetView({
       THREE, scene, camera, controls, canvas, roads: roadsMesh,
       loadGltf: (url) => new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).loadAsync(url),
+      onPlaceClick: (p) => clickPlace(p),
     });
+    // Volta de uma visita: ?rua=x,z,rumo põe o avatar de novo na rua, onde estava.
+    const rua = PARAMS.get('rua')?.split(',').map(Number);
+    if (rua?.length === 3 && rua.every(Number.isFinite)) {
+      const p = streetView.nearestRoad(rua[0], rua[1], 30);
+      if (p && streetView.enterAt(p.x, p.z)) streetView.look(rua[2]);
+      history.replaceState(null, '', location.pathname);
+    }
   }
   window.__pittsburg = { scene, camera, controls, renderer, buildings, pick, showBuilding, pickLot, showLot, getLots: () => lots, gestao, civicBuilding, progressiveBuilding, loadLotsFor, servidor, multiplayer, streetView };
 

@@ -71,6 +71,13 @@
       "when": 1795263200903,
       "tag": "0009_apreensao",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1795272459106,
+      "tag": "0010_visitas",
+      "breakpoints": true
     }
   ]
 }
