@@ -6,6 +6,8 @@ import { PostgresLedgerStore } from './infra/db/postgres-store.js';
 import { MemoryLedgerStore } from './infra/memory-store.js';
 import { settleWithdrawals } from './domain/withdrawals.js';
 import { rateFromUsd } from './domain/exchange.js';
+import { refreshFxFromDex } from './domain/fx-twap.js';
+import { RpcDexPool } from './infra/dex-pool.js';
 import { PostgresExchangeStore } from './infra/db/postgres-exchange-store.js';
 import { MemoryExchangeStore } from './infra/memory-exchange-store.js';
 import { PostgresWithdrawalStore } from './infra/db/postgres-withdrawal-store.js';
@@ -69,8 +71,35 @@ const timer =
     : null;
 timer?.unref();
 
+// Job fx.twap: cotação nova pelo TWAP da DEX quando a atual vence (doc 04 §5).
+const dexPool = config.RPC_URL && config.DEX_POOL_ADDRESS && config.SCITY_ADDRESS ? new RpcDexPool(config.RPC_URL, config.DEX_POOL_ADDRESS as `0x${string}`) : null;
+let pricing = false;
+const fxTick = async () => {
+  if (!dexPool || pricing) return;
+  pricing = true;
+  try {
+    const r = await refreshFxFromDex(
+      { store: exchangeStore, pool: dexPool },
+      { poolAddress: config.DEX_POOL_ADDRESS!, scityToken: config.SCITY_ADDRESS!, windowSeconds: config.FX_TWAP_SECONDS, periodMs: config.FX_PERIOD_HOURS * 3_600_000, maxJumpBps: config.FX_MAX_JUMP_BPS },
+      new Date(),
+    );
+    if (r.kind === 'updated') app.log.info(`fx.twap: SCITY a US$ ${r.scityUsd} (antes ${r.previousUsd ?? '-'}; acumulado de 24 h do ${r.from === 'pool' ? 'pool' : 'histórico de amostras'})`);
+    if (r.kind === 'unavailable') app.log.warn(`fx.twap: sem TWAP (${r.reason}); a cotação fica como está`);
+    if (r.kind === 'rejected') {
+      app.log.error(`fx.twap: disjuntor, TWAP US$ ${r.scityUsd} contra US$ ${r.previousUsd} em vigor (${r.jumpBps} bps). Decida pela rota interna /internal/v1/economy/fx`);
+    }
+  } catch (error) {
+    app.log.error(error);
+  } finally {
+    pricing = false;
+  }
+};
+const fxTimer = dexPool && config.FX_CHECK_SECONDS > 0 ? setInterval(fxTick, config.FX_CHECK_SECONDS * 1000) : null;
+fxTimer?.unref();
+
 const shutdown = async () => {
   if (timer) clearInterval(timer);
+  if (fxTimer) clearInterval(fxTimer);
   await app.close();
   await pool?.end();
   process.exit(0);
@@ -79,3 +108,5 @@ process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
 
 await app.listen({ port: config.PORT, host: config.HOST });
+app.log.info(`câmbio: ${dexPool ? `TWAP de ${config.FX_TWAP_SECONDS} s do pool ${config.DEX_POOL_ADDRESS}` : 'só pela rota interna'}`);
+void fxTick();

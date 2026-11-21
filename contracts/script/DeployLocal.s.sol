@@ -10,6 +10,7 @@ import {LandNFT} from "../src/LandNFT.sol";
 import {LuckyBox} from "../src/LuckyBox.sol";
 import {PropertyNFT} from "../src/PropertyNFT.sol";
 import {SCityToken} from "../src/SCityToken.sol";
+import {LocalDexPool, LocalUSD} from "../src/dev/LocalDexPool.sol";
 import {LocalVRFCoordinator} from "../src/dev/LocalVRFCoordinator.sol";
 import {IVRFCoordinatorV2Plus} from "../src/vrf/VRFV2Plus.sol";
 
@@ -50,6 +51,15 @@ contract DeployLocal is Script {
                 if (rarities[i] == r) out[r][k++] = codes[i];
             }
         }
+    }
+
+    address localUsd;
+    address localDexPool;
+
+    /// Fora do `run` para não estourar a pilha.
+    function _deployDex(address scity, address deployer) internal {
+        localUsd = address(new LocalUSD(deployer));
+        localDexPool = address(new LocalDexPool(scity, localUsd, 0));
     }
 
     function run() external {
@@ -102,6 +112,8 @@ contract DeployLocal is Script {
         vault.grantRole(vault.SIGNER_ROLE(), worldSigner);
         // forge-lint: disable-next-line(erc20-unchecked-transfer)
         scity.transfer(address(vault), 1_000_000 ether);
+        // Par SCITY/dólar de teste para o TWAP do câmbio, a US$ 1 (tick 0). Depois do cofre, pelo mesmo motivo.
+        _deployDex(address(scity), deployer);
 
         vm.stopBroadcast();
 
@@ -115,6 +127,8 @@ contract DeployLocal is Script {
         vm.serializeAddress(key, "BuildingNFT", address(buildingNft));
         vm.serializeAddress(key, "PropertyNFT", address(propertyNft));
         vm.serializeAddress(key, "GameVault", address(vault));
+        vm.serializeAddress(key, "LocalUSD", localUsd);
+        vm.serializeAddress(key, "LocalDexPool", localDexPool);
         string memory json = vm.serializeAddress(key, "worldSigner", worldSigner);
         vm.writeJson(json, "deployments/anvil.json");
 

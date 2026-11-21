@@ -175,7 +175,7 @@ describe('API', () => {
         .setExpirationTime('5m')
         .sign(new TextEncoder().encode(SECRET))}`,
     };
-    expect((await app.inject({ method: 'GET', url: '/v1/economy/fx' })).json()).toMatchObject({ thaler_per_scity: 20, exit_spread_bps: 750, pool_brake: 0 });
+    expect((await app.inject({ method: 'GET', url: '/v1/economy/fx' })).json()).toMatchObject({ thaler_per_scity: 20, exit_spread_bps: 750, pool_brake: 0, provisional: true });
 
     const body = { direction: 'scity_to_thaler', amount: (5n * WEI).toString() };
     expect((await app.inject({ method: 'POST', url: '/v1/economy/exchange', headers, payload: body })).statusCode).toBe(400);

@@ -1,8 +1,25 @@
 import type { Conversion, ExchangeStore, FxRate } from '../domain/exchange.js';
+import type { TickSample, TwapSampleStore } from '../domain/fx-twap.js';
 
 /** Para testes e desenvolvimento. Uma thread só: cada operação é atômica. */
-export class MemoryExchangeStore implements ExchangeStore {
+export class MemoryExchangeStore implements ExchangeStore, TwapSampleStore {
   private readonly rates: FxRate[] = [];
+  private readonly samples: (TickSample & { pool: string })[] = [];
+
+  async addSample(pool: string, s: TickSample) {
+    if (!this.samples.some((x) => x.pool === pool && x.at.getTime() === s.at.getTime())) this.samples.push({ pool, ...s });
+  }
+
+  async sampleAtOrBefore(pool: string, before: Date) {
+    const s = this.samples.filter((x) => x.pool === pool && x.at.getTime() <= before.getTime()).sort((a, b) => b.at.getTime() - a.at.getTime())[0];
+    return s ? { at: s.at, tickCumulative: s.tickCumulative } : null;
+  }
+
+  async pruneSamples(pool: string, before: Date) {
+    for (let i = this.samples.length - 1; i >= 0; i--) {
+      if (this.samples[i]!.pool === pool && this.samples[i]!.at.getTime() < before.getTime()) this.samples.splice(i, 1);
+    }
+  }
   private readonly rows = new Map<string, Conversion>();
 
   async latestRate(at: Date) {

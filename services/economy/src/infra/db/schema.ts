@@ -104,6 +104,17 @@ export const fxRate = economy.table('fx_rate', {
   source: text('source').notNull(),
 });
 
+/** Amostras do tick acumulado do pool da DEX (job fx.twap): o histórico do TWAP quando o pool não guarda 24 h. */
+export const fxTickSample = economy.table(
+  'fx_tick_sample',
+  {
+    pool: text('pool').notNull(),
+    at: timestamptz('at').notNull(),
+    tickCumulative: numeric('tick_cumulative', { precision: 38, scale: 0 }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.pool, t.at] })],
+);
+
 /** Cada conversão THALER ↔ SCITY: o teto de 24 h e o freio do pool contam daqui. */
 export const fxConversion = economy.table(
   'fx_conversion',
