@@ -51,6 +51,15 @@ const left = (iso) => {
   return m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min`;
 };
 
+/** Texto digitado ("12,5" ou "12.5") → unidade mínima (centavos ou wei), sem float. */
+function toUnits(text, decimals) {
+  const t = String(text).trim().replace(',', '.');
+  if (!/^\d+(\.\d+)?$/.test(t)) return null;
+  const [int, frac = ''] = t.split('.');
+  if (frac.length > decimals) return null;
+  return BigInt(int) * 10n ** BigInt(decimals) + BigInt(frac.padEnd(decimals, '0') || '0');
+}
+
 class ApiError extends Error {
   constructor(status, code, message) {
     super(message);
@@ -192,7 +201,7 @@ export function createServidor(map) {
   } catch {
     session = null;
   }
-  let data = { avatar: null, balance: '0', scity: '0', lots: [], shifts: [] };
+  let data = { avatar: null, balance: '0', scity: '0', lots: [], shifts: [], fx: null, withdrawals: null };
   /** Alimentos do mercado do jogo, com o preço de uma unidade em centavos de THALER. */
   let foods = [];
   let message = '';
@@ -211,7 +220,7 @@ export function createServidor(map) {
     me = null;
     linkSent = null;
     storage.set(TOKEN_KEY, null);
-    data = { avatar: null, balance: '0', scity: '0', lots: [], shifts: [] };
+    data = { avatar: null, balance: '0', scity: '0', lots: [], shifts: [], fx: null, withdrawals: null };
     drawLots();
     message = why;
     render();
@@ -244,6 +253,14 @@ export function createServidor(map) {
         .then((r) => r.lots)
         .catch(() => data.lots);
       drawLots();
+      // Câmbio e saque (economy): se estiverem desligados (503), a seção some.
+      [data.fx, data.withdrawals] = await Promise.all([
+        call(API.economy, '/v1/economy/fx').catch(() => null),
+        call(API.economy, '/v1/economy/withdrawals', { token: session.token }).catch((error) => {
+          if (error.status === 401) throw error;
+          return null;
+        }),
+      ]);
       data.shifts = data.avatar
         ? (await call(API.game, `/v1/avatars/${data.avatar.id}/shifts`, { token: session.token })).shifts
         : [];
@@ -288,6 +305,65 @@ export function createServidor(map) {
       .join('');
     return `<ol class="minigame" aria-label="Tarefas do turno">${items}</ol>`;
   };
+
+  /**
+   * Câmbio THALER ↔ SCITY e saque pelo GameVault (passo 11 e E3.7). Quem decide
+   * cotação, spread, teto e freio é o economy; aqui só mostra e pede.
+   */
+  const bankSection = (wallets) => {
+    const fx = data.fx;
+    if (!fx) return '';
+    const brake = fx.pool_brake > 0 ? ` · <strong>freio do pool ${Math.round(fx.pool_brake * 100)}%</strong>` : '';
+    let html = `<h3>💱 Câmbio</h3>
+      <p class="muted pequeno">1 SCITY = ${fx.thaler_per_scity.toLocaleString('pt-BR')} THALER (US$ ${fx.scity_usd.toLocaleString('pt-BR')}${fx.provisional ? ', cotação provisória' : ''}).
+      Para SCITY: ${(fx.exit_spread_bps / 100).toLocaleString('pt-BR')}% de spread, mínimo de ${thaler(fx.min_exit_cents)} e até ${thaler(fx.daily_exit_cents)} THALER por dia${brake}.</p>
+      <form data-form="cambio" class="linha">
+        <input class="campo" name="valor" inputmode="decimal" required placeholder="Valor" aria-label="Valor a converter" />
+        <button class="btn btn--ghost pequeno" type="submit" name="dir" value="scity_to_thaler" ${busy ? 'disabled' : ''}>SCITY → THALER</button>
+        <button class="btn btn--ghost pequeno" type="submit" name="dir" value="thaler_to_scity" ${busy ? 'disabled' : ''}>THALER → SCITY</button>
+      </form>`;
+    if (data.withdrawals === null) return html;
+    html += '<h3>🏦 Saque para a carteira</h3>';
+    if (!wallets.length) return `${html}<p class="muted pequeno">Ligue uma carteira à conta para sacar SCITY.</p>`;
+    html += `<form data-form="saque" class="linha">
+        <input class="campo" name="valor" inputmode="decimal" required placeholder="SCITY" aria-label="SCITY a sacar" />
+        <button class="btn btn--blue pequeno" type="submit" ${busy ? 'disabled' : ''}>Sacar para ${short(wallets[0])}</button>
+      </form>
+      <p class="muted pequeno">O SCITY sai do jogo agora; a carteira resgata no GameVault em até 48 h, ou ele volta.</p>`;
+    const list = data.withdrawals.withdrawals.slice(0, 5);
+    if (list.length) {
+      const label = { pending: 'pronto para resgatar', claimed: 'resgatado', refunded: 'venceu, voltou ao jogo', failed: 'falhou', created: 'processando' };
+      html += `<ul class="lista-saques">${list
+        .map(
+          (w) => `<li><span>${scity(w.amount_wei)} SCITY · ${esc(label[w.status] ?? w.status)}${w.status === 'pending' ? ` · vence em ${left(w.deadline)}` : ''}</span>
+            ${w.voucher && window.ethereum ? `<button class="btn btn--primary pequeno" type="button" data-s="resgatar" data-w="${esc(w.id)}" ${busy ? 'disabled' : ''}>Resgatar</button>` : ''}</li>`,
+        )
+        .join('')}</ul>`;
+      if (list.some((w) => w.voucher) && !window.ethereum) {
+        html += '<p class="muted pequeno">Para resgatar, abra o mapa num navegador com a MetaMask.</p>';
+      }
+    }
+    return html;
+  };
+
+  /** Resgate do voucher: a carteira do jogador chama GameVault.claim (ela paga o gás). */
+  async function claimVoucher(w) {
+    const { createWalletClient, custom, parseAbi } = await import(VIEM);
+    const [account] = await window.ethereum.request({ method: 'eth_requestAccounts' });
+    const chainId = Number(await window.ethereum.request({ method: 'eth_chainId' }));
+    if (chainId !== data.withdrawals.chain_id) {
+      throw new ApiError(400, 'wrong_chain', `A carteira está na rede ${chainId}; o cofre está na ${data.withdrawals.chain_id}.`);
+    }
+    const client = createWalletClient({ account, transport: custom(window.ethereum) });
+    const v = w.voucher;
+    return client.writeContract({
+      address: data.withdrawals.contract,
+      abi: parseAbi(['function claim((address to,uint256 amount,uint256 nonce,uint256 deadline) w, bytes sig)']),
+      functionName: 'claim',
+      args: [{ to: v.to, amount: BigInt(v.amount), nonce: BigInt(v.nonce), deadline: BigInt(v.deadline) }, v.signature],
+      chain: null,
+    });
+  }
 
   const bar = (label, value, max = 10) =>
     `<div class="attr"><span>${label}</span><div class="barra"><span style="width:${(value / max) * 100}%"></span></div><b>${value}</b></div>`;
@@ -433,6 +509,7 @@ export function createServidor(map) {
       ${data.lots.length ? `<p class="muted pequeno">${data.lots.map((l) => esc(l.code)).join(' · ')} <span class="tag-srv">violeta no mapa</span></p>` : '<p class="muted pequeno">Clique num lote verde e compre pela ficha.</p>'}
       ${LOCAL ? `<button class="btn btn--ghost pequeno" type="button" data-s="faucet" ${busy ? 'disabled' : ''}>+1.000 SCITY de teste</button>` : ''}
       ${links}
+      ${bankSection(wallets)}
       ${body}${note}
       <button class="btn btn--ghost pequeno" type="button" data-s="sair">Sair</button>`;
   }
@@ -468,6 +545,45 @@ export function createServidor(map) {
         });
         const ill = r.avatar.conditions?.find((c) => c.code === r.meal.effects.condition);
         message = `${item?.label ?? food}: −${thaler(r.meal.price)} THALER, alimentação ${r.avatar.attributes.food}/10.${ill ? ` Deu ${ill.label.toLowerCase()}.` : ''}`;
+        messageOk = true;
+      });
+    }
+    if (form.dataset.form === 'cambio') {
+      const direction = e.submitter?.value === 'thaler_to_scity' ? 'thaler_to_scity' : 'scity_to_thaler';
+      const amount = toUnits(field.get('valor'), direction === 'thaler_to_scity' ? 2 : 18);
+      if (!amount) {
+        message = 'Valor inválido: use números, com vírgula para as casas.';
+        return render();
+      }
+      return act(async () => {
+        const r = await call(API.economy, '/v1/economy/exchange', {
+          method: 'POST',
+          token: session.token,
+          body: { direction, amount: amount.toString() },
+          headers: { 'idempotency-key': crypto.randomUUID() },
+        });
+        const c = r.conversion;
+        message =
+          direction === 'scity_to_thaler'
+            ? `${scity(c.scity_wei)} SCITY viraram ${thaler(c.thaler_cents)} THALER.`
+            : `${thaler(c.thaler_cents)} THALER viraram ${scity(c.scity_wei)} SCITY (spread de ${thaler(c.fee_cents)} queimado).`;
+        messageOk = true;
+      });
+    }
+    if (form.dataset.form === 'saque') {
+      const amount = toUnits(field.get('valor'), 18);
+      const wallet = (me?.wallets ?? [])[0] ?? session.address;
+      if (!amount || !wallet) {
+        message = 'Valor inválido.';
+        return render();
+      }
+      return act(async () => {
+        const r = await call(API.economy, '/v1/economy/withdrawals', {
+          method: 'POST',
+          token: session.token,
+          body: { wallet, amount_wei: amount.toString() },
+        });
+        message = `Saque de ${scity(r.withdrawal.amount_wei)} SCITY pronto. ${window.ethereum ? 'Clique em Resgatar.' : 'Resgate com a carteira.'}`;
         messageOk = true;
       });
     }
@@ -537,6 +653,15 @@ export function createServidor(map) {
       return act(async () => {
         session = await signIn(what === 'entrar-teste');
         storage.set(TOKEN_KEY, JSON.stringify(session));
+      });
+    }
+    if (what === 'resgatar') {
+      const w = data.withdrawals?.withdrawals.find((x) => x.id === b.dataset.w);
+      if (!w?.voucher) return;
+      return act(async () => {
+        const hash = await claimVoucher(w);
+        message = `Resgate enviado (${short(hash)}). O jogo marca como resgatado em até 1 min.`;
+        messageOk = true;
       });
     }
     if (what === 'faucet') {
