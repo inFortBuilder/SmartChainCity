@@ -1,6 +1,7 @@
 // Mercado (E3.6): compra e venda de lotes, imóveis e avatares entre jogadores,
-// pelo contrato Marketplace. As listagens vêm do chain-indexer; comprar, vender e
-// cancelar são transações da carteira do jogador (ele paga o gás).
+// pelo contrato Marketplace, a preço fixo ou em leilão com prazo. As listagens e
+// os leilões vêm do chain-indexer; comprar, vender, dar lance, encerrar e cancelar
+// são transações da carteira do jogador (ele paga o gás).
 //
 // Carteira: a MetaMask (window.ethereum) ou, na máquina local, a carteira de teste
 // do login, direto no anvil. A venda e a compra mudam a posse na blockchain; o
@@ -25,7 +26,26 @@ const ABI = [
   'function allowance(address owner, address spender) view returns (uint256)',
   'function approve(address spender, uint256 amount) returns (bool)',
   'function balanceOf(address) view returns (uint256)',
+  'function createAuction((address collection,uint256 tokenId)[] items, uint256 startPrice, uint64 duration) returns (uint256)',
+  'function bid(uint256 auctionId, uint256 amount)',
+  'function settle(uint256 auctionId)',
+  'function cancelAuction(uint256 auctionId)',
+  'function minimumBid(uint256 auctionId) view returns (uint256)',
 ];
+const DURATIONS = [
+  [86_400, '1 dia'],
+  [3 * 86_400, '3 dias'],
+  [7 * 86_400, '7 dias'],
+];
+/** "2 h 10 min", "3 dias"… até o fim do leilão. */
+function timeLeft(iso) {
+  const ms = new Date(iso).getTime() - Date.now();
+  if (ms <= 0) return 'terminou';
+  const min = Math.ceil(ms / 60_000);
+  if (min < 60) return `${min} min`;
+  const h = Math.floor(min / 60);
+  return h < 48 ? `${h} h ${min % 60} min` : `${Math.floor(h / 24)} dias`;
+}
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const short = (a) => `${a.slice(0, 6)}…${a.slice(-4)}`;
@@ -64,6 +84,11 @@ function txError(error) {
     SelfPurchase: 'Esta listagem é sua.',
     ERC20InsufficientBalance: 'SCITY insuficiente na carteira.',
     EnforcedPause: 'O mercado está pausado.',
+    BidTooLow: 'Lance abaixo do mínimo: alguém deu um lance antes. Atualize.',
+    AuctionEnded: 'O leilão já terminou.',
+    AuctionNotEnded: 'O leilão ainda não terminou.',
+    HasBids: 'O leilão já tem lance: não dá mais para cancelar.',
+    BadDuration: 'Prazo do leilão inválido.',
   };
   for (const [k, v] of Object.entries(known)) if (m.includes(k)) return v;
   return m.split('\n')[0].slice(0, 160);
@@ -74,6 +99,8 @@ function txError(error) {
  */
 export function createMercado(map) {
   let listings = [];
+  let auctions = [];
+  let tab = 'venda';
   let marketAddress = null;
   let busy = false;
   let note = '';
@@ -122,6 +149,10 @@ export function createMercado(map) {
     .merc .preco { color: #fbbf24; font-weight: 800; }
     .merc .linha { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
     .merc .nota { font-size: 12px; margin-top: 8px; }
+    .merc .abas { margin: 6px 0; }
+    .merc form.linha input { width: 90px; background: rgba(0,0,0,.25); border: 1px solid rgba(255,255,255,.14); border-radius: 8px; padding: 6px 8px; color: inherit; }
+    .merc-venda select { background: rgba(0,0,0,.25); color: inherit; border: 1px solid rgba(255,255,255,.14); border-radius: 6px; }
+    .merc-venda select option { color: #111; }
     .merc-venda { margin-top: 10px; display: grid; gap: 6px; }
     .merc-venda .linha { display: flex; gap: 6px; align-items: center; }
     .merc-venda input[type=text] { flex: 1; min-width: 0; background: rgba(0,0,0,.25); border: 1px solid rgba(255,255,255,.14); border-radius: 8px; padding: 7px 9px; color: inherit; }
@@ -171,16 +202,44 @@ export function createMercado(map) {
           </span></li>`;
       })
       .join('');
+    const auctionRows = auctions
+      .map((a) => {
+        const own = mine && a.seller === mine;
+        const leading = mine && a.highest_bidder === mine;
+        const lot = a.items.find((i) => i.collection === 'LandNFT');
+        const min = Number(BigInt(a.minimum_bid_wei) / 10n ** 14n) / 10_000;
+        let action;
+        if (a.ended) action = `<button class="btn btn--primary pequeno" type="button" data-encerrar="${esc(a.auction_id)}" ${busy ? 'disabled' : ''}>Encerrar</button>`;
+        else if (own) action = a.bids ? '<span class="muted pequeno">Seu leilão</span>' : `<button class="btn btn--ghost pequeno" type="button" data-cancelar-leilao="${esc(a.auction_id)}" ${busy ? 'disabled' : ''}>Cancelar</button>`;
+        else action = `<form class="linha" data-lance="${esc(a.auction_id)}"><input class="campo" name="valor" inputmode="decimal" value="${min}" aria-label="Valor do lance em SCITY" size="8" /><button class="btn btn--primary pequeno" type="submit" ${busy ? 'disabled' : ''}>Dar lance</button></form>`;
+        return `<li>
+          <span class="itens">${a.items.map((i) => esc(itemLabel(i))).join(' + ')}${a.items.length > 1 ? ' <span class="muted">(combo)</span>' : ''}</span>
+          <span class="linha"><span class="preco">${a.highest_bid_wei ? `${scity(a.highest_bid_wei)} SCITY` : `a partir de ${scity(a.start_price_wei)} SCITY`}</span>
+            <span class="muted pequeno">· ${a.bids} lance${a.bids === 1 ? '' : 's'}${leading ? ' · <b>você lidera</b>' : ''} · ${a.ended ? 'terminou' : `termina em ${timeLeft(a.ends_at)}`}${own ? ' · seu' : ''}</span></span>
+          <span class="linha">${lot ? `<button class="btn btn--ghost pequeno" type="button" data-ver="${lotOfToken(lot.token_id)}">Ver no mapa</button>` : ''}${action}</span></li>`;
+      })
+      .join('');
+    const body =
+      tab === 'venda'
+        ? listings.length ? `<ul>${rows}</ul>` : '<p class="muted">Nada à venda agora.</p>'
+        : auctions.length ? `<ul>${auctionRows}</ul>` : '<p class="muted">Nenhum leilão aberto.</p>';
     panel.innerHTML = `<h2><span>🛒 Mercado</span><button class="btn btn--ghost pequeno" type="button" data-fechar>Fechar</button></h2>
-      <p class="muted pequeno">Lotes, imóveis e avatares à venda entre jogadores, em SCITY, pela carteira. Taxa de 2,5% para a tesouraria. Para vender, abra a ficha de um lote seu que já está na blockchain.</p>
-      ${listings.length ? `<ul>${rows}</ul>` : '<p class="muted">Nada à venda agora.</p>'}
+      <div class="linha abas" role="tablist">
+        <button class="btn pequeno ${tab === 'venda' ? 'btn--primary' : 'btn--ghost'}" type="button" role="tab" aria-selected="${tab === 'venda'}" data-aba="venda">À venda (${listings.length})</button>
+        <button class="btn pequeno ${tab === 'leilao' ? 'btn--primary' : 'btn--ghost'}" type="button" role="tab" aria-selected="${tab === 'leilao'}" data-aba="leilao">Leilões (${auctions.length})</button>
+      </div>
+      <p class="muted pequeno">${tab === 'venda'
+        ? 'Lotes, imóveis e avatares à venda entre jogadores, em SCITY, pela carteira. Taxa de 2,5% para a tesouraria. Para vender, abra a ficha de um lote seu que já está na blockchain.'
+        : 'Lances em SCITY, 5% acima do maior; o lance anterior volta na hora. Um lance nos últimos 10 minutos estica o fim. Terminado, qualquer um encerra e o vencedor recebe.'}</p>
+      ${body}
       ${note ? `<p class="nota">${esc(note)}</p>` : ''}`;
   }
 
   async function refresh() {
     try {
-      const r = await api('/v1/market/listings');
+      const [r, a] = await Promise.all([api('/v1/market/listings'), api('/v1/market/auctions').catch(() => ({ auctions: [] }))]);
       listings = r.listings;
+      auctions = a.auctions;
       marketAddress = r.marketplace;
       if (!marketAddress) note = 'O Marketplace não está configurado no chain-indexer.';
     } catch (error) {
@@ -235,9 +294,63 @@ export function createMercado(map) {
     });
   }
 
+  async function placeBid(id, text) {
+    const a = auctions.find((x) => x.auction_id === id);
+    const amount = toWei(text);
+    if (!a || !amount) {
+      note = 'Valor do lance inválido.';
+      return render();
+    }
+    await act(async () => {
+      const w = await wallet();
+      const currency = await read(w, marketAddress, 'currency');
+      const minimum = await read(w, marketAddress, 'minimumBid', [BigInt(id)]);
+      if (amount < minimum) throw new Error(`Lance mínimo agora: ${scity(minimum)} SCITY.`);
+      if ((await read(w, currency, 'balanceOf', [w.address])) < amount) throw new Error('ERC20InsufficientBalance');
+      if ((await read(w, currency, 'allowance', [w.address, marketAddress])) < amount) {
+        note = 'Autorize o SCITY na carteira…';
+        render();
+        await send(w, currency, 'approve', [marketAddress, amount]);
+      }
+      note = 'Confirme o lance na carteira…';
+      render();
+      await send(w, marketAddress, 'bid', [BigInt(id), amount]);
+      return `Lance de ${scity(amount)} SCITY: você lidera. Se alguém cobrir, o SCITY volta para a sua carteira.`;
+    });
+  }
+
+  async function settle(id) {
+    await act(async () => {
+      const w = await wallet();
+      await send(w, marketAddress, 'settle', [BigInt(id)]);
+      return 'Leilão encerrado: o vencedor recebeu e o vendedor foi pago (sem lance, tudo voltou ao vendedor).';
+    });
+  }
+
+  async function cancelAuction(id) {
+    await act(async () => {
+      const w = await wallet();
+      await send(w, marketAddress, 'cancelAuction', [BigInt(id)]);
+      return 'Leilão cancelado: o lote voltou para a sua carteira.';
+    });
+  }
+
+  panel.addEventListener('submit', (e) => {
+    const f = e.target.closest('[data-lance]');
+    if (!f) return;
+    e.preventDefault();
+    placeBid(f.dataset.lance, new FormData(f).get('valor'));
+  });
+
   panel.addEventListener('click', (e) => {
     const b = e.target.closest('button');
     if (!b || b.disabled) return;
+    if (b.dataset.aba) {
+      tab = b.dataset.aba;
+      return render();
+    }
+    if (b.dataset.encerrar) return settle(b.dataset.encerrar);
+    if (b.dataset.cancelarLeilao) return cancelAuction(b.dataset.cancelarLeilao);
     if (b.hasAttribute('data-fechar')) panel.hidden = true;
     else if (b.dataset.comprar) buy(b.dataset.comprar);
     else if (b.dataset.cancelar) cancel(b.dataset.cancelar);
@@ -256,12 +369,32 @@ export function createMercado(map) {
     const turn = ++decorating;
     const tokenId = lotToken(i);
     let owner;
+    let inAuction;
     try {
       owner = (await api(`/v1/chain/owners/${mine}`)) ?? {};
+      inAuction = (await api('/v1/market/auctions').catch(() => ({ auctions: [] }))).auctions.find(
+        (a) => a.seller === mine && a.items.some((it) => it.collection === 'LandNFT' && it.token_id === tokenId),
+      );
     } catch {
       return;
     }
-    if (turn !== decorating || !owner.lots?.some((l) => l.token_id === tokenId) || !ficha.isConnected) return;
+    if (turn !== decorating || !ficha.isConnected) return;
+    if (inAuction) {
+      // O lote está guardado no contrato até o fim do leilão.
+      ficha.querySelector('.merc-venda')?.remove();
+      const box = document.createElement('div');
+      box.className = 'gestao merc-venda';
+      box.innerHTML = `<h3>🔨 Em leilão</h3><p class="muted pequeno">${inAuction.highest_bid_wei ? `Maior lance: <b>${scity(inAuction.highest_bid_wei)} SCITY</b> (${inAuction.bids})` : `Sem lance ainda; mínimo de ${scity(inAuction.start_price_wei)} SCITY`}. ${inAuction.ended ? 'Terminou: encerre no Mercado.' : `Termina em ${timeLeft(inAuction.ends_at)}.`}</p>
+        <button class="btn btn--ghost pequeno" type="button" data-abrir-mercado>Ver no Mercado</button>`;
+      ficha.append(box);
+      box.querySelector('[data-abrir-mercado]').addEventListener('click', () => {
+        tab = 'leilao';
+        panel.hidden = false;
+        refresh();
+      });
+      return;
+    }
+    if (!owner.lots?.some((l) => l.token_id === tokenId)) return;
     const property = owner.properties?.find((p) => p.lot_id === tokenId);
     const listed = (await api('/v1/market/listings').catch(() => ({ listings: [] }))).listings.find((l) => l.items.some((it) => it.token_id === tokenId));
     marketAddress ??= (await api('/v1/market/listings').catch(() => ({}))).marketplace;
@@ -273,12 +406,29 @@ export function createMercado(map) {
       ? `<h3>🛒 No mercado</h3><p class="muted pequeno">À venda por <b>${scity(listed.price_wei)} SCITY</b>${listed.items.length > 1 ? ', com o imóvel' : ''}.</p>
          <button class="btn btn--ghost pequeno" type="button" data-cancelar="${esc(listed.listing_id)}">Cancelar a venda</button><p class="muted pequeno" data-msg></p>`
       : `<h3>🛒 Vender no mercado</h3>
+         <div class="linha pequeno" role="radiogroup" aria-label="Tipo de venda">
+           <label><input type="radio" name="modo" value="fixo" checked> Preço fixo</label>
+           <label><input type="radio" name="modo" value="leilao"> Leilão</label>
+           <select name="prazo" aria-label="Duração do leilão" hidden>${DURATIONS.map(([sec, label]) => `<option value="${sec}">${label}</option>`).join('')}</select>
+         </div>
          <form class="linha" data-vender><input type="text" name="preco" inputmode="decimal" required placeholder="Preço em SCITY" aria-label="Preço em SCITY" />
          <button class="btn btn--primary pequeno" type="submit">Vender</button></form>
          ${property ? '<label class="pequeno"><input type="checkbox" data-combo checked> Junto com o imóvel (combo)</label>' : ''}
-         <p class="muted pequeno">Fica à venda por 7 dias. A taxa de 2,5% sai do preço. O lote só passa ao comprador na venda.</p><p class="muted pequeno" data-msg></p>`;
+         <p class="muted pequeno" data-ajuda-venda>Fica à venda por 7 dias. A taxa de 2,5% sai do preço. O lote só passa ao comprador na venda.</p><p class="muted pequeno" data-msg></p>`;
     ficha.append(box);
     const msg = (t) => (box.querySelector('[data-msg]').textContent = t);
+    const modo = () => box.querySelector('input[name=modo]:checked')?.value ?? 'fixo';
+    box.querySelectorAll('input[name=modo]').forEach((r) =>
+      r.addEventListener('change', () => {
+        const leilao = modo() === 'leilao';
+        box.querySelector('select[name=prazo]').hidden = !leilao;
+        box.querySelector('[data-vender] input').placeholder = leilao ? 'Lance inicial em SCITY' : 'Preço em SCITY';
+        box.querySelector('[data-vender] button').textContent = leilao ? 'Leiloar' : 'Vender';
+        box.querySelector('[data-ajuda-venda]').textContent = leilao
+          ? 'O lote fica guardado no contrato até o fim. Lances 5% acima do maior; um lance no fim estica 10 minutos. Sem lance, ele volta para você.'
+          : 'Fica à venda por 7 dias. A taxa de 2,5% sai do preço. O lote só passa ao comprador na venda.';
+      }),
+    );
     box.querySelector('[data-cancelar]')?.addEventListener('click', async (e) => {
       e.target.disabled = true;
       box.dataset.busy = '1';
@@ -314,10 +464,17 @@ export function createMercado(map) {
             await send(w, it.collection, 'setApprovalForAll', [marketAddress, true]);
           }
         }
-        const block = await w.pub.getBlock();
-        msg('Confirme a venda na carteira…');
-        await send(w, marketAddress, 'list', [items, price, block.timestamp + 7n * 86_400n]);
-        msg(`À venda por ${scity(price)} SCITY.`);
+        if (modo() === 'leilao') {
+          const duration = BigInt(box.querySelector('select[name=prazo]').value);
+          msg('Confirme o leilão na carteira…');
+          await send(w, marketAddress, 'createAuction', [items, price, duration]);
+          msg(`Em leilão a partir de ${scity(price)} SCITY.`);
+        } else {
+          const block = await w.pub.getBlock();
+          msg('Confirme a venda na carteira…');
+          await send(w, marketAddress, 'list', [items, price, block.timestamp + 7n * 86_400n]);
+          msg(`À venda por ${scity(price)} SCITY.`);
+        }
       } catch (error) {
         msg(txError(error));
         submit.disabled = false;
@@ -327,5 +484,15 @@ export function createMercado(map) {
     });
   }
 
-  return { refresh, decorateLot, open: () => { panel.hidden = false; refresh(); }, listings: () => listings };
+  return {
+    refresh,
+    decorateLot,
+    open: (which = 'venda') => {
+      tab = which;
+      panel.hidden = false;
+      refresh();
+    },
+    listings: () => listings,
+    auctions: () => auctions,
+  };
 }

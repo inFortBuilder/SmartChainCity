@@ -26,6 +26,10 @@ export const CONTRACT_ABIS = {
     'event Listed(uint256 indexed listingId, address indexed seller, uint256 price, uint64 expiresAt, address[] collections, uint256[] tokenIds)',
     'event Sold(uint256 indexed listingId, address indexed seller, address indexed buyer, uint256 price, uint256 fee, uint256 royalty)',
     'event Cancelled(uint256 indexed listingId)',
+    'event AuctionCreated(uint256 indexed auctionId, address indexed seller, uint256 startPrice, uint64 endsAt, address[] collections, uint256[] tokenIds)',
+    'event BidPlaced(uint256 indexed auctionId, address indexed bidder, uint256 amount, uint64 endsAt)',
+    'event AuctionSettled(uint256 indexed auctionId, address indexed seller, address indexed winner, uint256 price, uint256 fee, uint256 royalty)',
+    'event AuctionCancelled(uint256 indexed auctionId)',
   ]),
   LuckyBox: parseAbi([
     'event BoxOpened(uint256 indexed requestId, address indexed buyer, uint32 indexed tierId)',
@@ -131,6 +135,23 @@ export interface MarketListing {
   block: bigint;
 }
 
+/** Leilão do Marketplace: os NFTs ficam no contrato até o fim; lances em SCITY. */
+export interface MarketAuction {
+  auctionId: string;
+  seller: string;
+  startPriceWei: string;
+  /** Unix, em segundos (o lance no fim estica). */
+  endsAt: number;
+  items: { collection: string; tokenId: string }[];
+  /** `settled` com `winner` nulo: terminou sem lance e os NFTs voltaram ao vendedor. */
+  status: 'active' | 'settled' | 'cancelled';
+  highestBidWei: string | null;
+  highestBidder: string | null;
+  bids: number;
+  winner: string | null;
+  block: bigint;
+}
+
 /**
  * O que um evento muda nas projeções. Os dois stores aplicam a mesma lista, na
  * ordem (bloco, log), então memória e Postgres chegam ao mesmo estado.
@@ -146,7 +167,10 @@ export type ProjectionOp =
   | { kind: 'box_opened'; value: BoxRequest }
   | { kind: 'box_revealed'; requestId: string; buyer: string; tokenId: string; block: bigint }
   | { kind: 'listing_created'; value: MarketListing }
-  | { kind: 'listing_closed'; listingId: string; status: 'sold' | 'cancelled'; buyer: string | null; block: bigint };
+  | { kind: 'listing_closed'; listingId: string; status: 'sold' | 'cancelled'; buyer: string | null; block: bigint }
+  | { kind: 'auction_created'; value: MarketAuction }
+  | { kind: 'auction_bid'; auctionId: string; bidder: string; amountWei: string; endsAt: number; block: bigint }
+  | { kind: 'auction_closed'; auctionId: string; status: 'settled' | 'cancelled'; winner: string | null; block: bigint };
 
 export function projectionOps(e: ChainEvent): ProjectionOp[] {
   const a = e.args;
@@ -233,6 +257,40 @@ export function projectionOps(e: ChainEvent): ProjectionOp[] {
   }
   if (e.contract === 'Marketplace' && e.event === 'Cancelled') {
     return [{ kind: 'listing_closed', listingId: a.listingId as string, status: 'cancelled', buyer: null, block: e.blockNumber }];
+  }
+  if (e.contract === 'Marketplace' && e.event === 'AuctionCreated') {
+    const collections = String(a.collections).split(',');
+    const tokenIds = String(a.tokenIds).split(',');
+    return [
+      {
+        kind: 'auction_created',
+        value: {
+          auctionId: a.auctionId as string,
+          seller: a.seller as string,
+          startPriceWei: a.startPrice as string,
+          endsAt: Number(a.endsAt),
+          items: collections.map((collection, i) => ({ collection, tokenId: tokenIds[i]! })),
+          status: 'active',
+          highestBidWei: null,
+          highestBidder: null,
+          bids: 0,
+          winner: null,
+          block: e.blockNumber,
+        },
+      },
+    ];
+  }
+  if (e.contract === 'Marketplace' && e.event === 'BidPlaced') {
+    return [
+      { kind: 'auction_bid', auctionId: a.auctionId as string, bidder: a.bidder as string, amountWei: a.amount as string, endsAt: Number(a.endsAt), block: e.blockNumber },
+    ];
+  }
+  if (e.contract === 'Marketplace' && e.event === 'AuctionSettled') {
+    const winner = a.winner === ZERO_ADDRESS ? null : (a.winner as string);
+    return [{ kind: 'auction_closed', auctionId: a.auctionId as string, status: 'settled', winner, block: e.blockNumber }];
+  }
+  if (e.contract === 'Marketplace' && e.event === 'AuctionCancelled') {
+    return [{ kind: 'auction_closed', auctionId: a.auctionId as string, status: 'cancelled', winner: null, block: e.blockNumber }];
   }
   // LotSold fica só no registro de eventos: a posse vem do Transfer. Withdrawn vai pelo feed para o economy.
   return [];

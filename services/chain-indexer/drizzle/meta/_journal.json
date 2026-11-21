@@ -29,6 +29,13 @@
       "when": 1795281385165,
       "tag": "0003_marketplace",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1795283111177,
+      "tag": "0004_leilao",
+      "breakpoints": true
     }
   ]
 }

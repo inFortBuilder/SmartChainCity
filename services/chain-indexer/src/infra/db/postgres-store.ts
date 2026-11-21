@@ -11,6 +11,7 @@ import {
   type Cursor,
   type EventArgs,
   type LotToken,
+  type MarketAuction,
   type MarketListing,
   type ProjectionOp,
   type PropertyToken,
@@ -26,6 +27,7 @@ import {
   cursor as cursorT,
   deposit as depositT,
   lotToken as lotT,
+  marketAuction as auctionT,
   marketListing as listingT,
   propertyToken as propT,
 } from './schema.js';
@@ -51,6 +53,12 @@ const toListing = ({ chainId: _c, ...r }: typeof listingT.$inferSelect): MarketL
   ...r,
   items: r.items as MarketListing['items'],
   status: r.status as MarketListing['status'],
+});
+
+const toAuction = ({ chainId: _c, ...r }: typeof auctionT.$inferSelect): MarketAuction => ({
+  ...r,
+  items: r.items as MarketAuction['items'],
+  status: r.status as MarketAuction['status'],
 });
 
 async function apply(tx: Tx, chainId: number, op: ProjectionOp) {
@@ -116,6 +124,21 @@ async function apply(tx: Tx, chainId: number, op: ProjectionOp) {
         .insert(listingT)
         .values({ chainId, ...op.value })
         .onConflictDoNothing();
+      return;
+    case 'auction_created':
+      await tx.insert(auctionT).values({ chainId, ...op.value }).onConflictDoNothing();
+      return;
+    case 'auction_bid':
+      await tx
+        .update(auctionT)
+        .set({ highestBidWei: op.amountWei, highestBidder: op.bidder, endsAt: op.endsAt, bids: sql`${auctionT.bids} + 1`, block: op.block })
+        .where(and(eq(auctionT.chainId, chainId), eq(auctionT.auctionId, op.auctionId)));
+      return;
+    case 'auction_closed':
+      await tx
+        .update(auctionT)
+        .set({ status: op.status, winner: op.winner, block: op.block })
+        .where(and(eq(auctionT.chainId, chainId), eq(auctionT.auctionId, op.auctionId)));
       return;
     case 'listing_closed':
       await tx
@@ -203,6 +226,7 @@ export class PostgresIndexerStore implements IndexerStore {
       await tx.delete(propT).where(eq(propT.chainId, chainId));
       await tx.delete(depositT).where(eq(depositT.chainId, chainId));
       await tx.delete(listingT).where(eq(listingT.chainId, chainId));
+      await tx.delete(auctionT).where(eq(auctionT.chainId, chainId));
       const keep = await tx
         .select()
         .from(eventT)
@@ -310,5 +334,20 @@ export class PostgresIndexerStore implements IndexerStore {
   async listing(chainId: number, listingId: string) {
     const [r] = await this.db.select().from(listingT).where(and(eq(listingT.chainId, chainId), eq(listingT.listingId, listingId)));
     return r ? toListing(r) : null;
+  }
+
+  async activeAuctions(chainId: number, limit: number) {
+    const rows = await this.db
+      .select()
+      .from(auctionT)
+      .where(and(eq(auctionT.chainId, chainId), eq(auctionT.status, 'active')))
+      .orderBy(sql`${auctionT.auctionId}::numeric desc`)
+      .limit(limit);
+    return rows.map(toAuction);
+  }
+
+  async auction(chainId: number, auctionId: string) {
+    const [r] = await this.db.select().from(auctionT).where(and(eq(auctionT.chainId, chainId), eq(auctionT.auctionId, auctionId)));
+    return r ? toAuction(r) : null;
   }
 }

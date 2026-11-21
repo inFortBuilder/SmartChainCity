@@ -358,4 +358,50 @@ describe('Marketplace no indexer', () => {
     await store.rewind(id, { block: 1n, hash: (await chain.blockHash(1n))! });
     expect((await store.activeListings(id, 10)).map((l) => l.listingId)).toEqual(['3', '2', '1']);
   });
+
+  it.each([
+    ['memória', () => new MemoryIndexerStore() as IndexerStore, true],
+    ['postgres', () => new PostgresIndexerStore(pool!) as IndexerStore, pool !== null],
+  ] as const)('leilões: lances, vencedor, sem lance e cancelado (%s)', async (_n, make, enabled) => {
+    if (!enabled) return;
+    const id = newChainId();
+    const chain = new FakeChain(id);
+    const store = make();
+    const opt = options(id, { confirmations: 0 });
+    const CAROL = '0x90f79bf6eb2c4f870365e785982e1f101e93b906';
+    const created = (auctionId: string, startPrice = '100') => ({
+      auctionId, seller: ALICE, startPrice, endsAt: later(), collections: LAND, tokenIds: lotId,
+    });
+    chain.mine(1);
+    chain.emit('Marketplace', 'AuctionCreated', created('1'));
+    chain.emit('Marketplace', 'BidPlaced', { auctionId: '1', bidder: BOB, amount: '100', endsAt: later() });
+    chain.emit('Marketplace', 'BidPlaced', { auctionId: '1', bidder: CAROL, amount: '200', endsAt: String(Number(later()) + 600) });
+    chain.emit('Marketplace', 'AuctionCreated', created('2'));
+    chain.emit('Marketplace', 'AuctionCreated', created('3'));
+    chain.mine(1);
+    await drain(chain, store, opt);
+    const app = await buildApp(
+      { ...loadConfig({ NODE_ENV: 'test', CHAIN_ID: String(id) }), contracts: { LandNFT: LAND, Marketplace: MARKET } },
+      store,
+    );
+    const list = async () => (await app.inject({ method: 'GET', url: '/v1/market/auctions' })).json().auctions;
+    expect((await list()).map((a: { auction_id: string }) => a.auction_id)).toEqual(['3', '2', '1']);
+    expect((await list())[2]).toMatchObject({
+      highest_bid_wei: '200', highest_bidder: CAROL, bids: 2, minimum_bid_wei: '210', ended: false,
+      items: [{ collection: 'LandNFT', token_id: lotId }],
+    });
+
+    chain.mine(1);
+    chain.emit('Marketplace', 'AuctionSettled', { auctionId: '1', seller: ALICE, winner: CAROL, price: '200', fee: '5', royalty: '0' });
+    chain.emit('Marketplace', 'AuctionSettled', { auctionId: '2', seller: ALICE, winner: ZERO, price: '0', fee: '0', royalty: '0' });
+    chain.emit('Marketplace', 'AuctionCancelled', { auctionId: '3' });
+    chain.mine(1);
+    await drain(chain, store, opt);
+    expect(await list()).toEqual([]);
+    const one = async (n: string) => (await app.inject({ method: 'GET', url: `/v1/market/auctions/${n}` })).json().auction;
+    expect(await one('1')).toMatchObject({ status: 'settled', winner: CAROL });
+    expect(await one('2')).toMatchObject({ status: 'settled', winner: null });
+    expect(await one('3')).toMatchObject({ status: 'cancelled' });
+    expect((await app.inject({ method: 'GET', url: '/v1/market/auctions/9' })).statusCode).toBe(404);
+  });
 });

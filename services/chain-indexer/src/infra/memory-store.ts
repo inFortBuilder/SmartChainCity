@@ -4,6 +4,7 @@ import {
   type ChainEvent,
   type Cursor,
   type LotToken,
+  type MarketAuction,
   type MarketListing,
   type ProjectionOp,
   type PropertyToken,
@@ -23,6 +24,7 @@ interface ChainState {
   properties: Map<string, PropertyToken>;
   deposits: Map<string, Deposit>;
   listings: Map<string, MarketListing>;
+  auctions: Map<string, MarketAuction>;
 }
 
 /** Para testes e desenvolvimento. Uma thread só: cada operação é atômica. */
@@ -33,7 +35,7 @@ export class MemoryIndexerStore implements IndexerStore {
   private state(chainId: number): ChainState {
     let s = this.chains.get(chainId);
     if (!s) {
-      s = { cursor: null, events: [], keys: new Set(), lots: new Map(), avatars: new Map(), boxes: new Map(), properties: new Map(), deposits: new Map(), listings: new Map() };
+      s = { cursor: null, events: [], keys: new Set(), lots: new Map(), avatars: new Map(), boxes: new Map(), properties: new Map(), deposits: new Map(), listings: new Map(), auctions: new Map() };
       this.chains.set(chainId, s);
     }
     return s;
@@ -110,6 +112,19 @@ export class MemoryIndexerStore implements IndexerStore {
         s.listings.set(op.value.listingId, { ...op.value, items: op.value.items.map((i) => ({ ...i })) });
         break;
       }
+      case 'auction_created':
+        s.auctions.set(op.value.auctionId, { ...op.value, items: op.value.items.map((i) => ({ ...i })) });
+        break;
+      case 'auction_bid': {
+        const a = s.auctions.get(op.auctionId);
+        if (a) Object.assign(a, { highestBidWei: op.amountWei, highestBidder: op.bidder, endsAt: op.endsAt, bids: a.bids + 1, block: op.block });
+        break;
+      }
+      case 'auction_closed': {
+        const a = s.auctions.get(op.auctionId);
+        if (a) Object.assign(a, { status: op.status, winner: op.winner, block: op.block });
+        break;
+      }
       case 'listing_closed': {
         const l = s.listings.get(op.listingId);
         if (l) Object.assign(l, { status: op.status, buyer: op.buyer, block: op.block });
@@ -162,6 +177,7 @@ export class MemoryIndexerStore implements IndexerStore {
     s.properties.clear();
     s.deposits.clear();
     s.listings.clear();
+    s.auctions.clear();
     for (const e of [...keep].sort(byChainOrder)) for (const op of projectionOps(e)) this.apply(s, op);
     s.cursor = cursor ? { ...cursor } : null;
     return dropped;
@@ -234,5 +250,18 @@ export class MemoryIndexerStore implements IndexerStore {
   async listing(chainId: number, listingId: string) {
     const l = this.state(chainId).listings.get(listingId);
     return l ? { ...l, items: l.items.map((i) => ({ ...i })) } : null;
+  }
+
+  async activeAuctions(chainId: number, limit: number) {
+    return [...this.state(chainId).auctions.values()]
+      .filter((a) => a.status === 'active')
+      .sort((x, y) => Number(BigInt(y.auctionId) - BigInt(x.auctionId)))
+      .slice(0, limit)
+      .map((a) => ({ ...a, items: a.items.map((i) => ({ ...i })) }));
+  }
+
+  async auction(chainId: number, auctionId: string) {
+    const a = this.state(chainId).auctions.get(auctionId);
+    return a ? { ...a, items: a.items.map((i) => ({ ...i })) } : null;
   }
 }

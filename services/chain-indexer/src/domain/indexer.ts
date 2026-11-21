@@ -6,6 +6,7 @@ import {
   type ChainEvent,
   type Cursor,
   type LotToken,
+  type MarketAuction,
   type MarketListing,
   type PropertyToken,
   byChainOrder,
@@ -45,6 +46,9 @@ export interface IndexerStore {
   /** Listagens do Marketplace ainda abertas no contrato, as mais novas primeiro. */
   activeListings(chainId: number, limit: number): Promise<MarketListing[]>;
   listing(chainId: number, listingId: string): Promise<MarketListing | null>;
+  /** Leilões ainda abertos no contrato (inclusive os vencidos que ninguém fechou), os mais novos primeiro. */
+  activeAuctions(chainId: number, limit: number): Promise<MarketAuction[]>;
+  auction(chainId: number, auctionId: string): Promise<MarketAuction | null>;
   /** Depósitos do GameVault ainda não creditados no ledger, os mais antigos primeiro. */
   pendingDeposits(chainId: number, limit: number): Promise<Deposit[]>;
   markDepositCredited(chainId: number, txHash: string, logIndex: number, accountId: string): Promise<void>;
