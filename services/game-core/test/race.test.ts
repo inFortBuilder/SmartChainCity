@@ -260,7 +260,8 @@ describe('API das corridas e da oficina', () => {
     }
     expect(results.length).toBeGreaterThan(0);
     expect(results.at(-1).avatar.attributes.energy).toBe(10 - results.length);
-    if (results.length === 3) {
+    // Se a 3ª corrida quebrou o carro, a 4ª esbarra na pane antes do limite (sorteio da semente).
+    if (results.length === 3 && !results.at(-1).race.breakdown) {
       const fourth = await app.inject({ method: 'POST', url: `/v1/vehicles/${v.id}/races`, headers: h, payload: { avatar_id: p.id } });
       expect(fourth.json().error.code).toBe('race_limit');
     }

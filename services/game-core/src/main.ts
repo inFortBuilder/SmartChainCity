@@ -21,6 +21,8 @@ import { MemoryVehicleStore } from './infra/memory-vehicle-store.js';
 import { settleRace } from './domain/race.js';
 import { PostgresRaceStore } from './infra/db/postgres-race-store.js';
 import { MemoryRaceStore } from './infra/memory-race-store.js';
+import { PostgresGamePassStore } from './infra/db/postgres-gamepass-store.js';
+import { MemoryGamePassStore } from './infra/memory-gamepass-store.js';
 import { scheduleDecay } from './jobs/decay.js';
 import { scheduleHospital } from './jobs/hospital.js';
 import { scheduleShifts } from './jobs/shift.js';
@@ -49,7 +51,10 @@ const championships = payer ? { store: championshipStore, payer } : null;
 const vehicleStore = pool ? new PostgresVehicleStore(pool) : new MemoryVehicleStore();
 const raceStore = pool ? new PostgresRaceStore(pool) : new MemoryRaceStore();
 const vehicles = payer ? { store: vehicleStore, payer, races: raceStore } : null;
-const app = await buildApp(config, store, undefined, payer, payer, payer, undefined, riskStore, venues, championships, vehicles);
+// GamePass (E3.10): SCITY para a queima no mesmo ledger.
+const passStore = pool ? new PostgresGamePassStore(pool) : new MemoryGamePassStore();
+const passes = payer ? { store: passStore, payer } : null;
+const app = await buildApp(config, store, undefined, payer, payer, payer, undefined, riskStore, venues, championships, vehicles, passes);
 
 // Job championship.settle: disputa o campeonato do mês que virou e cobra as inscrições paradas.
 const championshipTimer = championships

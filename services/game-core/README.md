@@ -163,6 +163,17 @@ Autoescola, agência e IPVA ([vehicle.ts](src/domain/vehicle.ts), GDD §6 "Carro
 
 **Premissas:** Hatch 3.000, Sedã esportivo 8.000 e Superesportivo 20.000 THALER; a curva de queda; IPVA de 2%; recompra de 80%; autoescola de 50 THALER. Depois de atualizar o código, rode `pnpm db:migrate`: a migração `0014_veiculos` cria `vehicle` e a coluna `license` do avatar.
 
+## Eventos semanais e GamePass (E3.10)
+
+Eventos por profissão e o GamePass da temporada ([events.ts](src/domain/events.ts), GDD §8, doc 04 §4 e §8).
+
+| Regra | Como |
+|---|---|
+| Evento da semana | Toda semana ISO (segunda a domingo, UTC) um grupo de profissões ganha ×1,2 no turno (`fator_evento_semanal` do doc 04 §4). Os grupos se revezam: Comida, Saúde, Lazer (do GDD §8) e Cidade (as 18 profissões que o GDD não pôs em nenhum grupo, **premissa**). O nome gira na lista do grupo. O fator vale para o turno que começa na semana e fica no retrato do turno (`snapshot.event`). `GET /v1/events` dá o evento de agora e os 3 próximos |
+| GamePass | Temporada 1: 12 semanas a partir de 16/11/2026. Níveis 1 a 5 pagos em SCITY (sink `burn/gamepass`, doc 04 §8). Subir paga só a diferença, com uma chave por nível. Cada nível corta 10% da chance de dano no turno (`snapshot.damageCut`; o nível 5 corta pela metade) e libera um distintivo da temporada |
+
+**Premissas:** o grupo Cidade, o fator de 1,2, a ordem dos grupos, 5 SCITY por nível, o corte de 10% por nível e a duração da temporada. Os itens com efeito e os eventos sazonais (Natal, Carnaval) ficam para quando houver loja de itens; eventos e temporadas passam para o Strapi quando ele publicar o tipo `event`. Depois de atualizar o código, rode `pnpm db:migrate`: a migração `0016_gamepass` cria `game_pass`.
+
 ## Corridas e oficina (E3.5)
 
 Corridas diárias e oficina do jogo ([race.ts](src/domain/race.ts), GDD §6 "Carros" e "Oficina").
@@ -299,6 +310,9 @@ TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc_test pnpm --filter
 | GET | `/v1/vehicles` | jogador (Bearer) | Carros da conta com a situação (`ok`, `suspended`, `worn_out`, `expired`), atributos de agora, valor, recompra e IPVA |
 | POST | `/v1/vehicles` | jogador (Bearer) | Compra `{model}` ou aluga `{model, rent: true}` na agência |
 | POST | `/v1/vehicles/:id/ipva` | jogador (Bearer) | Paga o IPVA do semestre |
+| GET | `/v1/events` | público | O evento semanal de agora (grupo, nome, profissões, fator, início e fim) e os 3 próximos |
+| GET | `/v1/gamepass` | público (com Bearer, o seu nível) | A temporada, o preço por nível, o seu nível, o corte de dano e os distintivos |
+| POST | `/v1/gamepass` | jogador (Bearer) | Sobe para `{level}`, pagando a diferença em SCITY |
 | POST | `/v1/vehicles/:id/races` | jogador (Bearer) | Corrida do dia com o piloto `{avatar_id}`: gasolina, resultado com a semente e o prêmio |
 | GET | `/v1/races` | jogador (Bearer) | Últimas 20 corridas da conta |
 | POST | `/v1/vehicles/:id/repair` | jogador (Bearer) | Leva o carro com pane à oficina (1, 3 ou 7 dias) |
@@ -337,7 +351,7 @@ Esquema próprio `game`: tabela `avatar` do doc 06, com os instantes de referên
 ## Ainda não
 
 - Deslocamento (carro, skate, ônibus, a pé, home office). Efeito real de energia e felicidade por tarefa, que depende do game designer acertar os números do catálogo. Cards de arte das 12 profissões do MVP.
-- Bônus de itens, moradia e eventos semanais no ganho (o do pet já entra).
+- Bônus de itens e moradia no ganho (o do pet e o dos eventos semanais já entram).
 - Descansar e atividades (sobem os atributos); as doenças do hospital (febre, enxaqueca, virose: −1 de saúde a cada 15 min).
 - O tempo de compra do mercado e o limite da despensa pela casa.
 - Fila do BullMQ: o job roda no próprio processo até haver Redis no ambiente.

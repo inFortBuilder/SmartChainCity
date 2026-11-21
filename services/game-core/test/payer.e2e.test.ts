@@ -11,6 +11,7 @@ import { checkActivity } from '../src/domain/leisure.js';
 import { planLeisure, planLicense, planPetShop, planSchool } from '../src/domain/meal.js';
 import { ipvaCents, newVehicle, settleVehicle } from '../src/domain/vehicle.js';
 import { newRace } from '../src/domain/race.js';
+import { passKey } from '../src/domain/events.js';
 import { MemoryVehicleStore } from '../src/infra/memory-vehicle-store.js';
 import { checkAdoption } from '../src/domain/pet.js';
 import { checkClass } from '../src/domain/school.js';
@@ -134,5 +135,26 @@ describe('cobranças no economy de verdade', () => {
     await payer.payPrize(forced);
     // 1.000 − 300 de gasolina + 2.000 de prêmio (uma vez).
     expect(await thaler('player', a.accountId)).toBe(2700n);
+  });
+
+  it('GamePass: SCITY do jogador para a queima, uma vez por nível', async () => {
+    const me = randomUUID();
+    await economy.inject({
+      method: 'POST',
+      url: '/internal/v1/ledger/transactions',
+      headers: { 'x-service-token': LEDGER_TOKEN, 'idempotency-key': `scity-${me}` },
+      payload: {
+        kind: 'test_credit',
+        legs: [
+          { owner_type: 'system', owner_id: 'bridge', currency: 'SCITY', amount: '-30000000000000000000' },
+          { owner_type: 'player', owner_id: me, currency: 'SCITY', amount: '30000000000000000000' },
+        ],
+      },
+    });
+    const key = passKey('s1', me, 2);
+    await payer.chargePass({ key, accountId: me, wei: 10n * 10n ** 18n, season: 's1' });
+    await payer.chargePass({ key, accountId: me, wei: 10n * 10n ** 18n, season: 's1' });
+    const scity = (await ledger.balances('player', me)).find((b) => b.currency === 'SCITY')?.amount;
+    expect(scity).toBe(20n * 10n ** 18n);
   });
 });

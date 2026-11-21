@@ -168,7 +168,7 @@ O MVP roda inteiro na máquina local, sem serviços pagos. Por isso, publicar o 
 | E3.7 GameVault | contracts · backend | Depósito e saque por voucher EIP-712, limites, circuit breaker. ✅ No anvil desde 2026-11-21: depósito com permit, saque por voucher com teto de 24 h, KYC e carência, teto diário do contrato conferido antes de assinar, desistência do voucher e a tela no mapa (depositar, resgatar e desistir pela carteira). Fora do MVP: proxy UUPS atrás de timelock e signer no KMS, antes da mainnet |
 | E3.8 Auditoria externa | contracts · legal | Auditoria dos contratos e correção dos achados |
 | E3.9 Teste de carga | infra | 10 mil simultâneos no Realtime; 1 mil req/s na API |
-| E3.10 Eventos semanais + GamePass | backend · cms | Eventos por profissão; temporada 1 |
+| E3.10 Eventos semanais + GamePass | backend · cms | Eventos por profissão; temporada 1. 🟡 Desde 2026-11-21, no game-core e no mapa: evento semanal por grupo de profissões (×1,2 no turno, com o calendário) e GamePass da temporada 1 (níveis 1–5 em SCITY, menos dano no turno e distintivos). Faltam os eventos e temporadas no Strapi e os itens sazonais com efeito |
 
 **Pronto quando:** auditoria sem achados críticos ou altos em aberto; teste de carga aprovado; termos de uso e privacidade publicados.
 

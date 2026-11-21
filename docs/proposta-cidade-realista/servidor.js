@@ -281,6 +281,8 @@ export function createServidor(map) {
   let propertyTypes = null;
   let cup = null;
   let carCatalog = null;
+  let events = null;
+  let pass = null;
   let cars = null;
   let message = '';
   let messageOk = false;
@@ -330,6 +332,11 @@ export function createServidor(map) {
         .catch(() => []);
       // Campeonato de botão (E3.3): o do mês e o resultado do anterior.
       cup = await call(API.game, '/v1/championships/current', { token: session.token }).catch(() => null);
+      // Evento da semana e GamePass da temporada (E3.10).
+      [events, pass] = await Promise.all([
+        call(API.game, '/v1/events').catch(() => null),
+        call(API.game, '/v1/gamepass', { token: session.token }).catch(() => null),
+      ]);
       // Veículos (E3.5): a agência e os carros da conta.
       if (!carCatalog) carCatalog = await call(API.game, '/v1/catalog/vehicles').catch(() => null);
       cars = await call(API.game, '/v1/vehicles', { token: session.token })
@@ -575,6 +582,33 @@ export function createServidor(map) {
 
   /** Erro de transação no cofre em texto curto. */
   const vaultError = (error) => (error instanceof ApiError ? error : new ApiError(400, 'tx', txError(error, VAULT_ERRORS)));
+
+  /**
+   * Evento semanal por profissão e GamePass da temporada (E3.10): o evento dá
+   * 1,2× no turno do grupo da semana; o GamePass corta a chance de dano e libera
+   * os distintivos da temporada.
+   */
+  const eventSection = (a) => {
+    const e = events.current;
+    const mine = e.jobs.includes(a.job.code);
+    const next = events.next.map((x) => `${esc(x.group_label)} (${esc(x.name)})`).join(' → ');
+    let html = `<h3>🎉 ${esc(e.name)} <span class="muted pequeno">· semana de ${esc(e.group_label)}</span></h3>
+      <p class="muted pequeno">${mine ? `<strong>Sua profissão está no evento:</strong> turno ×${e.factor.toLocaleString('pt-BR')} até ${new Date(e.ends_at).toLocaleDateString('pt-BR')}.` : `As profissões de ${esc(e.group_label)} ganham ×${e.factor.toLocaleString('pt-BR')} no turno até ${new Date(e.ends_at).toLocaleDateString('pt-BR')}.`} Próximas: ${next}.</p>`;
+    if (pass?.season) {
+      const lvl = pass.level;
+      const off = busy ? 'disabled' : '';
+      const price = (target) => scity((BigInt(target) * BigInt(pass.level_price_wei) - BigInt(lvl) * BigInt(pass.level_price_wei)).toString());
+      const items = pass.items.filter((i) => i.unlocked).map((i) => esc(i.label));
+      html += `<p class="muted pequeno">🎟️ GamePass ${esc(pass.season.label)} (até ${new Date(pass.season.ends_at).toLocaleDateString('pt-BR')}): nível ${lvl}/${pass.max_level}${lvl ? ` · dano no turno −${Math.round(pass.damage_cut * 100)}%` : ''}.${items.length ? ` Distintivos: ${items.join(', ')}.` : ''}</p>`;
+      if (lvl < pass.max_level) {
+        html += `<div class="linha">${[lvl + 1, pass.max_level]
+          .filter((v, i, arr) => arr.indexOf(v) === i)
+          .map((t) => `<button class="btn btn--ghost pequeno" type="button" data-s="gamepass" data-l="${t}" ${off}>Nível ${t} · ${price(t)} SCITY</button>`)
+          .join('')}</div>`;
+      }
+    }
+    return html;
+  };
 
   /**
    * Veículos (E3.5): autoescola, agência (compra, aluguel e recompra) e IPVA.
@@ -886,6 +920,7 @@ export function createServidor(map) {
           <p class="muted pequeno">Cada refeição dá +3 de alimentação; o pacote vai para a despensa.${foods.some((f) => f.provisional_price) ? ' Preço provisório até o game designer definir.' : ''}</p>
         </form>`;
       }
+      if (events) body += eventSection(a);
       if (!internado && leisure && a.leisure) body += leisureSection(a);
       if (cup) body += cupSection(a);
       if (carCatalog && cars) body += carSection(a);
@@ -1207,6 +1242,14 @@ export function createServidor(map) {
           headers: { 'idempotency-key': crypto.randomUUID() },
         });
         message = `Autoescola: −${thaler(r.purchase.price)} THALER. Habilitado em ${left(r.avatar.license.ready_at)}.`;
+        messageOk = true;
+      });
+    }
+    if (what === 'gamepass') {
+      const level = Number(b.dataset.l);
+      return act(async () => {
+        const r = await call(API.game, '/v1/gamepass', { method: 'POST', token: session.token, body: { level } });
+        message = `GamePass nível ${r.level}: −${scity(r.wei)} SCITY. Dano no turno −${Math.round(r.damage_cut * 100)}%.`;
         messageOk = true;
       });
     }
