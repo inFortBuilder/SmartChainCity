@@ -171,6 +171,25 @@ export class MemoryAvatarStore implements AvatarStore, ShiftStore, MealStore, Ho
     return clone(avatar);
   }
 
+  async createFromChain(avatar: Avatar & { tokenId: string }) {
+    const existing = await this.getByToken(avatar.tokenId);
+    if (existing) return existing;
+    this.avatars.set(avatar.id, clone(avatar));
+    return clone(avatar);
+  }
+
+  async getByToken(tokenId: string) {
+    const a = [...this.avatars.values()].find((x) => x.tokenId === tokenId);
+    return a ? clone(a) : null;
+  }
+
+  async transfer(id: string, from: string, to: string, now: Date) {
+    const a = this.avatars.get(id);
+    if (!a || a.accountId !== from) return false;
+    this.avatars.set(id, { ...a, accountId: to, ownedSince: now, updatedAt: now });
+    return true;
+  }
+
   async get(id: string) {
     const a = this.avatars.get(id);
     return a ? clone(a) : null;

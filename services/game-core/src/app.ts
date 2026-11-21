@@ -6,7 +6,7 @@ import Fastify, { type FastifyRequest } from 'fastify';
 import { z } from 'zod';
 
 import type { Config } from './config.js';
-import { type Avatar, type AvatarStore, decayed, newAvatar, status } from './domain/avatar.js';
+import { type Avatar, type AvatarStore, decayed, mayWork, newAvatar, overAvatarLimit, status } from './domain/avatar.js';
 import { catalogOrigin, professionLabel, professions, professionsByRarity, replaceCatalog } from './domain/catalog.js';
 import { foods, foodsOrigin, replaceFoods } from './domain/foods.js';
 import { type HospitalPayer, type HospitalStay, type HospitalStore, needsHospital } from './domain/hospital.js';
@@ -55,6 +55,8 @@ const createBody = z.object({
  */
 const avatarDto = (a: Avatar, at: Date) => ({
   id: a.id,
+  /** Token do AvatarNFT; null no avatar que só existe no jogo. */
+  token_id: a.tokenId,
   rarity: a.rarity,
   job: { code: a.jobCode, label: professionLabel(a.rarity, a.jobCode) },
   attributes: a.attributes,
@@ -274,6 +276,8 @@ export async function buildApp(
     // O turno que já venceu não segura o próximo, mesmo antes da passada do job.
     await completeShifts(store, now());
     const { id, accountId } = await ownAvatar(request);
+    // Avatares comprados na blockchain entram fora do limite, mas só os mais antigos na conta trabalham.
+    if (!mayWork(await store.listByAccount(accountId), id)) throw overAvatarLimit();
     await guardP2E(request, accountId, 'work');
     const started = await store.beginShift(id, accountId, now(), (avatar, context) =>
       startShift(

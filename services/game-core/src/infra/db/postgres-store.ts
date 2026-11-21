@@ -108,7 +108,9 @@ const toConditions = (value: unknown): Condition[] =>
 
 const toAvatar = (r: Row): Avatar => ({
   id: r.id,
+  tokenId: r.tokenId,
   accountId: r.accountId,
+  ownedSince: r.ownedSince,
   rarity: r.rarity as Rarity,
   jobCode: r.jobCode,
   attributes: {
@@ -129,7 +131,9 @@ const toAvatar = (r: Row): Avatar => ({
 
 const toRow = (a: Avatar) => ({
   id: a.id,
+  tokenId: a.tokenId,
   accountId: a.accountId,
+  ownedSince: a.ownedSince,
   rarity: a.rarity,
   jobCode: a.jobCode,
   ...a.attributes,
@@ -148,6 +152,15 @@ const toRow = (a: Avatar) => ({
   updatedAt: a.updatedAt,
   ...marks(a),
 });
+
+/**
+ * O que as gravações do jogo mudam. Sem o dono e o token: uma venda na
+ * blockchain gravada no meio de um turno ou de uma refeição não é desfeita.
+ */
+const changes = (a: Avatar) => {
+  const { id: _id, tokenId: _token, accountId: _account, ownedSince: _since, createdAt: _created, ...rest } = toRow(a);
+  return rest;
+};
 
 /** Próxima queda de saúde e saúde 0 pelas doenças graves, para o banco filtrar. */
 const marks = (a: Avatar) => {
@@ -173,6 +186,26 @@ export class PostgresAvatarStore implements AvatarStore, ShiftStore, MealStore, 
       const [row] = await tx.insert(avatar).values(toRow(a)).returning();
       return toAvatar(row!);
     });
+  }
+
+  async createFromChain(a: Avatar & { tokenId: string }) {
+    // Uma vez por token, mesmo com duas passadas do job em paralelo.
+    await this.db.insert(avatar).values(toRow(a)).onConflictDoNothing({ target: avatar.tokenId });
+    return (await this.getByToken(a.tokenId))!;
+  }
+
+  async getByToken(tokenId: string) {
+    const [row] = await this.db.select().from(avatar).where(eq(avatar.tokenId, tokenId));
+    return row ? toAvatar(row) : null;
+  }
+
+  async transfer(id: string, from: string, to: string, now: Date) {
+    const rows = await this.db
+      .update(avatar)
+      .set({ accountId: to, ownedSince: now, updatedAt: now })
+      .where(and(eq(avatar.id, id), eq(avatar.accountId, from)))
+      .returning({ id: avatar.id });
+    return rows.length > 0;
   }
 
   async get(id: string) {
@@ -248,7 +281,7 @@ export class PostgresAvatarStore implements AvatarStore, ShiftStore, MealStore, 
       });
       await tx
         .update(avatar)
-        .set({ ...toRow(next), lastWorkedAt: now })
+        .set({ ...changes(next), lastWorkedAt: now })
         .where(eq(avatar.id, avatarId));
       await tx.insert(workShift).values({
         id: shift.id,
@@ -357,7 +390,7 @@ export class PostgresAvatarStore implements AvatarStore, ShiftStore, MealStore, 
       if (found.status !== 'pending') return toMeal(found);
       const [row] = await tx.select().from(avatar).where(eq(avatar.id, found.avatarId)).for('update');
       const next = eat(decayed(toAvatar(row!), now), found.effects as MealEffects, now);
-      await tx.update(avatar).set(toRow(next)).where(eq(avatar.id, next.id));
+      await tx.update(avatar).set(changes(next)).where(eq(avatar.id, next.id));
       const [done] = await tx
         .update(meal)
         .set({ status: 'eaten', eatenAt: now })
@@ -372,7 +405,7 @@ export class PostgresAvatarStore implements AvatarStore, ShiftStore, MealStore, 
       const [row] = await tx.select().from(avatar).where(eq(avatar.id, avatarId)).for('update');
       if (!row || row.accountId !== accountId) throw new AppError('not_found', 'Avatar não encontrado.', 404);
       const next = plan(decayed(toAvatar(row), now));
-      const [saved] = await tx.update(avatar).set(toRow(next)).where(eq(avatar.id, avatarId)).returning();
+      const [saved] = await tx.update(avatar).set(changes(next)).where(eq(avatar.id, avatarId)).returning();
       return toAvatar(saved!);
     });
   }
@@ -412,7 +445,7 @@ export class PostgresAvatarStore implements AvatarStore, ShiftStore, MealStore, 
           await tx.update(avatar).set(marks(current)).where(eq(avatar.id, row.id));
           continue;
         }
-        await tx.update(avatar).set(toRow(admitted.avatar)).where(eq(avatar.id, row.id));
+        await tx.update(avatar).set(changes(admitted.avatar)).where(eq(avatar.id, row.id));
         const s = admitted.stay;
         const [created] = await tx
           .insert(hospitalStay)
@@ -453,7 +486,7 @@ export class PostgresAvatarStore implements AvatarStore, ShiftStore, MealStore, 
         .limit(1);
       if (working) throw new AppError('shift_running', 'O avatar está trabalhando; trate quando o turno acabar.', 409);
       const treated = treat(decayed(toAvatar(row), now), stayId, now);
-      await tx.update(avatar).set(toRow(treated.avatar)).where(eq(avatar.id, avatarId));
+      await tx.update(avatar).set(changes(treated.avatar)).where(eq(avatar.id, avatarId));
       const s = treated.stay;
       const [created] = await tx
         .insert(hospitalStay)

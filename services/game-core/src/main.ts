@@ -4,6 +4,10 @@ import { buildApp } from './app.js';
 import { loadConfig } from './config.js';
 import { PostgresAvatarStore } from './infra/db/postgres-store.js';
 import { MemoryAvatarStore } from './infra/memory-store.js';
+import { syncChain } from './domain/chain-sync.js';
+import { GatewayWalletOwners, IndexerChainFeed } from './infra/chain-feed.js';
+import { PostgresChainSyncStore } from './infra/db/postgres-chain-sync-store.js';
+import { MemoryChainSyncStore } from './infra/memory-chain-sync-store.js';
 import { MemoryRiskStore, PostgresRiskStore } from './infra/risk-store.js';
 import { EconomyPayer } from './infra/economy-payer.js';
 import { scheduleDecay } from './jobs/decay.js';
@@ -48,7 +52,41 @@ const decay = scheduleDecay(store, config.DECAY_EVERY_SECONDS * 1000, (msg) => a
 const shifts = scheduleShifts(store, config.SHIFT_CHECK_SECONDS * 1000, (msg) => app.log.info(msg));
 const hospital = scheduleHospital(store, payer, config.HOSPITAL_CHECK_SECONDS * 1000, (msg) => app.log.info(msg));
 
+// Job chain.sync: avatar revelado pela Lucky Box entra no jogo; vendido na blockchain, muda de conta.
+const chainSync =
+  config.CHAIN_INDEXER_URL && config.CHAIN_INDEXER_TOKEN && config.GATEWAY_URL && config.GATEWAY_TOKEN
+    ? {
+        feed: new IndexerChainFeed(config.CHAIN_INDEXER_URL, config.CHAIN_INDEXER_TOKEN),
+        owners: new GatewayWalletOwners(config.GATEWAY_URL, config.GATEWAY_TOKEN),
+        store: pool ? new PostgresChainSyncStore(pool) : new MemoryChainSyncStore(),
+        avatars: store,
+        now: () => new Date(),
+      }
+    : null;
+let syncing = false;
+const syncTimer = chainSync
+  ? setInterval(async () => {
+      if (syncing) return;
+      syncing = true;
+      try {
+        const r = await syncChain(chainSync);
+        if (r.created || r.transferred || r.pending || r.rejected) {
+          app.log.info(
+            `chain.sync: ${r.created} avatar(es) novo(s), ${r.transferred} passagem(ns) de dono, ${r.pending} esperando a carteira, ${r.rejected} fora do catálogo`,
+          );
+        }
+      } catch (error) {
+        app.log.error(error);
+      } finally {
+        syncing = false;
+      }
+    }, config.CHAIN_SYNC_SECONDS * 1000)
+  : null;
+syncTimer?.unref();
+app.log.info(`AvatarNFT → jogo: ${chainSync ? config.CHAIN_INDEXER_URL : 'desligado'}`);
+
 const shutdown = async () => {
+  if (syncTimer) clearInterval(syncTimer);
   decay.stop();
   shifts.stop();
   hospital.stop();

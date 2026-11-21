@@ -20,6 +20,17 @@ const schema = z.object({
   /** O mesmo segredo do gateway: o game-core só valida o token, não emite. */
   JWT_SECRET: z.string().min(32, 'JWT_SECRET precisa de pelo menos 32 caracteres'),
   JWT_ISSUER: z.string().default('scc-gateway'),
+  /**
+   * AvatarNFT → jogo (job chain.sync): o feed do chain-indexer e o gateway que
+   * diz a conta de cada carteira. Sem os quatro, o job fica desligado.
+   */
+  CHAIN_INDEXER_URL: optional(z.url()),
+  /** O INTERNAL_TOKEN do chain-indexer. */
+  CHAIN_INDEXER_TOKEN: optional(z.string().min(32, 'CHAIN_INDEXER_TOKEN precisa de pelo menos 32 caracteres')),
+  GATEWAY_URL: optional(z.url()),
+  /** O INTERNAL_TOKEN do gateway. */
+  GATEWAY_TOKEN: optional(z.string().min(32, 'GATEWAY_TOKEN precisa de pelo menos 32 caracteres')),
+  CHAIN_SYNC_SECONDS: z.coerce.number().int().positive().default(30),
   /** Origens do navegador que podem chamar a API (o cliente web), separadas por vírgula. */
   CORS_ORIGINS: z.string().default('').transform(list),
   /** Chave dos outros serviços para as rotas internas (criar avatar no mint). */

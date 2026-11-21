@@ -91,5 +91,5 @@ As migrações ficam em `drizzle/`, controladas em `drizzle.__indexer_migrations
 
 ## Ainda não
 
-- **Usar o feed no game-core:** o world já segue as transferências do `LandNFT` e do `PropertyNFT` ([world](../world/README.md#venda-na-blockchain-muda-o-dono-no-jogo)); falta o mesmo para os avatares.
+- **Marketplace:** o feed já é usado pelo world (`LandNFT`, `PropertyNFT`) e pelo game-core (`AvatarNFT`, [game-core](../game-core/README.md#avatar-na-blockchain-avatarnft)); falta o contrato `Marketplace` e os eventos dele.
 - **Teste na BSC Testnet:** precisa do VRF da Chainlink e de BNB de teste.
