@@ -105,7 +105,7 @@ async function waitFor(cond: () => boolean, ms = 3000) {
   }
 }
 
-const players = (room: Room) => room.state.players as Map<string, { name: string; x: number; z: number }>;
+const players = (room: Room) => room.state.players as Map<string, { name: string; x: number; z: number; mode: string; speed: number }>;
 const messages = (room: Room, type: string) => {
   const got: Record<string, unknown>[] = [];
   room.onMessage(type, (m: Record<string, unknown>) => got.push(m));
@@ -137,6 +137,18 @@ describe('sala do bairro', () => {
     a.send('move', { x: 9e9, z: 0 });
     await new Promise((r) => setTimeout(r, 150));
     expect(players(b).get(a.sessionId)?.x).toBe(123.5);
+
+    // Street view: modo e velocidade chegam aos outros; velocidade absurda é limitada e modo estranho vira mapa.
+    expect(players(b).get(a.sessionId)?.mode).toBe('map');
+    a.send('move', { x: 124, z: -42, rot: 0.5, mode: 'street', speed: 1.5 });
+    await waitFor(() => players(b).get(a.sessionId)?.mode === 'street');
+    expect(players(b).get(a.sessionId)?.speed).toBeCloseTo(1.5);
+    a.send('move', { x: 125, z: -42, rot: 0.5, mode: 'street', speed: 500 });
+    await waitFor(() => players(b).get(a.sessionId)?.x === 125);
+    expect(players(b).get(a.sessionId)?.speed).toBe(10);
+    a.send('move', { x: 126, z: -42, mode: 'voando', speed: 3 });
+    await waitFor(() => players(b).get(a.sessionId)?.x === 126);
+    expect(players(b).get(a.sessionId)).toMatchObject({ mode: 'map', speed: 0 });
 
     await b.leave();
     await waitFor(() => players(a).size === 1);
