@@ -163,6 +163,21 @@ Autoescola, agência e IPVA ([vehicle.ts](src/domain/vehicle.ts), GDD §6 "Carro
 
 **Premissas:** Hatch 3.000, Sedã esportivo 8.000 e Superesportivo 20.000 THALER; a curva de queda; IPVA de 2%; recompra de 80%; autoescola de 50 THALER. Depois de atualizar o código, rode `pnpm db:migrate`: a migração `0014_veiculos` cria `vehicle` e a coluna `license` do avatar.
 
+## Corridas e oficina (E3.5)
+
+Corridas diárias e oficina do jogo ([race.ts](src/domain/race.ts), GDD §6 "Carros" e "Oficina").
+
+| Regra | Como |
+|---|---|
+| Corrida | `POST /v1/vehicles/:id/races` `{avatar_id}`: o piloto é um avatar habilitado da conta, com 2 de energia. Corre contra 7 rivais do jogo. Nota: 30% velocidade, 25% força, 20% experiência (educação) e 25% sorte (GDD: "velocidade, força, experiência + sorte"). A semente fica no resultado: quem tem a semente refaz a corrida |
+| Limite | Até 3 corridas por piloto por dia UTC (GDD: "Limite diário de corridas (emissões)"), conferido com o piloto travado. Passa pelo antifraude do P2E (`action: race`) |
+| Dinheiro | Gasolina de 3 THALER antes (`race_fuel`, `burn/fuel`); prêmio de 20/10/5 THALER para os 3 primeiros, do pool P2E (`race_prize`). A corrida vai `pending` → `charged` (gasolina paga, −1 de energia e +1 de felicidade no piloto, pane no carro, uma vez só) → `done` (prêmio pago). Sem THALER, `failed`; pool vazio, fica `charged` e o job paga depois |
+| Pane | 5% das corridas (2% com a revisão em dia): leve, moderada ou grave (60/30/10%). Com pane, o carro não corre |
+| Oficina | `POST /v1/vehicles/:id/repair`: 2%, 5% ou 10% do preço; o carro fica 1, 3 ou 7 dias na oficina (GDD). A chave da cobrança é a pane: tentar de novo não cobra outra vez |
+| Revisão | `POST /v1/vehicles/:id/revision`: 1% do preço, vale 30 dias e reduz as panes (GDD: "Seguro e revisão reduzem panes") |
+
+**Premissas:** os pesos da nota, os rivais entre 0,30 e 0,75, os prêmios, a gasolina, o limite de 3, as chances de pane e os custos de reparo e revisão. A oficina como negócio de jogador, o seguro e o motorista particular ficam para depois. Depois de atualizar o código, rode `pnpm db:migrate`: a migração `0015_corridas` cria `vehicle_race` e as colunas de pane, oficina e revisão do carro.
+
 ## Campeonato de futebol de botão (E3.3)
 
 Um campeonato por mês, UTC ([championship.ts](src/domain/championship.ts), GDD §6 "Lazer": "times de 6; 75% das inscrições → 50/35/15% para os 3 primeiros; 25% queimados").
@@ -284,6 +299,10 @@ TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc_test pnpm --filter
 | GET | `/v1/vehicles` | jogador (Bearer) | Carros da conta com a situação (`ok`, `suspended`, `worn_out`, `expired`), atributos de agora, valor, recompra e IPVA |
 | POST | `/v1/vehicles` | jogador (Bearer) | Compra `{model}` ou aluga `{model, rent: true}` na agência |
 | POST | `/v1/vehicles/:id/ipva` | jogador (Bearer) | Paga o IPVA do semestre |
+| POST | `/v1/vehicles/:id/races` | jogador (Bearer) | Corrida do dia com o piloto `{avatar_id}`: gasolina, resultado com a semente e o prêmio |
+| GET | `/v1/races` | jogador (Bearer) | Últimas 20 corridas da conta |
+| POST | `/v1/vehicles/:id/repair` | jogador (Bearer) | Leva o carro com pane à oficina (1, 3 ou 7 dias) |
+| POST | `/v1/vehicles/:id/revision` | jogador (Bearer) | Revisão de 30 dias, com menos panes |
 | POST | `/v1/vehicles/:id/sell` | jogador (Bearer) | Vende para a agência pela depreciação |
 | GET | `/v1/championships/current` | público (com Bearer, marca o seu time) | O campeonato do mês (times, jogadores por time, bolo, prazo, `seed_commit`), as regras e o resultado do mês anterior (`last`) |
 | GET | `/v1/championships/:month` | público | Um campeonato (`AAAA-MM`); disputado, com a semente e o resultado |
