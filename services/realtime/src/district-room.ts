@@ -23,6 +23,8 @@ export const Player = schema(
     mode: t.string().default('map'),
     /** Velocidade no street view, em m/s: escolhe a animação (parado, andando, correndo). */
     speed: t.float32().default(0),
+    /** Tipo de avatar no street view: `man` ou `human` (manequins da Universal Animation Library). */
+    skin: t.string().default('man'),
   },
   'Player',
 );
@@ -52,6 +54,7 @@ export interface RoomDeps {
 const MAX_COORD = 200_000;
 const MODES = new Set(['map', 'street']);
 const MAX_SPEED = 10; // m/s: acima disso não é caminhada
+const SKINS = new Set(['man', 'human']);
 
 export class DistrictRoom extends Room {
   static deps: RoomDeps;
@@ -83,7 +86,7 @@ export class DistrictRoom extends Room {
     this.setMetadata({ city, district });
     deps.registry.add(this);
 
-    this.onMessage('move', (client, msg: { x?: unknown; z?: unknown; rot?: unknown; mode?: unknown; speed?: unknown }) => {
+    this.onMessage('move', (client, msg: { x?: unknown; z?: unknown; rot?: unknown; mode?: unknown; speed?: unknown; skin?: unknown }) => {
       const p = this.state.players.get(client.sessionId);
       if (!p || !this.moves.take(client.sessionId)) return;
       const x = Number(msg?.x);
@@ -97,6 +100,8 @@ export class DistrictRoom extends Room {
       // Modo desconhecido vira mapa; velocidade fica entre 0 e o limite.
       p.mode = typeof msg?.mode === 'string' && MODES.has(msg.mode) ? msg.mode : 'map';
       p.speed = p.mode === 'street' ? Math.min(MAX_SPEED, Math.max(0, speed)) : 0;
+      // Tipo de avatar desconhecido não muda o atual.
+      if (typeof msg?.skin === 'string' && SKINS.has(msg.skin)) p.skin = msg.skin;
     });
 
     this.onMessage('chat', (client, msg: { text?: unknown }) => {

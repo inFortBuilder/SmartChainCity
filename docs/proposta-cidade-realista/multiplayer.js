@@ -7,7 +7,7 @@
 //
 // No mapa, cada jogador é um alfinete. No street view, quem também está na rua
 // aparece como avatar, com o mesmo modelo e a animação pela velocidade.
-import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
+import { getAvatarType, isAvatarType, makeAvatar } from './avatar.js';
 
 const params = new URLSearchParams(location.search);
 const REALTIME = params.get('realtime') ?? 'http://127.0.0.1:8050';
@@ -104,36 +104,27 @@ export function createMultiplayer(map) {
     return s;
   }
 
-  // Avatar dos outros jogadores: clone do modelo do street view, com os mesmos clipes.
-  let template = null;
-  const loadTemplate = () => (template ??= map.getStreetView?.()?.avatarTemplate() ?? Promise.reject(new Error('sem street view')));
+  // Avatar dos outros jogadores: o tipo que cada um escolheu (Man ou Human), com os mesmos clipes.
   function makeWalker(pin, name) {
-    loadTemplate()
-      .then(({ model, clips }) => {
-        if (!pins.has(pin.id) || pin.walker) return;
+    const type = pin.skin;
+    const assets = map.getStreetView?.()?.avatarAssets(type);
+    if (!assets) return;
+    pin.walker = { loading: true, type };
+    assets
+      .then((a) => {
+        if (pins.get(pin.id) !== pin || pin.skin !== type) return;
+        const inst = makeAvatar(THREE, a);
         const obj = new THREE.Group();
-        const body = SkeletonUtils.clone(model);
-        obj.add(body, streetLabel(name));
-        const mixer = new THREE.AnimationMixer(body);
-        const find = (...res) => clips.find((c) => res.some((re) => re.test(c.name)));
-        const actions = {};
-        for (const [k, clip] of Object.entries({ idle: find(/^idle$/i, /idle/i), walk: find(/^walk(ing)?$/i, /walk(?!.*back)/i), run: find(/^(running|run|jog)$/i, /jog|run|sprint/i) })) {
-          if (clip) actions[k] = mixer.clipAction(clip);
-        }
+        obj.add(inst.body, streetLabel(name));
         obj.position.set(pin.x, map.getStreetView().groundY(), pin.z);
         obj.rotation.y = pin.rot;
         obj.visible = false;
         group.add(obj);
-        pin.walker = { obj, mixer, actions, current: null };
+        pin.walker = { obj, mixer: inst.mixer, play: inst.play, type };
       })
-      .catch(() => {});
-  }
-  function playWalker(w, name) {
-    const a = w.actions[name] ?? w.actions.walk ?? w.actions.idle;
-    if (!a || a === w.current) return;
-    a.reset().fadeIn(0.2).play();
-    w.current?.fadeOut(0.2);
-    w.current = a;
+      .catch(() => {
+        pin.walker = null;
+      });
   }
 
   function makePin(name) {
@@ -147,7 +138,7 @@ export function createMultiplayer(map) {
   function removePin(pin) {
     pin.obj.traverse((o) => o.material?.map?.dispose?.());
     group.remove(pin.obj);
-    if (pin.walker) group.remove(pin.walker.obj);
+    if (pin.walker?.obj) group.remove(pin.walker.obj);
   }
 
   function dropPins() {
@@ -173,6 +164,12 @@ export function createMultiplayer(map) {
       pin.rot = p.rot;
       pin.mode = p.mode ?? 'map';
       pin.speed = p.speed ?? 0;
+      pin.skin = isAvatarType(p.skin) ? p.skin : 'man';
+      // Trocou de tipo: refaz o avatar.
+      if (pin.walker && !pin.walker.loading && pin.walker.type !== pin.skin) {
+        group.remove(pin.walker.obj);
+        pin.walker = null;
+      }
       if (pin.mode === 'street' && !pin.walker) makeWalker(pin, p.name);
     });
     for (const [id, pin] of pins) {
@@ -198,7 +195,7 @@ export function createMultiplayer(map) {
       pin.obj.position.x += (pin.x - pin.obj.position.x) * 0.2;
       pin.obj.position.z += (pin.z - pin.obj.position.z) * 0.2;
       const w = pin.walker;
-      if (!w) continue;
+      if (!w?.obj) continue;
       w.obj.visible = street && pin.mode === 'street';
       if (!w.obj.visible) {
         w.obj.position.set(pin.x, w.obj.position.y, pin.z); // sem deslizar de longe quando reaparecer
@@ -215,7 +212,7 @@ export function createMultiplayer(map) {
       }
       const d = Math.atan2(Math.sin(pin.rot - w.obj.rotation.y), Math.cos(pin.rot - w.obj.rotation.y));
       w.obj.rotation.y += d * Math.min(1, dt * 10);
-      playWalker(w, pin.speed > 2.5 ? 'run' : pin.speed > 0.2 || gap > 0.3 ? 'walk' : 'idle');
+      w.play(pin.speed > 2.5 ? 'run' : pin.speed > 0.2 || gap > 0.3 ? 'walk' : 'idle');
       w.mixer.update(dt);
     }
     requestAnimationFrame(tick);
@@ -320,9 +317,10 @@ export function createMultiplayer(map) {
     if (sv?.active()) {
       // No street view, a posição é a do avatar, com o rumo do corpo e a velocidade.
       const p = sv.position();
-      const msg = { x: p.x, z: p.z, rot: sv.bodyHeading(), mode: 'street', speed: sv.speed() };
+      const msg = { x: p.x, z: p.z, rot: sv.bodyHeading(), mode: 'street', speed: sv.speed(), skin: getAvatarType() };
       const changed =
-        lastSent.mode !== 'street' || Math.hypot(p.x - lastSent.x, p.z - lastSent.z) > 0.05 || msg.speed !== lastSent.speed || Math.abs(msg.rot - lastSent.rot) > 0.05;
+        lastSent.mode !== 'street' ||
+        lastSent.skin !== msg.skin || Math.hypot(p.x - lastSent.x, p.z - lastSent.z) > 0.05 || msg.speed !== lastSent.speed || Math.abs(msg.rot - lastSent.rot) > 0.05;
       if (changed) {
         room.send('move', msg);
         lastSent = msg;
@@ -331,7 +329,7 @@ export function createMultiplayer(map) {
     }
     const t = controls.target;
     if (lastSent.mode !== 'map' || Math.hypot(t.x - lastSent.x, t.z - lastSent.z) > 1) {
-      const msg = { x: t.x, z: t.z, rot: Math.atan2(map.camera.position.x - t.x, map.camera.position.z - t.z), mode: 'map', speed: 0 };
+      const msg = { x: t.x, z: t.z, rot: Math.atan2(map.camera.position.x - t.x, map.camera.position.z - t.z), mode: 'map', speed: 0, skin: getAvatarType() };
       room.send('move', msg);
       lastSent = msg;
     }
@@ -350,7 +348,7 @@ export function createMultiplayer(map) {
 
   return {
     /** Quem está no bairro (para testes e para a tela). */
-    players: () => [...pins.entries()].map(([id, p]) => ({ id, x: p.x, z: p.z, mode: p.mode, speed: p.speed, avatar: !!p.walker, visible: !!p.walker?.obj.visible })),
+    players: () => [...pins.entries()].map(([id, p]) => ({ id, x: p.x, z: p.z, mode: p.mode, speed: p.speed, skin: p.skin, avatar: !!p.walker?.obj, visible: !!p.walker?.obj?.visible })),
     room: () => room,
     district: () => roomDistrict,
     report: (sessionId, reason = '') => room?.send('report', { sessionId, reason }),
