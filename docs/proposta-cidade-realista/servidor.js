@@ -266,7 +266,7 @@ export function createServidor(map) {
   } catch {
     session = null;
   }
-  let data = { avatar: null, balance: '0', scity: '0', lots: [], shifts: [], fx: null, withdrawals: null, kyc: null };
+  let data = { avatar: null, balance: '0', scity: '0', lots: [], shifts: [], fx: null, withdrawals: null, kyc: null, invitations: [] };
   /** Alimentos do mercado do jogo, com o preço de uma unidade em centavos de THALER. */
   let foods = [];
   let message = '';
@@ -285,7 +285,7 @@ export function createServidor(map) {
     me = null;
     linkSent = null;
     storage.set(TOKEN_KEY, null);
-    data = { avatar: null, balance: '0', scity: '0', lots: [], shifts: [], fx: null, withdrawals: null, kyc: null };
+    data = { avatar: null, balance: '0', scity: '0', lots: [], shifts: [], fx: null, withdrawals: null, kyc: null, invitations: [] };
     drawLots();
     message = why;
     render();
@@ -318,6 +318,10 @@ export function createServidor(map) {
         .then((r) => r.lots)
         .catch(() => data.lots);
       drawLots();
+      // Imóveis onde fui convidado (visita pelo street view).
+      data.invitations = await call(API.world, '/v1/world/me/invitations', { token: session.token })
+        .then((r) => r.invitations)
+        .catch(() => data.invitations);
       // Câmbio e saque (economy): se estiverem desligados (503), a seção some.
       [data.fx, data.withdrawals, data.kyc] = await Promise.all([
         call(API.economy, '/v1/economy/fx').catch(() => null),
@@ -588,6 +592,9 @@ export function createServidor(map) {
     panel.innerHTML = `${head}
       <dl class="resumo"><dt>Conta</dt><dd>${who}</dd><dt>THALER (ledger)</dt><dd>${thaler(data.balance)}</dd><dt>SCITY (ledger)</dt><dd>${scity(data.scity)}</dd><dt>Lotes no servidor</dt><dd>${data.lots.length}</dd></dl>
       ${data.lots.length ? `<p class="muted pequeno">${data.lots.map((l) => esc(l.code)).join(' · ')} <span class="tag-srv">violeta no mapa</span></p>` : '<p class="muted pequeno">Clique num lote verde e compre pela ficha.</p>'}
+      ${data.invitations.length ? `<h3>🚪 Convites</h3><ul class="lista">${data.invitations
+        .map((v) => `<li><span>${esc(v.place.label)} · lote ${v.place.lot_id}</span> <button class="btn btn--ghost pequeno" type="button" data-s="visitar" data-lote="${v.place.lot_id}">Ir até lá</button></li>`)
+        .join('')}</ul>` : ''}
       ${LOCAL ? `<button class="btn btn--ghost pequeno" type="button" data-s="faucet" ${busy ? 'disabled' : ''}>+1.000 SCITY de teste</button>` : ''}
       ${links}
       ${bankSection(wallets)}
@@ -713,6 +720,7 @@ export function createServidor(map) {
       return render();
     }
     if (what === 'sair') return logout();
+    if (what === 'visitar') return map.walkTo?.(Number(b.dataset.lote));
     if (what === 'ligar-carteira' || what === 'ligar-carteira-teste') {
       return act(async () => {
         await linkWallet(session.token, what === 'ligar-carteira-teste');
@@ -858,11 +866,19 @@ export function createServidor(map) {
             ${enough ? '' : '<p class="muted pequeno">SCITY insuficiente: use “+1.000 SCITY de teste” no painel.</p>'}`;
         }
         box.innerHTML = html;
+        if (lot.status === 'sold') showVisit(i, box);
       })
       .catch((error) => {
         box.innerHTML = `<p class="aviso-s">${esc(error.code === 'offline' ? 'Serviço world fora do ar.' : error.message)}</p>`;
       });
     box.addEventListener('click', async (e) => {
+      if (e.target.closest('[data-entrar]')) return map.enterLot?.(i);
+      const rm = e.target.closest('[data-remover]');
+      if (rm) {
+        rm.disabled = true;
+        await call(API.world, `/v1/world/places/${rm.dataset.kind}/${rm.dataset.place}/guests/${rm.dataset.remover}`, { method: 'DELETE', token: session.token }).catch(() => null);
+        return showVisit(i, box);
+      }
       const b = e.target.closest('[data-buy]');
       if (!b || b.disabled) return;
       b.disabled = true;
@@ -881,6 +897,53 @@ export function createServidor(map) {
     return true;
   }
 
+  /** Seção de visita da ficha: entrar (dono ou convidado) e, para o dono, os convidados. */
+  async function showVisit(i, box) {
+    box.querySelector('.srv-visita')?.remove();
+    const sec = document.createElement('div');
+    sec.className = 'srv-visita';
+    box.append(sec);
+    let v;
+    try {
+      v = await visit(i);
+    } catch {
+      return sec.remove(); // sem imóvel pronto, ou sem convite: nada a mostrar
+    }
+    const { place, role } = v;
+    let html = `<h3>🚪 ${esc(place.label)}</h3>
+      <button class="btn btn--primary pequeno" type="button" data-entrar>Entrar</button>
+      ${role === 'guest' ? '<p class="muted pequeno">Você é convidado do dono.</p>' : ''}`;
+    if (role === 'owner') {
+      const guests = await call(API.world, `/v1/world/places/${place.kind}/${place.id}/guests`, { token: session.token })
+        .then((r) => r.guests)
+        .catch(() => []);
+      html += `<p class="muted pequeno">Convidados (${guests.length}): só eles e você entram.</p>
+        <ul class="lista">${guests
+          .map((g) => `<li><span>conta …${esc(g.account_id.slice(-6))}</span> <button class="btn btn--ghost pequeno" type="button" data-remover="${esc(g.account_id)}" data-kind="${place.kind}" data-place="${place.id}">Remover</button></li>`)
+          .join('')}</ul>
+        <form data-convidar><div class="linha"><input class="campo" name="wallet" required pattern="0x[0-9a-fA-F]{40}" placeholder="Carteira do convidado (0x…)" aria-label="Carteira do convidado" />
+        <button class="btn btn--ghost pequeno" type="submit">Convidar</button></div><p class="muted pequeno" data-convite-msg></p></form>`;
+    }
+    sec.innerHTML = html;
+    sec.querySelector('[data-convidar]')?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const wallet = new FormData(e.target).get('wallet');
+      const msg = sec.querySelector('[data-convite-msg]');
+      try {
+        await call(API.world, `/v1/world/places/${place.kind}/${place.id}/guests`, { method: 'POST', token: session.token, body: { wallet } });
+        await showVisit(i, box);
+      } catch (error) {
+        msg.textContent = error.message;
+      }
+    });
+  }
+
+  /** Posso entrar no imóvel do lote? { place, role } ou erro com código (not_invited, nothing_to_visit…). */
+  function visit(i) {
+    if (!session) return Promise.reject(Object.assign(new Error('Entre no jogo para visitar imóveis.'), { code: 'no_session' }));
+    return call(API.world, `/v1/world/cities/${CITY}/lots/${i}/visit`, { token: session.token });
+  }
+
   render();
   refresh();
   // Atualiza o turno e o saldo enquanto a página está aberta.
@@ -888,5 +951,5 @@ export function createServidor(map) {
     if (session && !busy && !document.hidden) refresh();
   }, 10_000);
 
-  return { refresh, decorateLot, active: () => session !== null, getSession: () => session, getData: () => data, API };
+  return { refresh, decorateLot, visit, active: () => session !== null, getSession: () => session, getData: () => data, API };
 }

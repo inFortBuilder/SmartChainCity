@@ -291,3 +291,23 @@ export const seizure = world.table(
     check('seizure_status_check', sql`${t.status} in ('open', 'done', 'cancelled')`),
   ],
 );
+
+/**
+ * Convidados de um imóvel (residência) ou prédio (escritório) para a visita pelo
+ * street view. O convite só vale enquanto `invited_by` ainda é o dono.
+ */
+export const placeGuest = world.table(
+  'place_guest',
+  {
+    kind: text('kind').notNull(),
+    placeId: uuid('place_id').notNull(),
+    guestAccountId: uuid('guest_account_id').notNull(),
+    invitedBy: uuid('invited_by').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.kind, t.placeId, t.guestAccountId] }),
+    index('place_guest_guest_idx').on(t.guestAccountId),
+    check('place_guest_kind_check', sql`${t.kind} in ('property', 'building')`),
+  ],
+);

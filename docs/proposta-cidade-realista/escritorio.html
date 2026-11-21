@@ -23,6 +23,9 @@
   .botoes { position: fixed; top: 12px; right: 12px; display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; max-width: 50%; }
   .botoes button { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; font: inherit; cursor: pointer; }
   .botoes button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+  body.visita .hud dl, body.visita [data-toggle], body.visita [data-acao="porta"] { display: none; }
+  body.visita .hud { min-width: 0; }
+  .botoes .sair { border-color: var(--ok); color: var(--ok); font-weight: 700; }
   @media (max-width: 640px) { .hud { min-width: 0; font-size: 12px; } .botoes { top: auto; bottom: 12px; max-width: none; left: 12px; justify-content: flex-start; } .ajuda { font-size: 12px; bottom: 56px; } }
 </style>
 <script type="importmap">
@@ -52,6 +55,7 @@
   <button type="button" data-toggle="post" aria-pressed="true">Pós (AO)</button>
   <button type="button" data-toggle="lightmap" aria-pressed="true">Luz assada</button>
   <button type="button" data-acao="porta">Ir até a porta</button>
+  <button type="button" class="sair" data-acao="sair" hidden>Sair para a rua</button>
 </div>
 
 <p class="ajuda"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> ou setas para andar, <kbd>Shift</kbd> para correr; arraste para girar a câmera. No celular, toque no chão para andar até lá. O interior carrega quando o avatar chega perto da porta.</p>
@@ -79,6 +83,13 @@ const RAIO_AVATAR = 0.3;
 const CARREGA_EM = 9;    // m até a porta para carregar o interior
 const DESCARREGA_EM = 22;
 const AMOSTRAS_BAKE = 240;
+
+// Visita pela cidade (street view do mapa): ?tipo=home|office&titulo=…&voltar=pittsburg.html?rua=x,z,rumo.
+// Sem parâmetros, a página continua sendo o spike do escritório.
+const PARAMS = new URLSearchParams(location.search);
+const TIPO = PARAMS.get('tipo') === 'home' ? 'home' : 'office';
+// Só volta para o mapa: nada de redirecionar para outro endereço.
+const VOLTAR = /^pittsburg\.html(\?[\w=.,%&-]*)?$/.test(PARAMS.get('voltar') ?? '') ? PARAMS.get('voltar') : null;
 
 const qs = (s) => document.querySelector(s);
 const canvas = qs('#cena');
@@ -307,6 +318,13 @@ function construirInterior() {
   const mesaReuniao = peca('mesaReuniao', new THREE.BoxGeometry(3.0, 0.05, 1.2), mat.estante);
   const balcao = peca('balcao', new THREE.BoxGeometry(2.0, 1.05, 0.6), mat.tampo);
   const tapete = peca('tapete', new THREE.BoxGeometry(3.2, 0.012, 2.2), mat.tapete);
+  const rack = peca('rack', new THREE.BoxGeometry(0.45, 0.5, 1.8), mat.estante);
+  const tv = peca('tv', new THREE.BoxGeometry(0.05, 0.8, 1.4), mat.tela);
+  const mesaJantar = peca('mesaJantar', new THREE.BoxGeometry(1.6, 0.05, 0.9), mat.tampo);
+  const cama = peca('cama', new THREE.BoxGeometry(2.1, 0.5, 1.6), mat.tecido);
+  const cabeceira = peca('cabeceira', new THREE.BoxGeometry(0.08, 1.1, 1.7), mat.estante);
+  const travesseiro = peca('travesseiro', new THREE.BoxGeometry(0.4, 0.12, 0.6), mat.lampada);
+  const criado = peca('criado', new THREE.BoxGeometry(0.45, 0.5, 0.4), mat.estante);
 
   const cadeira = (x, z, ry) => {
     base(x, 0.02, z); haste(x, 0.25, z); assento(x, 0.48, z, ry);
@@ -314,6 +332,7 @@ function construirInterior() {
     encosto(x + off.x, 0.8, z + off.z, ry);
   };
   const luzesPos = [];
+  if (TIPO === 'office') {
   // Estações de trabalho: 2 ilhas de 2 × 3 mesas.
   for (const ilhaZ of [-2.6, 0.8]) {
     for (let i = 0; i < 3; i++) {
@@ -345,14 +364,39 @@ function construirInterior() {
   balcao(-1.2, 0.525, 3.3);
   caixa(-1.2, 3.3, 2.0, 0.6, true);
   luzesPos.push([-2.4, 2.8]);
+  } else {
+    // Residência: estar com TV, cozinha no fundo, mesa de jantar e quarto à direita.
+    const q = Math.PI / 2;
+    tapete(-4.7, 0.006, 1.0, q);
+    sofaBase(-5.45, 0.21, 1.0, q); sofaCostas(-5.8, 0.6, 1.0, q); sofaBraco(-5.45, 0.3, 0.0, q); sofaBraco(-5.45, 0.3, 2.0, q);
+    mesaCentro(-4.3, 0.2, 1.0);
+    caixa(-5.45, 1.0, 0.95, 2.2, true); caixa(-4.3, 1.0, 0.9, 0.9, true);
+    rack(-2.9, 0.25, 1.0); tv(-2.9, 0.92, 1.0);
+    caixa(-2.9, 1.0, 0.5, 1.9, true);
+    luzesPos.push([-4.3, 1.0]);
+    // Cozinha: bancadas na parede do fundo.
+    balcao(-2.6, 0.525, -4.1); balcao(-0.6, 0.525, -4.1);
+    caixa(-1.6, -4.1, 4.0, 0.6, true);
+    // Jantar: mesa e quatro cadeiras.
+    mesaJantar(-1.4, 0.74, -2.2); pe(-2.1, 0.36, -2.2); pe(-0.7, 0.36, -2.2);
+    for (const dx of [-0.4, 0.4]) { cadeira(-1.4 + dx, -1.45, 0); cadeira(-1.4 + dx, -2.95, Math.PI); }
+    caixa(-1.4, -2.2, 1.9, 2.2, true);
+    luzesPos.push([-1.4, -2.6]);
+    // Quarto: cama de casal com cabeceira na parede direita e criados-mudos.
+    cama(4.7, 0.25, 2.4); cabeceira(5.82, 0.55, 2.4); travesseiro(5.4, 0.55, 1.95); travesseiro(5.4, 0.55, 2.85);
+    criado(5.6, 0.25, 0.95); criado(5.6, 0.25, 3.85);
+    caixa(4.7, 2.4, 2.2, 1.7, true); caixa(5.6, 0.95, 0.5, 0.45, true); caixa(5.6, 3.85, 0.5, 0.45, true);
+    luzesPos.push([4.5, 2.4]);
+  }
   // Estantes na parede direita.
-  for (const z of [-2.6, 0.2, 3.0]) {
+  const ESTANTES = TIPO === 'office' ? [-2.6, 0.2, 3.0] : [-2.6];
+  for (const z of ESTANTES) {
     lateral(5.82, 1.0, z - 1.1, Math.PI / 2); lateral(5.82, 1.0, z + 1.1, Math.PI / 2);
     for (let n = 0; n < 5; n++) prateleira(5.82, 0.1 + n * 0.45, z, Math.PI / 2);
     caixa(5.82, z, 0.4, 2.3, true);
   }
   // Plantas nos cantos.
-  for (const [x, z] of [[-5.6, -4.0], [5.4, -4.1], [-0.2, 4.0], [-0.6, -4.0]]) {
+  for (const [x, z] of TIPO === 'office' ? [[-5.6, -4.0], [5.4, -4.1], [-0.2, 4.0], [-0.6, -4.0]] : [[-5.6, -4.0], [5.4, -4.1], [-0.2, 4.0]]) {
     vaso(x, 0.225, z); copa(x, 0.85, z, 0, [1, 1.3, 1]);
     caixa(x, z, 0.5, 0.5, true);
   }
@@ -362,11 +406,11 @@ function construirInterior() {
   }
 
   // Livros: uma InstancedMesh com cor por instância.
-  const nLivros = 3 * 5 * 18;
+  const nLivros = ESTANTES.length * 5 * 18;
   const livros = new THREE.InstancedMesh(new THREE.BoxGeometry(0.06, 0.28, 0.24), new THREE.MeshStandardMaterial({ roughness: 0.8 }), nLivros);
   let k = 0;
   const cor = new THREE.Color();
-  for (const z of [-2.6, 0.2, 3.0]) for (let n = 0; n < 5; n++) for (let b = 0; b < 18; b++) {
+  for (const z of ESTANTES) for (let n = 0; n < 5; n++) for (let b = 0; b < 18; b++) {
     if (Math.random() < 0.15) { livros.setMatrixAt(k, new THREE.Matrix4().makeScale(0, 0, 0)); }
     else livros.setMatrixAt(k, new THREE.Matrix4().makeTranslation(5.82, 0.1 + n * 0.45 + 0.155, z - 1.0 + b * 0.115));
     livros.setColorAt(k++, cor.setHSL(Math.random(), 0.45, 0.35 + Math.random() * 0.2));
@@ -482,6 +526,26 @@ function tocar(nome) {
   avatar.atual = a;
 }
 
+// ---------- Visita ----------
+if (VOLTAR) {
+  document.body.classList.add('visita');
+  const titulo = (PARAMS.get('titulo') ?? '').slice(0, 80) || (TIPO === 'home' ? 'Residência' : 'Escritório');
+  qs('.hud h1').textContent = titulo;
+  document.title = titulo;
+  qs('.ajuda').innerHTML = '<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> ou setas para andar, <kbd>Shift</kbd> para correr; arraste para girar a câmera. Saia pela porta, ou pelo botão, para voltar à rua.';
+  avatar.pos.set(PORTA.x, 0, SALA.fundo / 2 - 1.2);
+  avatar.rumo = Math.PI;
+  const sair = qs('[data-acao="sair"]');
+  sair.hidden = false;
+  sair.addEventListener('click', () => location.assign(VOLTAR));
+}
+let saindo = false;
+function saiuPelaPorta() {
+  if (!VOLTAR || saindo || avatar.pos.z < SALA.fundo / 2 + 1.2) return;
+  saindo = true;
+  location.assign(VOLTAR);
+}
+
 // ---------- Controles ----------
 const teclas = new Set();
 addEventListener('keydown', (e) => { teclas.add(e.key.toLowerCase()); avatar.alvo = null; });
@@ -581,7 +645,7 @@ function seguirCamera() {
     camera.position.z = Math.max(-SALA.fundo / 2 + 0.25, Math.min(SALA.fundo / 2 - 0.25, camera.position.z));
   }
   camera.lookAt(alvo);
-  qs('[data-onde]').textContent = dentro ? 'dentro do escritório' : 'na rua';
+  qs('[data-onde]').textContent = dentro ? (TIPO === 'home' ? 'dentro da residência' : 'dentro do escritório') : 'na rua';
 }
 
 function streaming() {
@@ -596,6 +660,7 @@ renderer.setAnimationLoop(() => {
   andar(dt);
   avatar.mixer?.update(dt);
   streaming();
+  saiuPelaPorta();
   seguirCamera();
   renderer.info.reset();
   passoBake();

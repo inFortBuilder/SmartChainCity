@@ -85,7 +85,7 @@ export function buildRoadIndex(mesh) {
 
 const PEGMAN = `<svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><circle cx="12" cy="4.6" r="3" fill="#f59e0b"/><path d="M8 9.5c0-1 .8-1.8 1.8-1.8h4.4c1 0 1.8.8 1.8 1.8v5.2c0 .7-.5 1.2-1.2 1.2h-.6l-.4 6.1h-3.6l-.4-6.1h-.6c-.7 0-1.2-.5-1.2-1.2z" fill="#f59e0b" stroke="#b45309" stroke-width=".8"/></svg>`;
 
-export function createStreetView({ THREE, scene, camera, controls, canvas, roads, loadGltf }) {
+export function createStreetView({ THREE, scene, camera, controls, canvas, roads, loadGltf, onPlaceClick }) {
   let index = null;
   let active = false;
   let saved = null;
@@ -327,7 +327,8 @@ export function createStreetView({ THREE, scene, camera, controls, canvas, roads
     if (!click) return;
     const p = groundAt(e.clientX, e.clientY);
     if (p && index.isRoad(p.x, p.z)) avatar.target = p;
-    else say('Só dá para caminhar pelas ruas.');
+    // Fora da rua: talvez um imóvel para entrar.
+    else if (!(p && onPlaceClick?.(p))) say('Só dá para caminhar pelas ruas.');
   });
   canvas.addEventListener('wheel', (e) => {
     if (!active) return;
@@ -394,9 +395,27 @@ export function createStreetView({ THREE, scene, camera, controls, canvas, roads
     tick,
     active: () => active,
     enterAt: (x, z) => { ensureIndex(); if (!index.isRoad(x, z)) return false; enter(new THREE.Vector3(x, index.y, z)); return true; },
+    /** O ponto de rua mais perto de (x, z), até `max` metros. */
+    nearestRoad: (x, z, max = 250) => {
+      ensureIndex();
+      for (let r = 0; r <= max; r += 2) {
+        const n = Math.max(1, Math.ceil((2 * Math.PI * r) / 2));
+        for (let k = 0; k < n; k++) {
+          const px = x + Math.cos((k / n) * Math.PI * 2) * r, pz = z + Math.sin((k / n) * Math.PI * 2) * r;
+          if (index.isRoad(px, pz)) return { x: px, z: pz };
+        }
+      }
+      return null;
+    },
+    position: () => avatar.obj.position.clone(),
+    heading: () => view.yaw,
+    say,
     exit,
-    /** Gira a câmera (e o "para frente") para o rumo `yaw`, em radianos. */
-    look: (yaw) => { view.yaw = yaw; },
+    /** Gira a câmera (e o "para frente") para o rumo `yaw` e, se vier, a inclinação `pitch`, em radianos. */
+    look: (yaw, pitch) => {
+      view.yaw = yaw;
+      if (pitch !== undefined) view.pitch = THREE.MathUtils.clamp(pitch, -0.35, 1.2);
+    },
     isRoad: (x, z) => ensureIndex().isRoad(x, z),
     avatar,
   };

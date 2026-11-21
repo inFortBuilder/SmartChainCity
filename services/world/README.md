@@ -210,9 +210,27 @@ TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc_test pnpm --filter
 | GET | `/v1/world/cities/:code/lots/:id/building` | público | Prédio aprovado do lote, com os artefatos |
 | POST | `/internal/v1/buildings/:id/review` | ferramenta interna (`x-service-token`) | Alvará: aprova ou recusa |
 | POST | `/v1/world/buildings/:id/onchain-voucher` | dono (Bearer) | Voucher EIP-712 do `BuildingNFT` para o prédio aprovado (corpo: `{wallet}`) |
+| GET | `/v1/world/cities/:code/lots/:id/visit` | jogador (Bearer) | Posso entrar no imóvel do lote? `{place: {kind, id, interior, label}, role}` para o dono ou um convidado |
+| GET | `/v1/world/places/:kind/:id/guests` | dono (Bearer) | Convidados do imóvel (`property`) ou do prédio (`building`) |
+| POST | `/v1/world/places/:kind/:id/guests` | dono (Bearer) | Convida pela conta ou pela carteira ligada a ela (corpo: `{account_id}` ou `{wallet}`) |
+| DELETE | `/v1/world/places/:kind/:id/guests/:account` | dono (Bearer) | Tira o convite |
+| GET | `/v1/world/me/invitations` | jogador (Bearer) | Imóveis onde fui convidado e o convite ainda vale |
 | GET | `/healthz` | — | `{status: "ok"}` |
 
 Erros com código estável: `lot_not_for_sale`, `lot_reserved`, `district_closed`, `other_district`, `area_cap`, `insufficient_scity`, `reservation_lost`, `ledger_unavailable`, `not_found`, `not_lot_owner`, `wallet_not_linked`, `unknown_property_type`, `zone_not_allowed`, `lot_has_property`, `insufficient_thaler`, `property_not_ready`, `nothing_to_claim`, `claim_in_progress`, `nothing_to_repair`, `max_level`, `work_in_progress`, `lot_not_owned`, `nothing_to_upgrade`, `tax_default`, `taxes_disabled`, `auctions_disabled`, `own_auction`, `auction_closed`, `bid_too_low`, `other_district`, `area_cap`, `building_invalid`, `lot_has_building`, `lot_without_polygon`, `building_not_in_review`, `builder_unavailable`, `model_not_found`, `building_not_approved`, `model_hash_missing`, `pool_empty`, `properties_disabled`, `city_not_onchain`, `onchain_disabled`, `gateway_unavailable`, `missing_credentials`, `invalid_token`, `token_expired`.
+
+## Visitas: entrar nos imóveis pelo street view
+
+No street view do mapa ([street view](../../docs/desenvolvimento/street-view.md)), o jogador clica no imóvel de um lote perto do avatar e entra no interior.
+
+| Regra | Como |
+|---|---|
+| O que se visita | O prédio de construtor aprovado no lote é um **escritório**. A Casa T1 pronta é uma **residência**. Um imóvel em obra responde `409 under_construction`, e um lote sem nenhum dos dois responde `404 nothing_to_visit` |
+| Quem entra | O dono e quem ele convidou. Os outros recebem `403 not_invited` |
+| Convite | O dono convida pela conta ou pela carteira ligada a ela (o gateway diz de quem é a carteira), com até 20 convidados por imóvel (**premissa**). Erros: `wallet_unknown`, `self_invite`, `guest_limit` |
+| Venda | O convite só vale enquanto quem convidou ainda é o dono. Se o imóvel ou o prédio muda de dono, na blockchain ou no leilão, os convites antigos param de valer sozinhos |
+
+Tabela `place_guest`, migração `0010_visitas`.
 
 ## Banco
 
