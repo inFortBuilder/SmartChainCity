@@ -1,0 +1,2 @@
+ALTER TABLE "economy"."withdrawal" DROP CONSTRAINT "withdrawal_status_check";--> statement-breakpoint
+ALTER TABLE "economy"."withdrawal" ADD CONSTRAINT "withdrawal_status_check" CHECK ("economy"."withdrawal"."status" in ('created', 'pending', 'claimed', 'refunded', 'cancelled', 'failed'));

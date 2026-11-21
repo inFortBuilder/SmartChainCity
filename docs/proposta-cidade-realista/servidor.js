@@ -4,7 +4,10 @@
 // servidor (ADR-0002). A gestão de lotes e negócios do painel "Meu
 // patrimônio" continua simulada no navegador até o serviço world.
 
+import { connectWallet, hasWallet, readContract, sendTx, txError } from './carteira.js';
+
 const params = new URLSearchParams(location.search);
+const INDEXER = params.get('indexer') ?? 'http://127.0.0.1:8040';
 const API = {
   gateway: params.get('gateway') ?? 'http://127.0.0.1:8000',
   economy: params.get('economy') ?? 'http://127.0.0.1:8010',
@@ -266,7 +269,7 @@ export function createServidor(map) {
   } catch {
     session = null;
   }
-  let data = { avatar: null, balance: '0', scity: '0', lots: [], shifts: [], fx: null, withdrawals: null, kyc: null, invitations: [] };
+  let data = { avatar: null, balance: '0', scity: '0', lots: [], shifts: [], fx: null, withdrawals: null, deposits: null, kyc: null, invitations: [] };
   /** Alimentos do mercado do jogo, com o preço de uma unidade em centavos de THALER. */
   let foods = [];
   let message = '';
@@ -285,7 +288,7 @@ export function createServidor(map) {
     me = null;
     linkSent = null;
     storage.set(TOKEN_KEY, null);
-    data = { avatar: null, balance: '0', scity: '0', lots: [], shifts: [], fx: null, withdrawals: null, kyc: null, invitations: [] };
+    data = { avatar: null, balance: '0', scity: '0', lots: [], shifts: [], fx: null, withdrawals: null, deposits: null, kyc: null, invitations: [] };
     drawLots();
     message = why;
     render();
@@ -323,14 +326,23 @@ export function createServidor(map) {
         .then((r) => r.invitations)
         .catch(() => data.invitations);
       // Câmbio e saque (economy): se estiverem desligados (503), a seção some.
-      [data.fx, data.withdrawals, data.kyc] = await Promise.all([
+      // Com a carteira, o economy diz quanto o cofre ainda libera hoje para ela.
+      const wallet = me?.wallets?.[0] ?? session.address ?? null;
+      [data.fx, data.withdrawals, data.kyc, data.deposits] = await Promise.all([
         call(API.economy, '/v1/economy/fx').catch(() => null),
-        call(API.economy, '/v1/economy/withdrawals', { token: session.token }).catch((error) => {
+        call(API.economy, `/v1/economy/withdrawals${wallet ? `?wallet=${wallet}` : ''}`, { token: session.token }).catch((error) => {
           if (error.status === 401) throw error;
           return null;
         }),
         // KYC no gateway: nível da conta e o último pedido de verificação.
         call(API.gateway, '/v1/me/kyc', { token: session.token }).catch(() => null),
+        // Depósitos da carteira no GameVault (chain-indexer): fora do ar, a lista some.
+        wallet
+          ? fetch(`${INDEXER}/v1/chain/deposits/${wallet}`)
+              .then((r) => (r.ok ? r.json() : null))
+              .then((r) => r?.deposits ?? null)
+              .catch(() => null)
+          : null,
       ]);
       data.shifts = data.avatar
         ? (await call(API.game, `/v1/avatars/${data.avatar.id}/shifts`, { token: session.token })).shifts
@@ -395,8 +407,25 @@ export function createServidor(map) {
         <button class="btn btn--ghost pequeno" type="submit" name="dir" value="thaler_to_scity" ${busy ? 'disabled' : ''}>THALER → SCITY</button></div>
       </form>`;
     if (data.withdrawals === null) return html;
+    const vault = data.withdrawals.vault;
+    html += '<h3>📥 Depósito da carteira</h3>';
+    if (!wallets.length) return `${html}<p class="muted pequeno">Ligue uma carteira à conta para depositar e sacar SCITY.</p>`;
+    if (vault?.paused) html += '<p class="muted pequeno">⏸ <strong>Cofre pausado:</strong> depósito e resgate esperam ele reabrir.</p>';
+    html += `<form data-form="deposito" class="banco">
+        <input class="campo" name="valor" inputmode="decimal" required placeholder="SCITY a depositar" aria-label="SCITY a depositar" />
+        <button class="btn btn--blue pequeno" type="submit" ${busy || !hasWallet() ? 'disabled' : ''}>Depositar de ${short(wallets[0])}</button>
+      </form>
+      <p class="muted pequeno">${hasWallet() ? 'Uma assinatura e uma transação: o SCITY vira saldo no jogo depois das confirmações da rede.' : 'Para depositar, abra o mapa num navegador com a MetaMask.'}</p>`;
+    const deposits = (data.deposits ?? []).slice(0, 3);
+    if (deposits.length) {
+      html += `<ul class="lista-saques">${deposits
+        .map((d) => `<li><span>${scity(d.amount_wei)} SCITY · ${d.status === 'credited' ? 'no jogo' : 'aguardando confirmações'}</span></li>`)
+        .join('')}</ul>`;
+    }
     html += '<h3>🏦 Saque para a carteira</h3>';
-    if (!wallets.length) return `${html}<p class="muted pequeno">Ligue uma carteira à conta para sacar SCITY.</p>`;
+    if (vault && !vault.paused) {
+      html += `<p class="muted pequeno">Hoje o cofre ainda libera ${scity(vault.wallet_left_wei)} SCITY para esta carteira (teto do contrato: ${scity(vault.per_address_limit_wei)} por carteira e ${scity(vault.daily_limit_wei)} no total por dia).</p>`;
+    }
     html += `<form data-form="saque" class="banco">
         <input class="campo" name="valor" inputmode="decimal" required placeholder="SCITY a sacar" aria-label="SCITY a sacar" />
         <button class="btn btn--blue pequeno" type="submit" ${busy ? 'disabled' : ''}>Sacar para ${short(wallets[0])}</button>
@@ -417,38 +446,108 @@ export function createServidor(map) {
     }
     const list = data.withdrawals.withdrawals.slice(0, 5);
     if (list.length) {
-      const label = { pending: 'pronto para resgatar', claimed: 'resgatado', refunded: 'venceu, voltou ao jogo', failed: 'falhou', created: 'processando' };
+      const label = {
+        pending: 'pronto para resgatar',
+        claimed: 'resgatado',
+        refunded: 'venceu, voltou ao jogo',
+        cancelled: 'você desistiu, voltou ao jogo',
+        failed: 'falhou',
+        created: 'processando',
+      };
       html += `<ul class="lista-saques">${list
         .map(
           (w) => `<li><span>${scity(w.amount_wei)} SCITY · ${esc(label[w.status] ?? w.status)}${w.status === 'pending' ? ` · vence em ${left(w.deadline)}` : ''}</span>
-            ${w.voucher && window.ethereum ? `<button class="btn btn--primary pequeno" type="button" data-s="resgatar" data-w="${esc(w.id)}" ${busy ? 'disabled' : ''}>Resgatar</button>` : ''}</li>`,
+            ${
+              w.voucher && hasWallet()
+                ? `<span class="linha"><button class="btn btn--primary pequeno" type="button" data-s="resgatar" data-w="${esc(w.id)}" ${busy ? 'disabled' : ''}>Resgatar</button>
+                   <button class="btn btn--ghost pequeno" type="button" data-s="desistir" data-w="${esc(w.id)}" ${busy ? 'disabled' : ''} title="Cancela o voucher no cofre e o SCITY volta ao jogo">Desistir</button></span>`
+                : ''
+            }</li>`,
         )
         .join('')}</ul>`;
-      if (list.some((w) => w.voucher) && !window.ethereum) {
+      if (list.some((w) => w.voucher) && !hasWallet()) {
         html += '<p class="muted pequeno">Para resgatar, abra o mapa num navegador com a MetaMask.</p>';
       }
     }
     return html;
   };
 
+  const VAULT_ABI = [
+    'function token() view returns (address)',
+    'function claim((address to,uint256 amount,uint256 nonce,uint256 deadline) w, bytes sig)',
+    'function cancelVoucher((address to,uint256 amount,uint256 nonce,uint256 deadline) w, bytes sig)',
+    'function depositWithPermit(uint256 amount, uint256 deadline, uint8 v, bytes32 r, bytes32 s)',
+  ];
+  const TOKEN_ABI = [
+    'function balanceOf(address) view returns (uint256)',
+    'function nonces(address) view returns (uint256)',
+    'function eip712Domain() view returns (bytes1 fields, string name, string version, uint256 chainId, address verifyingContract, bytes32 salt, uint256[] extensions)',
+  ];
+  const VAULT_ERRORS = {
+    VoucherExpired: 'O voucher venceu: o SCITY volta ao jogo sozinho.',
+    NonceAlreadyUsed: 'Este voucher já foi usado ou cancelado.',
+    NotRecipient: 'Conecte a carteira do saque para resgatar.',
+    DailyLimitExceeded: 'O cofre já liberou o teto de hoje. Tente amanhã (o voucher vale 48 h) ou desista.',
+    AddressLimitExceeded: 'Esta carteira passou do teto de hoje no cofre. Tente amanhã ou desista.',
+    EnforcedPause: 'O cofre está pausado.',
+    ERC20InsufficientBalance: 'SCITY insuficiente na carteira.',
+  };
+
+  /** A carteira conectada, na rede do cofre e ligada à conta (o depósito vira saldo de quem tem a carteira). */
+  async function vaultWallet(expected) {
+    const w = await connectWallet(data.withdrawals.chain_id);
+    if (expected && w.address.toLowerCase() !== expected.toLowerCase()) {
+      throw new ApiError(400, 'wrong_wallet', `Conecte a carteira ${short(expected)}: a conectada é ${short(w.address)}.`);
+    }
+    return w;
+  }
+
+  const voucherArgs = (v) => [{ to: v.to, amount: BigInt(v.amount), nonce: BigInt(v.nonce), deadline: BigInt(v.deadline) }, v.signature];
+
   /** Resgate do voucher: a carteira do jogador chama GameVault.claim (ela paga o gás). */
   async function claimVoucher(w) {
-    const { createWalletClient, custom, parseAbi } = await import(VIEM);
-    const [account] = await window.ethereum.request({ method: 'eth_requestAccounts' });
-    const chainId = Number(await window.ethereum.request({ method: 'eth_chainId' }));
-    if (chainId !== data.withdrawals.chain_id) {
-      throw new ApiError(400, 'wrong_chain', `A carteira está na rede ${chainId}; o cofre está na ${data.withdrawals.chain_id}.`);
-    }
-    const client = createWalletClient({ account, transport: custom(window.ethereum) });
-    const v = w.voucher;
-    return client.writeContract({
-      address: data.withdrawals.contract,
-      abi: parseAbi(['function claim((address to,uint256 amount,uint256 nonce,uint256 deadline) w, bytes sig)']),
-      functionName: 'claim',
-      args: [{ to: v.to, amount: BigInt(v.amount), nonce: BigInt(v.nonce), deadline: BigInt(v.deadline) }, v.signature],
-      chain: null,
-    });
+    const wallet = await vaultWallet(w.voucher.to);
+    return (await sendTx(wallet, data.withdrawals.contract, VAULT_ABI, 'claim', voucherArgs(w.voucher))).transactionHash;
   }
+
+  /** Desistência: cancelVoucher queima o nonce no cofre; o job do economy devolve o SCITY ao jogo. */
+  async function cancelVoucher(w) {
+    const wallet = await vaultWallet(w.voucher.to);
+    return (await sendTx(wallet, data.withdrawals.contract, VAULT_ABI, 'cancelVoucher', voucherArgs(w.voucher))).transactionHash;
+  }
+
+  /** Depósito: assina o permit (EIP-2612) do SCITY e chama depositWithPermit, numa transação. */
+  async function depositScity(amount, expected) {
+    const w = await vaultWallet(expected);
+    const vault = data.withdrawals.contract;
+    const token = await readContract(w, vault, VAULT_ABI, 'token');
+    const balance = await readContract(w, token, TOKEN_ABI, 'balanceOf', [w.address]);
+    if (balance < amount) throw new ApiError(409, 'insufficient', `A carteira tem ${scity(balance)} SCITY.`);
+    const [, name, version, chainId] = await readContract(w, token, TOKEN_ABI, 'eip712Domain');
+    const nonce = await readContract(w, token, TOKEN_ABI, 'nonces', [w.address]);
+    const deadline = BigInt(Math.floor(Date.now() / 1000) + 30 * 60);
+    const signature = await w.client.signTypedData({
+      account: w.client.account ?? w.address,
+      domain: { name, version, chainId: Number(chainId), verifyingContract: token },
+      types: {
+        Permit: [
+          { name: 'owner', type: 'address' },
+          { name: 'spender', type: 'address' },
+          { name: 'value', type: 'uint256' },
+          { name: 'nonce', type: 'uint256' },
+          { name: 'deadline', type: 'uint256' },
+        ],
+      },
+      primaryType: 'Permit',
+      message: { owner: w.address, spender: vault, value: amount, nonce, deadline },
+    });
+    const { r, s: sv, v, yParity } = w.viem.parseSignature(signature);
+    const vv = v !== undefined ? Number(v) : 27 + yParity;
+    return (await sendTx(w, vault, VAULT_ABI, 'depositWithPermit', [amount, deadline, vv, r, sv])).transactionHash;
+  }
+
+  /** Erro de transação no cofre em texto curto. */
+  const vaultError = (error) => (error instanceof ApiError ? error : new ApiError(400, 'tx', txError(error, VAULT_ERRORS)));
 
   const bar = (label, value, max = 10) =>
     `<div class="attr"><span>${label}</span><div class="barra"><span style="width:${(value / max) * 100}%"></span></div><b>${value}</b></div>`;
@@ -658,6 +757,21 @@ export function createServidor(map) {
         messageOk = true;
       });
     }
+    if (form.dataset.form === 'deposito') {
+      const amount = toUnits(field.get('valor'), 18);
+      const wallet = (me?.wallets ?? [])[0] ?? session.address;
+      if (!amount || !wallet) {
+        message = 'Valor inválido.';
+        return render();
+      }
+      return act(async () => {
+        const hash = await depositScity(amount, wallet).catch((error) => {
+          throw vaultError(error);
+        });
+        message = `Depósito de ${scity(amount)} SCITY enviado (${short(hash)}). Vira saldo no jogo depois das confirmações.`;
+        messageOk = true;
+      });
+    }
     if (form.dataset.form === 'saque') {
       const amount = toUnits(field.get('valor'), 18);
       const wallet = (me?.wallets ?? [])[0] ?? session.address;
@@ -671,7 +785,7 @@ export function createServidor(map) {
           token: session.token,
           body: { wallet, amount_wei: amount.toString() },
         });
-        message = `Saque de ${scity(r.withdrawal.amount_wei)} SCITY pronto. ${window.ethereum ? 'Clique em Resgatar.' : 'Resgate com a carteira.'}`;
+        message = `Saque de ${scity(r.withdrawal.amount_wei)} SCITY pronto. ${hasWallet() ? 'Clique em Resgatar.' : 'Resgate com a carteira.'}`;
         messageOk = true;
       });
     }
@@ -748,8 +862,21 @@ export function createServidor(map) {
       const w = data.withdrawals?.withdrawals.find((x) => x.id === b.dataset.w);
       if (!w?.voucher) return;
       return act(async () => {
-        const hash = await claimVoucher(w);
-        message = `Resgate enviado (${short(hash)}). O jogo marca como resgatado em até 1 min.`;
+        const hash = await claimVoucher(w).catch((error) => {
+          throw vaultError(error);
+        });
+        message = `Resgatado (${short(hash)}): o SCITY está na carteira. O jogo marca como resgatado em até 1 min.`;
+        messageOk = true;
+      });
+    }
+    if (what === 'desistir') {
+      const w = data.withdrawals?.withdrawals.find((x) => x.id === b.dataset.w);
+      if (!w?.voucher) return;
+      return act(async () => {
+        const hash = await cancelVoucher(w).catch((error) => {
+          throw vaultError(error);
+        });
+        message = `Voucher cancelado (${short(hash)}). O SCITY volta ao jogo em até 1 min.`;
         messageOk = true;
       });
     }

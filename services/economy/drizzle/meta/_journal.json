@@ -29,6 +29,13 @@
       "when": 1795269477662,
       "tag": "0003_twap_amostras",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1795294888240,
+      "tag": "0004_saque_cancelado",
+      "breakpoints": true
     }
   ]
 }

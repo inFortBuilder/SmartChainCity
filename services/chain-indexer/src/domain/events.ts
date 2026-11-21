@@ -21,6 +21,7 @@ export const CONTRACT_ABIS = {
   GameVault: parseAbi([
     'event Deposited(address indexed account, uint256 amount)',
     'event Withdrawn(address indexed to, uint256 amount, uint256 indexed nonce)',
+    'event VoucherCancelled(address indexed to, uint256 indexed nonce)',
   ]),
   Marketplace: parseAbi([
     'event Listed(uint256 indexed listingId, address indexed seller, uint256 price, uint64 expiresAt, address[] collections, uint256[] tokenIds)',
@@ -292,7 +293,7 @@ export function projectionOps(e: ChainEvent): ProjectionOp[] {
   if (e.contract === 'Marketplace' && e.event === 'AuctionCancelled') {
     return [{ kind: 'auction_closed', auctionId: a.auctionId as string, status: 'cancelled', winner: null, block: e.blockNumber }];
   }
-  // LotSold fica só no registro de eventos: a posse vem do Transfer. Withdrawn vai pelo feed para o economy.
+  // LotSold fica só no registro de eventos: a posse vem do Transfer. Withdrawn e VoucherCancelled vão pelo feed para o economy.
   return [];
 }
 

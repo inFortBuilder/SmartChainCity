@@ -2,7 +2,7 @@ import { AppError } from '@scc/shared';
 import { type Address, type Hex, createPublicClient, http, parseAbi } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 
-import type { AccountDirectory, VaultReader, VoucherSigner } from '../domain/withdrawals.js';
+import type { AccountDirectory, VaultReader, VaultStatus, VoucherSigner, VoucherState } from '../domain/withdrawals.js';
 
 export const WITHDRAWAL_TYPES = {
   Withdrawal: [
@@ -35,9 +35,16 @@ export class LocalKeyVoucherSigner implements VoucherSigner {
   }
 }
 
-const vaultAbi = parseAbi(['function nonceUsed(uint256) view returns (bool)']);
+const vaultAbi = parseAbi([
+  'function nonceUsed(uint256) view returns (bool)',
+  'function nonceCancelled(uint256) view returns (bool)',
+  'function paused() view returns (bool)',
+  'function dailyLimit() view returns (uint256)',
+  'function dailyLimitPerAddress() view returns (uint256)',
+  'function available(address) view returns (uint256 total, uint256 mine)',
+]);
 
-/** Lê o `nonceUsed` do cofre pela RPC. */
+/** Lê o nonce, os tetos e a pausa do cofre pela RPC. */
 export class RpcVaultReader implements VaultReader {
   private readonly client;
 
@@ -48,8 +55,23 @@ export class RpcVaultReader implements VaultReader {
     this.client = createPublicClient({ transport: http(rpcUrl, { timeout: 15_000, retryCount: 2 }) });
   }
 
-  nonceUsed(nonce: bigint) {
-    return this.client.readContract({ address: this.vault, abi: vaultAbi, functionName: 'nonceUsed', args: [nonce] });
+  private read<T>(functionName: (typeof vaultAbi)[number]['name'], args: readonly unknown[] = []) {
+    return this.client.readContract({ address: this.vault, abi: vaultAbi, functionName, args } as never) as Promise<T>;
+  }
+
+  async voucherState(nonce: bigint): Promise<VoucherState> {
+    if (!(await this.read<boolean>('nonceUsed', [nonce]))) return 'open';
+    return (await this.read<boolean>('nonceCancelled', [nonce])) ? 'cancelled' : 'claimed';
+  }
+
+  async status(wallet: Address): Promise<VaultStatus> {
+    const [paused, dailyLimitWei, perAddressLimitWei, [totalLeftWei, walletLeftWei]] = await Promise.all([
+      this.read<boolean>('paused'),
+      this.read<bigint>('dailyLimit'),
+      this.read<bigint>('dailyLimitPerAddress'),
+      this.read<readonly [bigint, bigint]>('available', [wallet]),
+    ]);
+    return { paused, dailyLimitWei, perAddressLimitWei, totalLeftWei, walletLeftWei };
   }
 }
 

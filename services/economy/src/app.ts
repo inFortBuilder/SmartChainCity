@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { AppError, bearerToken, observe, requireServiceToken, serverOptions, verifyAccessToken } from '@scc/shared';
 import cors from '@fastify/cors';
 import Fastify, { type FastifyRequest } from 'fastify';
+import { getAddress, isAddress } from 'viem';
 import { z } from 'zod';
 
 import type { Config } from './config.js';
@@ -19,6 +20,7 @@ import {
 import { TWAP_SOURCE } from './domain/fx-twap.js';
 import {
   type AccountDirectory,
+  type VaultReader,
   type VoucherSigner,
   type Withdrawal,
   type WithdrawalStore,
@@ -81,6 +83,8 @@ export interface WithdrawalsWiring {
   signer: VoucherSigner;
   accounts: AccountDirectory;
   vault: { contract: string; chainId: number };
+  /** Tetos e pausa do contrato: sem isso, o saque não confere o teto do dia antes de assinar. */
+  reader?: VaultReader | null;
 }
 
 /** Câmbio THALER ↔ SCITY (passo 11 da trilha). */
@@ -312,7 +316,7 @@ export async function buildApp(
     const w = withdrawalsOn();
     const body = z.object({ wallet: z.string(), amount_wei: z.string().regex(/^\d{1,40}$/) }).parse(request.body);
     const created = await requestWithdrawal(
-      { ledger: store, store: w.store, signer: w.signer, accounts: w.accounts },
+      { ledger: store, store: w.store, signer: w.signer, accounts: w.accounts, vault: w.reader ?? undefined },
       { accountId, wallet: body.wallet, amountWei: BigInt(body.amount_wei) },
       now(),
     );
@@ -322,7 +326,21 @@ export async function buildApp(
   app.get('/v1/economy/withdrawals', async (request) => {
     const accountId = await player(request);
     const w = withdrawalsOn();
-    return { contract: w.vault.contract, chain_id: w.vault.chainId, withdrawals: (await w.store.listOf(accountId, 50)).map(withdrawalDto) };
+    const q = z.object({ wallet: z.string().optional() }).parse(request.query);
+    // Com ?wallet=, mostra o que o cofre ainda libera hoje para ela (null sem a RPC).
+    const status = q.wallet && isAddress(q.wallet) && w.reader ? await w.reader.status(getAddress(q.wallet)).catch(() => null) : null;
+    return {
+      contract: w.vault.contract,
+      chain_id: w.vault.chainId,
+      vault: status && {
+        paused: status.paused,
+        daily_limit_wei: status.dailyLimitWei.toString(),
+        per_address_limit_wei: status.perAddressLimitWei.toString(),
+        total_left_wei: status.totalLeftWei.toString(),
+        wallet_left_wei: status.walletLeftWei.toString(),
+      },
+      withdrawals: (await w.store.listOf(accountId, 50)).map(withdrawalDto),
+    };
   });
 
   // ---------------------------------------------------------------- painel econômico (E2.8)

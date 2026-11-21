@@ -92,7 +92,7 @@ export const withdrawal = economy.table(
   (t) => [
     index('withdrawal_account_idx').on(t.accountId, t.createdAt),
     index('withdrawal_open_idx').on(t.status, t.createdAt),
-    check('withdrawal_status_check', sql`${t.status} in ('created', 'pending', 'claimed', 'refunded', 'failed')`),
+    check('withdrawal_status_check', sql`${t.status} in ('created', 'pending', 'claimed', 'refunded', 'cancelled', 'failed')`),
   ],
 );
 

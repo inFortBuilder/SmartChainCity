@@ -102,7 +102,11 @@ describe.each(
   });
 
   const deps = (accounts = { account: async () => old }) => ({ ledger, store, signer, accounts });
-  const vault = { nonceUsed: async (n: bigint) => used.has(n) };
+  const cancelled = new Set<bigint>();
+  const vault = {
+    voucherState: async (n: bigint) => (cancelled.has(n) ? ('cancelled' as const) : used.has(n) ? ('claimed' as const) : ('open' as const)),
+    status: async () => ({ paused: false, dailyLimitWei: 0n, perAddressLimitWei: 0n, totalLeftWei: 0n, walletLeftWei: 0n }),
+  };
 
   it.skipIf(!enabled)('debita para o escrow e assina; resgatado, o escrow vai para o cofre', async () => {
     const me = randomUUID();
@@ -140,6 +144,40 @@ describe.each(
     await settle(at(VOUCHER_TTL_MS + 2));
     expect(await scityOf(ledger, 'player', me)).toBe(10n * WEI);
     expect((await store.get(w.id))!.status).toBe('refunded');
+  });
+
+  it.skipIf(!enabled)('cancelado pela carteira volta para o jogador na hora e sai do teto', async () => {
+    const me = randomUUID();
+    await deposit(ledger, me, 1000n * WEI);
+    const w = await requestWithdrawal(deps(), { accountId: me, wallet, amountWei: 1000n * WEI }, T0);
+    expect(await scityOf(ledger, 'player', me)).toBe(0n);
+    cancelled.add(w.nonce);
+    const settle = (when: Date) => settleWithdrawals({ ledger, store, signer, vault }, when);
+    await settle(at(60_000));
+    // Repetir (ou o prazo vencer depois) não devolve de novo.
+    await settle(at(VOUCHER_TTL_MS + 1));
+    expect(await scityOf(ledger, 'player', me)).toBe(1000n * WEI);
+    expect((await store.get(w.id))!.status).toBe('cancelled');
+    // O cancelado não conta no teto de 24 h: dá para pedir de novo.
+    await expect(requestWithdrawal(deps(), { accountId: me, wallet, amountWei: 1000n * WEI }, at(120_000))).resolves.toMatchObject({ status: 'pending' });
+  });
+
+  it.skipIf(!enabled)('confere o teto e a pausa do contrato antes de assinar, sem debitar', async () => {
+    const me = randomUUID();
+    await deposit(ledger, me, 100n * WEI);
+    const status = { paused: false, dailyLimitWei: 1000n * WEI, perAddressLimitWei: 400n * WEI, totalLeftWei: 500n * WEI, walletLeftWei: 30n * WEI };
+    const reader = { voucherState: vault.voucherState, status: async () => status };
+    const ask = (amountWei: bigint, r: typeof reader = reader) => requestWithdrawal({ ...deps(), vault: r }, { accountId: me, wallet, amountWei }, T0);
+    await expect(ask(31n * WEI)).rejects.toMatchObject({ code: 'vault_limit', status: 409, message: expect.stringContaining('até 30 SCITY') });
+    status.paused = true;
+    await expect(ask(5n * WEI)).rejects.toMatchObject({ code: 'vault_paused', status: 503 });
+    expect(await scityOf(ledger, 'player', me)).toBe(100n * WEI);
+    expect(await store.listOf(me, 5)).toHaveLength(0);
+    // Sem a RPC, assina: o claim confere o teto.
+    const down = { voucherState: vault.voucherState, status: async () => Promise.reject(new Error('rpc fora')) };
+    await expect(ask(50n * WEI, down as never)).resolves.toMatchObject({ status: 'pending' });
+    status.paused = false;
+    await expect(ask(30n * WEI)).resolves.toMatchObject({ status: 'pending' });
   });
 
   it.skipIf(!enabled)('recusa carteira de outro, conta nova, abaixo do mínimo, sem saldo e acima do teto de 24 h', async () => {
@@ -226,6 +264,21 @@ describe('API', () => {
     expect(r.json().withdrawal.voucher.signature).toMatch(/^0x[0-9a-f]{130}$/);
     const list = (await app.inject({ method: 'GET', url: '/v1/economy/withdrawals', headers })).json();
     expect(list.withdrawals).toHaveLength(1);
+    expect(list.vault).toBeNull();
+
+    // Com o leitor do cofre e ?wallet=, mostra o que ainda sai hoje.
+    const withReader = await buildApp(config, ledger, () => T0, {
+      store: new MemoryWithdrawalStore(),
+      signer,
+      accounts: { account: async () => ({ wallets: [wallet], createdAt: at(-30 * DAY), kycLevel: 0 }) },
+      vault: { contract: ANVIL_VAULT, chainId: 31337 },
+      reader: {
+        voucherState: async () => 'open',
+        status: async () => ({ paused: false, dailyLimitWei: 10n, perAddressLimitWei: 4n, totalLeftWei: 9n, walletLeftWei: 3n }),
+      },
+    });
+    const v = (await withReader.inject({ method: 'GET', url: `/v1/economy/withdrawals?wallet=${wallet}`, headers })).json();
+    expect(v.vault).toEqual({ paused: false, daily_limit_wei: '10', per_address_limit_wei: '4', total_left_wei: '9', wallet_left_wei: '3' });
 
     const off = await buildApp(config, ledger, () => T0);
     const r2 = await off.inject({ method: 'POST', url: '/v1/economy/withdrawals', headers, payload: { wallet, amount_wei: '1' } });

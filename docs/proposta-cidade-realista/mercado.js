@@ -3,16 +3,14 @@
 // os leilões vêm do chain-indexer; comprar, vender, dar lance, encerrar e cancelar
 // são transações da carteira do jogador (ele paga o gás).
 //
-// Carteira: a MetaMask (window.ethereum) ou, na máquina local, a carteira de teste
-// do login, direto no anvil. A venda e a compra mudam a posse na blockchain; o
-// jogo acompanha pelo chain.sync do world.
+// Carteira: a MetaMask ou, na máquina local, a carteira de teste (carteira.js).
+// A venda e a compra mudam a posse na blockchain; o jogo acompanha pelo
+// chain.sync do world.
+
+import { connectWallet, readContract, sendTx, txError as walletError } from './carteira.js';
 
 const params = new URLSearchParams(location.search);
 const INDEXER = params.get('indexer') ?? 'http://127.0.0.1:8040';
-const RPC = params.get('rpc') ?? 'http://127.0.0.1:8545';
-const VIEM = 'https://esm.sh/viem@2.21.54';
-const DEV_WALLET_KEY = 'scc-carteira-de-teste';
-const LOCAL = ['localhost', '127.0.0.1'].includes(location.hostname);
 const CITY_PREFIX = 'PIT';
 
 const ABI = [
@@ -72,9 +70,7 @@ async function api(path) {
 
 /** Mensagem curta para erros de transação (revert do contrato, carteira recusou). */
 function txError(error) {
-  const m = String(error?.shortMessage ?? error?.message ?? error);
-  if (/User rejected|denied/i.test(m)) return 'Você recusou na carteira.';
-  const known = {
+  return walletError(error, {
     ListingStale: 'O vendedor já não tem o item: a listagem caiu.',
     PriceChanged: 'O preço mudou. Atualize a lista.',
     Expired: 'A listagem venceu.',
@@ -89,9 +85,7 @@ function txError(error) {
     AuctionNotEnded: 'O leilão ainda não terminou.',
     HasBids: 'O leilão já tem lance: não dá mais para cancelar.',
     BadDuration: 'Prazo do leilão inválido.',
-  };
-  for (const [k, v] of Object.entries(known)) if (m.includes(k)) return v;
-  return m.split('\n')[0].slice(0, 160);
+  });
 }
 
 /**
@@ -105,35 +99,11 @@ export function createMercado(map) {
   let busy = false;
   let note = '';
 
-  // ─ Carteira: MetaMask ou a carteira de teste no anvil ─
-  async function wallet() {
-    const viem = await import(VIEM);
-    if (window.ethereum) {
-      const [address] = await window.ethereum.request({ method: 'eth_requestAccounts' });
-      const transport = viem.custom(window.ethereum);
-      return { viem, address: viem.getAddress(address), client: viem.createWalletClient({ account: viem.getAddress(address), transport }), pub: viem.createPublicClient({ transport }) };
-    }
-    const key = LOCAL ? localStorage.getItem(DEV_WALLET_KEY) : null;
-    if (!key) throw new Error('Conecte a MetaMask (ou, na máquina local, entre com a carteira de teste).');
-    const { privateKeyToAccount } = await import(`${VIEM}/accounts`);
-    const account = privateKeyToAccount(key);
-    const chain = viem.defineChain({ id: 31337, name: 'Anvil', nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 }, rpcUrls: { default: { http: [RPC] } } });
-    const pub = viem.createPublicClient({ chain, transport: viem.http(RPC) });
-    // Só no anvil: a carteira de teste recebe ETH de mentira para o gás.
-    if ((await pub.getBalance({ address: account.address })) < 10n ** 17n) {
-      await pub.request({ method: 'anvil_setBalance', params: [account.address, '0x8AC7230489E80000'] });
-    }
-    return { viem, address: account.address, client: viem.createWalletClient({ account, chain, transport: viem.http(RPC) }), pub };
-  }
+  // ─ Carteira: MetaMask ou a carteira de teste no anvil (carteira.js) ─
+  const wallet = () => connectWallet();
 
-  async function send(w, address, functionName, args) {
-    const abi = w.viem.parseAbi(ABI);
-    const hash = await w.client.writeContract({ address, abi, functionName, args, chain: w.client.chain ?? null });
-    const receipt = await w.pub.waitForTransactionReceipt({ hash });
-    if (receipt.status !== 'success') throw new Error('A transação reverteu.');
-    return receipt;
-  }
-  const read = (w, address, functionName, args = []) => w.pub.readContract({ address, abi: w.viem.parseAbi(ABI), functionName, args });
+  const send = (w, address, functionName, args) => sendTx(w, address, ABI, functionName, args);
+  const read = (w, address, functionName, args = []) => readContract(w, address, ABI, functionName, args);
 
   // ─ Painel ─
   const style = document.createElement('style');
