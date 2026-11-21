@@ -26,6 +26,7 @@ pnpm --filter @scc/gateway login:dev   # entra com uma carteira descartável e i
 | `GET /internal/v1/accounts/:id/wallets`: carteiras da conta (e `account_created_at`) para outros serviços, com `x-service-token` igual ao `INTERNAL_TOKEN` | ✅ o world usa para a cotação on-chain do lote. Sem `INTERNAL_TOKEN`, responde 503 |
 | JWT HS256 aceito pelo SCC Builder | ✅ testado com a API PHP real |
 | Rate limit, CORS por lista, logs sem token nem assinatura | ✅ |
+| Captcha de prova de trabalho no login SIWE e no pedido do código por e-mail (`GET /v1/auth/captcha`) | ✅ sem serviço de terceiros; veja [Captcha no cadastro](#captcha-no-cadastro) |
 | Armazenamento em Postgres (Drizzle) | ✅ sem `DATABASE_URL` usa memória, e em produção recusa subir |
 | `POST /v1/auth/email/start` e `/verify`: login por código de 6 dígitos no e-mail | ✅ no MVP local o código sai no log do gateway (`EMAIL_LOGIN=log`), sem provedor de e-mail |
 | Carteira embutida para quem entra por e-mail, vínculo de carteira à conta, 2FA | ❌ a conta de e-mail entra sem carteira; joga, mas ainda não assina na rede |
@@ -56,6 +57,21 @@ Regras:
 O mapa de Pittsburg tem o formulário no painel "Jogo no servidor".
 
 Depois de atualizar o código, rode `pnpm db:migrate`: a tabela `email_code` é nova.
+
+## Captcha no cadastro
+
+A conta nasce no primeiro login, então o captcha fica nas duas portas de entrada: `POST /v1/auth/siwe/verify` e `POST /v1/auth/email/start`. As duas pedem o campo `captcha`. É uma prova de trabalho no formato do [ALTCHA](https://altcha.org) (MIT), sem serviço de terceiros nem custo:
+
+1. `GET /v1/auth/captcha` devolve `{enabled, algorithm, challenge, maxnumber, salt, signature}`. O gateway sorteia um número até `maxnumber` e publica o `sha256(salt + número)`, assinado com HMAC.
+2. O navegador testa 0, 1, 2… até achar o número. Com `CAPTCHA_MAX_NUMBER=50000`, leva frações de segundo para uma pessoa, mas custa caro para quem cria milhares de contas.
+3. O cliente manda a solução em base64 no campo `captcha`. O gateway confere o hash, a assinatura e a validade (`?expires=` no salt, 5 min), e gasta o desafio na tabela de uso único do nonce. A mesma solução não abre duas contas.
+
+| Erro | Quando |
+|---|---|
+| `400 captcha_required` | Sem o campo `captcha` |
+| `403 captcha_invalid` | Número errado, assinatura forjada, salt trocado, desafio vencido ou já usado |
+
+`CAPTCHA=off` desliga o captcha (a rota responde `{enabled: false}`), e o gateway recusa subir assim em produção. Em teste, o padrão é desligado. O resolvedor do mapa é SHA-256 em JavaScript puro, porque o `crypto.subtle` não existe em HTTP pela rede local. O `login:dev` resolve sozinho. O gateway não guarda IP nem dado da pessoa.
 
 ## Vincular carteira e e-mail
 

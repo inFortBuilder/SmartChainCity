@@ -36,6 +36,15 @@ const schema = z.object({
   EMAIL_CODE_RESEND_SECONDS: z.coerce.number().int().nonnegative().default(60),
   EMAIL_CODE_MAX_ATTEMPTS: z.coerce.number().int().positive().default(5),
   /**
+   * Captcha de prova de trabalho no login (SIWE) e no pedido do código por
+   * e-mail, que é onde a conta nasce. 'off' é recusado em produção; em teste,
+   * fica desligado salvo CAPTCHA=pow.
+   */
+  CAPTCHA: z.enum(['pow', 'off']).optional(),
+  /** Maior número sorteado: em média o navegador testa metade (50 mil ≈ 0,1 a 0,5 s). */
+  CAPTCHA_MAX_NUMBER: z.coerce.number().int().min(1000).max(10_000_000).default(50_000),
+  CAPTCHA_TTL_SECONDS: z.coerce.number().int().positive().default(300),
+  /**
    * Token dos outros serviços para as rotas /internal (ex.: o world confere a
    * carteira de quem pede a cotação do lote). Sem ele, as rotas respondem 503.
    */
@@ -45,8 +54,13 @@ const schema = z.object({
   ),
 });
 
-export type Config = z.infer<typeof schema>;
+export type Config = Omit<z.infer<typeof schema>, 'CAPTCHA'> & { CAPTCHA: 'pow' | 'off' };
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
-  return schema.parse(env);
+  const parsed = schema.parse(env);
+  const config = { ...parsed, CAPTCHA: parsed.CAPTCHA ?? (parsed.NODE_ENV === 'test' ? 'off' : 'pow') };
+  if (config.NODE_ENV === 'production' && config.CAPTCHA === 'off') {
+    throw new Error('CAPTCHA=off não é aceito em produção: o cadastro precisa do captcha (doc 10).');
+  }
+  return config;
 }
