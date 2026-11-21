@@ -47,7 +47,7 @@ O job lê o oráculo do pool SCITY/USDT da PancakeSwap V3, que tem a mesma inter
 | Disjuntor | Um salto maior que `FX_MAX_JUMP_BPS` (50%, **premissa**) sobre a cotação em vigor não é aplicado. O job registra o erro, e quem opera decide pela rota interna. Na rodada seguinte, o TWAP é comparado com a cotação que ficou |
 | Sem dados | Sem histórico, com a RPC fora ou com o preço fora de US$ 0,000001 a 1 milhão, a cotação fica como está e o job registra um aviso. Um pool sem o SCITY é erro de configuração |
 
-Configuração: `RPC_URL`, `DEX_POOL_ADDRESS` e `SCITY_TOKEN_ADDRESS`. Sem eles, a cotação vem só da rota interna. Na BSC, depois do TGE, aumente as observações do pool (`increaseObservationCardinalityNext`) para o pool cobrir as 24 h sozinho sempre que der.
+Configuração: `RPC_URL`, `DEX_POOL_ADDRESS` e `SCITY_ADDRESS`. Sem eles, a cotação vem só da rota interna. Na BSC, depois do TGE, aumente as observações do pool (`increaseObservationCardinalityNext`) para o pool cobrir as 24 h sozinho sempre que der.
 
 **Testado** em 2026-11-21:
 - No anvil, com o `LocalDexPool` do `DeployLocal`: 12 h a US$ 1 e 12 h a US$ 0,50 deram US$ 0,707. Um pico de 1 h a US$ 100 numa janela de 24 h só levou a média a US$ 0,62. Com janela de 1 h, o disjuntor segurou o mesmo pico.

@@ -72,7 +72,7 @@ const timer =
 timer?.unref();
 
 // Job fx.twap: cotação nova pelo TWAP da DEX quando a atual vence (doc 04 §5).
-const dexPool = config.RPC_URL && config.DEX_POOL_ADDRESS && config.SCITY_TOKEN_ADDRESS ? new RpcDexPool(config.RPC_URL, config.DEX_POOL_ADDRESS as `0x${string}`) : null;
+const dexPool = config.RPC_URL && config.DEX_POOL_ADDRESS && config.SCITY_ADDRESS ? new RpcDexPool(config.RPC_URL, config.DEX_POOL_ADDRESS as `0x${string}`) : null;
 let pricing = false;
 const fxTick = async () => {
   if (!dexPool || pricing) return;
@@ -80,7 +80,7 @@ const fxTick = async () => {
   try {
     const r = await refreshFxFromDex(
       { store: exchangeStore, pool: dexPool },
-      { poolAddress: config.DEX_POOL_ADDRESS!, scityToken: config.SCITY_TOKEN_ADDRESS!, windowSeconds: config.FX_TWAP_SECONDS, periodMs: config.FX_PERIOD_HOURS * 3_600_000, maxJumpBps: config.FX_MAX_JUMP_BPS },
+      { poolAddress: config.DEX_POOL_ADDRESS!, scityToken: config.SCITY_ADDRESS!, windowSeconds: config.FX_TWAP_SECONDS, periodMs: config.FX_PERIOD_HOURS * 3_600_000, maxJumpBps: config.FX_MAX_JUMP_BPS },
       new Date(),
     );
     if (r.kind === 'updated') app.log.info(`fx.twap: SCITY a US$ ${r.scityUsd} (antes ${r.previousUsd ?? '-'}; acumulado de 24 h do ${r.from === 'pool' ? 'pool' : 'histórico de amostras'})`);

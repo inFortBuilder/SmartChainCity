@@ -51,7 +51,7 @@ const schema = z.object({
    * (PancakeSwap V3) e do endereço do SCITY. Sem eles, a cotação vem só da rota interna.
    */
   DEX_POOL_ADDRESS: z.preprocess((v) => (v === '' ? undefined : v), z.string().regex(/^0x[0-9a-fA-F]{40}$/).optional()),
-  SCITY_TOKEN_ADDRESS: z.preprocess((v) => (v === '' ? undefined : v), z.string().regex(/^0x[0-9a-fA-F]{40}$/).optional()),
+  SCITY_ADDRESS: z.preprocess((v) => (v === '' ? undefined : v), z.string().regex(/^0x[0-9a-fA-F]{40}$/).optional()),
   /** Janela da média, em segundos (doc 04 §5: 24 h). O pool precisa guardar observações para ela. */
   FX_TWAP_SECONDS: z.coerce.number().int().min(600).max(7 * 86_400).default(86_400),
   /** Uma cotação nova a cada tantas horas (doc 04 §5: diária). */
