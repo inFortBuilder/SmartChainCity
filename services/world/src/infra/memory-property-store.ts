@@ -34,6 +34,14 @@ export class MemoryPropertyStore implements PropertyStore {
       .map((p) => ({ ...p }));
   }
 
+  async propertiesOfTypes(city: string, types: string[], limit: number) {
+    return [...this.properties.values()]
+      .filter((p) => p.city === city && p.status === 'active' && types.includes(p.type))
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+      .slice(0, limit)
+      .map((p) => ({ ...p }));
+  }
+
   async transferProperty(id: string, from: string, to: string) {
     const p = this.properties.get(id);
     if (p && p.ownerAccountId === from) p.ownerAccountId = to;

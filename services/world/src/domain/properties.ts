@@ -38,6 +38,11 @@ export interface PropertyType {
   levels: PropertyLevel[];
   /** Valores provisórios, para a API e a tela avisarem. */
   provisional: string[];
+  /**
+   * Negócio de lazer de jogador (E3.3): o avatar paga a entrada para usar, e ela vai
+   * para o dono (sem renda do pool P2E). A atividade e o efeito moram no game-core.
+   */
+  venue?: { activity: string; feeCents: number };
 }
 
 export const PROPERTY_TYPES: PropertyType[] = [
@@ -59,7 +64,35 @@ export const PROPERTY_TYPES: PropertyType[] = [
       'custo do reparo',
     ],
   },
+  // Lazer (E3.3, GDD §6 "Lazer"): academias e galerias são negócios de jogador com custo de
+  // entrada baixo. PREMISSAS: preço da obra, entrada e zonas; a renda é a entrada, não o pool.
+  {
+    code: 'academia',
+    label: 'Academia',
+    zones: ['commercial', 'mixed'],
+    priceCents: 6000_00,
+    buildMinutes: 24 * 60,
+    levels: [{ level: 1, incomeCentsPerDay: 0 }],
+    provisional: ['preço da obra', 'entrada de 5 THALER', 'zonas comercial e mista'],
+    venue: { activity: 'academia', feeCents: 5_00 },
+  },
+  {
+    code: 'galeria',
+    label: 'Galeria de arte',
+    zones: ['commercial', 'mixed'],
+    priceCents: 5000_00,
+    buildMinutes: 24 * 60,
+    levels: [{ level: 1, incomeCentsPerDay: 0 }],
+    provisional: ['preço da obra', 'entrada de 4 THALER', 'zonas comercial e mista'],
+    venue: { activity: 'galeria', feeCents: 4_00 },
+  },
 ];
+
+/** Tipos que são negócios de lazer de jogador. */
+export const VENUE_TYPES = () => PROPERTY_TYPES.filter((t) => t.venue).map((t) => t.code);
+
+/** O negócio abre com a obra pronta e o desgaste acima do mínimo (o mesmo da renda, doc 03 §6.3). */
+export const venueOpen = (p: Property, now: Date) => phaseOf(p, now) === 'ready' && wearAt(p, now) >= MIN_WEAR_FOR_INCOME;
 
 export const DAY_MS = 24 * 60 * 60 * 1000;
 export const ACCRUAL_CAP_DAYS = 7;
@@ -106,6 +139,8 @@ export interface PropertyStore {
   getProperty(id: string): Promise<Property | null>;
   propertyOnLot(city: string, lotId: number): Promise<Property | null>;
   propertiesOf(accountId: string): Promise<Property[]>;
+  /** Imóveis ativos da cidade com um destes tipos (negócios de lazer), os mais antigos primeiro. */
+  propertiesOfTypes(city: string, types: string[], limit: number): Promise<Property[]>;
   activateProperty(id: string): Promise<void>;
   /** Leilão (E2.6): o imóvel vai com o lote. Só muda se o dono ainda for `from`. */
   transferProperty(id: string, from: string, to: string): Promise<void>;

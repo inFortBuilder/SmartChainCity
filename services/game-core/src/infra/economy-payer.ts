@@ -1,7 +1,8 @@
 import { AppError, forwardRequestId } from '@scc/shared';
 
 import type { HospitalPayer, HospitalStay } from '../domain/hospital.js';
-import { type Meal, type MealPayer, isMedicine, isPack, isPetShop, isSchool } from '../domain/meal.js';
+import { type Meal, type MealPayer, isLeisure, isMedicine, isPack, isPetShop, isSchool } from '../domain/meal.js';
+import { feeSplit } from '../domain/leisure.js';
 import type { Payer, Shift } from '../domain/shift.js';
 
 /**
@@ -64,6 +65,7 @@ export class EconomyPayer implements Payer, MealPayer, HospitalPayer {
 
   /** Refeição ou remédio: os dois são sink (doc 04 §7), o THALER do jogador vai para a queima. */
   async chargeMeal(meal: Meal, requestId?: string) {
+    if (isLeisure(meal)) return this.chargeLeisure(meal, requestId);
     const medicine = isMedicine(meal);
     const petShop = isPetShop(meal);
     const school = isSchool(meal);
@@ -84,6 +86,25 @@ export class EconomyPayer implements Payer, MealPayer, HospitalPayer {
     if (error === 'insufficient_funds') {
       throw new AppError('insufficient_thaler', `THALER insuficiente para ${school ? 'a escola' : petShop ? 'o Pet Shop' : medicine ? 'o remédio' : isPack(meal) ? 'o pacote' : 'esta refeição'}.`, 409);
     }
+    throw new AppError('ledger_unavailable', 'O ledger recusou a cobrança.', 502);
+  }
+
+  /**
+   * Entrada de um negócio de lazer (E3.3): a maior parte vai para o dono e o resto para a
+   * queima (taxa da Prefeitura). No negócio próprio a entrada é 0 e nada é lançado.
+   */
+  private async chargeLeisure(meal: Meal, requestId?: string) {
+    const owner = meal.effects.leisure?.ownerAccountId;
+    if (meal.priceCents <= 0n || !owner) return;
+    const split = feeSplit(meal.priceCents);
+    const legs = [
+      { owner_type: 'player', owner_id: meal.accountId, currency: 'THALER', amount: `-${meal.priceCents}` },
+      { owner_type: 'player', owner_id: owner, currency: 'THALER', amount: `${split.owner}` },
+      ...(split.burn > 0n ? [{ owner_type: 'burn', owner_id: 'leisure', currency: 'THALER', amount: `${split.burn}` }] : []),
+    ];
+    const error = await this.post(`meal:${meal.id}`, { kind: 'leisure_fee', ref_type: 'meal', ref_id: meal.id, legs }, requestId);
+    if (error === null) return;
+    if (error === 'insufficient_funds') throw new AppError('insufficient_thaler', 'THALER insuficiente para a entrada.', 409);
     throw new AppError('ledger_unavailable', 'O ledger recusou a cobrança.', 502);
   }
 

@@ -27,6 +27,7 @@ import {
   petMultiplier,
 } from './domain/pet.js';
 import { CHANGE_CENTS, CHANGE_MS, CLASS, GRADES, checkChange, checkClass, schoolDto } from './domain/school.js';
+import { ACTIVITIES, COOLDOWN_MS, OWNER_SHARE_BPS, type VenueDirectory, applyLeisure, checkActivity, leisureDto } from './domain/leisure.js';
 import {
   CURE_CHANCE,
   MEAL_FOOD_POINTS,
@@ -38,7 +39,9 @@ import {
   eatFromPantry,
   isMedicine,
   isPetShop,
+  isLeisure,
   isSchool,
+  planLeisure,
   planPetShop,
   planSchool,
   isPack,
@@ -85,6 +88,8 @@ const avatarDto = (a: Avatar, at: Date) => ({
   pantry: Object.entries(a.pantry).map(([code, units]) => ({ food: code, units })),
   pet: petDto(a.pet, at),
   school: schoolDto(a, at),
+  // Quando cada atividade de lazer libera de novo (null: já pode).
+  leisure: leisureDto(a, at),
   // Só as que estão em curso: a sorteada no turno aparece quando o turno acaba.
   conditions: activeConditions(a.conditions, at).map((c) => ({
     code: c.code,
@@ -167,6 +172,8 @@ export async function buildApp(
   random: () => number = Math.random,
   /** Antifraude (E2.9): sinais por aparelho e rede. Sem ele, só o limite de velocidade vale. */
   riskStore: RiskStore | null = null,
+  /** Lazer (E3.3): academias e galerias de jogador no world. Sem ele, só o parque. */
+  venues: VenueDirectory | null = null,
 ) {
   const app = Fastify({
     trustProxy: config.TRUST_PROXY,
@@ -378,7 +385,7 @@ export async function buildApp(
     const meal = await store.beginMeal(avatar.id, avatar.accountId, clientKey, now(), plan(clientKey));
     const done = await settleMeal(meal, request.id);
     if (done.status === 'failed') {
-      const what = isSchool(done) ? 'a escola' : isPetShop(done) ? 'o Pet Shop' : isMedicine(done) ? 'o remédio' : isPack(done) ? 'o pacote' : 'esta refeição';
+      const what = isLeisure(done) ? 'a entrada' : isSchool(done) ? 'a escola' : isPetShop(done) ? 'o Pet Shop' : isMedicine(done) ? 'o remédio' : isPack(done) ? 'o pacote' : 'esta refeição';
       throw new AppError('insufficient_thaler', `THALER insuficiente para ${what}.`, 409);
     }
     return { avatar, done };
@@ -504,6 +511,50 @@ export async function buildApp(
     const { avatar, done } = await purchase(request, (clientKey) => (current) => {
       const { cents, ...effect } = checkChange(current, job, running, now());
       return planSchool(current, { id: randomUUID(), clientKey, effect, cents }, now());
+    });
+    const fresh = (await store.get(avatar.id))!;
+    const at = now();
+    return reply.status(201).send({ purchase: mealDto(done), avatar: avatarDto(decayed(fresh, at), at) });
+  });
+
+  // Lazer (E3.3): as atividades, onde acontecem e o efeito (premissas, leisure.ts).
+  app.get('/v1/catalog/leisure', async () => ({
+    cooldown_hours: COOLDOWN_MS / 3_600_000,
+    owner_share: OWNER_SHARE_BPS / 10_000,
+    venues_on: venues !== null,
+    activities: Object.entries(ACTIVITIES).map(([code, a]) => ({
+      code,
+      label: a.label,
+      place: a.place,
+      // A tela mostra só a direção, como nas profissões (GDD §2.4).
+      energy: Math.sign(a.energy),
+      happiness: Math.sign(a.happiness),
+      health: Math.sign(a.health),
+      education: Math.sign(a.education),
+    })),
+  }));
+
+  /**
+   * Atividade de lazer `{activity, venue_id?}`. Parque de graça; academia e galeria são
+   * negócios de jogador: o world diz o dono e a entrada, cobrada pelo ledger antes do efeito.
+   */
+  app.post('/v1/avatars/:id/leisure', async (request, reply) => {
+    const body = z.object({ activity: z.string(), venue_id: z.uuid().optional() }).parse(request.body);
+    const own = await ownAvatar(request);
+    const place = (ACTIVITIES as Record<string, { place: string }>)[body.activity]?.place;
+    if (place === 'parque' || !place) {
+      const next = await store.updateAvatar(own.id, own.accountId, now(), (current) => {
+        const { effect } = checkActivity(current, { activity: body.activity, venue: null }, now());
+        return applyLeisure(current, effect, now());
+      });
+      const at = now();
+      return reply.status(201).send({ purchase: null, avatar: avatarDto(decayed(next, at), at) });
+    }
+    if (!venues) throw new AppError('venues_unavailable', 'Academias e galerias estão desligadas: o world não está ligado.', 503);
+    const venue = body.venue_id ? await venues.venue(body.venue_id) : null;
+    const { avatar, done } = await purchase(request, (clientKey) => (current) => {
+      const { effect, cents } = checkActivity(current, { activity: body.activity, venue, venueId: body.venue_id }, now());
+      return planLeisure(current, { id: randomUUID(), clientKey, effect, cents }, now());
     });
     const fresh = (await store.get(avatar.id))!;
     const at = now();
