@@ -329,3 +329,18 @@ export const vehicleRace = game.table(
     check('vehicle_race_status_check', sql`${t.status} in ('pending', 'charged', 'done', 'failed')`),
   ],
 );
+
+/** GamePass (E3.10): o nível da conta em cada temporada. */
+export const gamePass = game.table(
+  'game_pass',
+  {
+    accountId: uuid('account_id').notNull(),
+    season: text('season').notNull(),
+    level: smallint('level').notNull(),
+    updatedAt: timestamptz('updated_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('game_pass_account_season_unique').on(t.accountId, t.season),
+    check('game_pass_level_check', sql`${t.level} between 1 and 5`),
+  ],
+);

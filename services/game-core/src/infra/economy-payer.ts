@@ -6,6 +6,7 @@ import { feeSplit } from '../domain/leisure.js';
 import type { Championship, ChampionshipPayer, ChampionshipResult, Member } from '../domain/championship.js';
 import type { VehiclePayer } from '../domain/vehicle.js';
 import type { Race, RacePayer } from '../domain/race.js';
+import type { GamePassPayer } from '../domain/events.js';
 import type { Payer, Shift } from '../domain/shift.js';
 
 /**
@@ -17,7 +18,7 @@ import type { Payer, Shift } from '../domain/shift.js';
 /** Escrow do campeonato no ledger: o id de sistema só aceita letras, números e _ (AAAA-MM → championship_AAAA_MM). */
 const escrowOf = (month: string) => `championship_${month.replace('-', '_')}`;
 
-export class EconomyPayer implements Payer, MealPayer, HospitalPayer, ChampionshipPayer, VehiclePayer, RacePayer {
+export class EconomyPayer implements Payer, MealPayer, HospitalPayer, ChampionshipPayer, VehiclePayer, RacePayer, GamePassPayer {
   constructor(
     private readonly baseUrl: string,
     private readonly token: string,
@@ -133,6 +134,26 @@ export class EconomyPayer implements Payer, MealPayer, HospitalPayer, Championsh
     if (error === null) return;
     if (error === 'insufficient_funds') throw new AppError('insufficient_thaler', 'THALER insuficiente.', 409);
     throw new AppError('ledger_unavailable', 'O ledger recusou a cobrança.', 502);
+  }
+
+  /** GamePass (E3.10): SCITY do jogador para a queima (sink, doc 04 §8). */
+  async chargePass(input: { key: string; accountId: string; wei: bigint; season: string }, requestId?: string) {
+    const error = await this.post(
+      input.key,
+      {
+        kind: 'gamepass_buy',
+        ref_type: 'gamepass',
+        ref_id: input.season,
+        legs: [
+          { owner_type: 'player', owner_id: input.accountId, currency: 'SCITY', amount: `-${input.wei}` },
+          { owner_type: 'burn', owner_id: 'gamepass', currency: 'SCITY', amount: `${input.wei}` },
+        ],
+      },
+      requestId,
+    );
+    if (error === null) return;
+    if (error === 'insufficient_funds') throw new AppError('insufficient_scity', 'SCITY insuficiente no jogo para o GamePass.', 409);
+    throw new AppError('ledger_unavailable', 'O ledger recusou o GamePass.', 502);
   }
 
   /** Gasolina da corrida (E3.5): do jogador para a queima. */

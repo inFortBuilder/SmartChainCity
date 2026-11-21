@@ -67,6 +67,23 @@ import {
   vehicleDto,
 } from './domain/vehicle.js';
 import {
+  EVENT_FACTOR,
+  type GamePassPayer,
+  type GamePassStore,
+  PASS_DAMAGE_CUT_PER_LEVEL,
+  PASS_ITEMS,
+  PASS_LEVEL_WEI,
+  PASS_MAX_LEVEL,
+  checkPassUpgrade,
+  damageCut,
+  eventAt,
+  eventDto,
+  eventOfWeek,
+  passKey,
+  seasonAt,
+  weekOf,
+} from './domain/events.js';
+import {
   FUEL_CENTS,
   PRIZES_CENTS,
   RACES_PER_DAY,
@@ -238,6 +255,8 @@ export async function buildApp(
   championships: { store: ChampionshipStore; payer: ChampionshipPayer } | null = null,
   /** Veículos (E3.5): agência e IPVA. Sem ele, as rotas de veículos respondem 503. */
   vehicles: { store: VehicleStore; payer: VehiclePayer & RacePayer; races?: RaceStore } | null = null,
+  /** GamePass (E3.10). Sem ele, os eventos funcionam e o GamePass responde 503. */
+  passes: { store: GamePassStore; payer: GamePassPayer } | null = null,
 ) {
   const app = Fastify({
     trustProxy: config.TRUST_PROXY,
@@ -372,12 +391,16 @@ export async function buildApp(
     // Avatares comprados na blockchain entram fora do limite, mas só os mais antigos na conta trabalham.
     if (!mayWork(await store.listByAccount(accountId), id)) throw overAvatarLimit();
     await guardP2E(request, accountId, 'work');
+    // GamePass da temporada: corta a chance de dano do turno (E3.10).
+    const season = seasonAt(now());
+    const passLevel = passes && season ? await passes.store.level(accountId, season.code) : 0;
     const started = await store.beginShift(id, accountId, now(), (avatar, context) =>
       startShift(
         avatar,
         {
           id: randomUUID(),
           hours: shift,
+          damageCut: damageCut(passLevel),
           ...context,
           durationMs: config.DEV_SHIFT_MINUTES ? config.DEV_SHIFT_MINUTES * 60_000 : undefined,
         },
@@ -738,6 +761,54 @@ export async function buildApp(
     await v.payer.payBuyback({ key: `vehicle-buyback:${car.id}`, accountId: car.accountId, cents, refId: car.id }, request.id);
     await v.store.markSold(car.id, now());
     return { sold: { id: car.id, cents: cents.toString() } };
+  });
+
+  // ---------------------------------------------------------------- eventos semanais e GamePass (E3.10)
+
+  // O evento da semana e os próximos 3: o calendário é público.
+  app.get('/v1/events', async () => {
+    const week = weekOf(now());
+    return {
+      factor: EVENT_FACTOR,
+      current: eventDto(eventAt(now())),
+      next: [1, 2, 3].map((n) => eventDto(eventOfWeek(week + n))),
+    };
+  });
+
+  const passesOn = () => {
+    if (!passes) throw new AppError('gamepass_disabled', 'O GamePass está desligado: o ledger não está ligado.', 503);
+    return passes;
+  };
+
+  app.get('/v1/gamepass', async (request) => {
+    const accountId = request.headers.authorization ? await player(request) : null;
+    const season = seasonAt(now());
+    const level = season && accountId && passes ? await passes.store.level(accountId, season.code) : 0;
+    return {
+      season: season ? { code: season.code, label: season.label, starts_at: season.startsAt.toISOString(), ends_at: season.endsAt.toISOString() } : null,
+      max_level: PASS_MAX_LEVEL,
+      level_price_wei: PASS_LEVEL_WEI.toString(),
+      damage_cut_per_level: PASS_DAMAGE_CUT_PER_LEVEL,
+      level,
+      damage_cut: damageCut(level),
+      items: PASS_ITEMS.map((i) => ({ ...i, unlocked: i.level <= level })),
+    };
+  });
+
+  // Sobe o GamePass da temporada para `{level}`, pagando só a diferença em SCITY.
+  app.post('/v1/gamepass', async (request) => {
+    const accountId = await player(request);
+    const { level } = z.object({ level: z.number().int() }).parse(request.body);
+    const p = passesOn();
+    const season = seasonAt(now());
+    const current = season ? await p.store.level(accountId, season.code) : 0;
+    const { wei } = checkPassUpgrade(current, level, season);
+    // A chave é do nível pedido: o clique repetido não cobra de novo.
+    await p.payer.chargePass({ key: passKey(season!.code, accountId, level), accountId, wei, season: season!.code }, request.id);
+    if (!(await p.store.setLevel(accountId, season!.code, current, level, now()))) {
+      throw new AppError('gamepass_conflict', 'Outro pedido mudou o GamePass agora. Tente de novo: a cobrança não se repete.', 409);
+    }
+    return { level, wei: wei.toString(), damage_cut: damageCut(level), items: PASS_ITEMS.filter((i) => i.level <= level) };
   });
 
   // ---------------------------------------------------------------- corridas e oficina (E3.5)

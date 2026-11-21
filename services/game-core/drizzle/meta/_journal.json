@@ -113,6 +113,13 @@
       "when": 1795302612431,
       "tag": "0015_corridas",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1795303981674,
+      "tag": "0016_gamepass",
+      "breakpoints": true
     }
   ]
 }

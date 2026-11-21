@@ -9,6 +9,7 @@ import { assertNotInHospital } from './hospital.js';
 import { happinessWithPet, petFactors } from './pet.js';
 import { assertNotInSchool } from './school.js';
 import { inDrivingSchool } from './vehicle.js';
+import { eventFactor } from './events.js';
 
 /**
  * Turno de trabalho (E1.4; doc 02 §3.2, doc 04 §4). O ganho segue a mesma
@@ -65,6 +66,10 @@ export interface Snapshot {
   base: number;
   /** Multiplicador do pet vivo (GDD §2.4, 1,00× a 1,25×); ausente nos turnos de antes dos pets. */
   pet?: number;
+  /** Fator do evento semanal da profissão (E3.10, doc 04 §4); ausente nos turnos de antes: 1. */
+  event?: number;
+  /** Corte na chance de dano pelo GamePass (0 a 0,5); ausente: 0. */
+  damageCut?: number;
 }
 
 export interface ShiftResult {
@@ -72,7 +77,7 @@ export interface ShiftResult {
   /** Valor do turno em centavos de THALER. */
   thalerCents: bigint;
   /** Fatores usados, para a tela e para auditoria. */
-  factors: { base: number; hours: number; health: number; happiness: number; expPet: number; damage: number; illness: number };
+  factors: { base: number; hours: number; health: number; happiness: number; expPet: number; damage: number; illness: number; event?: number };
 }
 
 export type ShiftStatus = 'running' | 'done' | 'claimed';
@@ -112,6 +117,8 @@ export function startShift(
     durationMs?: number;
     /** Semente do turno (hex, 32 bytes). Só os testes passam; no jogo ela é sempre sorteada aqui. */
     seed?: string;
+    /** Corte na chance de dano pelo GamePass da conta (E3.10). */
+    damageCut?: number;
   },
   now: Date,
 ): { shift: Shift; avatar: Avatar } {
@@ -152,6 +159,9 @@ export function startShift(
       happiness: happinessWithPet(avatar),
       education: a.education,
       pet: petFactors(avatar).multiplier,
+      // Evento da semana em que o turno começa (E3.10).
+      event: eventFactor(avatar.jobCode, now),
+      damageCut: input.damageCut ?? 0,
       earnsReward: status(avatar, now).earnsReward,
       base: baseOf(avatar.jobCode),
       illness: yieldFactor(avatar.conditions, now),
@@ -181,16 +191,17 @@ export function settle(shift: Pick<Shift, 'id' | 'hours' | 'seed' | 'snapshot'>)
   const happiness = HAPPINESS_MULT[level(s.happiness)]!;
   // Experiência × Pet, com o teto conjunto (ADR-0013).
   const expPet = Math.min(expMultiplier(s.education) * (s.pet ?? 1), EXP_PET_CAP);
-  const damaged = draw(shift.seed, shift.id, 'damage') < DAMAGE_CHANCE;
+  const damaged = draw(shift.seed, shift.id, 'damage') < DAMAGE_CHANCE * (1 - (s.damageCut ?? 0));
   const damage = damaged ? 1 - DAMAGE_FRACTION : 1;
   const dayShare = shift.hours / MAX_HOURS_PER_DAY;
   // GDD: 48 h sem comer não gera recompensa.
   const illness = s.illness ?? 1;
-  const thaler = s.earnsReward ? s.base * dayShare * health * happiness * expPet * damage * illness : 0;
+  const event = s.event ?? 1;
+  const thaler = s.earnsReward ? s.base * dayShare * health * happiness * expPet * damage * illness * event : 0;
   return {
     damaged,
     thalerCents: BigInt(Math.round(thaler * 100)),
-    factors: { base: s.base, hours: shift.hours, health, happiness, expPet, damage, illness },
+    factors: { base: s.base, hours: shift.hours, health, happiness, expPet, damage, illness, event },
   };
 }
 
