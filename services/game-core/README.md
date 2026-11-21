@@ -131,6 +131,28 @@ No mapa de Pittsburg, a doença grave mostra a queda de saúde e o botão "Hospi
 
 Depois de atualizar o código, rode `pnpm db:migrate`: a migração `0007_tratamento` aceita o motivo `treatment`.
 
+## Pets e Pet Shop (E3.1)
+
+Cada avatar pode ter um gato ou um cachorro ([pet.ts](src/domain/pet.ts), GDD §3 e §2.4). O pet mora no próprio avatar (coluna `pet`, jsonb) e cai junto com ele na leitura.
+
+| Regra | Como |
+|---|---|
+| Atributos | Alimentação, água e felicidade de 0 a 5. A água só cai no passeio (−1) e o pet só bebe em casa ("Água", de graça) |
+| Morte | Alimentação em 0: o pet morre no instante em que zerou. Morto, fica até o jogador enterrar (`enterrar`) ou adotar outro |
+| Pet triste | Felicidade do pet em 0: no turno, o avatar conta metade da felicidade (GDD: "perde 50%") |
+| Nível | De 3 a 15, sobe 1 a cada 5 de experiência (1 por passeio ou serviço do Pet Shop). Multiplicador de 1,00× a 1,25× (GDD §2.4), com teto conjunto Experiência × Pet de 2,5× (ADR-0013) |
+| Passeio | −5 de energia, +3 de felicidade e +3 de saúde no avatar; +2 de felicidade e −1 de água no pet. Precisa de energia para lazer e de 2 de água no pet |
+| Pet Shop | Adoção, ração (+3 de alimentação), banho e tosa (+2 de felicidade) e hotel de 24 h (alimentação e água cheias, +2 de felicidade, sem queda enquanto está lá). Pago pelo ledger como as refeições (`petshop_buy`, para a queima `burn/petshop`), com `Idempotency-Key` |
+
+**Premissas** (a calibrar no simulador):
+- A alimentação do pet cai 1 a cada 6 h e a felicidade 1 a cada 12 h. O GDD diz −1/h de alimentação, o que mataria o pet 5 h depois da última ração, antes de um turno de 6 h acabar.
+- "+30%" vira +2 no pet (de 5) e +3 no avatar (de 10).
+- Um pet por avatar.
+- Preços, em THALER: gato 50, cachorro 80, ração 3, banho 8, tosa 12, hotel 20.
+- O bônus do Pet Sitter (+20%) fica para quando houver serviço de jogador.
+
+Depois de atualizar o código, rode `pnpm db:migrate`: a migração `0010_pets` cria a coluna `pet`.
+
 ## Antifraude (E2.9, passo 15 da trilha)
 
 O limite de 3 avatares por conta (ADR-0013) já vale na criação. O resto do doc 10 ("multi-contas / bots farmando P2E") roda nas duas rotas que emitem P2E, começar turno (`/work`) e coletar (`/claim`):
@@ -194,6 +216,10 @@ TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc_test pnpm --filter
 | POST | `/v1/avatars/:id/consume` | jogador (Bearer) | Come uma unidade `{food}` da despensa, sem cobrar. Devolve o avatar |
 | POST | `/v1/avatars/:id/medicine` | jogador (Bearer) | Compra e toma o remédio `{condition}`. Aceita `Idempotency-Key`. Devolve o remédio, `cured` e o avatar |
 | GET | `/v1/catalog/pharmacy` | público | Preço do remédio, chance de cura e a tabela das doenças |
+| GET | `/v1/catalog/petshop` | público | Espécies e serviços do Pet Shop com o preço, o passeio, a queda e a tabela de nível → multiplicador |
+| POST | `/v1/avatars/:id/pet` | jogador (Bearer) | Adota `{species: cat \| dog, name}`, pago pelo ledger. Aceita `Idempotency-Key`. Devolve a compra e o avatar (com `pet`) |
+| POST | `/v1/avatars/:id/pet/services` | jogador (Bearer) | Serviço do Pet Shop `{service: racao \| banho \| tosa \| hotel}`, pago pelo ledger. Aceita `Idempotency-Key` |
+| POST | `/v1/avatars/:id/pet/actions` | jogador (Bearer) | De graça: `{action: agua \| passeio \| enterrar}` |
 | GET | `/v1/avatars/:id/hospital` | jogador (Bearer) | Últimas 20 internações, com motivo, alta e situação da taxa (`pending`, `paid`, `waived`) |
 | POST | `/v1/avatars/:id/hospital/treat` | jogador (Bearer) | Tratamento das doenças graves: 4 h internado, taxa de 30 THALER, sai curado |
 | POST | `/v1/dev/avatar` | jogador (Bearer) | **Só desenvolvimento** (`DEV_FREE_AVATAR=true`): dá um avatar comum a quem não tem; desligado, 404 |
@@ -214,7 +240,7 @@ Esquema próprio `game`: tabela `avatar` do doc 06, com os instantes de referên
 ## Ainda não
 
 - Deslocamento (carro, skate, ônibus, a pé, home office). Efeito real de energia e felicidade por tarefa, que depende do game designer acertar os números do catálogo. Cards de arte das 12 profissões do MVP.
-- Bônus de itens, pet, moradia e eventos semanais no ganho.
+- Bônus de itens, moradia e eventos semanais no ganho (o do pet já entra).
 - Descansar e atividades (sobem os atributos); as doenças do hospital (febre, enxaqueca, virose: −1 de saúde a cada 15 min).
 - O tempo de compra do mercado e o limite da despensa pela casa.
 - Fila do BullMQ: o job roda no próprio processo até haver Redis no ambiente.

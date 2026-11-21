@@ -12,6 +12,21 @@ import { foods, foodsOrigin, replaceFoods } from './domain/foods.js';
 import { type HospitalPayer, type HospitalStay, type HospitalStore, needsHospital } from './domain/hospital.js';
 import { CONDITIONS, CONDITION_CODES, activeConditions } from './domain/conditions.js';
 import {
+  ADOPTION_CENTS,
+  PET_ACTIONS,
+  PET_DECAY,
+  PET_MAX,
+  PET_SPECIES,
+  SERVICES,
+  SPECIES_LABEL,
+  WALK,
+  checkAdoption,
+  checkService,
+  petAction,
+  petDto,
+  petMultiplier,
+} from './domain/pet.js';
+import {
   CURE_CHANCE,
   MEAL_FOOD_POINTS,
   MEDICINE_PRICE_CENTS,
@@ -21,6 +36,8 @@ import {
   type MealStore,
   eatFromPantry,
   isMedicine,
+  isPetShop,
+  planPetShop,
   isPack,
   packPriceCents,
   planMedicine,
@@ -63,6 +80,7 @@ const avatarDto = (a: Avatar, at: Date) => ({
   status: status(a, at),
   hospital_until: status(a, at).inHospital ? a.hospitalUntil!.toISOString() : null,
   pantry: Object.entries(a.pantry).map(([code, units]) => ({ food: code, units })),
+  pet: petDto(a.pet, at),
   // Só as que estão em curso: a sorteada no turno aparece quando o turno acaba.
   conditions: activeConditions(a.conditions, at).map((c) => ({
     code: c.code,
@@ -356,7 +374,7 @@ export async function buildApp(
     const meal = await store.beginMeal(avatar.id, avatar.accountId, clientKey, now(), plan(clientKey));
     const done = await settleMeal(meal, request.id);
     if (done.status === 'failed') {
-      const what = isMedicine(done) ? 'o remédio' : isPack(done) ? 'o pacote' : 'esta refeição';
+      const what = isPetShop(done) ? 'o Pet Shop' : isMedicine(done) ? 'o remédio' : isPack(done) ? 'o pacote' : 'esta refeição';
       throw new AppError('insufficient_thaler', `THALER insuficiente para ${what}.`, 409);
     }
     return { avatar, done };
@@ -406,6 +424,51 @@ export async function buildApp(
     const fresh = (await store.get(avatar.id))!;
     const at = now();
     return reply.status(201).send({ medicine: mealDto(done), cured: done.effects.cure?.success ?? false, avatar: avatarDto(decayed(fresh, at), at) });
+  });
+
+  // Pet Shop (E3.1): adoção e serviços, preços em centavos de THALER (premissas, pet.ts).
+  app.get('/v1/catalog/petshop', async () => ({
+    decimals: 2,
+    provisional_price: true,
+    max: PET_MAX,
+    species: PET_SPECIES.map((code) => ({ code, label: SPECIES_LABEL[code], price: ADOPTION_CENTS[code].toString() })),
+    services: Object.entries(SERVICES).map(([code, sv]) => ({ code, label: sv.label, price: sv.cents.toString() })),
+    walk: { avatar_energy: WALK.avatarEnergy, avatar_happiness: WALK.avatarHappiness, avatar_health: WALK.avatarHealth, pet_water: WALK.petWater },
+    decay_hours: { food: PET_DECAY.food.everyMs / 3_600_000, happiness: PET_DECAY.happiness.everyMs / 3_600_000 },
+    levels: Array.from({ length: 13 }, (_, i) => ({ level: i + 3, multiplier: petMultiplier(i + 3) })),
+  }));
+
+  // Adota um gato ou cachorro no Pet Shop: um por avatar, pago pelo ledger.
+  app.post('/v1/avatars/:id/pet', async (request, reply) => {
+    const body = z.object({ species: z.string(), name: z.string() }).parse(request.body);
+    const { avatar, done } = await purchase(request, (clientKey) => (current) => {
+      const { cents, ...effect } = checkAdoption(current, body, now());
+      return planPetShop(current, { id: randomUUID(), clientKey, effect, cents }, now());
+    });
+    const fresh = (await store.get(avatar.id))!;
+    const at = now();
+    return reply.status(201).send({ purchase: mealDto(done), avatar: avatarDto(decayed(fresh, at), at) });
+  });
+
+  // Serviço do Pet Shop: ração, banho, tosa ou hotel.
+  app.post('/v1/avatars/:id/pet/services', async (request, reply) => {
+    const { service } = z.object({ service: z.string() }).parse(request.body);
+    const { avatar, done } = await purchase(request, (clientKey) => (current) => {
+      const { cents, ...effect } = checkService(current, service, now());
+      return planPetShop(current, { id: randomUUID(), clientKey, effect, cents }, now());
+    });
+    const fresh = (await store.get(avatar.id))!;
+    const at = now();
+    return reply.status(201).send({ purchase: mealDto(done), avatar: avatarDto(decayed(fresh, at), at) });
+  });
+
+  // De graça, em casa: dar água, passear (gasta energia do avatar) e enterrar o pet morto.
+  app.post('/v1/avatars/:id/pet/actions', async (request) => {
+    const { action } = z.object({ action: z.enum(PET_ACTIONS as [string, ...string[]]) }).parse(request.body);
+    const avatar = await ownAvatar(request);
+    const next = await store.updateAvatar(avatar.id, avatar.accountId, now(), (current) => petAction(current, action, now()));
+    const at = now();
+    return { avatar: avatarDto(decayed(next, at), at) };
   });
 
   app.get('/v1/catalog/pharmacy', async () => ({

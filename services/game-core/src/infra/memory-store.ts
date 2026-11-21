@@ -13,10 +13,12 @@ import {
 import { type HospitalStay, type HospitalStore, admit, treat } from '../domain/hospital.js';
 import { type Meal, type MealPlanner, type MealStore, eat } from '../domain/meal.js';
 import { type Shift, type ShiftPlanner, type ShiftStore, hoursSince, settle } from '../domain/shift.js';
+import { clonePet } from '../domain/pet.js';
 
 const cloneShift = (s: Shift): Shift => ({ ...s, snapshot: { ...s.snapshot }, result: s.result && { ...s.result } });
 
 const cloneMeal = (m: Meal): Meal => ({ ...m, effects: { ...m.effects } });
+
 
 const clone = (a: Avatar): Avatar => ({
   ...a,
@@ -24,6 +26,7 @@ const clone = (a: Avatar): Avatar => ({
   anchors: { ...a.anchors },
   conditions: a.conditions.map((c) => ({ ...c })),
   pantry: { ...a.pantry },
+  pet: clonePet(a.pet),
 });
 
 /** Para testes e desenvolvimento. Uma thread só: cada operação é atômica. */

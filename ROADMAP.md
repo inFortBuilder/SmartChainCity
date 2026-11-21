@@ -159,7 +159,7 @@ O MVP roda inteiro na máquina local, sem serviços pagos. Por isso, publicar o 
 
 | Épico | Trilha | Entregas |
 |-------|--------|----------|
-| E3.1 Pets e Pet Shop | backend · client · art | Gatos e cães, atributos, morte por abandono, serviços |
+| E3.1 Pets e Pet Shop | backend · client · art | Gatos e cães, atributos, morte por abandono, serviços. 🟡 Desde 2026-11-21: no game-core e no mapa. Adoção, alimentação, água e felicidade de 0 a 5, morte por fome, passeio, ração, banho, tosa e hotel pagos pelo ledger, e o nível do pet no turno (até 1,25×, teto conjunto de 2,5×). Faltam a arte e o Pet Sitter como serviço de jogador |
 | E3.2 Educação e troca de profissão | backend | Escola de 4 dias, níveis de educação |
 | E3.3 Lazer e negócios de jogador | backend · client | Academia, galeria, parque, campeonato de futebol de botão |
 | E3.4 Fazenda (A3) | backend · client · art | Plantio, estações, pecuária, maquinário, riscos |

@@ -16,6 +16,7 @@ import {
 } from '../../domain/avatar.js';
 import type { Rarity } from '../../domain/catalog.js';
 import { type Condition, type ConditionCode, drainMarks } from '../../domain/conditions.js';
+import { petFromJson, petToJson } from '../../domain/pet.js';
 import {
   type FeeStatus,
   type HospitalReason,
@@ -125,6 +126,7 @@ const toAvatar = (r: Row): Avatar => ({
   hospitalUntil: r.hospitalUntil,
   conditions: toConditions(r.conditions),
   pantry: (r.pantry ?? {}) as Record<string, number>,
+  pet: petFromJson(r.pet),
   createdAt: r.createdAt,
   updatedAt: r.updatedAt,
 });
@@ -148,6 +150,7 @@ const toRow = (a: Avatar) => ({
     ...(c.drained ? { drained: c.drained } : {}),
   })),
   pantry: a.pantry,
+  pet: petToJson(a.pet),
   createdAt: a.createdAt,
   updatedAt: a.updatedAt,
   ...marks(a),

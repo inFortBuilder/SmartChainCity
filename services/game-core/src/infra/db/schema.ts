@@ -50,6 +50,8 @@ export const avatar = game.table(
     conditions: jsonb('conditions').notNull().default([]),
     /** Despensa (E2.3): unidades por alimento, {codigo: unidades}. */
     pantry: jsonb('pantry').notNull().default({}),
+    /** Pet do avatar (E3.1), com as datas em ISO; null sem pet. */
+    pet: jsonb('pet'),
     createdAt: timestamptz('created_at').notNull(),
     updatedAt: timestamptz('updated_at').notNull(),
   },
