@@ -23,7 +23,17 @@ import { MemoryChainSyncStore } from './infra/memory-chain-sync-store.js';
 import { PostgresPropertyStore } from './infra/db/postgres-property-store.js';
 import { PostgresWorldStore } from './infra/db/postgres-store.js';
 import { PostgresTaxStore } from './infra/db/postgres-tax-store.js';
-import { GatewayWalletDirectory, LocalKeyBuildingSigner, LocalKeyPropertySigner, LocalKeyQuoteSigner } from './infra/land-chain.js';
+import { lotTokenId } from './domain/land-quote.js';
+import { PostgresSeizureStore } from './infra/db/postgres-seizure-store.js';
+import {
+  GatewayWalletDirectory,
+  IndexerChainTokens,
+  LocalKeyBuildingSigner,
+  LocalKeyPropertySigner,
+  LocalKeyQuoteSigner,
+  LocalKeySeizureSigner,
+} from './infra/land-chain.js';
+import { MemorySeizureStore } from './infra/memory-seizure-store.js';
 import { LedgerLandPayments } from './infra/ledger-payments.js';
 import { LedgerPropertyPayments } from './infra/ledger-property-payments.js';
 import { LedgerTaxPayments } from './infra/ledger-tax-payments.js';
@@ -74,6 +84,19 @@ const auctionPayments =
 const taxPayments =
   config.ECONOMY_URL && config.ECONOMY_TOKEN ? new LedgerTaxPayments(config.ECONOMY_URL, config.ECONOMY_TOKEN) : null;
 
+// Apreensão do NFT no leilão (ADR-0016): mesma chave do world (papel SIGNER) nos dois contratos.
+const seizureStore = pool ? new PostgresSeizureStore(pool) : new MemorySeizureStore();
+const lotToken = (city: string, lotId: number) => {
+  const n = config.LAND_CITY_IDS[city];
+  return n ? lotTokenId(n, lotId) : null;
+};
+const seizureSigners = {
+  ...(land ? { lot: new LocalKeySeizureSigner(config.LAND_SIGNER_KEY as Hex, config.CHAIN_ID, config.LAND_NFT_ADDRESS as Address, 'land') } : {}),
+  ...(land && config.PROPERTY_NFT_ADDRESS
+    ? { property: new LocalKeySeizureSigner(config.LAND_SIGNER_KEY as Hex, config.CHAIN_ID, config.PROPERTY_NFT_ADDRESS as Address, 'property') }
+    : {}),
+};
+
 // Prédios de construtores: validação no SCC Builder e outorga em SCITY no ledger.
 const buildingStore = pool ? new PostgresBuildingStore(pool) : new MemoryBuildingStore();
 const builder = config.BUILDER_URL ? new HttpBuilderClient(config.BUILDER_URL) : null;
@@ -121,6 +144,13 @@ const app = await buildApp(
         : null,
   },
   price ? price.usd : undefined,
+  {
+    store: seizureStore,
+    wallets: land?.wallets ?? null,
+    signers: seizureSigners,
+    chain: config.CHAIN_INDEXER_URL ? new IndexerChainTokens(config.CHAIN_INDEXER_URL) : null,
+    chainId: config.CHAIN_ID,
+  },
 );
 const priceTimer = price ? setInterval(() => void price.refresh(), 60_000) : null;
 priceTimer?.unref();
@@ -179,7 +209,15 @@ const auctionTimer = setInterval(async () => {
   auctioning = true;
   try {
     const r = await tickAuctions(
-      { auctions: auctionStore, taxes: taxStore, lots: store, properties: propertyStore, payments: auctionPayments, buildings: buildingStore },
+      {
+        auctions: auctionStore,
+        taxes: taxStore,
+        lots: store,
+        properties: propertyStore,
+        payments: auctionPayments,
+        buildings: buildingStore,
+        seizures: { store: seizureStore, lotToken },
+      },
       new Date(),
     );
     if (r.opened || r.settled || r.cancelled || r.unsold) {
@@ -203,6 +241,7 @@ const chainSync =
         lots: store,
         properties: propertyStore,
         cityOf: (id: number) => Object.entries(config.LAND_CITY_IDS).find(([, n]) => n === id)?.[0],
+        seizures: seizureStore,
       }
     : null;
 let syncing = false;

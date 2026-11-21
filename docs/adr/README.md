@@ -19,5 +19,6 @@ Cada decisão técnica ou de produto relevante é registrada como um arquivo `NN
 | [0013](0013-regras-conflitos-fontes.md) | Regras de jogo para os conflitos entre as fontes | Aceito |
 | [0014](0014-decisoes-produto-mvp.md) | Decisões de produto do MVP | Aceito |
 | [0015](0015-render-realista-e-biblioteca-3d.md) | Render realista no Three.js e biblioteca 3D própria (SCC Kit) | Proposto |
+| [0016](0016-apreensao-nft-leilao.md) | Apreensão do NFT do lote e do imóvel no leilão por imposto | Proposto |
 
 Pendentes de ADR (ver [doc 11](../11-decisoes-pendentes.md)): IaC (Terraform ou CDK); o tomate duplicado na tabela de alimentos; e, do [doc 13 §11](../13-cidade-realista-construtores.md#11-decisões-pendentes), cidade de referência definitiva, padrão das unidades, royalty/alvará/outorga e quem pode ser construtor. A titularidade do Convert3D foi resolvida em 2026-11-20 (código próprio).

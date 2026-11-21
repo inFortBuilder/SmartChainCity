@@ -17,6 +17,7 @@ import {
   propertyDomain,
 } from '../domain/property-voucher.js';
 import { LOT_QUOTE_TYPES, type LotQuote, type QuoteSigner, type WalletDirectory, landDomain } from '../domain/land-quote.js';
+import { type ChainTokens, SEIZURE_TYPES, type SeizureKind, type SeizureSigner, type SeizureVoucher } from '../domain/seizures.js';
 
 /**
  * Assina as cotações com a chave do world (papel SIGNER do `LandNFT`). No MVP
@@ -127,5 +128,49 @@ export class GatewayWalletDirectory implements WalletDirectory {
     if (!response.ok) throw new AppError('gateway_unavailable', 'Não deu para conferir a carteira agora.', 503);
     const body = (await response.json()) as { wallets: { address: string }[] };
     return body.wallets.map((w) => w.address);
+  }
+}
+
+/** Assina a apreensão do leilão (ADR-0016) para o LandNFT ou o PropertyNFT, com a chave do world. */
+export class LocalKeySeizureSigner implements SeizureSigner {
+  private readonly account;
+  readonly address: Address;
+
+  constructor(
+    privateKey: Hex,
+    private readonly chainId: number,
+    readonly contract: Address,
+    private readonly domain: 'land' | 'property',
+  ) {
+    this.account = privateKeyToAccount(privateKey);
+    this.address = this.account.address;
+  }
+
+  sign(v: SeizureVoucher): Promise<Hex> {
+    return this.account.signTypedData({
+      domain: this.domain === 'land' ? landDomain(this.chainId, this.contract) : propertyDomain(this.chainId, this.contract),
+      types: SEIZURE_TYPES,
+      primaryType: 'Seizure',
+      message: v,
+    });
+  }
+}
+
+/** O token está na blockchain? Pelas rotas públicas do chain-indexer (404: não está). */
+export class IndexerChainTokens implements ChainTokens {
+  constructor(
+    private readonly baseUrl: string,
+    private readonly fetchFn: typeof fetch = fetch,
+  ) {}
+
+  async exists(kind: SeizureKind, tokenId: string) {
+    const path = kind === 'lot' ? 'lots' : 'properties';
+    try {
+      const r = await this.fetchFn(`${this.baseUrl.replace(/\/$/, '')}/v1/chain/${path}/${tokenId}`, { signal: AbortSignal.timeout(10_000) });
+      if (r.status === 404) return false;
+      return r.ok ? true : null;
+    } catch {
+      return null;
+    }
   }
 }

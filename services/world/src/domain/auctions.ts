@@ -3,6 +3,8 @@ import { randomUUID } from 'node:crypto';
 import { AppError } from '@scc/shared';
 
 import type { BuildingStore } from './buildings.js';
+import { propertyTokenId } from './property-voucher.js';
+import { type SeizureStore, newSeizure } from './seizures.js';
 import { AREA_CAP_SHARE, type Lot, type WorldStore } from './lots.js';
 import { DAY_MS, type PropertyStore } from './properties.js';
 import { type TaxBill, type TaxStore, totalOf } from './taxes.js';
@@ -153,6 +155,8 @@ export async function tickAuctions(
     properties: PropertyStore;
     payments: AuctionPayments;
     buildings?: Pick<BuildingStore, 'buildingOnLot'> | null;
+    /** Apreensão do NFT (ADR-0016): com ela, o leilão também abre a apreensão do lote e do imóvel. */
+    seizures?: { store: SeizureStore; lotToken: (city: string, lotId: number) => bigint | null } | null;
   },
   now: Date,
 ): Promise<{ opened: number; settled: number; cancelled: number; unsold: number }> {
@@ -225,11 +229,38 @@ async function chargeWinner(deps: { auctions: AuctionStore; payments: AuctionPay
   return false;
 }
 
-/** Passa o lote e o imóvel ao vencedor e quita as contas. Cada passo pode repetir. */
-async function handOver(deps: { taxes: TaxStore; lots: WorldStore; properties: PropertyStore }, a: Auction, now: Date) {
+/**
+ * Passa o lote e o imóvel ao vencedor e quita as contas. Cada passo pode repetir.
+ * Tira de quem tiver o lote no jogo agora: se o dono vendeu na blockchain durante
+ * o leilão, a dívida foi junto com o lote, e o vencedor recebe do mesmo jeito.
+ */
+async function handOver(
+  deps: {
+    taxes: TaxStore;
+    lots: WorldStore;
+    properties: PropertyStore;
+    seizures?: { store: SeizureStore; lotToken: (city: string, lotId: number) => bigint | null } | null;
+  },
+  a: Auction,
+  now: Date,
+) {
   const winner = a.winnerAccountId!;
-  await deps.lots.transferLot(a.city, a.lotId, a.sellerAccountId, winner);
+  const lot = await deps.lots.getLot(a.city, a.lotId);
+  const lotOwner = lot?.ownerAccountId;
+  if (lotOwner && lotOwner !== winner) await deps.lots.transferLot(a.city, a.lotId, lotOwner, winner);
   const p = await deps.properties.propertyOnLot(a.city, a.lotId);
-  if (p) await deps.properties.transferProperty(p.id, a.sellerAccountId, winner);
+  if (p && p.ownerAccountId !== winner) await deps.properties.transferProperty(p.id, p.ownerAccountId, winner);
+  // Se os tokens já estão numa carteira, o vencedor precisa da apreensão para trazê-los.
+  if (deps.seizures && lotOwner !== winner) {
+    const lotToken = deps.seizures.lotToken(a.city, a.lotId);
+    if (lotToken !== null) {
+      await deps.seizures.store.openSeizure(newSeizure({ kind: 'lot', tokenId: lotToken, city: a.city, lotId: a.lotId, toAccountId: winner }, now));
+    }
+    if (p) {
+      await deps.seizures.store.openSeizure(
+        newSeizure({ kind: 'property', tokenId: propertyTokenId(p.id), city: a.city, lotId: a.lotId, propertyId: p.id, toAccountId: winner }, now),
+      );
+    }
+  }
   for (const id of a.billIds) await deps.taxes.markPaid(id, now);
 }

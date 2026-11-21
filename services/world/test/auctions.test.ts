@@ -10,7 +10,9 @@ import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
 import { AUCTION_AFTER_DAYS, AUCTION_MS, type Auction, type AuctionStore, EXTEND_MS, minBid, tickAuctions } from '../src/domain/auctions.js';
+import { lotTokenId } from '../src/domain/land-quote.js';
 import { DAY_MS } from '../src/domain/properties.js';
+import { propertyTokenId } from '../src/domain/property-voucher.js';
 import { chargeTaxes } from '../src/domain/taxes.js';
 import { PostgresAuctionStore } from '../src/infra/db/postgres-auction-store.js';
 import { LedgerAuctionPayments } from '../src/infra/ledger-auction-payments.js';
@@ -18,6 +20,7 @@ import { LedgerLandPayments } from '../src/infra/ledger-payments.js';
 import { LedgerPropertyPayments } from '../src/infra/ledger-property-payments.js';
 import { LedgerTaxPayments } from '../src/infra/ledger-tax-payments.js';
 import { MemoryAuctionStore } from '../src/infra/memory-auction-store.js';
+import { MemorySeizureStore } from '../src/infra/memory-seizure-store.js';
 import { MemoryPropertyStore } from '../src/infra/memory-property-store.js';
 import { MemoryWorldStore } from '../src/infra/memory-store.js';
 import { MemoryTaxStore } from '../src/infra/memory-tax-store.js';
@@ -279,5 +282,48 @@ describe('leilão de ponta a ponta (world + economy)', () => {
     clock = new Date(clock.getTime() + AUCTION_MS + HOUR);
     await tick();
     expect((await properties.getProperty(house.id))!.ownerAccountId).toBe(buyer.me);
+  });
+  // ------------------------------------------------------------ apreensão do NFT (ADR-0016)
+
+  it('vendido na blockchain durante o leilão, o lote vai para o vencedor do mesmo jeito, com a apreensão aberta', async () => {
+    const seller = await defaultedLot();
+    const house = {
+      id: randomUUID(),
+      city: 'teste',
+      lotId: 4,
+      ownerAccountId: seller.me,
+      type: 't1',
+      level: 1,
+      status: 'active' as const,
+      priceCents: 4000_00,
+      createdAt: at(200),
+      readyAt: at(201),
+      wearBase: 100,
+      wearSince: at(201),
+      lastClaimAt: at(201),
+    };
+    await properties.createProperty(house);
+    const seizures = new MemorySeizureStore();
+    const tickSeize = () =>
+      tickAuctions(
+        { auctions, taxes: taxStore, lots, properties, payments: auctionPayments, seizures: { store: seizures, lotToken: (_c, lot) => lotTokenId(1, lot) } },
+        clock,
+      );
+    await tickSeize();
+    const [a] = await auctions.listOpen(10);
+    const winner = await playerWith(100_000_00n);
+    await bid(winner.headers, a!.id, a!.debtCents);
+    // O dono vende o lote na blockchain durante o leilão; o chain.sync passa o lote no jogo.
+    const escaped = randomUUID();
+    await lots.transferLot('teste', 4, seller.me, escaped);
+    clock = new Date(clock.getTime() + AUCTION_MS + HOUR);
+    expect(await tickSeize()).toMatchObject({ settled: 1 });
+
+    expect((await lots.getLot('teste', 4))!.ownerAccountId).toBe(winner.me);
+    expect((await properties.getProperty(house.id))!.ownerAccountId).toBe(winner.me);
+    const open = await seizures.openOf(winner.me);
+    expect(open.map((x) => x.kind).sort()).toEqual(['lot', 'property']);
+    expect(open.find((x) => x.kind === 'lot')!.tokenId).toBe(lotTokenId(1, 4).toString());
+    expect(open.find((x) => x.kind === 'property')!.tokenId).toBe(propertyTokenId(house.id).toString());
   });
 });

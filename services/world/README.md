@@ -118,7 +118,7 @@ O job `auctions.tick` (a cada `AUCTION_EVERY_SECONDS`, 60 s) abre o leilão do l
 | Quem dá lance | Qualquer jogador, menos o dono, com as regras da compra: um bairro por jogador e o teto de 30% da área (`other_district`, `area_cap`). Sem reserva de saldo |
 | Duração | 72 h. Lance nos últimos 10 min empurra o fim para 10 min depois dele |
 | Fim | Cobra o maior lance numa transação só do ledger (`lot_auction`): sai do vencedor, a dívida ainda pendente vai para `burn/tax` e o resto para o antigo dono. Sem saldo, passa para o próximo jogador |
-| Passagem | Depois da cobrança, o lote e o imóvel mudam de dono e as contas do leilão ficam pagas. Se a passagem parar no meio, o leilão fica `charged` e o job termina na rodada seguinte |
+| Passagem | Depois da cobrança, o lote e o imóvel saem de quem os tiver no jogo naquela hora e vão para o vencedor, e as contas do leilão ficam pagas. A dívida acompanha o lote: vender na blockchain durante o leilão não o salva. Se a passagem parar no meio, o leilão fica `charged` e o job termina na rodada seguinte |
 | Dono pagou | Se as contas não estão mais pendentes no fim, o leilão é cancelado e ninguém é cobrado |
 | Ninguém pagou | Fica `unsold`, o lote continua com o dono e, se ainda estiver inadimplente, o job abre outro leilão |
 
@@ -126,7 +126,14 @@ O PT continua contando os meses desde a primeira compra: o novo dono herda a esc
 
 **Premissas** (sem fonte no GDD): abre 120 dias depois do vencimento (30 depois do bloqueio de 90), dura 72 h, passo de 5% e extensão de 10 min. Lote com prédio de construtor não vai a leilão, porque o prédio tem regras e NFT próprios.
 
-**Limite:** o leilão muda o dono no jogo. Se o lote ou o imóvel já estiver na blockchain (`LandNFT`, `PropertyNFT`), o NFT continua na carteira do antigo dono, porque os contratos não têm como tomar o token. Resolver isso pede uma função de confisco nos contratos ou o `Marketplace` (E3.6).
+**Apreensão do NFT ([ADR-0016](../../docs/adr/0016-apreensao-nft-leilao.md)):** se o lote ou o imóvel pode estar numa carteira, o leilão abre a apreensão para o vencedor.
+
+1. `GET /v1/world/me/seizures` lista as apreensões abertas do jogador.
+2. `POST /v1/world/seizures/:id/voucher` com `{wallet}` (carteira ligada à conta) devolve o voucher EIP-712, válido por 24 h, para `LandNFT.seize` ou `PropertyNFT.seize`. O contrato leva o token de quem o tiver até essa carteira.
+3. Token que nunca foi para a blockchain (o chain-indexer responde 404) cancela a apreensão com `409 not_onchain`: o vencedor leva o lote para a carteira pelo caminho normal.
+4. Enquanto a apreensão está aberta, o `chain.sync` ignora as transferências do token. O dono antigo não tira o lote do vencedor vendendo na blockchain. A apreensão fecha (`done`) quando o token chega a uma carteira do vencedor.
+
+Testado no anvil em 2026-11-21: o antigo dono passou o lote para outra carteira, o jogo manteve o lote com o vencedor, o `seize` levou o NFT ao vencedor e a apreensão fechou. Erros: `seizure_closed`, `not_onchain`, `wallet_not_linked`, `seizures_disabled`.
 
 ## Prédios de construtores (E2.10)
 
