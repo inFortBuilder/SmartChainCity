@@ -3,6 +3,7 @@ import {
   bigserial,
   check,
   index,
+  integer,
   numeric,
   pgSchema,
   primaryKey,
@@ -92,5 +93,35 @@ export const withdrawal = economy.table(
     index('withdrawal_account_idx').on(t.accountId, t.createdAt),
     index('withdrawal_open_idx').on(t.status, t.createdAt),
     check('withdrawal_status_check', sql`${t.status} in ('created', 'pending', 'claimed', 'refunded', 'failed')`),
+  ],
+);
+
+/** Cotação do câmbio (doc 06 §2): THALER por SCITY em milionésimos, a partir de `valid_from`. */
+export const fxRate = economy.table('fx_rate', {
+  validFrom: timestamptz('valid_from').primaryKey(),
+  thalerPerScityMicro: numeric('thaler_per_scity_micro', { precision: 38, scale: 0 }).notNull(),
+  scityUsd: numeric('scity_usd', { precision: 20, scale: 8 }).notNull(),
+  source: text('source').notNull(),
+});
+
+/** Cada conversão THALER ↔ SCITY: o teto de 24 h e o freio do pool contam daqui. */
+export const fxConversion = economy.table(
+  'fx_conversion',
+  {
+    id: uuid('id').primaryKey(),
+    accountId: text('account_id').notNull(),
+    direction: text('direction').notNull(),
+    thalerCents: amount('thaler_cents').notNull(),
+    scityWei: numeric('scity_wei', { precision: 78, scale: 0 }).notNull(),
+    feeCents: amount('fee_cents').notNull(),
+    thalerPerScityMicro: amount('thaler_per_scity_micro').notNull(),
+    spreadBps: integer('spread_bps').notNull(),
+    status: text('status').notNull(),
+    createdAt: timestamptz('created_at').notNull(),
+  },
+  (t) => [
+    index('fx_conversion_account_idx').on(t.accountId, t.createdAt),
+    check('fx_conversion_direction_check', sql`${t.direction} in ('scity_to_thaler', 'thaler_to_scity')`),
+    check('fx_conversion_status_check', sql`${t.status} in ('created', 'done', 'failed')`),
   ],
 );

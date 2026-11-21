@@ -40,6 +40,12 @@ const schema = z.object({
   /** Só no MVP local: em produção a chave fica num KMS. */
   VAULT_SIGNER_KEY: z.preprocess((v) => (v === '' ? undefined : v), z.string().regex(/^0x[0-9a-fA-F]{64}$/).optional()),
   WITHDRAW_EVERY_SECONDS: z.coerce.number().int().nonnegative().default(60),
+  /** Câmbio: preço do SCITY em dólar para a primeira cotação, se o banco ainda não tiver uma (PREMISSA: US$ 1). */
+  SCITY_USD: z.coerce.number().positive().default(1),
+  /** Início da liberação do pool P2E (TGE). Sem ele, o freio do pool fica desligado. */
+  P2E_START: z.preprocess((v) => (v === '' ? undefined : v), z.coerce.date().optional()),
+  /** Fim do período grátis (ADR-0014): o THALER ganho antes não vira SCITY. Sem ele, não há período grátis. */
+  FREE_PERIOD_UNTIL: z.preprocess((v) => (v === '' ? undefined : v), z.coerce.date().optional()),
 });
 
 export type Config = z.infer<typeof schema>;

@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import { AppError, bearerToken, observe, requireServiceToken, serverOptions, verifyAccessToken } from '@scc/shared';
 import cors from '@fastify/cors';
 import Fastify, { type FastifyRequest } from 'fastify';
@@ -5,6 +7,15 @@ import { z } from 'zod';
 
 import type { Config } from './config.js';
 import { type PanelStore, buildPanel, panelGauges } from './domain/panel.js';
+import {
+  type Conversion,
+  type EarningsReader,
+  type ExchangeStore,
+  MIN_EXIT_CENTS,
+  convert,
+  currentTerms,
+  rateFromUsd,
+} from './domain/exchange.js';
 import {
   type AccountDirectory,
   type VoucherSigner,
@@ -71,6 +82,32 @@ export interface WithdrawalsWiring {
   vault: { contract: string; chainId: number };
 }
 
+/** Câmbio THALER ↔ SCITY (passo 11 da trilha). */
+export interface ExchangeWiring {
+  store: ExchangeStore;
+  earnings: EarningsReader | null;
+  poolStart: Date | null;
+  freeUntil: Date | null;
+}
+
+const conversionDto = (c: Conversion) => ({
+  id: c.id,
+  direction: c.direction,
+  thaler_cents: c.thalerCents.toString(),
+  scity_wei: c.scityWei.toString(),
+  fee_cents: c.feeCents.toString(),
+  thaler_per_scity: Number(c.thalerPerScityMicro) / 1_000_000,
+  spread_bps: c.spreadBps,
+  status: c.status,
+  created_at: c.createdAt.toISOString(),
+});
+
+/** Id da conversão a partir da Idempotency-Key: a mesma chave da mesma conta dá o mesmo id. */
+const idFromKey = (accountId: string, key: string) => {
+  const h = createHash('sha256').update(`fx:${accountId}:${key}`).digest('hex');
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-8${h.slice(17, 20)}-${h.slice(20, 32)}`;
+};
+
 const withdrawalDto = (w: Withdrawal) => ({
   id: w.id,
   wallet: w.wallet,
@@ -90,6 +127,7 @@ export async function buildApp(
   store: LedgerStore & Partial<PanelStore>,
   now: () => Date = () => new Date(),
   withdrawals: WithdrawalsWiring | null = null,
+  exchange: ExchangeWiring | null = null,
 ) {
   const app = Fastify({
     ...serverOptions({
@@ -204,6 +242,60 @@ export async function buildApp(
       now(),
     );
     return reply.status(result.replayed ? 200 : 201).send({ transaction: txDto(result.tx), replayed: result.replayed });
+  });
+
+  // ---------------------------------------------------------------- câmbio (passo 11)
+
+  const exchangeOn = () => {
+    if (!exchange) throw new AppError('fx_disabled', 'O câmbio ainda não está ligado.', 503);
+    return exchange;
+  };
+
+  app.get('/v1/economy/fx', async () => {
+    const terms = await currentTerms(exchangeOn(), now());
+    return {
+      thaler_per_scity: Number(terms.rate.thalerPerScityMicro) / 1_000_000,
+      scity_usd: terms.rate.scityUsd,
+      valid_from: terms.rate.validFrom.toISOString(),
+      source: terms.rate.source,
+      exit_spread_bps: terms.exitSpreadBps,
+      pool_brake: Math.round(terms.brake * 1000) / 1000,
+      min_exit_cents: MIN_EXIT_CENTS.toString(),
+      daily_exit_cents: terms.dailyExitCents.toString(),
+      provisional: true,
+    };
+  });
+
+  app.post('/v1/economy/exchange', async (request, reply) => {
+    const accountId = await player(request);
+    const x = exchangeOn();
+    const body = z
+      .object({ direction: z.enum(['scity_to_thaler', 'thaler_to_scity']), amount: z.string().regex(/^\d{1,40}$/) })
+      .parse(request.body);
+    const key = request.headers['idempotency-key'];
+    if (typeof key !== 'string' || key.length < 8 || key.length > 128) {
+      throw new AppError('missing_idempotency_key', 'Envie o cabeçalho Idempotency-Key.', 400);
+    }
+    const c = await convert(
+      { ledger: store, store: x.store, earnings: x.earnings, poolStart: x.poolStart, freeUntil: x.freeUntil },
+      { accountId, direction: body.direction, amount: BigInt(body.amount), id: idFromKey(accountId, key) },
+      now(),
+    );
+    return reply.status(201).send({ conversion: conversionDto(c) });
+  });
+
+  app.get('/v1/economy/exchange', async (request) => {
+    const accountId = await player(request);
+    return { conversions: (await exchangeOn().store.listOf(accountId, 50)).map(conversionDto) };
+  });
+
+  // Cotação nova, por quem opera (hoje) ou pelo job do TWAP da DEX (depois do TGE).
+  app.post('/internal/v1/economy/fx', async (request, reply) => {
+    requireServiceToken(request.headers['x-service-token'], config.INTERNAL_TOKEN);
+    const { scity_usd, source } = z.object({ scity_usd: z.number().positive().max(1e6), source: z.string().max(40).default('manual') }).parse(request.body);
+    const rate = rateFromUsd(scity_usd, now(), source);
+    await exchangeOn().store.setRate(rate);
+    return reply.status(201).send({ thaler_per_scity: Number(rate.thalerPerScityMicro) / 1_000_000, valid_from: rate.validFrom.toISOString() });
   });
 
   // ---------------------------------------------------------------- saques (E3.7)

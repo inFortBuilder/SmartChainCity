@@ -85,7 +85,7 @@ O conversor **flutua** para manter o payback em dólares estável. Regras propos
 - **Freio do pool:** a partir de 70% do volume liberado já usado, o limite de saque cai e o spread sobe (até +10 pontos), de forma gradual, para o pool não esgotar. O saldo fica retido em THALER.
 - **Dreno-alvo de 55% da renda**, por consumo, manutenção e impostos proporcionais; custos fixos sozinhos quebram os avatares comuns.
 
-Valores validados no [simulador](../tools/econ-sim/README.md), com as ressalvas de lá.
+Valores validados no [simulador](../tools/econ-sim/README.md), com as ressalvas de lá. No economy desde 2026-11-20, com os valores do simulador como premissa: cotação, spread queimado, mínimo, teto de 24 h, freio do pool e período grátis ([economy](../services/economy/README.md#câmbio-thaler--scity-passo-11-da-trilha)). Falta o TWAP da DEX.
 
 ## 6. Payback-alvo
 
