@@ -2,7 +2,8 @@ import { type AuthContext, type Client, Room } from '@colyseus/core';
 import { type MapSchema, schema, t } from '@colyseus/schema';
 import { verifyAccessToken } from '@scc/shared';
 
-import { MuteBook, RateLimiter, cleanName, moderateText } from './moderation.js';
+import { MuteBook, RateLimiter, cleanName } from './moderation.js';
+import { registerChat } from './room-chat.js';
 
 /**
  * Sala de um bairro (ADR-0005; ADR-0012: o bairro é a unidade de carregamento
@@ -104,35 +105,12 @@ export class DistrictRoom extends Room {
       if (typeof msg?.skin === 'string' && SKINS.has(msg.skin)) p.skin = msg.skin;
     });
 
-    this.onMessage('chat', (client, msg: { text?: unknown }) => {
-      const p = this.state.players.get(client.sessionId);
-      const account = this.accounts.get(client.sessionId);
-      if (!p || !account) return;
-      const muted = deps.mutes.isMuted(account);
-      if (muted) return client.send('chat_error', { reason: 'muted', until: new Date(muted).toISOString() });
-      if (!this.chats.take(client.sessionId)) return client.send('chat_error', { reason: 'too_fast' });
-
-      const r = moderateText(typeof msg?.text === 'string' ? msg.text : '');
-      if (!r.ok) {
-        const until = r.reason === 'link' ? deps.mutes.violation(account) : 0;
-        deps.log('chat.blocked', { account, reason: r.reason, room: this.roomId, muted: until > 0 });
-        return client.send('chat_error', { reason: r.reason, ...(until ? { muted_until: new Date(until).toISOString() } : {}) });
-      }
-      if (r.masked) {
-        const until = deps.mutes.violation(account);
-        deps.log('chat.masked', { account, room: this.roomId, muted: until > 0 });
-      }
-      this.broadcast('chat', { from: client.sessionId, name: p.name, text: r.text, at: new Date().toISOString() });
-    });
-
-    // Denúncia: 3 jogadores diferentes silenciam o alvo (doc 10).
-    this.onMessage('report', (client, msg: { sessionId?: unknown; reason?: unknown }) => {
-      const by = this.accounts.get(client.sessionId);
-      const target = typeof msg?.sessionId === 'string' ? this.accounts.get(msg.sessionId) : undefined;
-      if (!by || !target) return;
-      const until = deps.mutes.report(target, by);
-      deps.log('chat.report', { by, target, room: this.roomId, reason: String(msg?.reason ?? '').slice(0, 100), muted: until > 0 });
-      client.send('report_ok', {});
+    registerChat(this, {
+      mutes: deps.mutes,
+      log: deps.log,
+      chats: this.chats,
+      accounts: this.accounts,
+      nameOf: (id) => this.state.players.get(id)?.name,
     });
   }
 
