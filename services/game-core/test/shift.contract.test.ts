@@ -1,10 +1,11 @@
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 
 import { Pool } from 'pg';
 import { afterAll, describe, expect, it } from 'vitest';
 
 import { type AvatarStore, newAvatar } from '../src/domain/avatar.js';
-import { type ShiftStore, startShift } from '../src/domain/shift.js';
+import { CONDITIONS, type ConditionCode } from '../src/domain/conditions.js';
+import { type ShiftStore, draw, startShift } from '../src/domain/shift.js';
 import { PostgresAvatarStore } from '../src/infra/db/postgres-store.js';
 import { MemoryAvatarStore } from '../src/infra/memory-store.js';
 import { completeShifts } from '../src/jobs/shift.js';
@@ -24,6 +25,21 @@ const HOUR = 3_600_000;
 const t0 = new Date(Date.UTC(2095, 0, 1, 8) + Math.floor(Math.random() * 1e6) * 86_400_000);
 const at = (hours: number) => new Date(t0.getTime() + hours * HOUR);
 
+// Doenças sorteadas no turno: com uma semente qualquer, gripe, febre ou virose às vezes pegam o avatar e o
+// turno seguinte recusa com `sick`. Aqui o teste é do store, não do sorteio: cada turno usa uma semente
+// em que nenhuma doença sai, conferida com as mesmas chances e a mesma conta (`draw`) de `startShift`.
+const SHIFT_ILLNESSES = (Object.keys(CONDITIONS) as ConditionCode[]).filter((code) => CONDITIONS[code].trigger === 'shift');
+const healthySeed = (shiftId: string) => {
+  for (;;) {
+    const seed = randomBytes(32).toString('hex');
+    if (SHIFT_ILLNESSES.every((code) => draw(seed, shiftId, code) >= CONDITIONS[code].chance)) return seed;
+  }
+};
+const healthyShift = (hours: number) => {
+  const id = randomUUID();
+  return { id, hours, seed: healthySeed(id) };
+};
+
 const codeOf = async (p: Promise<unknown>) => {
   try {
     await p;
@@ -38,7 +54,7 @@ const setup = async (store: Store) => {
   await store.create(a);
   const work = (hours: number, when = t0) =>
     store.beginShift(a.id, a.accountId, when, (avatar, context) =>
-      startShift(avatar, { id: randomUUID(), hours, ...context }, when),
+      startShift(avatar, { ...healthyShift(hours), ...context }, when),
     );
   return { a, work };
 };
@@ -75,7 +91,7 @@ describe.each(stores)('ShiftStore: %s', (_name, make, enabled) => {
     await completeShifts(store, at(12));
     expect(await codeOf(work(6, at(12)))).toBe('daily_limit');
     const other = store.beginShift(a.id, randomUUID(), t0, (avatar, context) =>
-      startShift(avatar, { id: randomUUID(), hours: 6, ...context }, t0),
+      startShift(avatar, { ...healthyShift(6), ...context }, t0),
     );
     expect(await codeOf(other)).toBe('not_found');
   });

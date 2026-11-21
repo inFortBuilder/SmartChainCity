@@ -99,7 +99,15 @@ const startOfUtcDay = (d: Date) => new Date(Date.UTC(d.getUTCFullYear(), d.getUT
  */
 export function startShift(
   avatar: Avatar,
-  input: { id: string; hours: number; hoursToday: number; running: boolean; durationMs?: number },
+  input: {
+    id: string;
+    hours: number;
+    hoursToday: number;
+    running: boolean;
+    durationMs?: number;
+    /** Semente do turno (hex, 32 bytes). Só os testes passam; no jogo ela é sempre sorteada aqui. */
+    seed?: string;
+  },
   now: Date,
 ): { shift: Shift; avatar: Avatar } {
   if (!SHIFT_HOURS.includes(input.hours as ShiftHours)) {
@@ -119,7 +127,7 @@ export function startShift(
     throw new AppError('too_tired', `Energia ou saúde insuficiente: o turno de ${hours} h gasta ${cost} de energia.`, 409);
   }
 
-  const seed = randomBytes(32).toString('hex');
+  const seed = input.seed ?? randomBytes(32).toString('hex');
   const id = input.id;
   const shift: Shift = {
     id: input.id,
