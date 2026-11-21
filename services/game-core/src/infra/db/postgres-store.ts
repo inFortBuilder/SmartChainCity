@@ -19,6 +19,7 @@ import { type Condition, type ConditionCode, drainMarks } from '../../domain/con
 import { petFromJson, petToJson } from '../../domain/pet.js';
 import { schoolFromJson, schoolToJson } from '../../domain/school.js';
 import { leisureFromJson, leisureToJson } from '../../domain/leisure.js';
+import { licenseFromJson, licenseToJson } from '../../domain/vehicle.js';
 import {
   type FeeStatus,
   type HospitalReason,
@@ -131,6 +132,7 @@ const toAvatar = (r: Row): Avatar => ({
   pet: petFromJson(r.pet),
   school: schoolFromJson(r.school),
   leisure: leisureFromJson(r.leisure),
+  license: licenseFromJson(r.license),
   createdAt: r.createdAt,
   updatedAt: r.updatedAt,
 });
@@ -157,6 +159,7 @@ const toRow = (a: Avatar) => ({
   pet: petToJson(a.pet),
   school: schoolToJson(a.school),
   leisure: leisureToJson(a.leisure),
+  license: licenseToJson(a.license),
   createdAt: a.createdAt,
   updatedAt: a.updatedAt,
   ...marks(a),

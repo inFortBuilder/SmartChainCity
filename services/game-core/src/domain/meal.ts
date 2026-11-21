@@ -7,6 +7,7 @@ import { assertNotInHospital } from './hospital.js';
 import { type PetEffect, applyPetEffect } from './pet.js';
 import { type SchoolEffect, applySchoolEffect } from './school.js';
 import { type LeisureEffect, applyLeisure } from './leisure.js';
+import { applyLicense } from './vehicle.js';
 
 /**
  * Refeição no mercado do jogo (E2.3, GDD §2.3 e §4): o avatar compra uma
@@ -40,6 +41,8 @@ export interface MealEffects {
   school?: SchoolEffect;
   /** Só lazer pago (E3.3): a atividade e o dono do negócio que recebe a entrada. */
   leisure?: LeisureEffect;
+  /** Só autoescola (E3.5): a habilitação começa depois da cobrança. */
+  license?: true;
 }
 
 /**
@@ -72,6 +75,24 @@ export const isMedicine = (m: Pick<Meal, 'foodCode'>) => m.foodCode === MEDICINE
  * (cobrança em duas fases, idempotente). O código é `pet:<adocao|serviço>`.
  */
 export const isPetShop = (m: Pick<Meal, 'foodCode'>) => m.foodCode?.startsWith('pet:') ?? false;
+
+/** Autoescola (E3.5): pelo mesmo caminho das refeições. Código `autoescola`. */
+export const isLicense = (m: Pick<Meal, 'foodCode'>) => m.foodCode === 'autoescola';
+
+export function planLicense(avatar: Avatar, input: { id: string; clientKey: string | null; cents: bigint }, now: Date): Meal {
+  return {
+    id: input.id,
+    avatarId: avatar.id,
+    accountId: avatar.accountId,
+    foodCode: 'autoescola',
+    priceCents: input.cents,
+    effects: { food: 0, energy: 0, health: 0, license: true },
+    status: 'pending',
+    clientKey: input.clientKey,
+    createdAt: now,
+    eatenAt: null,
+  };
+}
 
 /** Lazer pago (E3.3): a entrada do negócio de jogador, pelo mesmo caminho. Código `lazer:<atividade>`. */
 export const isLeisure = (m: Pick<Meal, 'foodCode'>) => m.foodCode?.startsWith('lazer:') ?? false;
@@ -263,6 +284,7 @@ export function eat(avatar: Avatar, effects: MealEffects, now: Date): Avatar {
   if (effects.pet) return applyPetEffect(avatar, effects.pet, now);
   if (effects.school) return applySchoolEffect(avatar, effects.school, now);
   if (effects.leisure) return applyLeisure(avatar, effects.leisure, now);
+  if (effects.license) return applyLicense(avatar, now);
   const a = avatar.attributes;
   let conditions = avatar.conditions;
   if (effects.condition) conditions = catchCondition(conditions, effects.condition, now);

@@ -8,7 +8,9 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { newAvatar } from '../src/domain/avatar.js';
 import { ENTRY_CENTS, type Member, newChampionship, play } from '../src/domain/championship.js';
 import { checkActivity } from '../src/domain/leisure.js';
-import { planLeisure, planPetShop, planSchool } from '../src/domain/meal.js';
+import { planLeisure, planLicense, planPetShop, planSchool } from '../src/domain/meal.js';
+import { ipvaCents, newVehicle, settleVehicle } from '../src/domain/vehicle.js';
+import { MemoryVehicleStore } from '../src/infra/memory-vehicle-store.js';
 import { checkAdoption } from '../src/domain/pet.js';
 import { checkClass } from '../src/domain/school.js';
 import { EconomyPayer } from '../src/infra/economy-payer.js';
@@ -91,5 +93,20 @@ describe('cobranças no economy de verdade', () => {
     expect(await thaler('escrow', 'championship_2026_11')).toBe(0n);
     const winner = result.payouts.find((p) => p.cents === '1125')!;
     expect(await thaler('player', winner.accountId)).toBe(1125n);
+  });
+
+  it('veículos: autoescola, compra, IPVA e recompra da agência', async () => {
+    const a = avatar();
+    await credit(a.accountId, 400_000n);
+    await payer.chargeMeal(planLicense(a, { id: randomUUID(), clientKey: null, cents: 5000n }, t0));
+    const store = new MemoryVehicleStore();
+    const car = newVehicle({ id: randomUUID(), accountId: a.accountId, model: 'hatch', rent: false }, t0);
+    await store.create(car);
+    await settleVehicle({ store, payer }, car);
+    await payer.chargeVehicle({ key: `vehicle-ipva:${car.id}:1`, kind: 'vehicle_ipva', accountId: a.accountId, cents: ipvaCents('hatch'), sink: 'ipva', refId: car.id });
+    await payer.payBuyback({ key: `vehicle-buyback:${car.id}`, accountId: a.accountId, cents: 100_000n, refId: car.id });
+    await payer.payBuyback({ key: `vehicle-buyback:${car.id}`, accountId: a.accountId, cents: 100_000n, refId: car.id });
+    // 400.000 − 5.000 − 300.000 − 6.000 + 100.000 (uma vez).
+    expect(await thaler('player', a.accountId)).toBe(189_000n);
   });
 });

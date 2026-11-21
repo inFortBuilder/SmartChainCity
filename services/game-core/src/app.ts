@@ -42,6 +42,29 @@ import {
   settleDue,
   settleEntry,
 } from './domain/championship.js';
+import {
+  BUYBACK_BPS,
+  FULL_DAYS,
+  IPVA_BPS,
+  IPVA_PERIOD_MS,
+  LICENSE_CENTS,
+  LICENSE_MS,
+  LIFE_DAYS,
+  MIN_FACTOR,
+  MODELS,
+  RENT_BPS,
+  RENT_MS,
+  type VehiclePayer,
+  type VehicleStore,
+  checkIpva,
+  checkLicense,
+  checkSale,
+  licensed,
+  newVehicle,
+  rentCents,
+  settleVehicle,
+  vehicleDto,
+} from './domain/vehicle.js';
 import { ACTIVITIES, COOLDOWN_MS, OWNER_SHARE_BPS, type VenueDirectory, applyLeisure, checkActivity, leisureDto } from './domain/leisure.js';
 import {
   CURE_CHANCE,
@@ -55,8 +78,10 @@ import {
   isMedicine,
   isPetShop,
   isLeisure,
+  isLicense,
   isSchool,
   planLeisure,
+  planLicense,
   planPetShop,
   planSchool,
   isPack,
@@ -105,6 +130,8 @@ const avatarDto = (a: Avatar, at: Date) => ({
   school: schoolDto(a, at),
   // Quando cada atividade de lazer libera de novo (null: já pode).
   leisure: leisureDto(a, at),
+  // Habilitação (E3.5): null sem; com a autoescola em curso, `licensed` é falso até `ready_at`.
+  license: a.license ? { ready_at: a.license.readyAt.toISOString(), licensed: licensed(a, at) } : null,
   // Só as que estão em curso: a sorteada no turno aparece quando o turno acaba.
   conditions: activeConditions(a.conditions, at).map((c) => ({
     code: c.code,
@@ -191,6 +218,8 @@ export async function buildApp(
   venues: VenueDirectory | null = null,
   /** Campeonato de futebol de botão (E3.3). Sem ele, as rotas do campeonato respondem 503. */
   championships: { store: ChampionshipStore; payer: ChampionshipPayer } | null = null,
+  /** Veículos (E3.5): agência e IPVA. Sem ele, as rotas de veículos respondem 503. */
+  vehicles: { store: VehicleStore; payer: VehiclePayer } | null = null,
 ) {
   const app = Fastify({
     trustProxy: config.TRUST_PROXY,
@@ -402,7 +431,7 @@ export async function buildApp(
     const meal = await store.beginMeal(avatar.id, avatar.accountId, clientKey, now(), plan(clientKey));
     const done = await settleMeal(meal, request.id);
     if (done.status === 'failed') {
-      const what = isLeisure(done) ? 'a entrada' : isSchool(done) ? 'a escola' : isPetShop(done) ? 'o Pet Shop' : isMedicine(done) ? 'o remédio' : isPack(done) ? 'o pacote' : 'esta refeição';
+      const what = isLicense(done) ? 'a autoescola' : isLeisure(done) ? 'a entrada' : isSchool(done) ? 'a escola' : isPetShop(done) ? 'o Pet Shop' : isMedicine(done) ? 'o remédio' : isPack(done) ? 'o pacote' : 'esta refeição';
       throw new AppError('insufficient_thaler', `THALER insuficiente para ${what}.`, 409);
     }
     return { avatar, done };
@@ -576,6 +605,110 @@ export async function buildApp(
     const fresh = (await store.get(avatar.id))!;
     const at = now();
     return reply.status(201).send({ purchase: mealDto(done), avatar: avatarDto(decayed(fresh, at), at) });
+  });
+
+  // ---------------------------------------------------------------- veículos (E3.5)
+
+  const vehiclesOn = () => {
+    if (!vehicles) throw new AppError('vehicles_disabled', 'A agência está fechada: o ledger não está ligado.', 503);
+    return vehicles;
+  };
+
+  app.get('/v1/catalog/vehicles', async () => ({
+    decimals: 2,
+    provisional_price: true,
+    models: Object.entries(MODELS).map(([code, m]) => ({
+      code,
+      label: m.label,
+      rarity: m.rarity,
+      price: m.priceCents.toString(),
+      rent_price: rentCents(code as keyof typeof MODELS).toString(),
+      speed: m.speed,
+      power: m.power,
+    })),
+    rules: {
+      full_days: FULL_DAYS,
+      life_days: LIFE_DAYS,
+      min_factor: MIN_FACTOR,
+      ipva_share: IPVA_BPS / 10_000,
+      ipva_days: IPVA_PERIOD_MS / 86_400_000,
+      rent_share: RENT_BPS / 10_000,
+      rent_days: RENT_MS / 86_400_000,
+      buyback_share: BUYBACK_BPS / 10_000,
+      license_price: LICENSE_CENTS.toString(),
+      license_hours: LICENSE_MS / 3_600_000,
+    },
+  }));
+
+  // Autoescola: paga e fica 3 h parado; depois, habilitado.
+  app.post('/v1/avatars/:id/license', async (request, reply) => {
+    const { avatar, done } = await purchase(request, (clientKey) => (current) => {
+      const { cents } = checkLicense(current, now());
+      return planLicense(current, { id: randomUUID(), clientKey, cents }, now());
+    });
+    const fresh = (await store.get(avatar.id))!;
+    const at = now();
+    return reply.status(201).send({ purchase: mealDto(done), avatar: avatarDto(decayed(fresh, at), at) });
+  });
+
+  /** Carros pendentes da conta (ledger fora na hora): termina antes de listar. */
+  const settlePendingVehicles = async (accountId: string, requestId: string) => {
+    const v = vehiclesOn();
+    for (const p of (await v.store.listByAccount(accountId)).filter((x) => x.status === 'pending')) {
+      await settleVehicle(v, p, requestId).catch(() => undefined);
+    }
+  };
+
+  app.get('/v1/vehicles', async (request) => {
+    const accountId = await player(request);
+    const v = vehiclesOn();
+    await settlePendingVehicles(accountId, request.id);
+    const at = now();
+    return { vehicles: (await v.store.listByAccount(accountId)).filter((x) => x.status !== 'sold').map((x) => vehicleDto(x, at)) };
+  });
+
+  // Agência: compra `{model}` ou aluga `{model, rent: true}` (3 dias por 5% do valor).
+  app.post('/v1/vehicles', async (request, reply) => {
+    const accountId = await player(request);
+    const body = z.object({ model: z.string(), rent: z.boolean().optional() }).parse(request.body);
+    const v = vehiclesOn();
+    const car = newVehicle({ id: randomUUID(), accountId, model: body.model, rent: body.rent ?? false }, now());
+    await v.store.create(car);
+    const active = await settleVehicle(v, car, request.id);
+    return reply.status(201).send({ vehicle: vehicleDto(active, now()) });
+  });
+
+  const ownVehicle = async (request: FastifyRequest) => {
+    const accountId = await player(request);
+    const { id } = z.object({ id: z.uuid() }).parse(request.params);
+    const car = await vehiclesOn().store.get(id);
+    if (!car || car.accountId !== accountId || car.status === 'sold') throw new AppError('not_found', 'Carro não encontrado.', 404);
+    return car;
+  };
+
+  // IPVA do semestre: cobre os próximos 182 dias; atrasado, tira a suspensão.
+  app.post('/v1/vehicles/:id/ipva', async (request) => {
+    const car = await ownVehicle(request);
+    const v = vehiclesOn();
+    const { cents, period, until } = checkIpva(car, now());
+    await v.payer.chargeVehicle(
+      { key: `vehicle-ipva:${car.id}:${period}`, kind: 'vehicle_ipva', accountId: car.accountId, cents, sink: 'ipva', refId: car.id },
+      request.id,
+    );
+    // A chave do semestre segura a cobrança dupla; o prazo só anda uma vez.
+    await v.store.extendIpva(car.id, car.ipvaPaidUntil!, until);
+    return { vehicle: vehicleDto((await v.store.get(car.id))!, now()) };
+  });
+
+  // Venda para a agência pela depreciação.
+  app.post('/v1/vehicles/:id/sell', async (request) => {
+    const car = await ownVehicle(request);
+    const v = vehiclesOn();
+    const { cents } = checkSale(car, now());
+    // Paga antes de marcar: dois pedidos juntos têm a mesma chave e o ledger paga uma vez.
+    await v.payer.payBuyback({ key: `vehicle-buyback:${car.id}`, accountId: car.accountId, cents, refId: car.id }, request.id);
+    await v.store.markSold(car.id, now());
+    return { sold: { id: car.id, cents: cents.toString() } };
   });
 
   // ---------------------------------------------------------------- campeonato de botão (E3.3)

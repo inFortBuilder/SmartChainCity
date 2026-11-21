@@ -15,6 +15,9 @@ import { decayed } from './domain/avatar.js';
 import { settleDue, settleEntry } from './domain/championship.js';
 import { PostgresChampionshipStore } from './infra/db/postgres-championship-store.js';
 import { MemoryChampionshipStore } from './infra/memory-championship-store.js';
+import { settleVehicle } from './domain/vehicle.js';
+import { PostgresVehicleStore } from './infra/db/postgres-vehicle-store.js';
+import { MemoryVehicleStore } from './infra/memory-vehicle-store.js';
 import { scheduleDecay } from './jobs/decay.js';
 import { scheduleHospital } from './jobs/hospital.js';
 import { scheduleShifts } from './jobs/shift.js';
@@ -39,12 +42,21 @@ const venues = config.WORLD_URL && config.WORLD_TOKEN ? new WorldVenues(config.W
 // Campeonato de botão (E3.3): o escrow e os prêmios passam pelo mesmo ledger.
 const championshipStore = pool ? new PostgresChampionshipStore(pool) : new MemoryChampionshipStore();
 const championships = payer ? { store: championshipStore, payer } : null;
-const app = await buildApp(config, store, undefined, payer, payer, payer, undefined, riskStore, venues, championships);
+// Veículos (E3.5): agência e IPVA pelo mesmo ledger.
+const vehicleStore = pool ? new PostgresVehicleStore(pool) : new MemoryVehicleStore();
+const vehicles = payer ? { store: vehicleStore, payer } : null;
+const app = await buildApp(config, store, undefined, payer, payer, payer, undefined, riskStore, venues, championships, vehicles);
 
 // Job championship.settle: disputa o campeonato do mês que virou e cobra as inscrições paradas.
 const championshipTimer = championships
   ? setInterval(async () => {
       try {
+        // Carros pendentes (ledger fora na hora da compra): cobra de novo, com a mesma chave.
+        if (vehicles) {
+          for (const v of await vehicles.store.pendingOlderThan(new Date(Date.now() - 60_000))) {
+            await settleVehicle(vehicles, v).catch(() => undefined);
+          }
+        }
         for (const m of await championships.store.pendingMembers(new Date(Date.now() - 60_000))) {
           await settleEntry(championships, m).catch(() => undefined);
         }

@@ -1,9 +1,10 @@
 import { AppError, forwardRequestId } from '@scc/shared';
 
 import type { HospitalPayer, HospitalStay } from '../domain/hospital.js';
-import { type Meal, type MealPayer, isLeisure, isMedicine, isPack, isPetShop, isSchool } from '../domain/meal.js';
+import { type Meal, type MealPayer, isLeisure, isLicense, isMedicine, isPack, isPetShop, isSchool } from '../domain/meal.js';
 import { feeSplit } from '../domain/leisure.js';
 import type { Championship, ChampionshipPayer, ChampionshipResult, Member } from '../domain/championship.js';
+import type { VehiclePayer } from '../domain/vehicle.js';
 import type { Payer, Shift } from '../domain/shift.js';
 
 /**
@@ -15,7 +16,7 @@ import type { Payer, Shift } from '../domain/shift.js';
 /** Escrow do campeonato no ledger: o id de sistema só aceita letras, números e _ (AAAA-MM → championship_AAAA_MM). */
 const escrowOf = (month: string) => `championship_${month.replace('-', '_')}`;
 
-export class EconomyPayer implements Payer, MealPayer, HospitalPayer, ChampionshipPayer {
+export class EconomyPayer implements Payer, MealPayer, HospitalPayer, ChampionshipPayer, VehiclePayer {
   constructor(
     private readonly baseUrl: string,
     private readonly token: string,
@@ -73,22 +74,23 @@ export class EconomyPayer implements Payer, MealPayer, HospitalPayer, Championsh
     const medicine = isMedicine(meal);
     const petShop = isPetShop(meal);
     const school = isSchool(meal);
+    const license = isLicense(meal);
     const error = await this.post(
       `meal:${meal.id}`,
       {
-        kind: school ? 'school_buy' : petShop ? 'petshop_buy' : medicine ? 'medicine_buy' : isPack(meal) ? 'pack_buy' : 'meal_buy',
+        kind: license ? 'license_buy' : school ? 'school_buy' : petShop ? 'petshop_buy' : medicine ? 'medicine_buy' : isPack(meal) ? 'pack_buy' : 'meal_buy',
         ref_type: 'meal',
         ref_id: meal.id,
         legs: [
           { owner_type: 'player', owner_id: meal.accountId, currency: 'THALER', amount: `-${meal.priceCents}` },
-          { owner_type: 'burn', owner_id: school ? 'school' : petShop ? 'petshop' : medicine ? 'pharmacy' : 'food', currency: 'THALER', amount: `${meal.priceCents}` },
+          { owner_type: 'burn', owner_id: license ? 'license' : school ? 'school' : petShop ? 'petshop' : medicine ? 'pharmacy' : 'food', currency: 'THALER', amount: `${meal.priceCents}` },
         ],
       },
       requestId,
     );
     if (error === null) return;
     if (error === 'insufficient_funds') {
-      throw new AppError('insufficient_thaler', `THALER insuficiente para ${school ? 'a escola' : petShop ? 'o Pet Shop' : medicine ? 'o remédio' : isPack(meal) ? 'o pacote' : 'esta refeição'}.`, 409);
+      throw new AppError('insufficient_thaler', `THALER insuficiente para ${license ? 'a autoescola' : school ? 'a escola' : petShop ? 'o Pet Shop' : medicine ? 'o remédio' : isPack(meal) ? 'o pacote' : 'esta refeição'}.`, 409);
     }
     throw new AppError('ledger_unavailable', 'O ledger recusou a cobrança.', 502);
   }
@@ -110,6 +112,45 @@ export class EconomyPayer implements Payer, MealPayer, HospitalPayer, Championsh
     if (error === null) return;
     if (error === 'insufficient_funds') throw new AppError('insufficient_thaler', 'THALER insuficiente para a entrada.', 409);
     throw new AppError('ledger_unavailable', 'O ledger recusou a cobrança.', 502);
+  }
+
+  /** Veículos (E3.5): compra, aluguel e IPVA, do jogador para a queima. */
+  async chargeVehicle(input: { key: string; kind: string; accountId: string; cents: bigint; sink: string; refId: string }, requestId?: string) {
+    const error = await this.post(
+      input.key,
+      {
+        kind: input.kind,
+        ref_type: 'vehicle',
+        ref_id: input.refId,
+        legs: [
+          { owner_type: 'player', owner_id: input.accountId, currency: 'THALER', amount: `-${input.cents}` },
+          { owner_type: 'burn', owner_id: input.sink, currency: 'THALER', amount: `${input.cents}` },
+        ],
+      },
+      requestId,
+    );
+    if (error === null) return;
+    if (error === 'insufficient_funds') throw new AppError('insufficient_thaler', 'THALER insuficiente.', 409);
+    throw new AppError('ledger_unavailable', 'O ledger recusou a cobrança.', 502);
+  }
+
+  /** Recompra da agência: da conta de sistema da agência para o jogador. */
+  async payBuyback(input: { key: string; accountId: string; cents: bigint; refId: string }, requestId?: string) {
+    if (input.cents <= 0n) return;
+    const error = await this.post(
+      input.key,
+      {
+        kind: 'vehicle_buyback',
+        ref_type: 'vehicle',
+        ref_id: input.refId,
+        legs: [
+          { owner_type: 'system', owner_id: 'vehicle_agency', currency: 'THALER', amount: `-${input.cents}` },
+          { owner_type: 'player', owner_id: input.accountId, currency: 'THALER', amount: `${input.cents}` },
+        ],
+      },
+      requestId,
+    );
+    if (error !== null) throw new AppError('ledger_unavailable', 'O ledger recusou a recompra.', 502);
   }
 
   /** Inscrição no campeonato de botão (E3.3): do jogador para o escrow do campeonato. */
