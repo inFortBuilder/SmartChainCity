@@ -276,6 +276,9 @@ export function createServidor(map) {
   let petshop = null;
   let school = null;
   let jobs = [];
+  let leisure = null;
+  let venues = [];
+  let propertyTypes = null;
   let message = '';
   let messageOk = false;
   let busy = false;
@@ -317,6 +320,11 @@ export function createServidor(map) {
       if (!petshop) petshop = await call(API.game, '/v1/catalog/petshop').catch(() => null);
       // Escola (E3.2): preços e as profissões, para a troca na mesma raridade.
       if (!school) school = await call(API.game, '/v1/catalog/school').catch(() => null);
+      // Lazer (E3.3): as atividades (game-core) e as academias e galerias da cidade (world).
+      if (!leisure) leisure = await call(API.game, '/v1/catalog/leisure').catch(() => null);
+      venues = await call(API.world, `/v1/world/cities/${CITY}/venues`, { token: session.token })
+        .then((r) => r.venues)
+        .catch(() => []);
       if (!jobs.length) jobs = await call(API.game, '/v1/catalog/professions').then((r) => r.professions).catch(() => []);
       if (!foods.length) {
         foods = await call(API.game, '/v1/catalog/foods')
@@ -559,6 +567,39 @@ export function createServidor(map) {
   const vaultError = (error) => (error instanceof ApiError ? error : new ApiError(400, 'tx', txError(error, VAULT_ERRORS)));
 
   /**
+   * Lazer (E3.3): parque de graça; academias e galerias são negócios de outros
+   * jogadores, com entrada. Cada atividade uma vez a cada 4 h.
+   */
+  const leisureSection = (a) => {
+    const wait = (code) => a.leisure[code];
+    const can = a.status.canLeisure;
+    const label = (code) => leisure.activities.find((x) => x.code === code)?.label ?? code;
+    const btn = (code, text, extra = '') => {
+      const until = wait(code);
+      const off = busy || !can || until ? 'disabled' : '';
+      return `<button class="btn btn--ghost pequeno" type="button" data-s="lazer" data-act="${code}" ${extra} ${off} title="${until ? `De novo em ${left(until)}` : esc(label(code))}">${text}</button>`;
+    };
+    let html = `<h3>🌳 Lazer</h3><div class="linha">${btn('skate', '🛹 Skate')}${btn('basquete', '🏀 Basquete')}</div>`;
+    if (!can) html += '<p class="muted pequeno">Lazer precisa de 2 de energia.</p>';
+    const open = venues.filter((v) => v.open).slice(0, 6);
+    if (open.length && leisure.venues_on) {
+      html += `<ul class="lista-saques">${open
+        .map((v) => {
+          const verb = v.activity === 'academia' ? 'Treinar' : 'Visitar';
+          const price = v.mine ? 'sua, de graça' : thaler(v.fee_cents);
+          return `<li><span>${v.activity === 'academia' ? '🏋️' : '🖼️'} ${esc(v.label)} · ${esc(v.lot_code)} · ${price}</span>
+            ${btn(v.activity, verb, `data-v="${esc(v.id)}"`)}</li>`;
+        })
+        .join('')}</ul>`;
+    } else {
+      html += '<p class="muted pequeno">Nenhuma academia ou galeria aberta ainda. Num lote comercial ou misto seu, construa uma pela ficha do lote.</p>';
+    }
+    const waiting = leisure.activities.filter((x) => wait(x.code));
+    if (waiting.length) html += `<p class="muted pequeno">${waiting.map((x) => `${esc(x.label)}: de novo em ${left(wait(x.code))}`).join(' · ')}</p>`;
+    return html;
+  };
+
+  /**
    * Escola (E3.2): aula do dia (+educação) e troca de profissão (4 dias sem
    * trabalhar, só na mesma raridade). A educação nunca se perde.
    */
@@ -724,6 +765,7 @@ export function createServidor(map) {
           <p class="muted pequeno">Cada refeição dá +3 de alimentação; o pacote vai para a despensa.${foods.some((f) => f.provisional_price) ? ' Preço provisório até o game designer definir.' : ''}</p>
         </form>`;
       }
+      if (!internado && leisure && a.leisure) body += leisureSection(a);
       if (!internado && school && a.school) body += schoolSection(a);
       if (!internado && petshop) body += petSection(a);
       if (running) {
@@ -1014,6 +1056,22 @@ export function createServidor(map) {
         call(API.game, `/v1/avatars/${data.avatar.id}/work`, { method: 'POST', token: session.token, body: { shift: Number(b.dataset.h) } }),
       );
     }
+    if (what === 'lazer') {
+      const activity = b.dataset.act;
+      const venue_id = b.dataset.v;
+      return act(async () => {
+        const r = await call(API.game, `/v1/avatars/${data.avatar.id}/leisure`, {
+          method: 'POST',
+          token: session.token,
+          body: { activity, ...(venue_id ? { venue_id } : {}) },
+          headers: { 'idempotency-key': crypto.randomUUID() },
+        });
+        const name = leisure?.activities.find((x) => x.code === activity)?.label ?? activity;
+        const at = r.avatar.attributes;
+        message = `${name}${r.purchase && r.purchase.price !== '0' ? `: −${thaler(r.purchase.price)} THALER` : ''}. Felicidade ${at.happiness}/10, energia ${at.energy}/10.`;
+        messageOk = true;
+      });
+    }
     if (what === 'aula') {
       return act(async () => {
         const r = await call(API.game, `/v1/avatars/${data.avatar.id}/school/class`, {
@@ -1146,6 +1204,7 @@ export function createServidor(map) {
             ${enough ? '' : '<p class="muted pequeno">SCITY insuficiente: use “+1.000 SCITY de teste” no painel.</p>'}`;
         }
         box.innerHTML = html;
+        if (lot.mine) showBuild(i, lot, box);
         if (lot.status === 'sold') showVisit(i, box);
       })
       .catch((error) => {
@@ -1158,6 +1217,22 @@ export function createServidor(map) {
         rm.disabled = true;
         await call(API.world, `/v1/world/places/${rm.dataset.kind}/${rm.dataset.place}/guests/${rm.dataset.remover}`, { method: 'DELETE', token: session.token }).catch(() => null);
         return showVisit(i, box);
+      }
+      const build = e.target.closest('[data-construir]');
+      if (build && !build.disabled) {
+        const type = box.querySelector('select[name=tipo]')?.value;
+        build.disabled = true;
+        build.textContent = 'Construindo…';
+        try {
+          const r = await call(API.world, `/v1/world/cities/${CITY}/lots/${i}/property`, { method: 'POST', token: session.token, body: { type } });
+          message = `${r.property.label} em obra: fica pronta em ${left(r.property.ready_at)}.`;
+          messageOk = true;
+        } catch (error) {
+          message = error.message;
+          messageOk = false;
+        }
+        await refresh();
+        return map.showLot(i);
       }
       const b = e.target.closest('[data-buy]');
       if (!b || b.disabled) return;
@@ -1175,6 +1250,32 @@ export function createServidor(map) {
       map.showLot(i);
     });
     return true;
+  }
+
+  /** Ficha do lote próprio: o imóvel que está nele ou, vazio, o que dá para construir na zona. */
+  async function showBuild(i, lot, box) {
+    const sec = document.createElement('div');
+    sec.className = 'srv-obra';
+    box.append(sec);
+    const [types, mine] = await Promise.all([
+      propertyTypes ?? call(API.world, '/v1/world/property-types').then((r) => (propertyTypes = r.types)).catch(() => null),
+      call(API.world, '/v1/world/me/properties', { token: session.token }).then((r) => r.properties).catch(() => null),
+    ]);
+    if (!types || !mine) return sec.remove();
+    const here = mine.find((p) => p.lot_id === i);
+    if (here) {
+      const t = types.find((x) => x.code === here.type);
+      const state = here.phase === 'building' ? `em obra, pronta em ${left(here.ready_at)}` : here.phase === 'ready' ? `pronta · desgaste ${here.wear}` : 'aguardando pagamento';
+      sec.innerHTML = `<h3>🏗️ ${esc(here.label)}</h3><p class="muted pequeno">${state}${t?.venue ? ` · entrada de ${thaler(t.venue.fee_cents)} (90% para você)` : ''}</p>`;
+      return;
+    }
+    const fits = types.filter((t) => t.zones.includes(lot.zone));
+    if (!fits.length) return sec.remove();
+    const options = fits.map((t) => `<option value="${esc(t.code)}">${esc(t.label)} · ${thaler(t.price_cents)}${t.venue ? ` · entrada ${thaler(t.venue.fee_cents)}` : ''}</option>`).join('');
+    sec.innerHTML = `<h3>🏗️ Construir</h3>
+      <div class="linha"><select class="campo" name="tipo" aria-label="O que construir">${options}</select>
+      <button class="btn btn--blue pequeno" type="button" data-construir>Construir</button></div>
+      <p class="muted pequeno">Obra de 1 dia, paga em THALER. Academia e galeria cobram entrada de quem usa.</p>`;
   }
 
   /** Seção de visita da ficha: entrar (dono ou convidado) e, para o dono, os convidados. */

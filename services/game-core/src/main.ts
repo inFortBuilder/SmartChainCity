@@ -10,6 +10,7 @@ import { PostgresChainSyncStore } from './infra/db/postgres-chain-sync-store.js'
 import { MemoryChainSyncStore } from './infra/memory-chain-sync-store.js';
 import { MemoryRiskStore, PostgresRiskStore } from './infra/risk-store.js';
 import { EconomyPayer } from './infra/economy-payer.js';
+import { WorldVenues } from './infra/world-venues.js';
 import { scheduleDecay } from './jobs/decay.js';
 import { scheduleHospital } from './jobs/hospital.js';
 import { scheduleShifts } from './jobs/shift.js';
@@ -29,7 +30,9 @@ const payer =
 // O mesmo cliente do ledger paga os turnos e cobra as refeições e o hospital.
 // Antifraude (E2.9): sinais de aparelho e rede, no mesmo banco.
 const riskStore = pool ? new PostgresRiskStore(pool) : new MemoryRiskStore();
-const app = await buildApp(config, store, undefined, payer, payer, payer, undefined, riskStore);
+// Lazer (E3.3): academias e galerias de jogador vêm do world.
+const venues = config.WORLD_URL && config.WORLD_TOKEN ? new WorldVenues(config.WORLD_URL, config.WORLD_TOKEN) : null;
+const app = await buildApp(config, store, undefined, payer, payer, payer, undefined, riskStore, venues);
 app.log.info(`armazenamento: ${pool ? 'postgres' : 'memória'}; pagamento de turnos: ${payer ? config.ECONOMY_URL : 'desligado'}`);
 
 // Catálogo publicado no Strapi; se ele estiver fora, segue o seed e o webhook atualiza depois.

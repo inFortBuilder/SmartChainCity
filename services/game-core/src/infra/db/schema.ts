@@ -54,6 +54,8 @@ export const avatar = game.table(
     pet: jsonb('pet'),
     /** Escola (E3.2): última aula e troca de profissão em curso, com as datas em ISO. */
     school: jsonb('school'),
+    /** Lazer (E3.3): última vez de cada atividade, {lastAt: {codigo: ISO}}. */
+    leisure: jsonb('leisure'),
     createdAt: timestamptz('created_at').notNull(),
     updatedAt: timestamptz('updated_at').notNull(),
   },

@@ -15,6 +15,7 @@ import { type Meal, type MealPlanner, type MealStore, eat } from '../domain/meal
 import { type Shift, type ShiftPlanner, type ShiftStore, hoursSince, settle } from '../domain/shift.js';
 import { clonePet } from '../domain/pet.js';
 import { cloneSchool } from '../domain/school.js';
+import { cloneLeisure } from '../domain/leisure.js';
 
 const cloneShift = (s: Shift): Shift => ({ ...s, snapshot: { ...s.snapshot }, result: s.result && { ...s.result } });
 
@@ -29,6 +30,7 @@ const clone = (a: Avatar): Avatar => ({
   pantry: { ...a.pantry },
   pet: clonePet(a.pet),
   school: cloneSchool(a.school),
+  leisure: cloneLeisure(a.leisure),
 });
 
 /** Para testes e desenvolvimento. Uma thread só: cada operação é atômica. */

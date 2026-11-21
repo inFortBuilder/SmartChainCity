@@ -4,6 +4,7 @@ import { type Rarity, isRarity, professionFits } from './catalog.js';
 import { CONDITIONS, type Condition, activeConditions, drainDue, drainHealth } from './conditions.js';
 import { type Pet, decayedPet } from './pet.js';
 import { type School, inSchool, schooled } from './school.js';
+import type { Leisure } from './leisure.js';
 
 /**
  * Avatar e atributos (doc 02 §2.3, doc 06 §2). Atributos de 0 a 10, educação
@@ -63,6 +64,8 @@ export interface Avatar {
   pet?: Pet | null;
   /** Escola (E3.2): última aula e troca de profissão em curso; null sem histórico. */
   school?: School | null;
+  /** Lazer (E3.3): última vez de cada atividade; null sem histórico. */
+  leisure?: Leisure | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -138,6 +141,7 @@ export function newAvatar(
     pantry: {},
     pet: null,
     school: null,
+    leisure: null,
     createdAt: now,
     updatedAt: now,
   };

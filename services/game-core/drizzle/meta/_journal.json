@@ -85,6 +85,13 @@
       "when": 1795297394994,
       "tag": "0011_escola",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1795298868220,
+      "tag": "0012_lazer",
+      "breakpoints": true
     }
   ]
 }

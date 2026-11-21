@@ -95,6 +95,17 @@ O job `properties.settle` (junto do `purchases.settle`) refaz obras e coletas qu
 
 Com isso, uma T1 coletada toda semana rende 455 THALER até o desgaste chegar a 30, em 70 dias, contra 4.000 de obra. Com reparo a cada 30 dias (60 THALER), sobra ~195 THALER por mês, e a obra se paga em ~620 dias. O [simulador](../../tools/econ-sim/README.md), que conta 10 THALER/dia sem desgaste, precisa passar a contar o desgaste, o reparo e os níveis antes de esses números virarem regra.
 
+## Negócios de lazer (E3.3)
+
+Academia e galeria de arte são tipos de imóvel de jogador (GDD §6 "Lazer": "negócios de jogador com custo de entrada baixo"). São construídas pela mesma rota da Casa T1, em zona comercial ou mista.
+
+- **Renda:** não vem do pool P2E. Quem usa paga a entrada no game-core, e ela vai para o dono.
+- **Aberta:** com a obra pronta e o desgaste acima de 30, o mesmo mínimo da renda. Abaixo disso, fecha para reforma.
+- `GET /v1/world/cities/:code/venues` lista as abertas e as em obra da cidade, sem expor o dono (só `mine`).
+- `GET /internal/v1/venues/:id` (`X-Service-Token`) dá ao game-core o dono, a atividade, a entrada e se está aberta.
+
+**Premissas:** academia por 6.000 THALER com entrada de 5; galeria por 5.000 com entrada de 4; obra de 24 h.
+
 ## Impostos (E2.6)
 
 O job `tax.charge` (a cada `TAX_EVERY_SECONDS`, 1 h) faz duas coisas: gera as contas vencidas de todos os lotes vendidos e tenta o débito automático, em THALER, do jogador para a queima (`burn/tax`).
@@ -192,7 +203,9 @@ TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc_test pnpm --filter
 | GET | `/v1/world/me/lots` | jogador (Bearer) | Lotes do jogador |
 | POST | `/v1/world/cities/:code/lots/:id/buy` | jogador (Bearer) | Compra pagando SCITY no ledger |
 | POST | `/v1/world/cities/:code/lots/:id/onchain-quote` | dono do lote (Bearer) | Cotação assinada para o `LandNFT` (corpo: `{wallet}`) |
-| GET | `/v1/world/property-types` | público | Tipos de imóvel, preço, obra, renda por nível e regras de desgaste e acúmulo |
+| GET | `/v1/world/property-types` | público | Tipos de imóvel, preço, obra, renda por nível e regras de desgaste e acúmulo; nos negócios de lazer, `venue` com a atividade e a entrada |
+| GET | `/v1/world/cities/:code/venues` | público (com Bearer, marca `mine`) | Academias e galerias da cidade: tipo, lote, entrada, `open` e fase |
+| GET | `/internal/v1/venues/:id` | serviços (`X-Service-Token`) | O negócio para o game-core cobrar a entrada: dono, atividade, entrada e se está aberto |
 | POST | `/v1/world/cities/:code/lots/:id/property` | dono do lote (Bearer) | Constrói (corpo: `{type}`) pagando THALER |
 | GET | `/v1/world/me/properties` | jogador (Bearer) | Imóveis do jogador: fase (`pending_payment`, `building`, `ready`), progresso da obra, desgaste, renda por dia e acumulada |
 | POST | `/v1/world/properties/:id/claim` | dono (Bearer) | Coleta a renda acumulada |

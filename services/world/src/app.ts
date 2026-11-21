@@ -26,6 +26,8 @@ import {
   startWork,
   typeOf,
   wearAt,
+  VENUE_TYPES,
+  venueOpen,
 } from './domain/properties.js';
 import { type LandPayments, type Lot, type WorldStore, lotCode, priceOf } from './domain/lots.js';
 import { buyLot } from './domain/purchase.js';
@@ -307,8 +309,59 @@ export async function buildApp(
       build_minutes: t.buildMinutes,
       levels: t.levels.map((l) => ({ level: l.level, income_cents_per_day: l.incomeCentsPerDay, upgrade_cost_cents: l.upgradeCostCents ?? null })),
       provisional: t.provisional,
+      venue: t.venue ? { activity: t.venue.activity, fee_cents: t.venue.feeCents } : null,
     })),
   }));
+
+  // Lazer (E3.3): academias e galerias abertas da cidade. O dono não é exposto, só "seu".
+  app.get('/v1/world/cities/:code/venues', async (request) => {
+    const { code } = codeParam.parse(request.params);
+    await cityOr404(code);
+    const me = await maybePlayer(request);
+    const t = now();
+    const list = await propertiesOn().store.propertiesOfTypes(code, VENUE_TYPES(), 200);
+    return {
+      venues: list.map((p) => {
+        const type = typeOf(p.type)!;
+        return {
+          id: p.id,
+          type: p.type,
+          label: type.label,
+          activity: type.venue!.activity,
+          fee_cents: type.venue!.feeCents,
+          lot_id: p.lotId,
+          lot_code: lotCode(p.city, p.lotId),
+          open: venueOpen(p, t),
+          phase: phaseOf(p, t),
+          mine: me !== null && p.ownerAccountId === me,
+        };
+      }),
+    };
+  });
+
+  // O game-core pergunta o negócio antes de cobrar a entrada: tipo, dono e se está aberto.
+  app.get('/internal/v1/venues/:id', async (request) => {
+    if (!config.INTERNAL_TOKEN) {
+      throw new AppError('internal_disabled', 'Rotas internas desligadas: defina INTERNAL_TOKEN.', 503);
+    }
+    requireServiceToken(request.headers['x-service-token'], config.INTERNAL_TOKEN);
+    const { id } = z.object({ id: z.uuid() }).parse(request.params);
+    const p = await propertiesOn().store.getProperty(id);
+    const type = p && typeOf(p.type);
+    if (!p || !type?.venue) throw new AppError('not_found', 'Negócio não encontrado.', 404);
+    return {
+      venue: {
+        id: p.id,
+        city: p.city,
+        lot_id: p.lotId,
+        type: p.type,
+        activity: type.venue.activity,
+        fee_cents: type.venue.feeCents,
+        owner_account_id: p.ownerAccountId,
+        open: venueOpen(p, now()),
+      },
+    };
+  });
 
   app.post('/v1/world/cities/:code/lots/:id/property', async (request, reply) => {
     const me = await player(request);

@@ -28,6 +28,10 @@ const schema = z.object({
   /** O INTERNAL_TOKEN do chain-indexer. */
   CHAIN_INDEXER_TOKEN: optional(z.string().min(32, 'CHAIN_INDEXER_TOKEN precisa de pelo menos 32 caracteres')),
   GATEWAY_URL: optional(z.url()),
+  /** Lazer (E3.3): o world diz o dono e a entrada das academias e galerias. Sem os dois, só o parque. */
+  WORLD_URL: optional(z.url()),
+  /** O INTERNAL_TOKEN do world. */
+  WORLD_TOKEN: optional(z.string().min(32, 'WORLD_TOKEN precisa de pelo menos 32 caracteres')),
   /** O INTERNAL_TOKEN do gateway. */
   GATEWAY_TOKEN: optional(z.string().min(32, 'GATEWAY_TOKEN precisa de pelo menos 32 caracteres')),
   CHAIN_SYNC_SECONDS: z.coerce.number().int().positive().default(30),

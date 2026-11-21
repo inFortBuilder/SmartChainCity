@@ -1,5 +1,5 @@
 import { AppError } from '@scc/shared';
-import { and, asc, eq, lt } from 'drizzle-orm';
+import { and, asc, eq, lt, inArray } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import type { Pool } from 'pg';
 
@@ -67,6 +67,17 @@ export class PostgresPropertyStore implements PropertyStore {
       .from(propertyT)
       .where(and(eq(propertyT.city, city), eq(propertyT.lotId, lotId)));
     return r ? toProperty(r) : null;
+  }
+
+  async propertiesOfTypes(city: string, types: string[], limit: number) {
+    if (!types.length) return [];
+    const rows = await this.db
+      .select()
+      .from(propertyT)
+      .where(and(eq(propertyT.city, city), eq(propertyT.status, 'active'), inArray(propertyT.type, types)))
+      .orderBy(asc(propertyT.createdAt))
+      .limit(limit);
+    return rows.map(toProperty);
   }
 
   async propertiesOf(accountId: string) {
