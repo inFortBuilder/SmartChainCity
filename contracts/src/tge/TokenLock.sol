@@ -45,6 +45,8 @@ contract TokenLock {
     function release() external {
         if (block.timestamp < releaseTime) revert StillLocked(releaseTime);
         uint256 amount = token.balanceOf(address(this));
+        // Zero só barra a liberação vazia (UX); o saldo não decide prazo nem permissão.
+        // slither-disable-next-line incorrect-equality
         if (amount == 0) revert NothingToRelease();
         emit Released(beneficiary, amount);
         token.safeTransfer(beneficiary, amount);

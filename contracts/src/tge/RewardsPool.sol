@@ -37,7 +37,7 @@ contract RewardsPool {
             revert ZeroAddress();
         }
         if (interval_ == 0 || tranches_.length == 0) revert BadSchedule();
-        uint256 sum;
+        uint256 sum = 0;
         for (uint256 i; i < tranches_.length; ++i) {
             sum += tranches_[i];
         }
@@ -59,7 +59,7 @@ contract RewardsPool {
         uint256 total = token.balanceOf(address(this)) + released;
         uint256 open = (t - start) / interval + 1;
         if (open >= _tranches.length) return total;
-        uint256 bps;
+        uint256 bps = 0;
         for (uint256 i; i < open; ++i) {
             bps += _tranches[i];
         }
@@ -73,6 +73,8 @@ contract RewardsPool {
 
     function release() external {
         uint256 amount = releasable();
+        // Zero só barra a liberação vazia (UX); o saldo não decide prazo nem permissão.
+        // slither-disable-next-line incorrect-equality
         if (amount == 0) revert NothingToRelease();
         released += amount;
         emit Released(beneficiary, amount);
