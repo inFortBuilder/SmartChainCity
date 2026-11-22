@@ -14,6 +14,9 @@ const schema = z.object({
   PORT: z.coerce.number().int().positive().default(8000),
   HOST: z.string().default('127.0.0.1'),
   DATABASE_URL: z.string().optional(),
+  /** Serviços que publicam os números da cidade para o site (`GET /v1/public/stats`, E4.5). */
+  GAME_CORE_URL: z.url().optional(),
+  WORLD_URL: z.url().optional(),
   JWT_SECRET: z.string().min(32, 'JWT_SECRET precisa de pelo menos 32 caracteres'),
   JWT_ISSUER: z.string().default('scc-gateway'),
   JWT_TTL_SECONDS: z.coerce.number().int().positive().default(3600),

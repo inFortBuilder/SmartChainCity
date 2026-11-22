@@ -194,4 +194,6 @@ export interface AvatarStore {
    * gravou. O job chama em laço até devolver 0.
    */
   applyDecay(now: Date, batch: number): Promise<number>;
+  /** Números públicos da cidade (site): avatares e acidentes de trabalho (turnos com dano). */
+  publicStats(): Promise<{ avatars: number; workAccidents: number }>;
 }

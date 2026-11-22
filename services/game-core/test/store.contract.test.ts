@@ -34,6 +34,16 @@ const codeOf = async (p: Promise<unknown>) => {
 };
 
 describe.each(stores)('AvatarStore: %s', (_name, make, enabled) => {
+  it.runIf(enabled)('números públicos: conta os avatares (site)', async () => {
+    const store = make();
+    const before = await store.publicStats();
+    await store.create(avatarFor(randomUUID()));
+    const after = await store.publicStats();
+    // No Postgres compartilhado, outros testes criam avatares ao mesmo tempo: pelo menos este.
+    expect(after.avatars - before.avatars).toBeGreaterThanOrEqual(1);
+    expect(after.workAccidents).toBeGreaterThanOrEqual(0);
+  });
+
   it.runIf(enabled)('guarda e devolve o avatar igual', async () => {
     const store = make();
     const a = avatarFor(randomUUID());

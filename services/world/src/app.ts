@@ -178,6 +178,18 @@ export async function buildApp(
     };
   };
 
+  // Números públicos para o site (E4.5): lotes vendidos e impostos pagos (THALER), com cache de 1 minuto.
+  let publicCache: { at: number; body: { lands: number; taxes: number } } | null = null;
+  app.get('/v1/public/stats', async () => {
+    const t = now().getTime();
+    if (!publicCache || t - publicCache.at >= 60_000) {
+      const lands = (await store.soldLots()).length;
+      const cents = taxes ? await taxes.store.paidTotalCents() : 0n;
+      publicCache = { at: t, body: { lands, taxes: Number(cents / 100n) } };
+    }
+    return publicCache.body;
+  });
+
   app.get('/healthz', async () => ({ status: 'ok' }));
 
   app.get('/v1/world/cities/:code', async (request) => {

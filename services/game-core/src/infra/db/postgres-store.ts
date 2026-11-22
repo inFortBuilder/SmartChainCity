@@ -186,6 +186,14 @@ export class PostgresAvatarStore implements AvatarStore, ShiftStore, MealStore, 
   constructor(pool: Pool) {
     this.db = drizzle(pool);
   }
+  async publicStats() {
+    const r = await this.db.execute<{ avatars: number; accidents: number }>(sql`
+      select (select count(*)::int from game.avatar) as avatars,
+             (select count(*)::int from game.work_shift where (result->>'damaged')::boolean) as accidents`);
+    const row = r.rows[0] as { avatars: number; accidents: number };
+    return { avatars: Number(row.avatars), workAccidents: Number(row.accidents) };
+  }
+
 
   async create(a: Avatar) {
     return this.db.transaction(async (tx) => {

@@ -37,6 +37,8 @@ $config = [
         'token_address'  => $env('SCC_TOKEN_ADDRESS', ''),
         'token_symbol'   => 'SCITY',
         'token_decimals' => 18,
+        // Onde ficam os arquivos de deploy (contracts/deployments): a página Contratos oficiais lê daqui.
+        'deployments_dir' => $env('SCC_DEPLOYMENTS_DIR', __DIR__ . '/../../contracts/deployments'),
     ],
     'sale' => [
         'open'          => filter_var($env('SCC_SALE_OPEN', 'false'), FILTER_VALIDATE_BOOL),
@@ -50,6 +52,8 @@ $config = [
     'api' => [
         // API do jogo (gateway). Vazio = o site usa os dados de exemplo em src/data/.
         'game_api_url' => rtrim((string) $env('SCC_GAME_API_URL', ''), '/'),
+        // Economy (travas de incidente). Em produção, a mesma API roteada por prefixo; separada só no dev.
+        'economy_api_url' => rtrim((string) $env('SCC_ECONOMY_API_URL', (string) $env('SCC_GAME_API_URL', '')), '/'),
         'timeout_s'    => 3,
     ],
     'contact' => [

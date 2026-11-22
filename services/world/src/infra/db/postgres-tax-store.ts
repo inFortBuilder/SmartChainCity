@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, lt } from 'drizzle-orm';
+import { and, asc, desc, eq, lt, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import type { Pool } from 'pg';
 
@@ -22,6 +22,14 @@ export class PostgresTaxStore implements TaxStore {
   constructor(pool: Pool) {
     this.db = drizzle(pool);
   }
+  async paidTotalCents() {
+    const [r] = await this.db
+      .select({ total: sql<string>`coalesce(sum(${billT.amountCents} + ${billT.fineCents}), 0)::text` })
+      .from(billT)
+      .where(eq(billT.status, 'paid'));
+    return BigInt(r?.total ?? '0');
+  }
+
 
   async upsertBills(bills: TaxBill[]) {
     let n = 0;

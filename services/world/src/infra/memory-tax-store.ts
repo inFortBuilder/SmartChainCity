@@ -7,6 +7,12 @@ export class MemoryTaxStore implements TaxStore {
 
   private key = (b: Pick<TaxBill, 'city' | 'lotId' | 'kind' | 'period'>) => `${b.city}:${b.lotId}:${b.kind}:${b.period}`;
 
+  async paidTotalCents() {
+    let total = 0n;
+    for (const b of this.bills.values()) if (b.status === 'paid') total += BigInt(b.amountCents) + BigInt(b.fineCents);
+    return total;
+  }
+
   async upsertBills(bills: TaxBill[]) {
     let n = 0;
     for (const b of bills) {

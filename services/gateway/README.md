@@ -34,6 +34,17 @@ pnpm --filter @scc/gateway login:dev   # entra com uma carteira descartável e i
 | Carteiras de contrato (ERC-1271) | ❌ só carteiras comuns |
 | ESLint, Dockerfile | ❌ `lint` hoje é a checagem de tipos |
 
+## Números públicos para o site (E4.5)
+
+`GET /v1/public/stats` → `{avatars, lands, taxes, work_accidents, updated_at}`, o painel da home do site.
+
+- **Fontes:**
+  - `GAME_CORE_URL`: avatares e acidentes de trabalho (turnos com dano);
+  - `WORLD_URL`: lotes vendidos e impostos pagos, em THALER.
+  - Os dois vêm das rotas públicas `/v1/public/stats` de cada serviço.
+- **Cache:** 1 minuto no gateway e em cada serviço.
+- **Falhas:** se um serviço cair, vale o último número bom por até 10 minutos; depois, `503 stats_unavailable`, e o site usa os dados de exemplo. Sem as URLs, `503 stats_disabled`.
+
 ## Como o login funciona
 
 1. O cliente pede um nonce, de uso único, válido por 5 minutos.
