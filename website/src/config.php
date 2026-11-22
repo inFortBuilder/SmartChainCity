@@ -56,6 +56,9 @@ $config = [
         'economy_api_url' => rtrim((string) $env('SCC_ECONOMY_API_URL', (string) $env('SCC_GAME_API_URL', '')), '/'),
         // Chain-indexer: as listagens on-chain do Marketplace (E3.6). Vazio = anúncios de exemplo.
         'indexer_url'  => rtrim((string) $env('SCC_INDEXER_URL', ''), '/'),
+        // Para o navegador (login SIWE e card do jogador). Vazias: o SCC_GAME_API_URL serve as três.
+        'gateway_url'  => rtrim((string) $env('SCC_GATEWAY_URL', (string) $env('SCC_GAME_API_URL', '')), '/'),
+        'game_url'     => rtrim((string) $env('SCC_GAME_URL', (string) $env('SCC_GAME_API_URL', '')), '/'),
         'timeout_s'    => 3,
     ],
     'contact' => [

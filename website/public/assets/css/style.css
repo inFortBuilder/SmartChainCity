@@ -682,3 +682,8 @@ input:focus, select:focus, textarea:focus { border-color: var(--blue); outline: 
   .contract-table th, .contract-table td { display: block; width: auto; }
   .contract-table th { border-bottom: 0; padding-bottom: 0; }
 }
+
+/* Login no jogo pela página da conta (trilha do site, passo 7) */
+.game-session { margin-top: 22px; border-top: 3px solid rgba(0,0,0,.12); padding-top: 14px; }
+.game-session h2 { margin: 0 0 8px; color: var(--navy); }
+.game-session[hidden] { display: none; }

@@ -13,7 +13,7 @@ Pasta: [`website/`](../../website/README.md) · Especificação: [doc 12](../12-
 | 5 | 1 | Contato por e-mail (SendGrid) em vez do arquivo `storage/contact.jsonl` | A fazer |
 | 6 | 2 | Rota pública `GET /v1/public/stats` no gateway e `SCC_GAME_API_URL` em staging | Feito (2026-11-22): o gateway junta avatares e acidentes de trabalho (game-core) com lotes vendidos e impostos pagos (world), com cache de 1 minuto e o último número bom por até 10 minutos se um serviço cair. Falta ligar em staging |
 | 6b | 4 | FAQ, contratos oficiais e aviso de incidente (E4.5) | Feito (2026-11-22): `/faq`, `/contratos` lendo os arquivos de deploy, e o aviso de saque ou câmbio suspenso no topo |
-| 7 | 2 | Login real: SIWE pelo gateway e card do jogador com dados do avatar | A fazer |
+| 7 | 2 | Login real: SIWE pelo gateway e card do jogador com dados do avatar | Feito (2026-11-22): `siwe.js` sem dependências, card com o avatar e os saldos do ledger. Falta ligar em staging (domínio no `SIWE_DOMAINS` e origem no CORS) |
 | 8 | 3 | Marketplace on-chain: listar e comprar via contrato `Marketplace` | Feito (2026-11-22): anúncios do chain-indexer e compra pela carteira (`approve` + `buy`). Listar e leiloar seguem no mapa do jogo |
 | 9 | 4 | Contrato SCITY na mainnet: `SCC_TOKEN_ADDRESS`, `SCC_CHAIN_ID=56`, link do par na PancakeSwap | A fazer |
 | 10 | 4 | Venda privada (só com parecer jurídico): contrato auditado, aprovação de BUSD, compra | A fazer |
