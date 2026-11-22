@@ -180,6 +180,25 @@ Plantio, estações, níveis e riscos ([farm.ts](src/domain/farm.ts), GDD §6). 
 
 **Premissas:** os preços (slot 10.000, máquinas de 50 a 500), o crescimento, as unidades, as chances que o GDD não dá e o tamanho dos danos. Depois de atualizar o código, rode `pnpm db:migrate`: a migração `0017_fazenda` cria `farm`.
 
+## Fazenda: pecuária (E3.4)
+
+Galinhas, porcos e gado ([livestock.ts](src/domain/livestock.ts), GDD §6 "Pecuária"), guardados no estado da própria fazenda (mesma trava otimista).
+
+| Regra | Como |
+|---|---|
+| Estruturas | Galinheiro (para galinhas e galo), chiqueiro (80 THALER, do GDD), pasto com curral e comedouro (o gado precisa dos dois), chocadeira |
+| Lotação | Galinheiro até 12 galinhas, com 1 galo para 12 (GDD); chiqueiro até 6 porcos; pasto até 15 cabeças (GDD) |
+| Alimentar | 1 milho ou trigo da despensa do avatar, uma vez por dia. Adulto depois de 3 refeições (GDD); nível 2 com 10 e nível 3 com 20, com +10% e +20% de itens (GDD) |
+| Produção | Galinha adulta alimentada, com o galinheiro limpo, põe 1 ovo por dia; vaca de leite dá 1 leite a cada 3 dias. Fica guardado (até 3) até `POST /v1/farm/collect`, que põe na despensa |
+| Abate | Só o adulto dá carne crua (GDD): galinha 1, porco 3, boi ou vaca 6 |
+| Reprodução | Casal adulto da espécie (galo com galinha), 1 trigo ou milho (GDD); o casal espera 3 dias |
+| Chocadeira | 1 ovo da despensa vira pinto, com 3% de galinha dos ovos de ouro, que põe em dobro (GDD) |
+| Mortes | Porco com 3 dias sem comida (GDD); boi e vaca aos 45 dias (GDD) |
+| Riscos | Sorteados uma vez por dia com a semente da fazenda (GDD): febre aftosa (3%, mata 25% do gado), raposas (3% com mais de 4 galinhas, mata 50%, e o cão de pastoreio protege), gripe aviária (3%, −25% dos ovos) |
+| Limpeza | O galinheiro limpo vale 5 dias por 30 THALER (GDD); sujo, as galinhas não põem |
+
+**Premissas:** preços das estruturas e dos animais, o limite de porcos, o ritmo de ovos e leite, quanto fica guardado, a carne por animal, quem nasce na reprodução e os níveis por refeição. Sem migração nova: a pecuária mora no `state` da fazenda.
+
 ## Eventos semanais e GamePass (E3.10)
 
 Eventos por profissão e o GamePass da temporada ([events.ts](src/domain/events.ts), GDD §8, doc 04 §4 e §8).
@@ -333,6 +352,14 @@ TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc_test pnpm --filter
 | POST | `/v1/farm/plots/:i/plow` | jogador (Bearer) | Ara o canteiro 1–4: com o agricultor `{avatar_id}` ou contratado `{}` |
 | POST | `/v1/farm/plots/:i/plant` | jogador (Bearer) | Planta `{crop}` no canteiro arado |
 | POST | `/v1/farm/plots/:i/harvest` | jogador (Bearer) | Colhe para a despensa do avatar `{avatar_id}`; devolve unidades, dano e a semente |
+| POST | `/v1/farm/structures` | jogador (Bearer) | Constrói `{structure}`: galinheiro, chiqueiro, pasto, comedouro ou chocadeira |
+| POST | `/v1/farm/animals` | jogador (Bearer) | Compra `{breed}`: galinha, galo, porco, boi ou vaca |
+| POST | `/v1/farm/animals/:id/feed` | jogador (Bearer) | Alimenta com `{avatar_id, food}` (milho ou trigo da despensa) |
+| POST | `/v1/farm/animals/:id/slaughter` | jogador (Bearer) | Abate: carne crua para a despensa de `{avatar_id}` |
+| POST | `/v1/farm/collect` | jogador (Bearer) | Coleta ovos e leite para a despensa de `{avatar_id}` |
+| POST | `/v1/farm/breed` | jogador (Bearer) | Reprodução `{ids: [a, b], avatar_id, food}` |
+| POST | `/v1/farm/hatch` | jogador (Bearer) | Chocadeira: 1 ovo da despensa de `{avatar_id}` vira pinto |
+| POST | `/v1/farm/coop/clean` | jogador (Bearer) | Limpa o galinheiro (5 dias) |
 | POST | `/v1/farm/level` | jogador (Bearer) | Sobe a fazenda de nível |
 | GET | `/v1/events` | público | O evento semanal de agora (grupo, nome, profissões, fator, início e fim) e os 3 próximos |
 | GET | `/v1/gamepass` | público (com Bearer, o seu nível) | A temporada, o preço por nível, o seu nível, o corte de dano e os distintivos |

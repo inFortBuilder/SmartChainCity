@@ -635,7 +635,62 @@ export function createServidor(map) {
     }
     if (f.machines.length) html += `<p class="muted pequeno">Máquinas: ${f.machines.map((c) => esc(farm.machines.find((m) => m.code === c)?.label ?? c)).join(', ')}.</p>`;
     if (f.can_level_up) html += `<button class="btn btn--blue pequeno" type="button" data-s="fazenda-nivel" ${off}>Subir para o nível ${f.level + 1} · ${thaler(f.level_up_cents)}</button>`;
+    html += herdSection(a);
     html += '<p class="muted pequeno">A colheita vai para a despensa deste avatar. Riscos: apodrecer, pássaros (frutas), corvos (grãos) e coelhos; agrotóxico, espantalho e cão protegem. Sem colher, perde 5% por dia. Preços provisórios.</p>';
+    return html;
+  };
+
+  /** Pecuária (E3.4): estruturas, animais, alimentação com o grão da despensa, coleta, abate e reprodução. */
+  const herdSection = (a) => {
+    const l = farm.livestock;
+    if (!l) return '';
+    const off = busy ? 'disabled' : '';
+    const pantry = Object.fromEntries((a.pantry ?? []).map((x) => [x.food, x.units]));
+    let html = '<h3>🐔 Pecuária</h3>';
+    const missing = farm.structures.filter((x) => !l.structures.includes(x.code));
+    if (missing.length) {
+      html += `<div class="linha"><select class="campo" data-estrutura aria-label="Estrutura">${missing
+        .map((x) => `<option value="${esc(x.code)}">${esc(x.label)} · ${thaler(x.price)}</option>`)
+        .join('')}</select><button class="btn btn--ghost pequeno" type="button" data-s="fazenda-estrutura" ${off}>Construir</button></div>`;
+    }
+    const buyable = farm.breeds.filter((b) => b.needs.every((n) => l.structures.includes(n)));
+    if (buyable.length) {
+      html += `<div class="linha"><select class="campo" data-raca aria-label="Animal">${buyable
+        .map((b) => `<option value="${esc(b.code)}">${esc(b.label)} · ${thaler(b.price)}</option>`)
+        .join('')}</select><button class="btn btn--ghost pequeno" type="button" data-s="fazenda-animal" ${off}>Comprar animal</button></div>`;
+    }
+    const grains = farm.feed_foods.filter((g) => (pantry[g] ?? 0) > 0);
+    if (l.animals.length) {
+      html += `<ul class="lista-saques">${l.animals
+        .map((x) => {
+          const info = [x.adult ? `adulto, nível ${x.level}` : `filhote (${x.feeds}/3 refeições)`, x.golden ? 'ovos de ouro' : '', x.stock ? `${x.stock} guardado(s)` : '', x.dies_at ? `até ${left(x.dies_at)}` : '']
+            .filter(Boolean)
+            .join(' · ');
+          const feed = x.fed_today
+            ? '<span class="muted pequeno">comeu hoje</span>'
+            : grains.map((g) => `<button class="btn btn--ghost pequeno" type="button" data-s="fazenda-alimentar" data-id="${esc(x.id)}" data-f="${esc(g)}" ${off}>${g === 'milho' ? 'Milho' : 'Trigo'}</button>`).join('') ||
+              '<span class="muted pequeno">sem milho ou trigo na despensa</span>';
+          return `<li><span>${esc(x.label)} · ${info}</span><span class="linha">${feed}<button class="btn btn--ghost pequeno" type="button" data-s="fazenda-abater" data-id="${esc(x.id)}" ${off}>Abater</button></span></li>`;
+        })
+        .join('')}</ul>`;
+      const stock = l.animals.reduce((n, x) => n + x.stock, 0);
+      const extra = [
+        stock ? `<button class="btn btn--primary pequeno" type="button" data-s="fazenda-coletar" ${off}>Coletar ovos e leite (${stock})</button>` : '',
+        l.structures.includes('galinheiro') && !l.coop_clean ? `<button class="btn btn--blue pequeno" type="button" data-s="fazenda-limpar" ${off}>Limpar galinheiro · ${thaler(farm.coop_clean_price)}</button>` : '',
+        l.structures.includes('chocadeira') && (pantry.ovos ?? 0) > 0 ? `<button class="btn btn--ghost pequeno" type="button" data-s="fazenda-chocar" ${off}>Chocar 1 ovo</button>` : '',
+      ].join('');
+      if (extra) html += `<div class="linha">${extra}</div>`;
+      const adults = l.animals.filter((x) => x.adult);
+      if (adults.length >= 2 && grains.length) {
+        const opts = adults.map((x) => `<option value="${esc(x.id)}">${esc(x.label)} (${x.id.slice(0, 4)})</option>`).join('');
+        html += `<div class="linha"><select class="campo" data-par="0" aria-label="Animal 1">${opts}</select><select class="campo" data-par="1" aria-label="Animal 2">${opts}</select>
+          <button class="btn btn--ghost pequeno" type="button" data-s="fazenda-reproduzir" data-f="${esc(grains[0])}" ${off}>Reproduzir (1 ${grains[0]})</button></div>`;
+      }
+    }
+    if (l.structures.includes('galinheiro')) {
+      html += `<p class="muted pequeno">Galinheiro ${l.coop_clean ? `limpo até ${new Date(l.coop_clean_until).toLocaleDateString('pt-BR')}` : '<strong>sujo: as galinhas não põem</strong>'}.</p>`;
+    }
+    if (l.log.length) html += `<p class="muted pequeno">${esc(l.log.at(-1).text)}</p>`;
     return html;
   };
 
@@ -1307,6 +1362,11 @@ export function createServidor(map) {
       // Lê os campos antes do act(): ele redesenha o painel e os selects voltam ao padrão.
       const machine = panel.querySelector('[data-maquina]')?.value;
       const crop = panel.querySelector(`[data-crop="${n}"]`)?.value;
+      const structure = panel.querySelector('[data-estrutura]')?.value;
+      const breed = panel.querySelector('[data-raca]')?.value;
+      const pair = [panel.querySelector('[data-par="0"]')?.value, panel.querySelector('[data-par="1"]')?.value];
+      const id = b.dataset.id;
+      const av = data.avatar?.id;
       const req = {
         'fazenda-comprar': () => call(API.game, '/v1/farm', { method: 'POST', token: session.token }),
         'fazenda-maquina': () => call(API.game, '/v1/farm/machines', { method: 'POST', token: session.token, body: { machine } }),
@@ -1316,6 +1376,14 @@ export function createServidor(map) {
           call(API.game, `/v1/farm/plots/${n}/plant`, { method: 'POST', token: session.token, body: { crop } }),
         'fazenda-colher': () => call(API.game, `/v1/farm/plots/${n}/harvest`, { method: 'POST', token: session.token, body: { avatar_id: data.avatar.id } }),
         'fazenda-nivel': () => call(API.game, '/v1/farm/level', { method: 'POST', token: session.token }),
+        'fazenda-estrutura': () => call(API.game, '/v1/farm/structures', { method: 'POST', token: session.token, body: { structure } }),
+        'fazenda-animal': () => call(API.game, '/v1/farm/animals', { method: 'POST', token: session.token, body: { breed } }),
+        'fazenda-alimentar': () => call(API.game, `/v1/farm/animals/${id}/feed`, { method: 'POST', token: session.token, body: { avatar_id: av, food: b.dataset.f } }),
+        'fazenda-abater': () => call(API.game, `/v1/farm/animals/${id}/slaughter`, { method: 'POST', token: session.token, body: { avatar_id: av } }),
+        'fazenda-coletar': () => call(API.game, '/v1/farm/collect', { method: 'POST', token: session.token, body: { avatar_id: av } }),
+        'fazenda-limpar': () => call(API.game, '/v1/farm/coop/clean', { method: 'POST', token: session.token }),
+        'fazenda-chocar': () => call(API.game, '/v1/farm/hatch', { method: 'POST', token: session.token, body: { avatar_id: av } }),
+        'fazenda-reproduzir': () => call(API.game, '/v1/farm/breed', { method: 'POST', token: session.token, body: { ids: pair, avatar_id: av, food: b.dataset.f } }),
       }[what];
       if (!req) return;
       return act(async () => {
@@ -1327,6 +1395,14 @@ export function createServidor(map) {
           'fazenda-plantar': `Canteiro ${n} plantado.`,
           'fazenda-colher': r.harvest ? `Colheita: ${r.harvest.units} un. de ${r.harvest.crop} na despensa${r.harvest.damage ? ` (${r.harvest.damage})` : ''}.` : '',
           'fazenda-nivel': `Fazenda no nível ${r.farm?.level}.`,
+          'fazenda-estrutura': 'Estrutura construída.',
+          'fazenda-animal': 'Animal comprado.',
+          'fazenda-alimentar': 'Animal alimentado.',
+          'fazenda-abater': r.meat ? `Abate: ${r.meat} carne(s) crua(s) na despensa.` : 'Abate de filhote: não deu carne.',
+          'fazenda-coletar': r.collected ? `Coleta: ${r.collected.ovos} ovo(s) e ${r.collected.leite} leite(s) na despensa.` : '',
+          'fazenda-limpar': 'Galinheiro limpo por 5 dias.',
+          'fazenda-chocar': r.golden ? 'Nasceu uma galinha dos ovos de ouro!' : 'Nasceu um pinto.',
+          'fazenda-reproduzir': `Nasceu um filhote (${r.baby}).`,
         }[what];
         messageOk = true;
       });

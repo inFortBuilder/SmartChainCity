@@ -12,7 +12,7 @@ const toFarm = (r: typeof farm.$inferSelect): Farm => ({
   harvestsTotal: r.harvestsTotal,
   boughtAt: r.boughtAt,
   version: r.version,
-  ...farmFromJson(r.state as { machines?: string[]; plots?: unknown[] }),
+  ...farmFromJson(r.state as { machines?: string[]; plots?: unknown[]; livestock?: unknown }),
 });
 
 export class PostgresFarmStore implements FarmStore {
