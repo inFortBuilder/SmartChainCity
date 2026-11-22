@@ -30,6 +30,13 @@ O jogo é assíncrono. Esta sala só mostra quem está por perto e o que dizem; 
 
 A lista de palavras é curta de propósito (MVP); a versão final deve vir do CMS, por idioma.
 
+### Carga da cidade (E3.9: 10 mil simultâneos)
+
+`pnpm --filter @scc/realtime load:city` espalha os clientes por bairros de 100. Os clientes rodam em threads, entram em rampa e podem ir para vários processos (`--urls a,b,c`: o bairro `d` vai para o `d % n`). O método e os resultados de 2026-11-22 estão em [teste de carga](../../docs/desenvolvimento/teste-de-carga.md):
+- 10 mil clientes em 3 processos: todos entraram e nenhum caiu;
+- um processo só chega a 1 núcleo com 10 mil;
+- com 5 mil, o movimento chegou em p95 de 130 ms.
+
 ### Carga (critério da trilha: 100 clientes por sala)
 
 ```bash

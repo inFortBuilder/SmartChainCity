@@ -8,7 +8,8 @@
     "start": "tsx src/main.ts",
     "lint": "tsc --noEmit -p .",
     "test": "vitest run",
-    "load": "tsx --env-file-if-exists=.env scripts/load.ts"
+    "load": "tsx --env-file-if-exists=.env scripts/load.ts",
+    "load:city": "tsx --env-file-if-exists=.env scripts/load-city.ts"
   },
   "dependencies": {
     "@colyseus/core": "0.18.27",
