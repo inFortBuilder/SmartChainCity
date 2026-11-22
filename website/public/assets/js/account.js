@@ -75,6 +75,71 @@
     } catch { $('[data-wallet-token]').textContent = '—'; }
   }
 
+  // ---------------------------------------------------------------- depósito no GameVault
+
+  /** Texto decimal ("12,5") → wei (18 casas), sem float. null se inválido. */
+  const toWei = (text) => {
+    const t = String(text).trim().replace(',', '.');
+    if (!/^\d+(\.\d{1,18})?$/.test(t)) return null;
+    const [i, f = ''] = t.split('.');
+    const v = BigInt(i) * 10n ** 18n + BigInt(f.padEnd(18, '0'));
+    return v > 0n ? v : null;
+  };
+  const word = (v) => v.toString(16).padStart(64, '0');
+  const addr = (a) => a.toLowerCase().replace('0x', '').padStart(64, '0');
+  const depStatus = $('[data-deposit-status]');
+  const depSay = (msg, ok = true) => { if (depStatus) { depStatus.textContent = msg; depStatus.className = 'form-status ' + (ok ? 'is-ok' : 'is-error'); } };
+
+  /** Os depósitos da carteira (chain-indexer, pelo próprio site). */
+  async function renderDeposits(address) {
+    const list = $('[data-deposit-list]');
+    if (!list) return;
+    if (!address) { list.hidden = true; return; }
+    try {
+      const r = await fetch(`${window.SCC.baseUrl}/api/deposits.php?wallet=${address}`, { headers: { Accept: 'application/json' } }).then((x) => x.json());
+      const items = r.deposits ?? [];
+      list.replaceChildren(...items.slice(0, 5).map((d) => {
+        const li = document.createElement('li');
+        li.textContent = `${money(d.amount_wei, 18)} SCITY · ${d.status === 'credited' ? 'no jogo' : 'aguardando confirmações'}`;
+        return li;
+      }));
+      list.hidden = items.length === 0;
+    } catch { list.hidden = true; }
+  }
+
+  $('[data-deposit-form]')?.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const btn = $('[data-deposit-submit]');
+    const amount = toWei($('[data-deposit-amount]').value);
+    if (!amount) return depSay('Valor inválido.', false);
+    if (!cfg.vault || !cfg.tokenAddress) return depSay('O cofre ainda não foi publicado nesta rede.', false);
+    btn.disabled = true;
+    try {
+      if (!wallet.state.address) await wallet.connect();
+      const me = wallet.state.address;
+      // Saldo de SCITY na carteira antes de pedir as assinaturas (balanceOf).
+      const hex = await window.ethereum.request({ method: 'eth_call', params: [{ to: cfg.tokenAddress, data: '0x70a08231' + addr(me) }, 'latest'] });
+      if (BigInt(hex === '0x' ? '0x0' : hex) < amount) { depSay('A carteira não tem esse SCITY.', false); return; }
+      depSay('Confirme na carteira: aprovar o SCITY para o cofre…');
+      await wallet.waitReceipt(await wallet.sendTx({ to: cfg.tokenAddress, data: '0x095ea7b3' + addr(cfg.vault) + word(amount) }));
+      depSay('Confirme na carteira: depositar…');
+      // deposit(amount) do GameVault (0xb6b55f25): o chain-indexer credita o ledger depois das confirmações.
+      await wallet.waitReceipt(await wallet.sendTx({ to: cfg.vault, data: '0xb6b55f25' + word(amount) }));
+      depSay('Depósito enviado. Vira saldo no jogo depois das confirmações da rede.');
+      $('[data-deposit-amount]').value = '';
+      await renderDeposits(me);
+      // O crédito no ledger vem logo depois: atualiza o painel do jogo e a lista em alguns segundos.
+      setTimeout(() => { renderDeposits(me); renderGame(); }, 6000);
+    } catch (e) {
+      depSay(e?.code === 4001 ? 'Você cancelou na carteira.'
+        : e?.code === 'reverted' ? 'O cofre recusou: ele pode estar pausado.'
+          : errorText(e), false);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  wallet.onChange((s) => renderDeposits(s.address));
   wallet.onChange(render);
 
   $('[data-wallet-connect]')?.addEventListener('click', async () => {

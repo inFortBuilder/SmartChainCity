@@ -106,6 +106,7 @@ function public_js_config(): array
             'explorer'      => cfg('chain.explorer'),
             'tokenAddress'  => cfg('chain.token_address') ?: OfficialContracts::address('SCityToken'),
             'marketplace'   => OfficialContracts::address('Marketplace'),
+            'vault'         => OfficialContracts::address('GameVault'),
             'tokenSymbol'   => cfg('chain.token_symbol'),
             'tokenDecimals' => cfg('chain.token_decimals'),
         ],
