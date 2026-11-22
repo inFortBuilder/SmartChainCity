@@ -50,7 +50,7 @@ O MVP roda inteiro na máquina local, sem serviços pagos. Por isso, publicar o 
 
 | Área | Situação |
 |------|----------|
-| `contracts/` | Desde 2026-11-20: `LandNFT`, `AvatarNFT`, `LuckyBox`, `SCityToken`, `BuildingNFT`, `PropertyNFT` e `GameVault` no anvil. O `Marketplace` também (2026-11-21): listagem com preço fixo, combo, taxa e royalties. Faltam vesting e a reserva da auditoria (E3.8) |
+| `contracts/` | Desde 2026-11-20: `LandNFT`, `AvatarNFT`, `LuckyBox`, `SCityToken`, `BuildingNFT`, `PropertyNFT` e `GameVault` no anvil. O `Marketplace` também (2026-11-21): listagem com preço fixo, combo, taxa e royalties. O TGE também (2026-11-22): vesting, P2E por parcelas e LP travado ([E4.2](contracts/README.md#tge-vesting-e-lp-travado-e42)). Falta a auditoria (E3.8) |
 | `services/world` | Faltam imóveis, impostos, regras de cerco e a cotação EIP-712 |
 | `services/chain-indexer` | Começou em 2026-11-20; credita os depósitos do `GameVault` no ledger. O `services/realtime` também começou nesse dia |
 | Etapa 0 sem código | E0.2 (trocar as credenciais legadas), E0.8 (parecer jurídico), o tomate duplicado e a calibração da elasticidade e do dinheiro novo no simulador |
@@ -179,7 +179,7 @@ O MVP roda inteiro na máquina local, sem serviços pagos. Por isso, publicar o 
 | Épico | Trilha | Entregas |
 |-------|--------|----------|
 | E4.1 Deploy na mainnet | contracts · infra | Contratos verificados, multisig, timelock, signer no KMS. 🟡 O script está pronto (2026-11-22, [contracts](contracts/README.md#deploy-na-bsc-mainnet-e-testnet)). Faltam os Safes, a chave no KMS, a assinatura do VRF e a auditoria |
-| E4.2 TGE do SCITY | contracts · econ | Vesting configurado, LP travado ≥ 12 meses, endereços publicados |
+| E4.2 TGE do SCITY | contracts · econ | Vesting configurado, LP travado ≥ 12 meses, endereços publicados. 🟡 Contratos e script prontos (2026-11-22, [contracts](contracts/README.md#tge-vesting-e-lp-travado-e42)). O `TgeDistributor` faz o TGE numa transação: `VestingWallet` por alocação do doc 04, P2E no `RewardsPool` e `TokenLock` do LP com mínimo de 365 dias. Faltam os Safes de cada alocação, a auditoria, o par na DEX e publicar os endereços (E4.5) |
 | E4.3 Venda de lotes da A1 | backend · client | Venda primária com fila e limites por carteira |
 | E4.4 Espaços Spatial | metaverse | Stand de Vendas, Prefeitura Virtual e Showroom ([doc 08 §5](docs/08-metaverso-webgl.md#5-espaços-spatial-a-partir-de-spatial-virtualcamp)) |
 | E4.5 Landing e comunidade | site · art | Site em PHP/JS já criado em [`website/`](website/README.md) (ver [trilha-site](docs/desenvolvimento/trilha-site.md)); publicar com dados reais, Discord, documentação pública e FAQ |

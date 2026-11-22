@@ -16,8 +16,11 @@ Rede de destino: BNB Smart Chain. Solidity 0.8.28 (`evm_version = cancun`), Open
 | [`BuildingNFT`](../../contracts/src/BuildingNFT.sol) | 127 | Recomendado: mint por voucher e demolição | Imutável |
 | [`AvatarNFT`](../../contracts/src/AvatarNFT.sol) | 60 | Recomendado: mint só pela LuckyBox | Imutável |
 | [`SCityToken`](../../contracts/src/SCityToken.sol) | 9 | Leitura: ERC-20 + Permit da OZ, suprimento fixo | Imutável |
+| [`TgeDistributor`](../../contracts/src/tge/TgeDistributor.sol) | 73 | Recomendado: o TGE inteiro (soma exata, saldo zero, `VestingWallet` da OZ) | Imutável |
+| [`RewardsPool`](../../contracts/src/tge/RewardsPool.sol) | 60 | Recomendado: parcelas anuais do P2E | Imutável |
+| [`TokenLock`](../../contracts/src/tge/TokenLock.sol) | 34 | Recomendado: LP travado ≥ 365 dias | Imutável |
 
-Total: cerca de 1.200 nSLOC.
+Total: cerca de 1.370 nSLOC.
 
 **Fora do escopo:**
 - `src/dev/` (VRF e par de DEX locais, só para o anvil);
@@ -82,8 +85,8 @@ Os handlers contam os caminhos de verdade (compras, lances, encerramentos, desis
 ## 6. Qualidade
 
 - **Testes:** 115 no Foundry (unidade, fuzz, invariantes e upgrade), no CI a cada PR.
-- **Cobertura de linhas:** 100% no GameVault, no Marketplace e na LuckyBox, com piso de 95% no CI (`scripts/coverage-gate.mjs`). O total de `src/` é 95,3%.
-- **Slither no CI**, falhando com achado alto. Triagem de 2026-11-22: **0 alto, 0 médio, 31 baixos** (abaixo).
+- **Cobertura de linhas:** 100% no GameVault, no Marketplace, na LuckyBox e no TokenLock, e cerca de 97% no TgeDistributor e no RewardsPool, com piso de 95% no CI (`scripts/coverage-gate.mjs`). O total de `src/` é 95,3%.
+- **Slither no CI**, falhando com achado alto. Triagem de 2026-11-22: **0 alto, 0 médio, 34 baixos** (abaixo). Com o TGE entraram 2 `incorrect-equality` médios, falsos positivos suprimidos no código com o motivo.
 - **Upgrade:** [`test/Upgrades.t.sol`](../../contracts/test/Upgrades.t.sol) confere:
   - a implementação travada;
   - só o timelock atualizando, depois do atraso;
@@ -97,7 +100,8 @@ Os handlers contam os caminhos de verdade (compras, lances, encerramentos, desis
 | `calls-loop` | Marketplace: `list`, `buy`, `createAuction`, `settle`, `_unwind`, `_royalty` | Laço de até `MAX_ITEMS` (5) sobre coleções permitidas pelo admin. Uma coleção que reverte só trava a própria operação. `_royalty` usa `try/catch` e uma coleção quebrada paga royalty 0 (teste em `Edges.t.sol`) |
 | `reentrancy-benign` | `LuckyBox.open` | `nonReentrant`. As chamadas vão para a tesouraria do projeto e para o coordenador VRF, e o id do pedido só existe depois da chamada |
 | `reentrancy-events` | `LuckyBox.rawFulfillRandomWords` | `fulfilled` é gravado antes do `mint`, e o `AvatarNFT` usa `_mint` (sem callback ao comprador) |
-| `timestamp` | Prazos dos vouchers, das listagens e dos leilões | Ver as premissas de confiança |
+| `timestamp` | Prazos dos vouchers, das listagens e dos leilões; parcelas do `RewardsPool` e prazo do `TokenLock` | Ver as premissas de confiança. Nas parcelas anuais e na trava de 365 dias, segundos de desvio não importam |
+| `incorrect-equality` (médio, suprimido no código) | `RewardsPool.release` e `TokenLock.release`: `amount == 0` | Falso positivo. O zero só barra uma liberação vazia (`NothingToRelease`). Alguém mandar SCITY ou LP direto ao contrato só aumenta o que se libera, pelo mesmo cronograma |
 
 **`forge lint`** dá 15 avisos `reentrancy-events` no GameVault e no Marketplace depois do UUPS. São falsos positivos: o linter trata o armazenamento com namespace das bases upgradeable (`_grantRole`, `__X_init`) como chamada externa, até no `initialize`. O Slither, que analisa o fluxo de dados, não os aponta.
 

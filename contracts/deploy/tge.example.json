@@ -1,0 +1,21 @@
+{
+  "playToEarn": {
+    "beneficiary": "0x0000000000000000000000000000000000000000",
+    "tokens": 410000000,
+    "intervalDays": 365,
+    "tranchesBps": [3000, 2500, 2000, 1500, 1000]
+  },
+  "allocations": [
+    { "name": "Staking", "beneficiary": "0x0000000000000000000000000000000000000000", "tokens": 200000000, "tgeBps": 0, "cliffMonths": 0, "vestingMonths": 60 },
+    { "name": "DEV", "beneficiary": "0x0000000000000000000000000000000000000000", "tokens": 95000000, "tgeBps": 0, "cliffMonths": 12, "vestingMonths": 24 },
+    { "name": "Team", "beneficiary": "0x0000000000000000000000000000000000000000", "tokens": 95000000, "tgeBps": 0, "cliffMonths": 12, "vestingMonths": 24 },
+    { "name": "Marketing", "beneficiary": "0x0000000000000000000000000000000000000000", "tokens": 70000000, "tgeBps": 1000, "cliffMonths": 0, "vestingMonths": 36 },
+    { "name": "Liquidez (pool)", "beneficiary": "0x0000000000000000000000000000000000000000", "tokens": 30000000, "tgeBps": 10000, "cliffMonths": 0, "vestingMonths": 0 },
+    { "name": "Liquidez (reserva)", "beneficiary": "0x0000000000000000000000000000000000000000", "tokens": 30000000, "tgeBps": 10000, "cliffMonths": 0, "vestingMonths": 0 },
+    { "name": "ICO", "beneficiary": "0x0000000000000000000000000000000000000000", "tokens": 35000000, "tgeBps": 2500, "cliffMonths": 0, "vestingMonths": 6 },
+    { "name": "Advisors", "beneficiary": "0x0000000000000000000000000000000000000000", "tokens": 10000000, "tgeBps": 0, "cliffMonths": 6, "vestingMonths": 18 },
+    { "name": "Acao Social", "beneficiary": "0x0000000000000000000000000000000000000000", "tokens": 10000000, "tgeBps": 10000, "cliffMonths": 0, "vestingMonths": 0 },
+    { "name": "AirDrop", "beneficiary": "0x0000000000000000000000000000000000000000", "tokens": 10000000, "tgeBps": 10000, "cliffMonths": 0, "vestingMonths": 0 },
+    { "name": "STAFF", "beneficiary": "0x0000000000000000000000000000000000000000", "tokens": 5000000, "tgeBps": 0, "cliffMonths": 6, "vestingMonths": 12 }
+  ]
+}
