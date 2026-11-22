@@ -16,7 +16,7 @@ O visual segue o kit de marca da agência (menu de pedra, painéis de pedra, pla
 | `/private-sale` | `public/private-sale.php` | Preço do token, mínimo/máximo, barra de hard cap, calculadora, aviso de risco |
 | `/faq` | `public/faq.php` | Perguntas frequentes em grupos (jogo, lotes, carteira e segurança, token e risco), sem promessa de rendimento. Conteúdo em `src/data/faq.php` |
 | `/contratos` | `public/contratos.php` | Endereços oficiais (token, timelock, cofre, mercado, NFTs, vesting do TGE e trava do LP), com copiar e link do BscScan. Vêm dos arquivos de deploy (`contracts/deployments/<chainId>.json`, `-tge.json`, `-lp-lock.json`); sem eles, a página diz que ainda não há contrato publicado e que qualquer "SCITY" antes disso é falso |
-| `/account` | `public/account.php` | Card do jogador (HUD), conexão MetaMask, saldos BNB/SCITY, adicionar token e **Entrar no jogo**. O login é SIWE pelo gateway (`siwe.js`): a mensagem EIP-4361 é assinada na carteira, sem gás, e o captcha de prova de trabalho é resolvido no navegador. Com o token, o card mostra o avatar real (profissão, raridade e as barras de saúde, felicidade, alimentação e energia), e o painel **No jogo** mostra a conta e os saldos de THALER e SCITY no ledger. O token fica só na aba (`sessionStorage`) e vence com o JWT. Depósito (em breve) |
+| `/account` | `public/account.php` | Card do jogador (HUD), conexão MetaMask, saldos BNB/SCITY, adicionar token e **Entrar no jogo**. O login é SIWE pelo gateway (`siwe.js`): a mensagem EIP-4361 é assinada na carteira, sem gás, e o captcha de prova de trabalho é resolvido no navegador. Com o token, o card mostra o avatar real (profissão, raridade e as barras de saúde, felicidade, alimentação e energia), e o painel **No jogo** mostra a conta e os saldos de THALER e SCITY no ledger. O token fica só na aba (`sessionStorage`) e vence com o JWT. **Depósito no GameVault**: `approve` do SCITY e `deposit(amount)`, com o saldo da carteira conferido antes. O chain-indexer credita o ledger depois das confirmações, e a lista mostra os últimos depósitos da carteira (`aguardando confirmações` ou `no jogo`). A carteira precisa estar ligada à conta (entrar no jogo com ela) |
 | qualquer outra | `public/404.php` | "Rua sem saída!" |
 
 ## API JSON
@@ -25,6 +25,7 @@ O visual segue o kit de marca da agência (menu de pedra, painéis de pedra, pla
 |--------|------|----------|
 | GET | `/api/stats.php` | `{avatars, lands, taxes, work_accidents, source}` — painel da home (atualizado a cada 60 s pelo JS) |
 | GET | `/api/listings.php?category=all\|property\|land\|avatar\|item` | `{category, items[]}` — 400 se a categoria for inválida |
+| GET | `/api/deposits.php?wallet=0x…` | `{deposits}`: os depósitos da carteira no GameVault, pelo chain-indexer (`SCC_INDEXER_URL`); `null` sem ele |
 | GET | `/api/status.php` | `{switches}`: travas de incidente do economy (saque e câmbio). Com alguma ligada, o aviso vermelho aparece no topo de todas as páginas, com o motivo público |
 | POST | `/api/contact.php` | Formulário de contato. Exige `csrf`; honeypot `website`; 1 envio/minuto por sessão; 422 com `fields` em caso de erro de validação |
 
