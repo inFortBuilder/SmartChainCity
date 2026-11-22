@@ -96,6 +96,28 @@ import {
   plan as planCrop,
 } from './domain/farm.js';
 import {
+  BREEDS,
+  COOP_CLEAN_CENTS,
+  FEED_FOODS,
+  type Livestock,
+  STRUCTURES,
+  advance,
+  applyBreed,
+  applyFeed,
+  applyStructure,
+  checkAnimal,
+  checkBreed,
+  checkClean,
+  checkFeed,
+  checkStructure,
+  collect,
+  hatch,
+  livestockDto,
+  livestockOf,
+  newAnimal,
+  slaughter,
+} from './domain/livestock.js';
+import {
   EVENT_FACTOR,
   type GamePassPayer,
   type GamePassStore,
@@ -831,8 +853,130 @@ export async function buildApp(
       crops: Object.entries(CROPS).map(([code, c]) => ({ code, ...c })),
       machines: Object.entries(MACHINES).map(([code, m]) => ({ code, label: m.label, price: m.cents.toString() })),
       region: 'A3 (zona rural): a fazenda ganha lugar no mapa quando a região abrir',
+      structures: Object.entries(STRUCTURES).map(([code, x]) => ({ code, label: x.label, price: x.cents.toString() })),
+      breeds: Object.entries(BREEDS).map(([code, x]) => ({ code, label: x.label, species: x.species, price: x.cents.toString(), needs: x.needs })),
+      feed_foods: FEED_FOODS,
+      coop_clean_price: COOP_CLEAN_CENTS.toString(),
       farm: f ? farmDto(f, now()) : null,
+      livestock: f ? livestockDto(advance(livestockOf(f, now()), f.machines.includes('cao'), now()), now()) : null,
     };
+  });
+
+  // ---------------- pecuária (E3.4): mesma fazenda, mesma trava
+
+  /** A fazenda com o rebanho andado até agora (produção, mortes e riscos dos dias que passaram). */
+  const herd = async (accountId: string) => {
+    const f = await myFarm(accountId);
+    return { f, l: advance(livestockOf(f, now()), f.machines.includes('cao'), now()) };
+  };
+  const saveHerd = (f: Farm, l: Livestock) => saveFarm({ ...f, livestock: l });
+  /** O avatar da conta que dá ou recebe da despensa. */
+  const pantryAvatar = async (accountId: string, avatarId: string) => {
+    const a = await store.get(avatarId);
+    if (!a || a.accountId !== accountId) throw new AppError('not_found', 'Avatar não encontrado.', 404);
+    return decayed(a, now());
+  };
+  const movePantry = (avatarId: string, accountId: string, changes: Record<string, number>) =>
+    store.updateAvatar(avatarId, accountId, now(), (cur) => {
+      const pantry = { ...cur.pantry };
+      for (const [food, delta] of Object.entries(changes)) {
+        const n = (pantry[food] ?? 0) + delta;
+        if (n < 0) throw new AppError('not_in_pantry', 'O alimento saiu da despensa no meio do caminho.', 409);
+        if (n === 0) delete pantry[food];
+        else pantry[food] = n;
+      }
+      return { ...cur, pantry, updatedAt: now() };
+    });
+  const herdOut = (f: Farm) => ({ farm: farmDto(f, now()), livestock: livestockDto(livestockOf(f, now()), now()) });
+
+  app.post('/v1/farm/structures', async (request, reply) => {
+    const accountId = await player(request);
+    const { structure } = z.object({ structure: z.string() }).parse(request.body);
+    const { f, l } = await herd(accountId);
+    const { cents, code } = checkStructure(l, structure);
+    await charge(accountId, `farm-structure:${accountId}:${code}`, 'farm_structure', cents, request.id);
+    return reply.status(201).send(herdOut(await saveHerd(f, applyStructure(l, code, now()))));
+  });
+
+  app.post('/v1/farm/animals', async (request, reply) => {
+    const accountId = await player(request);
+    const { breed } = z.object({ breed: z.string() }).parse(request.body);
+    const { f, l } = await herd(accountId);
+    const { cents } = checkAnimal(l, breed);
+    await charge(accountId, `farm-animal:${accountId}:${l.bought}`, 'farm_animal', cents, request.id);
+    const next = { ...l, bought: l.bought + 1, animals: [...l.animals, newAnimal(breed as keyof typeof BREEDS, now())] };
+    return reply.status(201).send(herdOut(await saveHerd(f, next)));
+  });
+
+  // Alimenta com 1 milho ou trigo da despensa do avatar.
+  app.post('/v1/farm/animals/:id/feed', async (request) => {
+    const accountId = await player(request);
+    const { id } = z.object({ id: z.uuid() }).parse(request.params);
+    const body = z.object({ avatar_id: z.uuid(), food: z.string() }).parse(request.body);
+    const a = await pantryAvatar(accountId, body.avatar_id);
+    const { f, l } = await herd(accountId);
+    checkFeed(l, id, body.food, a.pantry, now());
+    const saved = await saveHerd(f, applyFeed(l, id, now()));
+    await movePantry(a.id, accountId, { [body.food]: -1 });
+    return herdOut(saved);
+  });
+
+  // Coleta os ovos e o leite guardados para a despensa do avatar.
+  app.post('/v1/farm/collect', async (request) => {
+    const accountId = await player(request);
+    const { avatar_id } = z.object({ avatar_id: z.uuid() }).parse(request.body);
+    await pantryAvatar(accountId, avatar_id);
+    const { f, l } = await herd(accountId);
+    const got = collect(l);
+    const saved = await saveHerd(f, got.livestock);
+    if (got.eggs || got.milk) await movePantry(avatar_id, accountId, { ...(got.eggs ? { ovos: got.eggs } : {}), ...(got.milk ? { leite: got.milk } : {}) });
+    return { ...herdOut(saved), collected: { ovos: got.eggs, leite: got.milk } };
+  });
+
+  // Abate: adulto vira carne crua na despensa; filhote não dá nada.
+  app.post('/v1/farm/animals/:id/slaughter', async (request) => {
+    const accountId = await player(request);
+    const { id } = z.object({ id: z.uuid() }).parse(request.params);
+    const { avatar_id } = z.object({ avatar_id: z.uuid() }).parse(request.body);
+    await pantryAvatar(accountId, avatar_id);
+    const { f, l } = await herd(accountId);
+    const got = slaughter(l, id);
+    const saved = await saveHerd(f, got.livestock);
+    if (got.meat) await movePantry(avatar_id, accountId, { carne_crua: got.meat });
+    return { ...herdOut(saved), meat: got.meat };
+  });
+
+  // Reprodução: casal adulto e 1 milho ou trigo da despensa.
+  app.post('/v1/farm/breed', async (request, reply) => {
+    const accountId = await player(request);
+    const body = z.object({ ids: z.tuple([z.uuid(), z.uuid()]), avatar_id: z.uuid(), food: z.string() }).parse(request.body);
+    const a = await pantryAvatar(accountId, body.avatar_id);
+    const { f, l } = await herd(accountId);
+    const { a: x, b: y, baby } = checkBreed(l, body.ids, body.food, a.pantry, now());
+    const saved = await saveHerd(f, applyBreed(l, x, y, baby, now()));
+    await movePantry(a.id, accountId, { [body.food]: -1 });
+    return reply.status(201).send({ ...herdOut(saved), baby });
+  });
+
+  // Chocadeira: 1 ovo da despensa vira pinto (3% de ser dos ovos de ouro).
+  app.post('/v1/farm/hatch', async (request, reply) => {
+    const accountId = await player(request);
+    const { avatar_id } = z.object({ avatar_id: z.uuid() }).parse(request.body);
+    const a = await pantryAvatar(accountId, avatar_id);
+    const { f, l } = await herd(accountId);
+    const got = hatch(l, a.pantry, now(), random());
+    const saved = await saveHerd(f, got.livestock);
+    await movePantry(a.id, accountId, { ovos: -1 });
+    return reply.status(201).send({ ...herdOut(saved), golden: got.golden });
+  });
+
+  // Limpeza do galinheiro (a cada 5 dias): sem ela, as galinhas não põem.
+  app.post('/v1/farm/coop/clean', async (request) => {
+    const accountId = await player(request);
+    const { f, l } = await herd(accountId);
+    const { cents } = checkClean(l, now());
+    await charge(accountId, `farm-coop:${accountId}:${l.coopCleanedAt?.toISOString() ?? 'nunca'}`, 'farm_coop_clean', cents, request.id);
+    return herdOut(await saveHerd(f, { ...l, coopCleanedAt: now() }));
   });
 
   // Slot da Prefeitura: 4 canteiros e a casa, um por conta.

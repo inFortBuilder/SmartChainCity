@@ -287,7 +287,8 @@ describe('API das corridas e da oficina', () => {
     expect((await app.inject({ method: 'POST', url: `/v1/vehicles/${v2.id}/revision`, headers: h })).json().error.code).toBe('revision_valid');
 
     const rookie = await avatars.create({ ...pilot(me), license: null });
-    const nope = await app.inject({ method: 'POST', url: `/v1/vehicles/${v.id}/races`, headers: h, payload: { avatar_id: rookie.id } });
+    // O carro 2 (consertado e revisado): o 1º pode ter quebrado nas corridas sorteadas.
+    const nope = await app.inject({ method: 'POST', url: `/v1/vehicles/${v2.id}/races`, headers: h, payload: { avatar_id: rookie.id } });
     expect(nope.json().error.code).toBe('not_licensed');
   });
 });

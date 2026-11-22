@@ -2,6 +2,8 @@ import { createHmac, randomBytes } from 'node:crypto';
 
 import { AppError } from '@scc/shared';
 
+import { type Livestock, livestockFromJson, livestockToJson } from './livestock.js';
+
 /**
  * Fazenda: agricultura (E3.4, GDD §6 "Fazenda" e §7 "Alimentos"). A pecuária vem no próximo passo.
  *
@@ -134,6 +136,8 @@ export interface Farm {
   boughtAt: Date;
   /** Trava otimista: cada gravação sobe 1. */
   version: number;
+  /** Pecuária (galinheiro, chiqueiro, pasto e os animais); null antes da primeira estrutura. */
+  livestock?: Livestock | null;
 }
 
 export function newFarm(accountId: string, now: Date): Farm {
@@ -285,6 +289,7 @@ export function farmDto(farm: Farm, now: Date) {
 
 export const farmToJson = (f: Farm) => ({
   machines: f.machines,
+  livestock: livestockToJson(f.livestock),
   plots: f.plots.map((p) => ({
     cycle: p.cycle,
     plowed: p.plowed,
@@ -292,8 +297,9 @@ export const farmToJson = (f: Farm) => ({
   })),
 });
 
-export function farmFromJson(v: { machines?: string[]; plots?: unknown[] }): Pick<Farm, 'machines' | 'plots'> {
+export function farmFromJson(v: { machines?: string[]; plots?: unknown[]; livestock?: unknown }): Pick<Farm, 'machines' | 'plots' | 'livestock'> {
   return {
+    livestock: livestockFromJson(v.livestock),
     machines: (v.machines ?? []).filter(isMachine),
     plots: (v.plots ?? []).map((raw) => {
       const p = raw as { cycle: number; plowed: boolean; planting: (Omit<Planting, 'plantedAt' | 'readyAt'> & { plantedAt: string; readyAt: string }) | null };
