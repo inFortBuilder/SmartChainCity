@@ -34,6 +34,7 @@ Separar as moedas protege o token on-chain da inflação do dia a dia e permite 
 | **Total** | **100%** | **1.000.000.000** | |
 
 Notas:
+- **Na cadeia (2026-11-22):** o `TgeDistributor` aplica esta tabela numa transação, com `VestingWallet` por alocação e o P2E no `RewardsPool` ([contracts](../contracts/README.md#tge-vesting-e-lp-travado-e42)). Mês = 365 dias / 12.
 - O estudo **não recomenda pré-venda de tokens**; a pré-venda deve ser de **boxes e lotes**.
 - Os prazos de vesting acima são uma **proposta desta documentação** (o estudo não define); o cliff de ≥ 12 meses para equipe segue a lição do Bombcrypto.
 - A planilha usa **42%** para P2E e o tokenomics **41%** — ver doc 11.

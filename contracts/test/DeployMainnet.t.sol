@@ -172,6 +172,12 @@ contract DeployMainnetTest is Test {
         c.timelockDelay = 24 hours;
         vm.expectRevert(bytes("DeployMainnet: atraso < 48 h"));
         _deploy(c);
+        // Com 48 h, ainda falta o token do TGE.
+        c.timelockDelay = 48 hours;
+        vm.expectRevert(bytes("DeployMainnet: na mainnet, scity e o token do TGE"));
+        _deploy(c);
+        c.scity = address(new SCityToken(holder));
+        assertTrue(_deploy(c).timelock != address(0));
     }
 
     function test_runOnlyOnBscWithConfirmation() public {

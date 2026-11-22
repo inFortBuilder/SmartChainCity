@@ -83,7 +83,7 @@ Só o `GameVault` e o `Marketplace` são atualizáveis (doc 07 §5); token e NFT
 **Configuração:** um JSON no formato de [`deploy/bsc.example.json`](deploy/bsc.example.json), sem nada secreto (só endereços e parâmetros):
 - os dois multisigs (têm de ser contratos, isto é, Safes já criados, e diferentes entre si);
 - o endereço do signer no KMS e a tesouraria;
-- o `scity` (token do TGE já criado) ou o `tokenRecipient` (o script cria o token com o suprimento para ele);
+- o `scity`, que é o token do [TGE](#tge-vesting-e-lp-travado-e42) já criado. Na mainnet é obrigatório. Na testnet, o `tokenRecipient` serve de atalho: o script cria o token com o suprimento inteiro para ele, sem vesting;
 - o atraso do timelock, os tetos do cofre, a taxa do mercado (até 10%), o royalty dos avatares e as base URIs;
 - a assinatura do Chainlink VRF v2.5 (coordenador, key hash, sub id) e o tier 1 da caixa (pesos somando 10.000).
 
@@ -114,6 +114,72 @@ DEPLOY_CONFIG=deploy/bsc-testnet.local.json forge script script/DeployMainnet.s.
 - a leitura do JSON de exemplo.
 
 Ensaio: `anvil --chain-id 97`, com os dois Safes simulados por `anvil_setCode`. Depois do ensaio, `hasRole` foi conferido na cadeia em cada contrato: o deployer sem admin nem pausa, e o timelock com admin.
+
+## TGE, vesting e LP travado (E4.2)
+
+O TGE roda **antes** do `DeployMainnet`, que recebe o token criado aqui. É `script/DeployTGE.s.sol` com uma config como [`deploy/tge.example.json`](deploy/tge.example.json): os valores do doc 04 §2, faltando os endereços.
+
+- **`TgeDistributor`** (`src/tge/`): o TGE inteiro numa transação só.
+  - O construtor cria o `SCityToken` com 1 bilhão para si e distribui tudo.
+  - Termina com saldo zero, e o deployer não recebe nada (o script confere).
+  - Se a soma das alocações não der 1 bilhão, reverte.
+  - Fica como registro público: `grants()` lista nome, beneficiário, carteira de vesting, valor no TGE e valor em vesting.
+- **Vesting:** uma `VestingWallet` da OZ por alocação.
+  - O `tgeBps` vai direto ao beneficiário no TGE.
+  - O resto libera em linha reta de `TGE + cliff` até `TGE + cliff + duração` (mês = 365 dias / 12).
+  - Com duração zero, vai tudo direto: liquidez, ação social e airdrop.
+  - O beneficiário deve ser um Safe por grupo, ou uma carteira por pessoa (basta uma entrada por beneficiário na config).
+- **`RewardsPool`:** o Play-to-Earn (41%) em parcelas anuais de 30%, 25%, 20%, 15% e 10% (doc 04 §3). A primeira destrava no TGE.
+  - Qualquer um chama `release()`, e o SCITY vai só ao beneficiário, o Safe do P2E, que abastece a reserva do `GameVault`.
+  - O cronograma é imutável: passar para liberação semestral exige decidir antes do TGE, com outros `tranchesBps` e `intervalDays`.
+- **Staking (20%):** linear em 60 meses para o Safe do staking, até o `StakingPool` existir.
+- **`TokenLock` (LP travado):** trava o LP do par SCITY na DEX por **no mínimo 365 dias**.
+  - O contrato recusa prazo menor.
+  - O beneficiário, o Safe da liquidez, só pode estender o prazo, e qualquer um confere `releaseTime` e o saldo na cadeia.
+
+| Alocação | SCITY | No TGE | Depois |
+|---|---:|---:|---|
+| Play-to-Earn | 410 mi | 30% (123 mi) | +25%, +20%, +15%, +10% a cada ano |
+| Staking | 200 mi | 0 | 60 meses linear |
+| DEV / Team | 95 mi cada | 0 | Cliff de 12 meses + 24 meses linear |
+| Marketing | 70 mi | 10% | 36 meses linear |
+| Liquidez | 30 mi pool + 30 mi reserva | 100% | O LP do pool vai ao `TokenLock` |
+| ICO | 35 mi | 25% | 6 meses linear |
+| Advisors | 10 mi | 0 | Cliff de 6 meses + 18 meses linear |
+| Ação Social / AirDrop | 10 mi cada | 100% | — |
+| STAFF | 5 mi | 0 | Cliff de 6 meses + 12 meses linear |
+
+**Ordem do lançamento:**
+
+1. Criar os Safes (um por alocação ou grupo, mais o de admin 3-de-5 e o de pausa 2-de-3) e preencher `deploy/tge.local.json`.
+2. Rodar o TGE:
+   ```bash
+   TGE_CONFIG=deploy/tge.local.json forge script script/DeployTGE.s.sol --rpc-url "$BSC_RPC" --broadcast --verify --ledger
+   ```
+   Na mainnet, também `CONFIRM_MAINNET=sim`. Os endereços vão para `deployments/<chainId>-tge.json`.
+3. Rodar o `DeployMainnet` com `scity` = o `SCityToken` do passo 2.
+4. O Safe da liquidez cria o par na DEX (PancakeSwap) com os 30 mi do pool e recebe o LP.
+5. Travar o LP:
+   ```bash
+   LP_TOKEN=0x… LP_BENEFICIARY=<Safe da liquidez> LP_LOCK_DAYS=365 \
+     forge script script/DeployTGE.s.sol --sig "lockLiquidity()" --rpc-url "$BSC_RPC" --broadcast --verify --ledger
+   ```
+   O prazo ganha 1 dia de folga, porque o bloco minerado vem depois da simulação.
+6. O Safe da liquidez transfere **todo** o LP para o `TokenLock`.
+7. Publicar os endereços: `deployments/56-tge.json`, `56.json` e `56-lp-lock.json`, no site e na documentação pública (E4.5).
+
+`test/Tge.t.sol` confere com a config de exemplo:
+- o cronograma simulado batendo com a tabela em 0, 6, 12, 24 e 36 meses;
+- o P2E ano a ano (123, 225,5, 307,5, 369 e 410 mi acumulados);
+- a soma exata e nenhum saldo sobrando;
+- as configurações recusadas;
+- a trava do LP: mínimo de 12 meses, só estender, só o beneficiário recebe.
+
+**Ensaio num `anvil --chain-id 97`:**
+- TGE numa transação de cerca de 8,9 M de gás;
+- `DeployMainnet` com o token do TGE;
+- `lockLiquidity` (prazo de cerca de 366 dias);
+- o deployer terminou com 0 SCITY.
 
 ## Rodar
 

@@ -7,8 +7,8 @@ Rede: **BNB Smart Chain** (testnet para homologação). Ferramentas: Foundry ou 
 | Contrato | Padrão | Função |
 |----------|--------|--------|
 | `SCityToken` | BEP-20 (ERC-20) + `ERC20Permit` | Oferta fixa de 1 bi, mintada uma vez no deploy para os contratos de distribuição. **Sem função de mint posterior.** |
-| `TokenVesting` | OZ `VestingWallet` por beneficiário | Team, DEV, Advisors, STAFF, Marketing, ICO (cronogramas do doc 04) |
-| `RewardsPool` | Custom | Guarda o P2E (41%), libera por ano/semestre para o `GameVault` |
+| `TokenVesting` | OZ `VestingWallet` por beneficiário | Team, DEV, Advisors, STAFF, Marketing, ICO (cronogramas do doc 04). ✅ Criadas pelo `TgeDistributor` no TGE (2026-11-22) |
+| `RewardsPool` | Custom | Guarda o P2E (41%), libera por ano/semestre para o `GameVault`. ✅ Parcelas anuais imutáveis, pagas ao Safe do P2E, que abastece o cofre (2026-11-22) |
 | `StakingPool` | Custom | Staking de SCITY (20%), recompensa por epoch, *lock* opcional com boost |
 | `GameVault` | Custom + EIP-712 | Depósito SCITY → jogo; saque por voucher assinado; limites e pausa |
 | `AvatarNFT` | ERC-721 + EIP-2981 | Smartcityanos; raridade e profissão inicial gravadas no mint |
@@ -81,7 +81,7 @@ function available(address account) external view returns (uint256 total, uint25
 
 ✅ **Script de deploy da BSC (2026-11-22):** [`DeployMainnet.s.sol`](../contracts/README.md#deploy-na-bsc-mainnet-e-testnet) entrega estes papéis. O `DEFAULT_ADMIN` e o `UPGRADER` ficam com o timelock de 48 h, e o deployer sai sem papel nenhum (o script confere na cadeia). O `MINTER` hoje é só da `LuckyBox`: o `GameVault` guarda SCITY e não minta NFT.
 
-Liquidez inicial com **LP travado** (≥ 12 meses) e endereços da equipe publicados — resposta direta ao *rug pull* do CryptoCars.
+Liquidez inicial com **LP travado** (≥ 12 meses) e endereços da equipe publicados — resposta direta ao *rug pull* do CryptoCars. ✅ `TokenLock` com mínimo de 365 dias no próprio contrato, e prazo que só estende ([TGE](../contracts/README.md#tge-vesting-e-lp-travado-e42)).
 
 ## 4. Eventos que o indexer consome
 

@@ -203,6 +203,8 @@ contract DeployMainnet is CatalogReader {
         require(c.pauserMultisig.code.length > 0, "DeployMainnet: pauserMultisig precisa ser contrato (Safe)");
         if (block.chainid == 56) {
             require(c.timelockDelay >= MIN_MAINNET_DELAY, "DeployMainnet: atraso < 48 h");
+            // Na mainnet o SCITY vem do TGE (DeployTGE), com o vesting do doc 04: nada de criar aqui.
+            require(c.scity.code.length > 0, "DeployMainnet: na mainnet, scity e o token do TGE");
         }
         require(c.marketFeeBps <= 1000, "DeployMainnet: taxa acima de 10%");
         uint256 sum = uint256(c.tierWeights[0]) + c.tierWeights[1] + c.tierWeights[2] + c.tierWeights[3];
