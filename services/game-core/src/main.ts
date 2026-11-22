@@ -3,6 +3,8 @@ import { Pool } from 'pg';
 import { buildApp } from './app.js';
 import { loadConfig } from './config.js';
 import { PostgresAvatarStore } from './infra/db/postgres-store.js';
+import { PostgresPetSitterStore } from './infra/db/postgres-sitter-store.js';
+import { MemoryPetSitterStore } from './infra/memory-sitter-store.js';
 import { MemoryAvatarStore } from './infra/memory-store.js';
 import { syncChain } from './domain/chain-sync.js';
 import { GatewayWalletOwners, IndexerChainFeed } from './infra/chain-feed.js';
@@ -59,7 +61,9 @@ const passes = payer ? { store: passStore, payer } : null;
 // Fazenda (E3.4): slot, máquinas e plantio pelo mesmo ledger.
 const farmStore = pool ? new PostgresFarmStore(pool) : new MemoryFarmStore();
 const farms = payer ? { store: farmStore, payer } : null;
-const app = await buildApp(config, store, undefined, payer, payer, payer, undefined, riskStore, venues, championships, vehicles, passes, farms);
+// Pet Sitter (E3.1): ofertas e estadias.
+const sitterStore = pool ? new PostgresPetSitterStore(pool) : new MemoryPetSitterStore();
+const app = await buildApp(config, store, undefined, payer, payer, payer, undefined, riskStore, venues, championships, vehicles, passes, farms, sitterStore);
 
 // Job championship.settle: disputa o campeonato do mês que virou e cobra as inscrições paradas.
 const championshipTimer = championships

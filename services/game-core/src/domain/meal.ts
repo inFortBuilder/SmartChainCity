@@ -43,6 +43,8 @@ export interface MealEffects {
   leisure?: LeisureEffect;
   /** Só autoescola (E3.5): a habilitação começa depois da cobrança. */
   license?: true;
+  /** Só Pet Sitter (E3.1): a estadia reservada e quem recebe a diária. O efeito no pet vai em `pet`. */
+  sitter?: { sittingId: string; sitterAccountId: string; sitterAvatarId: string };
 }
 
 /**
@@ -75,6 +77,28 @@ export const isMedicine = (m: Pick<Meal, 'foodCode'>) => m.foodCode === MEDICINE
  * (cobrança em duas fases, idempotente). O código é `pet:<adocao|serviço>`.
  */
 export const isPetShop = (m: Pick<Meal, 'foodCode'>) => m.foodCode?.startsWith('pet:') ?? false;
+
+/** Pet Sitter (E3.1): a diária do sitter, pelo mesmo caminho. Código `sitter:<estadia>`. */
+export const isSitter = (m: Pick<Meal, 'foodCode'>) => m.foodCode?.startsWith('sitter:') ?? false;
+
+export function planSitter(
+  avatar: Avatar,
+  input: { id: string; clientKey: string | null; effect: PetEffect; cents: bigint; sitter: NonNullable<MealEffects['sitter']> },
+  now: Date,
+): Meal {
+  return {
+    id: input.id,
+    avatarId: avatar.id,
+    accountId: avatar.accountId,
+    foodCode: `sitter:${input.sitter.sittingId}`,
+    priceCents: input.cents,
+    effects: { food: 0, energy: 0, health: 0, pet: input.effect, sitter: input.sitter },
+    status: 'pending',
+    clientKey: input.clientKey,
+    createdAt: now,
+    eatenAt: null,
+  };
+}
 
 /** Autoescola (E3.5): pelo mesmo caminho das refeições. Código `autoescola`. */
 export const isLicense = (m: Pick<Meal, 'foodCode'>) => m.foodCode === 'autoescola';

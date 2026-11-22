@@ -274,6 +274,9 @@ export function createServidor(map) {
   /** Alimentos do mercado do jogo, com o preço de uma unidade em centavos de THALER. */
   let foods = [];
   let petshop = null;
+  // Pet Sitter (E3.1): os sitters atendendo e, para o avatar Pet Sitter, o painel dele.
+  let sitters = null;
+  let sitterPanel = null;
   let school = null;
   let jobs = [];
   let leisure = null;
@@ -324,6 +327,15 @@ export function createServidor(map) {
       // Lista do mercado: pública, busca uma vez (se o game-core for antigo, só não aparece).
       // Pet Shop (E3.1): preços e serviços, uma vez.
       if (!petshop) petshop = await call(API.game, '/v1/catalog/petshop').catch(() => null);
+      // Pet Sitter: a lista (com a estadia do pet deste avatar) e, se ele for Pet Sitter, o painel.
+      [sitters, sitterPanel] = data.avatar
+        ? await Promise.all([
+            call(API.game, `/v1/pet-sitters?avatar_id=${data.avatar.id}`, { token: session.token }).catch(() => null),
+            data.avatar.job?.code === 'pet_sitter'
+              ? call(API.game, `/v1/avatars/${data.avatar.id}/pet-sitter`, { token: session.token }).catch(() => null)
+              : null,
+          ])
+        : [null, null];
       // Escola (E3.2): preços e as profissões, para a troca na mesma raridade.
       if (!school) school = await call(API.game, '/v1/catalog/school').catch(() => null);
       // Lazer (E3.3): as atividades (game-core) e as academias e galerias da cidade (world).
@@ -942,7 +954,10 @@ export function createServidor(map) {
     let html = `<h3>${icon} ${esc(pet.name)} <span class="muted pequeno">· ${esc(pet.species_label)} · nível ${pet.level} · ×${pet.multiplier.toLocaleString('pt-BR')}</span></h3>
       ${bar('Alimentação', at.food, 5)}${bar('Água', at.water, 5)}${bar('Felicidade', at.happiness, 5)}
       <p class="muted pequeno">${next}${pet.sad ? ' · <strong>triste: o avatar rende com metade da felicidade</strong>' : ''}</p>`;
-    if (hotel) return `${html}<p class="muted pequeno">🏨 No hotel até ${left(hotel)}: não perde alimentação nem felicidade.</p>`;
+    if (hotel) {
+      const withSitter = sitters?.stay ? ' com um Pet Sitter' : ' no hotel';
+      return `${html}<p class="muted pequeno">🏨 ${esc(pet.name)} está${withSitter} por mais ${left(hotel)}: não perde alimentação nem felicidade.</p>`;
+    }
     const off = busy ? 'disabled' : '';
     html += `<div class="linha">
         <button class="btn btn--blue pequeno" type="button" data-s="pet-shop" data-v="racao" ${off || (at.food >= 5 ? 'disabled' : '')}>Ração · ${price('racao')}</button>
@@ -955,6 +970,33 @@ export function createServidor(map) {
         <button class="btn btn--ghost pequeno" type="button" data-s="pet-shop" data-v="hotel" ${off}>Hotel 24 h · ${price('hotel')}</button>
       </div>
       <p class="muted pequeno">Passear gasta 5 de energia do avatar e dá felicidade e saúde; o pet só bebe em casa. Preços provisórios.</p>`;
+    // Pet Sitter de outro jogador: o mesmo cuidado do hotel, pago a ele.
+    const list = (sitters?.sitters ?? []).filter((x) => x.slots > 0).slice(0, 3);
+    if (list.length) {
+      html += `<p class="pequeno"><strong>Pet Sitters da cidade</strong> (24 h, como o hotel; 90% vão para o sitter):</p><div class="linha">${list
+        .map((x, i) => `<button class="btn btn--ghost pequeno" type="button" data-s="pet-sitter" data-id="${esc(x.avatar_id)}" ${off}>Sitter ${i + 1} · ${thaler(x.price)} · ${x.slots} vaga${x.slots > 1 ? 's' : ''}</button>`)
+        .join('')}</div>`;
+    }
+    return html;
+  };
+
+  /** Painel do avatar Pet Sitter (E3.1): a oferta, os pets sob cuidado e o bônus do turno. */
+  const sitterSection = () => {
+    if (!sitters) return '';
+    const o = sitterPanel?.offer;
+    const off = busy ? 'disabled' : '';
+    const price = o ? (Number(o.price) / 100).toString().replace('.', ',') : '20';
+    let html = `<h3>🐕 Pet Sitter</h3>
+      <p class="muted pequeno">Cuide do pet de outros jogadores por 24 h: você recebe 90% da diária e, com algum pet sob cuidado, o seu turno rende +20%. Até ${sitters.capacity} pets por vez.</p>`;
+    if (sitterPanel?.caring?.length) {
+      html += `<p class="pequeno"><span class="tag tag--srv">+20% no turno</span> Cuidando de ${sitterPanel.caring.length} pet${sitterPanel.caring.length > 1 ? 's' : ''}; o primeiro vai embora em ${left(sitterPanel.caring[0].ends_at)}.</p>`;
+    }
+    html += `<form data-form="sitter" class="banco">
+        <div class="linha"><input class="campo" name="valor" inputmode="decimal" required value="${price}" aria-label="Diária em THALER" />
+        <button class="btn btn--blue pequeno" type="submit" name="open" value="1" ${off}>${o?.open ? 'Mudar a diária' : 'Atender'}</button>
+        ${o?.open ? `<button class="btn btn--ghost pequeno" type="submit" name="open" value="0" ${off}>Parar de atender</button>` : ''}</div>
+        <p class="muted pequeno">Diária de ${thaler(sitters.price_min)} a ${thaler(sitters.price_max)} THALER.${o?.open ? ` Atendendo por ${thaler(o.price)}, ${o.slots} vaga${o.slots === 1 ? '' : 's'}.` : ' Fechado.'}</p>
+      </form>`;
     return html;
   };
 
@@ -1056,6 +1098,7 @@ export function createServidor(map) {
       if (farm) body += farmSection(a);
       if (!internado && school && a.school) body += schoolSection(a);
       if (!internado && petshop) body += petSection(a);
+      if (a.job?.code === 'pet_sitter') body += sitterSection();
       if (running) {
         const total = new Date(running.ends_at) - new Date(running.starts_at);
         const pct = Math.min(100, ((Date.now() - new Date(running.starts_at)) / total) * 100);
@@ -1233,6 +1276,23 @@ export function createServidor(map) {
           throw vaultError(error);
         });
         message = `Depósito de ${scity(amount)} SCITY enviado (${short(hash)}). Vira saldo no jogo depois das confirmações.`;
+        messageOk = true;
+      });
+    }
+    if (form.dataset.form === 'sitter') {
+      const cents = toUnits(field.get('valor'), 2);
+      const open = e.submitter?.value !== '0';
+      if (cents === null) {
+        message = 'Valor inválido.';
+        return render();
+      }
+      return act(async () => {
+        const r = await call(API.game, `/v1/avatars/${data.avatar.id}/pet-sitter`, {
+          method: 'PUT',
+          token: session.token,
+          body: { open, price: cents.toString() },
+        });
+        message = r.offer.open ? `Atendendo como Pet Sitter por ${thaler(r.offer.price)} THALER a diária.` : 'Você parou de atender como Pet Sitter.';
         messageOk = true;
       });
     }
@@ -1521,6 +1581,19 @@ export function createServidor(map) {
         });
         const label = petshop?.services.find((x) => x.code === service)?.label ?? service;
         message = `${label} para ${r.avatar.pet.name}: −${thaler(r.purchase.price)} THALER.`;
+        messageOk = true;
+      });
+    }
+    if (what === 'pet-sitter') {
+      const sitterId = b.dataset.id;
+      return act(async () => {
+        const r = await call(API.game, `/v1/avatars/${data.avatar.id}/pet/sitter`, {
+          method: 'POST',
+          token: session.token,
+          body: { sitter_avatar_id: sitterId },
+          headers: { 'idempotency-key': crypto.randomUUID() },
+        });
+        message = `${r.avatar.pet.name} ficou com o Pet Sitter por 24 h: −${thaler(r.purchase.price)} THALER.`;
         messageOk = true;
       });
     }

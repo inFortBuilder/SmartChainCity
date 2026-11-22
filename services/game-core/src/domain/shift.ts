@@ -72,6 +72,8 @@ export interface Snapshot {
   damageCut?: number;
   /** Multiplicador dos itens sazonais do GamePass (1 a 1,15); ausente nos turnos de antes: 1. */
   items?: number;
+  /** Pet Sitter cuidando de algum pet no começo do turno: 1,2 (E3.1); ausente: 1. */
+  sitter?: number;
 }
 
 export interface ShiftResult {
@@ -89,6 +91,7 @@ export interface ShiftResult {
     illness: number;
     event?: number;
     items?: number;
+    sitter?: number;
   };
 }
 
@@ -133,6 +136,8 @@ export function startShift(
     damageCut?: number;
     /** Bônus de ganho dos itens sazonais do GamePass (0 a 0,15). */
     earnBonus?: number;
+    /** Fator do Pet Sitter com pet sob cuidado (E3.1). */
+    sitter?: number;
   },
   now: Date,
 ): { shift: Shift; avatar: Avatar } {
@@ -178,6 +183,7 @@ export function startShift(
       damageCut: input.damageCut ?? 0,
       // Itens sazonais da temporada em que o turno começa.
       items: 1 + (input.earnBonus ?? 0),
+      ...(input.sitter && input.sitter !== 1 ? { sitter: input.sitter } : {}),
       earnsReward: status(avatar, now).earnsReward,
       base: baseOf(avatar.jobCode),
       illness: yieldFactor(avatar.conditions, now),
@@ -214,11 +220,12 @@ export function settle(shift: Pick<Shift, 'id' | 'hours' | 'seed' | 'snapshot'>)
   const illness = s.illness ?? 1;
   const event = s.event ?? 1;
   const items = s.items ?? 1;
-  const thaler = s.earnsReward ? s.base * dayShare * health * happiness * expPet * damage * illness * event * items : 0;
+  const sitter = s.sitter ?? 1;
+  const thaler = s.earnsReward ? s.base * dayShare * health * happiness * expPet * damage * illness * event * items * sitter : 0;
   return {
     damaged,
     thalerCents: BigInt(Math.round(thaler * 100)),
-    factors: { base: s.base, hours: shift.hours, health, happiness, expPet, damage, illness, event, items },
+    factors: { base: s.base, hours: shift.hours, health, happiness, expPet, damage, illness, event, items, ...(sitter !== 1 ? { sitter } : {}) },
   };
 }
 

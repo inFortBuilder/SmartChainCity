@@ -169,6 +169,7 @@ import {
   planLeisure,
   planLicense,
   planPetShop,
+  planSitter,
   planSchool,
   isPack,
   packPriceCents,
@@ -177,6 +178,19 @@ import {
   planPack,
   unitPriceCents,
 } from './domain/meal.js';
+import {
+  type PetSitterStore,
+  SITTER_CAPACITY,
+  SITTER_PRICE_MAX_CENTS,
+  SITTER_PRICE_MIN_CENTS,
+  SITTER_STAY_MS,
+  checkBooking,
+  checkOffer,
+  offerDto,
+  sitterFactor,
+  sittingDto,
+} from './domain/sitter.js';
+import { MemoryPetSitterStore } from './infra/memory-sitter-store.js';
 import { fetchCmsEventGroups, fetchCmsFoods, fetchCmsProfessions, fetchCmsSeasons } from './infra/cms-catalog.js';
 import { type Payer, type Shift, type ShiftStore, startShift } from './domain/shift.js';
 import { chargeStay } from './jobs/hospital.js';
@@ -310,7 +324,10 @@ export async function buildApp(
   passes: { store: GamePassStore; payer: GamePassPayer } | null = null,
   /** Fazenda (E3.4). Sem ela, as rotas da fazenda respondem 503. */
   farms: { store: FarmStore; payer: FarmPayer } | null = null,
+  /** Pet Sitter como serviço de jogador (E3.1). Sem store, fica em memória. */
+  sitterStore: PetSitterStore | null = null,
 ) {
+  const sitters = sitterStore ?? new MemoryPetSitterStore();
   const app = Fastify({
     trustProxy: config.TRUST_PROXY,
     ...serverOptions({
@@ -460,6 +477,9 @@ export async function buildApp(
     const passLevel = passes && season ? await passes.store.level(accountId, season.code) : 0;
     // Níveis e itens sazonais da temporada: corte de dano e bônus de ganho.
     const perk = perks(season, passLevel);
+    // Pet Sitter com algum pet sob cuidado: +20% no turno (E3.1).
+    const own = await store.get(id);
+    const caring = own?.jobCode === 'pet_sitter' ? (await sitters.current(id, now())).length : 0;
     const started = await store.beginShift(id, accountId, now(), (avatar, context) =>
       startShift(
         avatar,
@@ -468,6 +488,7 @@ export async function buildApp(
           hours: shift,
           damageCut: perk.damageCut,
           earnBonus: perk.earnBonus,
+          sitter: sitterFactor(avatar, caring),
           ...context,
           durationMs: config.DEV_SHIFT_MINUTES ? config.DEV_SHIFT_MINUTES * 60_000 : undefined,
         },
@@ -514,10 +535,14 @@ export async function buildApp(
     } catch (error) {
       if (error instanceof AppError && error.code === 'insufficient_thaler') {
         await store.failMeal(meal.id);
+        // Pet Sitter: sem pagamento, a vaga volta.
+        if (meal.effects.sitter) await sitters.setStatus(meal.effects.sitter.sittingId, 'cancelled');
       }
       throw error;
     }
-    return store.finishMeal(meal.id, now());
+    const done = await store.finishMeal(meal.id, now());
+    if (meal.effects.sitter) await sitters.setStatus(meal.effects.sitter.sittingId, 'active');
+    return done;
   };
 
   /** Refeições paradas no meio (ledger fora na hora): termina antes de qualquer outra. */
@@ -625,6 +650,110 @@ export async function buildApp(
     const fresh = (await store.get(avatar.id))!;
     const at = now();
     return reply.status(201).send({ purchase: mealDto(done), avatar: avatarDto(decayed(fresh, at), at) });
+  });
+
+  // ---------------------------------------------------------------- Pet Sitter (E3.1)
+
+  // Os Pet Sitters atendendo, com o preço da diária e as vagas. Com o avatar dono, a estadia do pet dele.
+  app.get('/v1/pet-sitters', async (request) => {
+    const q = z.object({ avatar_id: z.uuid().optional() }).parse(request.query);
+    const accountId = request.headers.authorization ? await player(request) : null;
+    const t = now();
+    const offers = await sitters.openOffers();
+    const list = [];
+    for (const o of offers) {
+      if (o.accountId === accountId) continue;
+      list.push(offerDto(o, (await sitters.current(o.avatarId, t)).length));
+    }
+    list.sort((a, b) => Number(BigInt(a.price) - BigInt(b.price)));
+    const mine = accountId && q.avatar_id ? await sitters.latestOf(q.avatar_id) : null;
+    return {
+      price_min: SITTER_PRICE_MIN_CENTS.toString(),
+      price_max: SITTER_PRICE_MAX_CENTS.toString(),
+      capacity: SITTER_CAPACITY,
+      stay_hours: SITTER_STAY_MS / 3_600_000,
+      sitters: list,
+      stay: mine && mine.ownerAccountId === accountId && mine.status === 'active' && mine.endsAt > t ? sittingDto(mine) : null,
+    };
+  });
+
+  // O sitter abre ou fecha a oferta e escolhe a diária: {open, price}.
+  app.put('/v1/avatars/:id/pet-sitter', async (request) => {
+    const avatar = await ownAvatar(request);
+    const body = z.object({ open: z.boolean(), price: z.string().regex(/^\d{1,12}$/) }).parse(request.body);
+    const priceCents = BigInt(body.price);
+    checkOffer(avatar, priceCents);
+    await sitters.setOffer({ avatarId: avatar.id, accountId: avatar.accountId, priceCents, open: body.open, updatedAt: now() });
+    return sitterView(avatar.id);
+  });
+
+  // O painel do sitter: a oferta, os pets sob cuidado e se o bônus do turno vale agora.
+  app.get('/v1/avatars/:id/pet-sitter', async (request) => sitterView((await ownAvatar(request)).id));
+
+  const sitterView = async (avatarId: string) => {
+    const t = now();
+    const offer = await sitters.offer(avatarId);
+    const caring = (await sitters.current(avatarId, t)).filter((x) => x.status === 'active');
+    return {
+      offer: offer ? offerDto(offer, caring.length) : null,
+      caring: caring.map(sittingDto),
+      shift_bonus: caring.length > 0 ? 0.2 : 0,
+    };
+  };
+
+  // O dono deixa o pet com um Pet Sitter por 24 h: {sitter_avatar_id}. A vaga é segura antes da cobrança.
+  app.post('/v1/avatars/:id/pet/sitter', async (request, reply) => {
+    const { sitter_avatar_id: sitterId } = z.object({ sitter_avatar_id: z.uuid() }).parse(request.body);
+    const owner = await ownAvatar(request);
+    const offer = await sitters.offer(sitterId);
+    checkBooking(owner, offer);
+    // O pet tem de estar vivo e fora do hotel: as mesmas regras do hotel do Pet Shop.
+    checkService(decayed(owner, now()), 'hotel', now());
+    const t = now();
+    const sitting = await sitters.reserve(
+      {
+        id: randomUUID(),
+        sitterAvatarId: offer!.avatarId,
+        sitterAccountId: offer!.accountId,
+        ownerAvatarId: owner.id,
+        ownerAccountId: owner.accountId,
+        priceCents: offer!.priceCents,
+        startsAt: t,
+        endsAt: new Date(t.getTime() + SITTER_STAY_MS),
+        status: 'reserved',
+      },
+      SITTER_CAPACITY,
+      t,
+    );
+    let result;
+    try {
+      result = await purchase(request, (clientKey) => (current) => {
+        const { cents: _c, ...fresh } = checkService(current, 'hotel', now());
+        void _c;
+        return planSitter(current, {
+          id: randomUUID(),
+          clientKey,
+          effect: fresh,
+          cents: offer!.priceCents,
+          sitter: { sittingId: sitting.id, sitterAccountId: offer!.accountId, sitterAvatarId: offer!.avatarId },
+        }, now());
+      });
+    } catch (error) {
+      // A vaga não fica presa se a compra nem começou (pet mudou, ledger fora antes de gravar).
+      const latest = await sitters.latestOf(owner.id);
+      if (latest?.id === sitting.id && latest.status === 'reserved') {
+        const meals = await store.listMeals(owner.id, 5);
+        if (!meals.some((m) => m.foodCode === `sitter:${sitting.id}` && m.status === 'pending')) await sitters.setStatus(sitting.id, 'cancelled');
+      }
+      throw error;
+    }
+    const fresh = (await store.get(owner.id))!;
+    const at = now();
+    return reply.status(201).send({
+      purchase: mealDto(result.done),
+      stay: sittingDto({ ...sitting, status: 'active' }),
+      avatar: avatarDto(decayed(fresh, at), at),
+    });
   });
 
   // De graça, em casa: dar água, passear (gasta energia do avatar) e enterrar o pet morto.

@@ -1,8 +1,9 @@
 import { AppError, forwardRequestId } from '@scc/shared';
 
 import type { HospitalPayer, HospitalStay } from '../domain/hospital.js';
-import { type Meal, type MealPayer, isLeisure, isLicense, isMedicine, isPack, isPetShop, isSchool } from '../domain/meal.js';
+import { type Meal, type MealPayer, isLeisure, isLicense, isMedicine, isPack, isPetShop, isSchool, isSitter } from '../domain/meal.js';
 import { feeSplit } from '../domain/leisure.js';
+import { sitterSplit } from '../domain/sitter.js';
 import type { Championship, ChampionshipPayer, ChampionshipResult, Member } from '../domain/championship.js';
 import type { VehiclePayer } from '../domain/vehicle.js';
 import type { Race, RacePayer } from '../domain/race.js';
@@ -73,6 +74,7 @@ export class EconomyPayer implements Payer, MealPayer, HospitalPayer, Championsh
 
   /** Refeição ou remédio: os dois são sink (doc 04 §7), o THALER do jogador vai para a queima. */
   async chargeMeal(meal: Meal, requestId?: string) {
+    if (isSitter(meal)) return this.chargeSitter(meal, requestId);
     if (isLeisure(meal)) return this.chargeLeisure(meal, requestId);
     const medicine = isMedicine(meal);
     const petShop = isPetShop(meal);
@@ -114,6 +116,22 @@ export class EconomyPayer implements Payer, MealPayer, HospitalPayer, Championsh
     const error = await this.post(`meal:${meal.id}`, { kind: 'leisure_fee', ref_type: 'meal', ref_id: meal.id, legs }, requestId);
     if (error === null) return;
     if (error === 'insufficient_funds') throw new AppError('insufficient_thaler', 'THALER insuficiente para a entrada.', 409);
+    throw new AppError('ledger_unavailable', 'O ledger recusou a cobrança.', 502);
+  }
+
+  /** Diária do Pet Sitter (E3.1): 90% para o sitter e 10% para a queima (taxa da Prefeitura). */
+  private async chargeSitter(meal: Meal, requestId?: string) {
+    const sitter = meal.effects.sitter;
+    if (!sitter) throw new AppError('ledger_unavailable', 'Diária sem o Pet Sitter.', 500);
+    const split = sitterSplit(meal.priceCents);
+    const legs = [
+      { owner_type: 'player', owner_id: meal.accountId, currency: 'THALER', amount: `-${meal.priceCents}` },
+      { owner_type: 'player', owner_id: sitter.sitterAccountId, currency: 'THALER', amount: `${split.sitter}` },
+      ...(split.burn > 0n ? [{ owner_type: 'burn', owner_id: 'petsitter', currency: 'THALER', amount: `${split.burn}` }] : []),
+    ];
+    const error = await this.post(`meal:${meal.id}`, { kind: 'petsitter_fee', ref_type: 'meal', ref_id: meal.id, legs }, requestId);
+    if (error === null) return;
+    if (error === 'insufficient_funds') throw new AppError('insufficient_thaler', 'THALER insuficiente para a diária do Pet Sitter.', 409);
     throw new AppError('ledger_unavailable', 'O ledger recusou a cobrança.', 502);
   }
 
