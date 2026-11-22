@@ -365,7 +365,7 @@ export function createServidor(map) {
       // Câmbio e saque (economy): se estiverem desligados (503), a seção some.
       // Com a carteira, o economy diz quanto o cofre ainda libera hoje para ela.
       const wallet = me?.wallets?.[0] ?? session.address ?? null;
-      [data.fx, data.withdrawals, data.kyc, data.deposits] = await Promise.all([
+      [data.fx, data.withdrawals, data.kyc, data.deposits, data.switches] = await Promise.all([
         call(API.economy, '/v1/economy/fx').catch(() => null),
         call(API.economy, `/v1/economy/withdrawals${wallet ? `?wallet=${wallet}` : ''}`, { token: session.token }).catch((error) => {
           if (error.status === 401) throw error;
@@ -380,6 +380,8 @@ export function createServidor(map) {
               .then((r) => r?.deposits ?? null)
               .catch(() => null)
           : null,
+        // Travas de incidente (E4.6): saque ou câmbio suspensos pela operação.
+        call(API.economy, '/v1/economy/status').then((r) => r.switches).catch(() => null),
       ]);
       data.shifts = data.avatar
         ? (await call(API.game, `/v1/avatars/${data.avatar.id}/shifts`, { token: session.token })).shifts
@@ -434,14 +436,21 @@ export function createServidor(map) {
     const fx = data.fx;
     if (!fx) return '';
     const brake = fx.pool_brake > 0 ? ` · <strong>freio do pool ${Math.round(fx.pool_brake * 100)}%</strong>` : '';
-    let html = `<h3>💱 Câmbio</h3>
+    // Trava de incidente (E4.6): o aviso com o motivo público; os botões ficam desligados.
+    const frozen = (name, what) => {
+      const sw = data.switches?.[name];
+      return sw?.frozen ? `<p class="aviso-s pequeno">⛔ <strong>${what} suspenso temporariamente</strong>${sw.reason ? `: ${esc(sw.reason)}` : ''}. Seu saldo está seguro.</p>` : '';
+    };
+    const fxOff = data.switches?.exchange?.frozen;
+    const wdOff = data.switches?.withdrawals?.frozen;
+    let html = `<h3>💱 Câmbio</h3>${frozen('exchange', 'Câmbio')}
       <p class="muted pequeno">1 SCITY = ${fx.thaler_per_scity.toLocaleString('pt-BR')} THALER (US$ ${fx.scity_usd.toLocaleString('pt-BR')}${fx.provisional ? ', cotação provisória' : ''}).
       Para SCITY: ${(fx.exit_spread_bps / 100).toLocaleString('pt-BR')}% de spread, mínimo de ${thaler(fx.min_exit_cents)} e até ${thaler(fx.daily_exit_cents)} THALER por dia${brake}.</p>
       <form data-form="cambio" class="banco">
         <input class="campo" name="valor" inputmode="decimal" required placeholder="Valor (ex.: 12,5)" aria-label="Valor a converter" />
         <div class="linha">
-        <button class="btn btn--ghost pequeno" type="submit" name="dir" value="scity_to_thaler" ${busy ? 'disabled' : ''}>SCITY → THALER</button>
-        <button class="btn btn--ghost pequeno" type="submit" name="dir" value="thaler_to_scity" ${busy ? 'disabled' : ''}>THALER → SCITY</button></div>
+        <button class="btn btn--ghost pequeno" type="submit" name="dir" value="scity_to_thaler" ${busy || fxOff ? 'disabled' : ''}>SCITY → THALER</button>
+        <button class="btn btn--ghost pequeno" type="submit" name="dir" value="thaler_to_scity" ${busy || fxOff ? 'disabled' : ''}>THALER → SCITY</button></div>
       </form>`;
     if (data.withdrawals === null) return html;
     const vault = data.withdrawals.vault;
@@ -459,13 +468,13 @@ export function createServidor(map) {
         .map((d) => `<li><span>${scity(d.amount_wei)} SCITY · ${d.status === 'credited' ? 'no jogo' : 'aguardando confirmações'}</span></li>`)
         .join('')}</ul>`;
     }
-    html += '<h3>🏦 Saque para a carteira</h3>';
+    html += `<h3>🏦 Saque para a carteira</h3>${frozen('withdrawals', 'Saque')}`;
     if (vault && !vault.paused) {
       html += `<p class="muted pequeno">Hoje o cofre ainda libera ${scity(vault.wallet_left_wei)} SCITY para esta carteira (teto do contrato: ${scity(vault.per_address_limit_wei)} por carteira e ${scity(vault.daily_limit_wei)} no total por dia).</p>`;
     }
     html += `<form data-form="saque" class="banco">
         <input class="campo" name="valor" inputmode="decimal" required placeholder="SCITY a sacar" aria-label="SCITY a sacar" />
-        <button class="btn btn--blue pequeno" type="submit" ${busy ? 'disabled' : ''}>Sacar para ${short(wallets[0])}</button>
+        <button class="btn btn--blue pequeno" type="submit" ${busy || wdOff ? 'disabled' : ''}>Sacar para ${short(wallets[0])}</button>
       </form>
       <p class="muted pequeno">O SCITY sai do jogo agora; a carteira resgata no GameVault em até 48 h, ou ele volta.</p>`;
     // KYC: sem verificação, até 300 SCITY em 30 dias (premissa do economy).

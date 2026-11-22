@@ -50,7 +50,7 @@
 - [ ] Multisig, timelock e LP travado configurados e publicados.
 - [ ] Termos de uso, política de privacidade e aviso de risco publicados.
 - [ ] Parecer jurídico sobre token, boxes e contratos de investidores.
-- [ ] Plano de resposta a incidentes (pausa, comunicação, ressarcimento).
+- [ ] Plano de resposta a incidentes (pausa, comunicação, ressarcimento). 🟡 Escrito em 2026-11-22 ([plano](incidentes/README.md)), com travas no economy e lotes do Safe ensaiados. Falta o treino na testnet com os Safes reais.
 - [ ] Teste de carga: 10 mil usuários simultâneos no Realtime e 1 mil req/s na API. Local, em 2026-11-22 ([teste de carga](desenvolvimento/teste-de-carga.md)):
   - a API passou a 1 mil e a 1,5 mil req/s (p95 de 15 a 20 ms, 0 erro);
   - o Realtime recebeu as 10 mil conexões em 3 processos divididos por bairro, mas a latência a 10 mil precisa do gerador em outra máquina;

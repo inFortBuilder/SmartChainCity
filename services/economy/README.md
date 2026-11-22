@@ -75,6 +75,16 @@ Ligue com `GATEWAY_URL`, `GATEWAY_TOKEN`, `RPC_URL`, `GAME_VAULT_ADDRESS` e `VAU
 
 Testado no anvil em 2026-11-20: 20 SCITY pedidos no economy chegaram à carteira pelo `claim`, o job marcou como resgatado, e um segundo voucher, não resgatado, voltou para o jogador depois do prazo.
 
+## Travas de incidente (E4.6)
+
+A operação trava novos saques (`withdrawals`) e o câmbio (`exchange`) sem deploy, com `PUT /internal/v1/economy/switches/:name` `{frozen, reason, by}` (`x-service-token`).
+
+- **Persistência:** a trava fica no banco (migração `0005`), vale para todas as instâncias e sobrevive a reinício.
+- **Jogador:** recebe `503 withdrawals_frozen` ou `exchange_frozen`, com o motivo público. `GET /v1/economy/status` é público, e o mapa mostra o aviso.
+- **Alerta:** a métrica `economy_incident_switch{switch}` dispara o alerta `TravaDeIncidenteLigada`.
+
+Runbook em [docs/incidentes](../../docs/incidentes/runbooks/travas-do-economy.md).
+
 ## Painel econômico (E2.8)
 
 Cada transação do ledger vira um fluxo, olhando a parte dos jogadores (doc 04 §7):

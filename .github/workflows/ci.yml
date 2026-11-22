@@ -162,6 +162,9 @@ jobs:
         run: forge build --sizes
       - if: steps.fp.outputs.present == 'true'
         run: forge test -vvv
+      # Lotes do Safe da resposta a incidentes (docs/incidentes): codificação conferida com o Foundry.
+      - name: Lotes do Safe (incidentes)
+        run: node --test scripts/safe-lote.test.mjs
       # Cobertura (doc 07 §5): os contratos da auditoria com pelo menos 95% das linhas.
       - name: Cobertura dos contratos da auditoria
         if: steps.fp.outputs.present == 'true'

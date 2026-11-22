@@ -42,3 +42,19 @@ groups:
         labels: { severity: critical }
         annotations:
           summary: 'Pool P2E acaba em menos de 7 dias ({{ $value }})'
+
+  # Incidentes (E4.6): trava ligada é decisão da operação, mas não pode ser esquecida ligada.
+  - name: incidentes
+    rules:
+      - alert: TravaDeIncidenteLigada
+        expr: max by (switch) (economy_incident_switch) == 1
+        for: 1m
+        labels: { severity: warning }
+        annotations:
+          summary: 'Trava de incidente "{{ $labels.switch }}" ligada no economy (runbook em docs/incidentes)'
+      - alert: TravaLigadaHaMaisDe24h
+        expr: max by (switch) (economy_incident_switch) == 1
+        for: 24h
+        labels: { severity: critical }
+        annotations:
+          summary: 'Trava "{{ $labels.switch }}" ligada há mais de 24 h: rever o incidente e comunicar a comunidade'
