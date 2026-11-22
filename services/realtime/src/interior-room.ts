@@ -3,6 +3,7 @@ import { type MapSchema, schema, t } from '@colyseus/schema';
 import { verifyAccessToken } from '@scc/shared';
 
 import { type MuteBook, RateLimiter, cleanName } from './moderation.js';
+import { interiorKey, owns } from './shard.js';
 import { registerChat } from './room-chat.js';
 
 /**
@@ -50,6 +51,8 @@ export interface InteriorDeps {
   mutes: MuteBook;
   log: (event: string, data: Record<string, unknown>) => void;
   visits: VisitChecker | null;
+  /** Divisão por bairro (SHARD=i/n): o interior vai pela chave do lote. */
+  shard?: { index: number; count: number } | null;
 }
 
 /** O interior tem 12 × 9 m; com folga para a calçada da porta. */
@@ -76,13 +79,14 @@ export class InteriorRoom extends Room {
   private readonly accounts = new Map<string, string>();
 
   async onAuth(_client: Client, options: { city?: unknown; lot?: unknown }, context: AuthContext) {
-    const { jwtSecret, jwtIssuer, visits } = InteriorRoom.deps;
+    const { jwtSecret, jwtIssuer, visits, shard } = InteriorRoom.deps;
     const token = context.token ?? '';
     const accountId = await verifyAccessToken(token, { secret: jwtSecret, issuer: jwtIssuer });
     if (!visits) throw new ServerError(503, 'visits_disabled');
     const city = validCity(options?.city);
     const lot = validLot(options?.lot);
     if (!city || lot === null) throw new ServerError(400, 'invalid_place');
+    if (shard && !owns(shard, interiorKey(city, lot))) throw new ServerError(421, 'wrong_shard');
     const v = await visits.check(token, city, lot);
     if (!v) throw new ServerError(403, 'not_invited');
     return { accountId, role: v.role, interior: v.interior };

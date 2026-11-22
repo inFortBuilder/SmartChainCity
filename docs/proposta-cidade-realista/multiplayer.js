@@ -8,9 +8,11 @@
 // No mapa, cada jogador é um alfinete. No street view, quem também está na rua
 // aparece como avatar, com o mesmo modelo e a animação pela velocidade.
 import { getAvatarType, isAvatarType, makeAvatar } from './avatar.js';
+import { REALTIME_URLS, districtKey, realtimeFor } from './realtime-shard.js';
 
-const params = new URLSearchParams(location.search);
-const REALTIME = params.get('realtime') ?? 'http://127.0.0.1:8050';
+
+// Um ou mais processos do realtime (?realtime=a,b,c): cada bairro vai sempre para o mesmo (E3.9).
+const REALTIME = REALTIME_URLS[0];
 const SDK = 'https://cdn.jsdelivr.net/npm/@colyseus/sdk@0.18.9/+esm';
 const CITY = 'pittsburg';
 const MOVE_EVERY_MS = 200;
@@ -257,7 +259,7 @@ export function createMultiplayer(map) {
     joining = true;
     try {
       sdk ??= await import(SDK);
-      const client = new sdk.Client(REALTIME);
+      const client = new sdk.Client(realtimeFor(districtKey(CITY, district)));
       client.auth.token = token;
       const t = controls.target;
       const r = await client.joinOrCreate('district', { city: CITY, district, name: myName(), x: t.x, z: t.z });

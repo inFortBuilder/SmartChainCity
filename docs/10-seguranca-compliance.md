@@ -54,4 +54,5 @@
 - [ ] Teste de carga: 10 mil usuários simultâneos no Realtime e 1 mil req/s na API. Local, em 2026-11-22 ([teste de carga](desenvolvimento/teste-de-carga.md)):
   - a API passou a 1 mil e a 1,5 mil req/s (p95 de 15 a 20 ms, 0 erro);
   - o Realtime recebeu as 10 mil conexões em 3 processos divididos por bairro, mas a latência a 10 mil precisa do gerador em outra máquina;
-  - falta a divisão por bairro no cliente.
+  - a divisão por bairro no cliente está pronta (SHARD=i/n);
+  - falta a rodada com o gerador em outra máquina.

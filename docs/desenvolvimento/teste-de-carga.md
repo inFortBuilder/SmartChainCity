@@ -73,10 +73,17 @@ O que cada rodada mostrou:
 
 **Conclusão:** o realtime aguenta 10 mil conexões com a divisão por bairro entre processos. Para confirmar a latência a 10 mil, o gerador precisa de outra máquina.
 
+## Divisão por bairro no cliente (2026-11-22)
+
+O mapa e o interior escolhem o processo pela chave da sala: FNV-1a de `cidade:bairro` (ou `cidade:lote:N`), módulo o número de processos em `?realtime=a,b,c`. Cada processo sobe com `SHARD=i/n` e recusa o que não é dele (`421 wrong_shard`), então uma lista errada no cliente não parte um bairro em dois. O `load:city` usa a mesma regra.
+
+Conferido no navegador com 2 processos (`SHARD=0/2` e `1/2`):
+- o mapa entrou no bairro 1 pelo processo 8151, e o 8150 ficou sem salas;
+- entrar no mesmo bairro pelo 8150 foi recusado com `421 wrong_shard`.
+
+Com a carga, já aquecidos, 2.000 clientes nos 2 processos com `SHARD` entraram todos (0 queda, movimento p95 de 120 ms). A primeira rodada, com os processos frios, perdeu 269 entradas.
+
 ## O que falta para fechar o E3.9
 
-- **Divisão por bairro no cliente.** O mapa hoje conecta num realtime só. Para usar vários processos em produção, há dois caminhos:
-  - o cliente escolhe o processo pelo bairro (a lista de URLs vem da configuração);
-  - o Colyseus compartilha o matchmaking entre processos (presença e driver em Redis).
 - **Rodada com o gerador em outra máquina,** para medir a latência a 10 mil sem a CPU dividida.
 - **Rodada noturna em staging** (testes-qualidade), quando houver o ambiente.
