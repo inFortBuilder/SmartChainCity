@@ -130,6 +130,70 @@ final class GameData
         return $out;
     }
 
+    /**
+     * NFTs da carteira (lotes, imóveis e avatares), pelo chain-indexer. null sem o indexer.
+     * @return ?list<array{category:string, token_id:string, name:string}>
+     */
+    public static function owned(string $wallet): ?array
+    {
+        $base = (string) cfg('api.indexer_url');
+        if (!$base || !preg_match('/^0x[0-9a-fA-F]{40}$/', $wallet)) {
+            return null;
+        }
+        $r = self::fetch('/v1/chain/owners/' . $wallet, $base);
+        if (!is_array($r)) {
+            return null;
+        }
+        $out = [];
+        foreach (($r['lots'] ?? []) as $l) {
+            $out[] = ['category' => 'land', 'token_id' => (string) $l['token_id'], 'name' => 'Lote #' . ((int) ($l['lot'] ?? 0) + 1)];
+        }
+        foreach (($r['properties'] ?? []) as $p) {
+            $out[] = ['category' => 'property', 'token_id' => (string) $p['token_id'], 'name' => 'Imóvel ' . strtoupper((string) ($p['type'] ?? '')) . ' #' . $p['token_id']];
+        }
+        foreach (($r['avatars'] ?? []) as $a) {
+            $out[] = ['category' => 'avatar', 'token_id' => (string) $a['token_id'], 'name' => 'Avatar ' . (string) ($a['profession'] ?? '') . ' #' . $a['token_id']];
+        }
+        return $out;
+    }
+
+    /**
+     * Leilões abertos do Marketplace on-chain, pelo chain-indexer. Vazio sem o indexer.
+     * @return list<array<string,mixed>>
+     */
+    public static function auctions(): array
+    {
+        $base = (string) cfg('api.indexer_url');
+        $r = $base ? self::fetch('/v1/market/auctions?limit=50', $base) : null;
+        if (!is_array($r) || !isset($r['auctions']) || !is_array($r['auctions'])) {
+            return [];
+        }
+        $labels = ['LandNFT' => 'Lote', 'PropertyNFT' => 'Imóvel', 'AvatarNFT' => 'Avatar'];
+        $out = [];
+        foreach ($r['auctions'] as $a) {
+            if (!is_array($a) || ($a['status'] ?? '') !== 'active') {
+                continue;
+            }
+            $names = array_map(static function (array $i) use ($labels): string {
+                $label = $labels[(string) ($i['collection'] ?? '')] ?? 'NFT';
+                $id = (string) ($i['token_id'] ?? '');
+                return $label === 'Lote' && ctype_digit($id) ? 'Lote #' . ((int) bcmod_safe($id, '4294967296') + 1) : "$label #$id";
+            }, is_array($a['items'] ?? null) ? $a['items'] : []);
+            $out[] = [
+                'auction_id'   => (string) $a['auction_id'],
+                'name'         => implode(' + ', $names) ?: 'NFT',
+                'seller'       => (string) ($a['seller'] ?? ''),
+                'highest'      => $a['highest_bid_wei'] ? wei_to_float((string) $a['highest_bid_wei']) : null,
+                'minimum_wei'  => (string) ($a['minimum_bid_wei'] ?? '0'),
+                'minimum'      => wei_to_float((string) ($a['minimum_bid_wei'] ?? '0')),
+                'bids'         => (int) ($a['bids'] ?? 0),
+                'ends_at'      => (string) ($a['ends_at'] ?? ''),
+                'ended'        => (bool) ($a['ended'] ?? false),
+            ];
+        }
+        return $out;
+    }
+
     /** Busca JSON na API do jogo; retorna null em qualquer falha. */
     private static function fetch(string $path, ?string $base = null): ?array
     {

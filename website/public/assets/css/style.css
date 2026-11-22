@@ -692,3 +692,25 @@ input:focus, select:focus, textarea:focus { border-color: var(--blue); outline: 
 .deposit-form { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; margin: 12px 0 4px; }
 .deposit-form label { display: grid; gap: 4px; font-weight: 700; }
 .deposit-list { margin: 8px 0 0; padding-left: 18px; }
+
+/* Marketplace no site: leilões e vender */
+.market-extra { padding-top: 20px; }
+.market-panel { max-width: 960px; margin: 0 auto 28px; }
+.market-panel h2 { margin-top: 0; color: var(--navy); }
+.auction-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.auction { display: grid; grid-template-columns: 1fr auto auto; gap: 12px; align-items: center; background: var(--stone-light); border-radius: 10px; padding: 10px 14px; }
+.auction small { display: block; color: #555; }
+.auction-price { display: grid; text-align: right; font-size: .95rem; }
+.bid-form { display: flex; gap: 6px; }
+.bid-form input { width: 90px; }
+.sell-items { border: 0; padding: 0; margin: 0 0 12px; display: grid; gap: 6px; }
+.sell-items legend { font-weight: 700; margin-bottom: 6px; }
+.sell-row { display: flex; gap: 16px; flex-wrap: wrap; align-items: end; margin-bottom: 12px; }
+.sell-row label { display: grid; gap: 4px; }
+.sell-row label:has(input[type=radio]) { display: flex; gap: 6px; align-items: center; font-weight: 700; }
+.sell-row [hidden] { display: none; }
+@media (max-width: 640px) {
+  .auction { grid-template-columns: 1fr; }
+  .auction-price { text-align: left; }
+}
+.market-panel [hidden] { display: none !important; }
