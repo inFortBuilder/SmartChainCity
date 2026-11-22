@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { DistrictRoom } from './district-room.js';
 import { HttpVisitChecker, InteriorRoom, type VisitChecker } from './interior-room.js';
 import { MuteBook, moderateText } from './moderation.js';
+import { parseShard } from './shard.js';
 
 export const configSchema = z.object({
   NODE_ENV: z.string().default('development'),
@@ -22,6 +23,8 @@ export const configSchema = z.object({
   INTERNAL_TOKEN: z.preprocess((v) => (v === '' ? undefined : v), z.string().min(32).optional()),
   /** Serviço world: diz quem pode entrar na sala do interior de um imóvel. Sem ele, a sala recusa. */
   WORLD_URL: z.preprocess((v) => (v === '' ? undefined : v), z.url().optional()),
+  /** Divisão por bairro (E3.9): `i/n`, este processo é o i de n e recusa os bairros dos outros. */
+  SHARD: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
 });
 export type Config = z.infer<typeof configSchema>;
 
@@ -50,7 +53,9 @@ export async function startRealtime(config: Config, log: Log = () => {}, overrid
   const worldUrl = config.WORLD_URL ?? (config.NODE_ENV === 'production' ? undefined : 'http://127.0.0.1:8030');
   // Um silêncio vale em todas as salas: bairro e interior.
   const mutes = new MuteBook();
+  const shard = parseShard(config.SHARD);
   DistrictRoom.deps = {
+    shard,
     jwtSecret: config.JWT_SECRET,
     jwtIssuer: config.JWT_ISSUER,
     maxClients: config.MAX_CLIENTS,
@@ -59,6 +64,7 @@ export async function startRealtime(config: Config, log: Log = () => {}, overrid
     registry,
   };
   InteriorRoom.deps = {
+    shard,
     jwtSecret: config.JWT_SECRET,
     jwtIssuer: config.JWT_ISSUER,
     mutes,

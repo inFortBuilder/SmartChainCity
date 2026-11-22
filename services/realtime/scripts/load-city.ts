@@ -11,7 +11,8 @@
  * - --hold 30: segundos com todos conectados;
  * - --rate 2: movimentos por segundo por cliente;
  * - --per-room 100: clientes por bairro (o maxClients do servidor);
- * - --urls a,b,c: vários processos do realtime; o bairro d vai para o d % n (divisão por bairro).
+ * - --urls a,b,c: vários processos do realtime, divididos por bairro como no cliente (src/shard.ts);
+ *   suba cada um com SHARD=i/n.
  *
  * Contra um servidor no ar, o JWT_SECRET precisa ser o dele.
  *
@@ -33,6 +34,7 @@ import { Client, type Room } from '@colyseus/sdk';
 import { SignJWT } from 'jose';
 
 import { configSchema, startRealtime } from '../src/server.js';
+import { districtKey, shardIndex } from '../src/shard.js';
 
 interface Job {
   /** Um ou mais servidores: o bairro d vai para urls[d % n] (divisão por bairro entre processos). */
@@ -99,7 +101,8 @@ async function runClients(job: Job): Promise<WorkerResult> {
       const i = job.first + k;
       await sleep(Math.max(0, job.t0 + (i / job.ramp) * 1000 - Date.now()));
       const district = 5000 + Math.floor(i / job.perRoom);
-      const c = new Client(job.urls[district % job.urls.length]!, { fetchFn: pooledFetch as typeof fetch });
+      // A mesma regra do cliente e do SHARD do servidor: FNV-1a de cidade:bairro.
+      const c = new Client(job.urls[shardIndex(districtKey('carga', district), job.urls.length)]!, { fetchFn: pooledFetch as typeof fetch });
       c.auth.token = await new SignJWT({})
         .setProtectedHeader({ alg: 'HS256' })
         .setSubject(randomUUID())

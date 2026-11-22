@@ -1,8 +1,9 @@
-import { type AuthContext, type Client, Room } from '@colyseus/core';
+import { type AuthContext, type Client, Room, ServerError } from '@colyseus/core';
 import { type MapSchema, schema, t } from '@colyseus/schema';
 import { verifyAccessToken } from '@scc/shared';
 
 import { MuteBook, RateLimiter, cleanName } from './moderation.js';
+import { districtKey, owns } from './shard.js';
 import { registerChat } from './room-chat.js';
 
 /**
@@ -49,6 +50,8 @@ export interface RoomDeps {
   log: (event: string, data: Record<string, unknown>) => void;
   /** Salas vivas, para os eventos globais (`/internal/v1/broadcast`). */
   registry: Set<DistrictRoom>;
+  /** Divisão por bairro (SHARD=i/n): null cuida de tudo. */
+  shard?: { index: number; count: number } | null;
 }
 
 /** Limite do mapa em metros (Pittsburg tem 34,6 km de base). Fora disso, o movimento é ignorado. */
@@ -69,8 +72,12 @@ export class DistrictRoom extends Room {
   private readonly chats = new RateLimiter(1, 3);
   private readonly accounts = new Map<string, string>();
 
-  async onAuth(_client: Client, _options: unknown, context: AuthContext) {
-    const { jwtSecret, jwtIssuer } = DistrictRoom.deps;
+  async onAuth(_client: Client, options: { city?: unknown; district?: unknown }, context: AuthContext) {
+    const { jwtSecret, jwtIssuer, shard } = DistrictRoom.deps;
+    // Bairro de outro processo: o cliente escolheu o processo errado (lista de URLs diferente).
+    if (shard && !owns(shard, districtKey(String(options?.city), Number(options?.district)))) {
+      throw new ServerError(421, 'wrong_shard');
+    }
     const accountId = await verifyAccessToken(context.token ?? '', { secret: jwtSecret, issuer: jwtIssuer });
     return { accountId };
   }

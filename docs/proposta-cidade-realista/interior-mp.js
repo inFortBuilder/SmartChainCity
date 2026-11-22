@@ -4,9 +4,8 @@
 // A sala é a `interior` do realtime, uma por lote. Só entra o dono e quem ele
 // convidou: o realtime confere no world com o token do próprio jogador.
 import { loadAvatarAssets, makeAvatar } from './avatar.js';
+import { interiorKey, realtimeFor } from './realtime-shard.js';
 
-const params = new URLSearchParams(location.search);
-const REALTIME = params.get('realtime') ?? 'http://127.0.0.1:8050';
 const SDK = 'https://cdn.jsdelivr.net/npm/@colyseus/sdk@0.18.9/+esm';
 const SEND_EVERY_MS = 150;
 const MAX_LINES = 30;
@@ -196,7 +195,8 @@ export function createInteriorMultiplayer(opts) {
   (async () => {
     try {
       const sdk = await import(SDK);
-      const client = new sdk.Client(REALTIME);
+      // O interior do lote vai para o processo do lote (?realtime=a,b,c, E3.9).
+      const client = new sdk.Client(realtimeFor(interiorKey(opts.city, opts.lot)));
       client.auth.token = s.token;
       room = await client.joinOrCreate('interior', { city: opts.city, lot: opts.lot, name: opts.name, skin: opts.skin });
       status('');
@@ -218,7 +218,7 @@ export function createInteriorMultiplayer(opts) {
         sent = m;
       }, SEND_EVERY_MS);
     } catch (error) {
-      status(error?.code === 403 || /not_invited/.test(String(error?.message)) ? 'Sem convite para a sala deste imóvel.' : `Sem conexão com o multiplayer (${REALTIME}).`);
+      status(error?.code === 403 || /not_invited/.test(String(error?.message)) ? 'Sem convite para a sala deste imóvel.' : `Sem conexão com o multiplayer (${realtimeFor(interiorKey(opts.city, opts.lot))}).`);
       console.warn('interior', error);
     }
   })();
