@@ -79,6 +79,8 @@ function available(address account) external view returns (uint256 total, uint25
 | `SIGNER` | Chave KMS do backend | Assinar cotações e vouchers |
 | `MINTER` | Contratos `LuckyBox`, `GameVault` | Mint de NFTs |
 
+✅ **Script de deploy da BSC (2026-11-22):** [`DeployMainnet.s.sol`](../contracts/README.md#deploy-na-bsc-mainnet-e-testnet) entrega estes papéis. O `DEFAULT_ADMIN` e o `UPGRADER` ficam com o timelock de 48 h, e o deployer sai sem papel nenhum (o script confere na cadeia). O `MINTER` hoje é só da `LuckyBox`: o `GameVault` guarda SCITY e não minta NFT.
+
 Liquidez inicial com **LP travado** (≥ 12 meses) e endereços da equipe publicados — resposta direta ao *rug pull* do CryptoCars.
 
 ## 4. Eventos que o indexer consome
@@ -93,5 +95,5 @@ O Mafagafo foi criticado por **não emitir eventos** das taxas: todos os contrat
 - Análise estática (Slither) no CI. ✅ Desde 2026-11-22 (0 alto, 0 médio; triagem no [pacote do auditor](auditoria/README.md)).
 - **Auditoria externa** antes da mainnet, para `GameVault`, `LuckyBox`, `Marketplace` e `StakingPool`.
 - Bug bounty após o lançamento.
-- Contratos verificados no BscScan.
+- Contratos verificados no BscScan. O script de deploy da BSC já roda com `--verify`.
 - Upgradeability: preferir contratos **imutáveis** para token e NFTs; usar proxy (UUPS) só em `GameVault` e `Marketplace`, sempre atrás de timelock. ✅ Feito em 2026-11-22 (`UPGRADER_ROLE` com o `TimelockController`, teste em `test/Upgrades.t.sol`).

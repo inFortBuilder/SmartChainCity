@@ -53,6 +53,7 @@ cms-strapi/public/uploads/*
 # ---- Foundry ----
 contracts/cache/
 contracts/broadcast/*/31337/
+contracts/deploy/*.local.json
 contracts/out/
 !contracts/out/abi/
 

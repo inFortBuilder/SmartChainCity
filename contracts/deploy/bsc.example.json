@@ -1,0 +1,32 @@
+{
+  "adminMultisig": "0x0000000000000000000000000000000000000000",
+  "pauserMultisig": "0x0000000000000000000000000000000000000000",
+  "signer": "0x0000000000000000000000000000000000000000",
+  "treasury": "0x0000000000000000000000000000000000000000",
+  "scity": "0x0000000000000000000000000000000000000000",
+  "tokenRecipient": "0x0000000000000000000000000000000000000000",
+  "timelockDelaySeconds": 172800,
+  "avatarRoyaltyBps": 250,
+  "marketFeeBps": 250,
+  "vaultDailyLimitWei": 1000000000000000000000000,
+  "vaultDailyLimitPerAddressWei": 10000000000000000000000,
+  "baseURIs": {
+    "land": "https://api.example.invalid/v1/world/nft/lots/",
+    "avatar": "https://api.example.invalid/v1/nft/avatars/",
+    "property": "https://api.example.invalid/v1/world/nft/properties/",
+    "building": "https://api.example.invalid/v1/world/nft/buildings/"
+  },
+  "vrf": {
+    "coordinator": "0x0000000000000000000000000000000000000000",
+    "keyHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "subId": 0,
+    "requestConfirmations": 3,
+    "callbackGasLimit": 300000,
+    "nativePayment": true
+  },
+  "luckyBoxTier1": {
+    "currency": "0x0000000000000000000000000000000000000000",
+    "priceWei": 50000000000000000,
+    "weights": [4000, 3000, 2000, 1000]
+  }
+}
