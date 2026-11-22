@@ -64,7 +64,9 @@
     const card = btn.closest('.listing');
     current = card;
     modal.querySelector('[data-buy-title]').textContent = `Comprar ${card.dataset.name}`;
-    modal.querySelector('[data-buy-desc]').textContent = 'A compra é feita no contrato do Marketplace, com sua carteira.';
+    modal.querySelector('[data-buy-desc]').textContent = card.dataset.listingId
+      ? `Anúncio #${card.dataset.listingId} no contrato do Marketplace. Sua carteira vai pedir duas confirmações: aprovar o SCITY e comprar.`
+      : 'A compra é feita no contrato do Marketplace, com sua carteira.';
     modal.querySelector('[data-buy-price]').textContent = fmt.format(Number(card.dataset.price));
     modal.querySelector('[data-buy-status]').textContent = '';
     if (typeof modal.showModal === 'function') modal.showModal(); else modal.setAttribute('open', '');
@@ -72,14 +74,43 @@
 
   modal?.querySelector('[data-buy-confirm]')?.addEventListener('click', async () => {
     const st = modal.querySelector('[data-buy-status]');
+    const btn = modal.querySelector('[data-buy-confirm]');
+    const w = window.SCC.wallet;
+    const chain = window.SCC.chain || {};
     try {
-      if (!window.SCC.wallet.state.address) await window.SCC.wallet.connect();
-      // O contrato Marketplace ainda não foi publicado: aqui entra a chamada buy(listingId) (docs/07 §2.5).
-      st.className = 'form-status is-error';
-      st.textContent = `Carteira ${window.SCC.wallet.short(window.SCC.wallet.state.address)} conectada. O marketplace on-chain abre na fase Beta — anúncio ${current?.dataset.id} reservado para teste.`;
+      if (!w.state.address) await w.connect();
+      if (!current?.dataset.listingId) {
+        st.className = 'form-status is-error';
+        st.textContent = 'Anúncio de demonstração: quando o mercado estiver na blockchain, a compra acontece aqui.';
+        return;
+      }
+      if (!chain.tokenAddress || !chain.marketplace) throw Object.assign(new Error('not_deployed'), { code: 'not_deployed' });
+      const listingId = BigInt(current.dataset.listingId);
+      const price = BigInt(current.dataset.priceWei);
+      const word = (v) => v.toString(16).padStart(64, '0');
+      const addr = (a) => a.toLowerCase().replace('0x', '').padStart(64, '0');
+      btn.disabled = true;
+      st.className = 'form-status';
+      st.textContent = 'Confirme na carteira: aprovar o SCITY para o Marketplace…';
+      // approve(spender, amount) do SCITY: só o preço do anúncio.
+      await w.waitReceipt(await w.sendTx({ to: chain.tokenAddress, data: `0x095ea7b3${addr(chain.marketplace)}${word(price)}` }));
+      st.textContent = 'Confirme na carteira: comprar…';
+      // buy(listingId, maxPrice): o preço máximo é o do anúncio, então o vendedor não sobe o preço no caminho.
+      await w.waitReceipt(await w.sendTx({ to: chain.marketplace, data: `0xd6febde8${word(listingId)}${word(price)}` }));
+      st.className = 'form-status is-ok';
+      st.textContent = 'Compra feita! O NFT já está na sua carteira.';
+      current.remove();
+      apply();
     } catch (err) {
       st.className = 'form-status is-error';
-      st.textContent = err?.code === 4001 ? 'Você cancelou na carteira.' : 'Conecte uma carteira para comprar.';
+      st.textContent =
+        err?.code === 4001 ? 'Você cancelou na carteira.'
+          : err?.code === 'reverted' ? 'O contrato recusou: o anúncio pode ter sido vendido ou cancelado, ou falta SCITY.'
+            : err?.code === 'not_deployed' ? 'O Marketplace ainda não está publicado nesta rede.'
+              : err?.message === 'no_provider' ? 'Instale uma carteira (MetaMask) para comprar.'
+                : 'Não foi possível comprar agora. Tente de novo.';
+    } finally {
+      btn.disabled = false;
     }
   });
 

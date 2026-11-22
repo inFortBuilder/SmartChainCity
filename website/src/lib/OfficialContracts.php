@@ -60,6 +60,21 @@ final class OfficialContracts
         return ['chain_id' => $chain, 'core' => $core, 'tge' => $tge, 'lock' => $lock, 'published' => (bool) $core];
     }
 
+    /** Um endereço do arquivo de deploy da rede atual (ex.: 'Marketplace', 'SCityToken'), ou ''. */
+    public static function address(string $key): string
+    {
+        $chain = (int) cfg('chain.chain_id');
+        $dir = rtrim((string) cfg('chain.deployments_dir'), '/\\');
+        $base = $chain === 31337 ? 'anvil' : (string) $chain;
+        foreach (["$dir/$base.json", "$dir/$base-tge.json"] as $file) {
+            $v = self::read($file)[$key] ?? null;
+            if (self::isAddress($v)) {
+                return $v;
+            }
+        }
+        return '';
+    }
+
     private static function read(string $file): array
     {
         if (!is_file($file)) {
