@@ -250,6 +250,7 @@ Aula e troca de profissão ([school.ts](src/domain/school.ts), GDD §3.2 e ADR-0
 | Aula | `POST /v1/avatars/:id/school/class`: +2 de educação, −2 de energia, uma por dia (UTC). Recusa com `class_taken`, `max_education`, `too_tired`, `in_hospital` e `in_school` |
 | Troca de profissão | `POST /v1/avatars/:id/school/change` com `{job}`: só para outra profissão da mesma raridade (a raridade é do NFT). São 4 dias de escola: o turno recusa com `in_school`. Dá +2 de felicidade na matrícula e +2 depois de 24 h (GDD: "+felicidade nos 2 primeiros dias"). A nova profissão vale no fim dos 4 dias. Recusa com turno rodando (`shift_running`) |
 | Cobrança | Pelo ledger, como as refeições (`school_buy`, para a queima `burn/school`), com `Idempotency-Key` |
+| Pet Sitter (serviço de jogador) | O avatar com a profissão Pet Sitter abre a oferta e escolhe a diária. O dono deixa o pet com ele por 24 h, com o mesmo cuidado do hotel. A vaga é reservada antes da cobrança (até 3 pets por sitter, conferido com o sitter travado) e volta se o pagamento falhar. A diária vai pelo ledger: 90% para o sitter e 10% para a queima (`petsitter_fee`, `burn/petsitter`). Enquanto cuida de algum pet, o turno do sitter rende +20% (`snapshot.sitter`, GDD: "Pet sitter recebe produtividade + 20%"). O sitter não atende a própria conta ([sitter.ts](src/domain/sitter.ts)) |
 
 **Premissas** (a calibrar no simulador):
 - Aula de 15 THALER, com +2 de educação. Chegar a 100 leva 50 dias de aula.
@@ -276,9 +277,9 @@ Cada avatar pode ter um gato ou um cachorro ([pet.ts](src/domain/pet.ts), GDD §
 - "+30%" vira +2 no pet (de 5) e +3 no avatar (de 10).
 - Um pet por avatar.
 - Preços, em THALER: gato 50, cachorro 80, ração 3, banho 8, tosa 12, hotel 20.
-- O bônus do Pet Sitter (+20%) fica para quando houver serviço de jogador.
+- Pet Sitter: diária de 10 a 40 THALER, até 3 pets por vez, e o +20% vale para o turno que começa com algum pet sob cuidado.
 
-Depois de atualizar o código, rode `pnpm db:migrate`: a migração `0010_pets` cria a coluna `pet`.
+Depois de atualizar o código, rode `pnpm db:migrate`: a migração `0010_pets` cria a coluna `pet`, e a `0018_pet_sitter` cria `pet_sitter_offer` e `pet_sitting`.
 
 ## Antifraude (E2.9, passo 15 da trilha)
 
@@ -383,6 +384,10 @@ TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc_test pnpm --filter
 | GET | `/v1/catalog/petshop` | público | Espécies e serviços do Pet Shop com o preço, o passeio, a queda e a tabela de nível → multiplicador |
 | POST | `/v1/avatars/:id/pet` | jogador (Bearer) | Adota `{species: cat \| dog, name}`, pago pelo ledger. Aceita `Idempotency-Key`. Devolve a compra e o avatar (com `pet`) |
 | POST | `/v1/avatars/:id/pet/services` | jogador (Bearer) | Serviço do Pet Shop `{service: racao \| banho \| tosa \| hotel}`, pago pelo ledger. Aceita `Idempotency-Key` |
+| GET | `/v1/pet-sitters` | público (com Bearer e `?avatar_id=`, a estadia do pet) | Pet Sitters atendendo, com a diária e as vagas (sem os da própria conta), a faixa de preço, a capacidade e as horas da estadia |
+| PUT | `/v1/avatars/:id/pet-sitter` | avatar Pet Sitter (Bearer) | Abre ou fecha a oferta: `{open, price}` (centavos de THALER, de 1000 a 4000) |
+| GET | `/v1/avatars/:id/pet-sitter` | avatar Pet Sitter (Bearer) | Painel do sitter: a oferta, os pets sob cuidado e o bônus do turno (`shift_bonus`) |
+| POST | `/v1/avatars/:id/pet/sitter` | dono (Bearer) | Deixa o pet com o Pet Sitter por 24 h: `{sitter_avatar_id}`. Erros: `sitter_closed`, `sitter_full`, `own_sitter`, `pet_in_hotel`, `insufficient_thaler`. Aceita `Idempotency-Key` |
 | POST | `/v1/avatars/:id/pet/actions` | jogador (Bearer) | De graça: `{action: agua \| passeio \| enterrar}` |
 | GET | `/v1/avatars/:id/hospital` | jogador (Bearer) | Últimas 20 internações, com motivo, alta e situação da taxa (`pending`, `paid`, `waived`) |
 | POST | `/v1/avatars/:id/hospital/treat` | jogador (Bearer) | Tratamento das doenças graves: 4 h internado, taxa de 30 THALER, sai curado |
