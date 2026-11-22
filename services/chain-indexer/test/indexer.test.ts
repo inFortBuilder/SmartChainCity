@@ -2,7 +2,7 @@ import { Pool } from 'pg';
 import { type Hex, keccak256, stringToHex, toHex } from 'viem';
 import { afterAll, describe, expect, it } from 'vitest';
 
-import { buildApp } from '../src/app.js';
+import { buildApp, chainNowSec, type IndexerStatus } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
 import type { ChainEvent, ContractName, EventArgs } from '../src/domain/events.js';
 import { creditDeposits } from '../src/domain/deposits.js';
@@ -403,5 +403,33 @@ describe('Marketplace no indexer', () => {
     expect(await one('2')).toMatchObject({ status: 'settled', winner: null });
     expect(await one('3')).toMatchObject({ status: 'cancelled' });
     expect((await app.inject({ method: 'GET', url: '/v1/market/auctions/9' })).statusCode).toBe(404);
+  });
+
+  it('encerrado e vencido seguem o relógio da cadeia, não o do servidor', async () => {
+    const t = Math.floor(Date.now() / 1000);
+    const auction = { auctionId: '1', seller: '0x0', startPriceWei: '1', highestBidWei: null, highestBidder: null, bids: 0, endsAt: t + 3600, status: 'active', winner: null, items: [], block: 1n };
+    const listing = { listingId: '1', seller: '0x0', priceWei: '1', expiresAt: t + 3600, status: 'active', buyer: null, items: [], block: 1n };
+    const fake = {
+      activeAuctions: async () => [auction],
+      auction: async () => auction,
+      activeListings: async () => [listing],
+      listing: async () => listing,
+    } as unknown as Parameters<typeof buildApp>[1];
+    const status: IndexerStatus = { head: null, lastTickAt: null, lastError: null, chainTime: null };
+    const app = await buildApp(loadConfig({ NODE_ENV: 'test', CHAIN_ID: '31337' }), fake, status);
+    const ended = async () => (await app.inject({ url: '/v1/market/auctions' })).json().auctions[0].ended;
+    const expired = async () => (await app.inject({ url: '/v1/market/listings?all=true' })).json().listings[0].expired;
+    // Sem leitura da cadeia: o relógio do servidor (falta 1 h).
+    expect(await ended()).toBe(false);
+    expect(await expired()).toBe(false);
+    // A cadeia está 2 h à frente (anvil com evm_increaseTime): já acabou.
+    status.chainTime = { seconds: t + 7200, seenAt: Date.now() };
+    expect(await ended()).toBe(true);
+    expect(await expired()).toBe(true);
+    expect((await app.inject({ url: '/v1/market/listings' })).json().listings).toEqual([]);
+    // O relógio anda a partir da leitura: lido 2 h antes do prazo, há 3 h, também acabou.
+    status.chainTime = { seconds: t - 7200, seenAt: Date.now() - 3 * 3_600_000 };
+    expect(chainNowSec(status)).toBeGreaterThanOrEqual(t + 3600);
+    expect(await ended()).toBe(true);
   });
 });

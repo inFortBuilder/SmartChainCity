@@ -17,7 +17,7 @@ if (config.NODE_ENV === 'production' && !config.DATABASE_URL) {
 
 const pool = config.DATABASE_URL ? new Pool({ connectionString: config.DATABASE_URL }) : null;
 const store = pool ? new PostgresIndexerStore(pool) : new MemoryIndexerStore();
-const status: IndexerStatus = { head: null, lastTickAt: null, lastError: null };
+const status: IndexerStatus = { head: null, lastTickAt: null, lastError: null, chainTime: null };
 
 const app = await buildApp(config, store, status);
 // Crédito dos depósitos do GameVault: precisa do gateway (de quem é a carteira) e do economy (o ledger).
@@ -49,6 +49,8 @@ async function loop() {
         if (c.credited) app.log.info(`depósitos: ${c.credited} creditado(s) no ledger`);
       }
       status.lastTickAt = new Date();
+      // Relógio da cadeia para "vencido" e "encerrado" (anvil com o tempo adiantado, validador com desvio).
+      status.chainTime = { seconds: await reader.headTime(), seenAt: Date.now() };
       status.lastError = null;
       if (r.kind === 'idle') status.head = r.head;
       if (r.kind === 'indexed') {

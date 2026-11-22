@@ -99,3 +99,7 @@ As migrações ficam em `drizzle/`, controladas em `drizzle.__indexer_migrations
 
 - **Marketplace:** o feed já é usado pelo world (`LandNFT`, `PropertyNFT`) e pelo game-core (`AvatarNFT`, [game-core](../game-core/README.md#avatar-na-blockchain-avatarnft)); falta o contrato `Marketplace` e os eventos dele.
 - **Teste na BSC Testnet:** precisa do VRF da Chainlink e de BNB de teste.
+
+## Relógio da cadeia
+
+`expired` (anúncio) e `ended` (leilão) usam o horário do bloco mais novo, não o do servidor: os prazos são do contrato (`block.timestamp`). O laço lê o timestamp do último bloco a cada passada e soma o tempo desde a leitura. Antes da primeira leitura, vale o relógio do servidor. Assim, num anvil com o tempo adiantado (`evm_increaseTime`) ou com um validador fora do relógio, o botão Encerrar e o filtro de vencidos batem com o que o contrato aceita.
