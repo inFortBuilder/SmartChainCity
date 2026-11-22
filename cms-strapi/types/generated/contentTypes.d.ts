@@ -629,6 +629,54 @@ export interface ApiAttributeMultiplierAttributeMultiplier
   };
 }
 
+export interface ApiEventGroupEventGroup extends Struct.CollectionTypeSchema {
+  collectionName: 'event_groups';
+  info: {
+    description: 'Eventos semanais por profiss\u00E3o (GDD \u00A78, doc 04 \u00A74): os grupos se revezam pela ordem, um por semana; o nome do evento gira na lista. O game-core l\u00EA os publicados.';
+    displayName: 'Grupo de evento';
+    pluralName: 'event-groups';
+    singularName: 'event-group';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  attributes: {
+    code: Schema.Attribute.UID & Schema.Attribute.Required;
+    conferir: Schema.Attribute.JSON;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    events: Schema.Attribute.JSON & Schema.Attribute.Required;
+    factor: Schema.Attribute.Decimal &
+      Schema.Attribute.Required &
+      Schema.Attribute.SetMinMax<
+        {
+          max: 2;
+          min: 1;
+        },
+        number
+      > &
+      Schema.Attribute.DefaultTo<1.2>;
+    jobs: Schema.Attribute.JSON & Schema.Attribute.Required;
+    label: Schema.Attribute.String & Schema.Attribute.Required;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<'oneToMany', 'api::event-group.event-group'> &
+      Schema.Attribute.Private;
+    order: Schema.Attribute.Integer &
+      Schema.Attribute.Required &
+      Schema.Attribute.SetMinMax<
+        {
+          min: 0;
+        },
+        number
+      >;
+    publishedAt: Schema.Attribute.DateTime;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
 export interface ApiFoodFood extends Struct.CollectionTypeSchema {
   collectionName: 'foods';
   info: {
@@ -870,6 +918,66 @@ export interface ApiRarityRarity extends Struct.CollectionTypeSchema {
     > &
       Schema.Attribute.Private;
     publishedAt: Schema.Attribute.DateTime;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
+export interface ApiSeasonSeason extends Struct.CollectionTypeSchema {
+  collectionName: 'seasons';
+  info: {
+    description: 'Temporadas do GamePass (GDD \u00A78): datas, pre\u00E7o por n\u00EDvel em SCITY, corte de dano por n\u00EDvel e os itens sazonais de cada n\u00EDvel, com efeito. O game-core l\u00EA as publicadas.';
+    displayName: 'Temporada';
+    pluralName: 'seasons';
+    singularName: 'season';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  attributes: {
+    code: Schema.Attribute.UID & Schema.Attribute.Required;
+    conferir: Schema.Attribute.JSON;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    damageCutPerLevel: Schema.Attribute.Decimal &
+      Schema.Attribute.Required &
+      Schema.Attribute.SetMinMax<
+        {
+          max: 0.1;
+          min: 0;
+        },
+        number
+      > &
+      Schema.Attribute.DefaultTo<0.1>;
+    endsAt: Schema.Attribute.DateTime & Schema.Attribute.Required;
+    items: Schema.Attribute.Component<'game.season-item', true>;
+    label: Schema.Attribute.String & Schema.Attribute.Required;
+    levelPriceScity: Schema.Attribute.Integer &
+      Schema.Attribute.Required &
+      Schema.Attribute.SetMinMax<
+        {
+          min: 1;
+        },
+        number
+      > &
+      Schema.Attribute.DefaultTo<5>;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<'oneToMany', 'api::season.season'> &
+      Schema.Attribute.Private;
+    maxLevel: Schema.Attribute.Integer &
+      Schema.Attribute.Required &
+      Schema.Attribute.SetMinMax<
+        {
+          max: 10;
+          min: 1;
+        },
+        number
+      > &
+      Schema.Attribute.DefaultTo<5>;
+    publishedAt: Schema.Attribute.DateTime;
+    startsAt: Schema.Attribute.DateTime & Schema.Attribute.Required;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
@@ -1413,10 +1521,12 @@ declare module '@strapi/strapi' {
       'admin::user': AdminUser;
       'api::activity.activity': ApiActivityActivity;
       'api::attribute-multiplier.attribute-multiplier': ApiAttributeMultiplierAttributeMultiplier;
+      'api::event-group.event-group': ApiEventGroupEventGroup;
       'api::food.food': ApiFoodFood;
       'api::job.job': ApiJobJob;
       'api::property-type.property-type': ApiPropertyTypePropertyType;
       'api::rarity.rarity': ApiRarityRarity;
+      'api::season.season': ApiSeasonSeason;
       'plugin::content-releases.release': PluginContentReleasesRelease;
       'plugin::content-releases.release-action': PluginContentReleasesReleaseAction;
       'plugin::i18n.locale': PluginI18NLocale;

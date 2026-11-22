@@ -10,18 +10,28 @@ import { loadConfig } from '../src/config.js';
 import { newAvatar } from '../src/domain/avatar.js';
 import { professions } from '../src/domain/catalog.js';
 import {
-  EVENT_GROUPS,
+  type EventGroup,
   type GamePassPayer,
   type GamePassStore,
-  SEASONS,
+  SEED_EVENT_GROUPS,
+  SEED_SEASONS,
+  type Season,
   checkPassUpgrade,
-  damageCut,
   eventAt,
   eventFactor,
+  eventGroups,
   eventOfWeek,
+  eventsOrigin,
+  perks,
+  replaceEventGroups,
+  replaceSeasons,
   seasonAt,
+  seasonList,
+  validateEventGroups,
+  validateSeasons,
   weekOf,
 } from '../src/domain/events.js';
+import { fetchCmsEventGroups, fetchCmsSeasons } from '../src/infra/cms-catalog.js';
 import { DAMAGE_CHANCE, draw, settle, startShift } from '../src/domain/shift.js';
 import { PostgresGamePassStore } from '../src/infra/db/postgres-gamepass-store.js';
 import { MemoryAvatarStore } from '../src/infra/memory-store.js';
@@ -45,7 +55,7 @@ const code = (fn: () => unknown) => {
 
 describe('eventos semanais', () => {
   it('as 44 profissões estão num grupo só', () => {
-    const all = EVENT_GROUPS.flatMap((g) => [...g.jobs]);
+    const all = eventGroups().flatMap((g) => [...g.jobs]);
     expect(all.sort()).toEqual(professions().map((p) => p.code).sort());
   });
 
@@ -81,7 +91,7 @@ describe('eventos semanais', () => {
       if (d >= DAMAGE_CHANCE / 2 && d < DAMAGE_CHANCE) s = candidate;
     }
     const plain = settle(startShift(baker, { id, hours: 6, hoursToday: 0, running: false, seed: s }, t0).shift);
-    const vip = settle(startShift(baker, { id, hours: 6, hoursToday: 0, running: false, seed: s, damageCut: damageCut(5) }, t0).shift);
+    const vip = settle(startShift(baker, { id, hours: 6, hoursToday: 0, running: false, seed: s, damageCut: perks(seasonAt(t0), 5).damageCut }, t0).shift);
     expect(plain.damaged).toBe(true);
     expect(vip.damaged).toBe(false);
     // Turno de antes dos eventos (sem o campo no retrato): fator 1.
@@ -93,13 +103,29 @@ describe('eventos semanais', () => {
 describe('GamePass', () => {
   it('temporada 1 aberta por 12 semanas; subir paga só a diferença; cada nível corta 10%', () => {
     expect(seasonAt(t0)!.code).toBe('s1');
-    expect(seasonAt(new Date(SEASONS[0]!.endsAt.getTime()))).toBeNull();
+    expect(seasonAt(new Date(seasonList()[0]!.endsAt.getTime()))).toBeNull();
     expect(checkPassUpgrade(0, 3, seasonAt(t0)).wei).toBe(15n * WEI);
     expect(checkPassUpgrade(3, 5, seasonAt(t0)).wei).toBe(10n * WEI);
     expect(code(() => checkPassUpgrade(3, 3, seasonAt(t0)))).toBe('level_owned');
     expect(code(() => checkPassUpgrade(0, 6, seasonAt(t0)))).toBe('invalid_level');
     expect(code(() => checkPassUpgrade(0, 1, null))).toBe('no_season');
-    expect([0, 1, 5, 9].map(damageCut)).toEqual([0, 0.1, 0.5, 0.5]);
+    // O troféu (nível 4) corta mais 5%; os itens de ganho somam 2% + 3% + 5%.
+    const s1 = seasonAt(t0);
+    expect([0, 1, 3, 4, 5, 9].map((l) => perks(s1, l).damageCut)).toEqual([0, 0.1, 0.3, 0.45, 0.55, 0.55]);
+    expect([0, 1, 2, 3, 5].map((l) => perks(s1, l).earnBonus)).toEqual([0, 0, 0.02, 0.05, 0.1]);
+    expect(perks(null, 5)).toMatchObject({ damageCut: 0, earnBonus: 0 });
+  });
+
+  it('itens sazonais: o bônus de ganho entra no turno e some fora da temporada', () => {
+    const baker = newAvatar({ id: randomUUID(), accountId: randomUUID(), rarity: 'common', jobCode: 'padeiro' }, t0);
+    const id = randomUUID();
+    const seed = 'ab'.repeat(32);
+    const plain = settle(startShift(baker, { id, hours: 6, hoursToday: 0, running: false, seed }, t0).shift);
+    const bonus = settle(startShift(baker, { id, hours: 6, hoursToday: 0, running: false, seed, earnBonus: 0.1 }, t0).shift);
+    expect(bonus.factors.items).toBe(1.1);
+    expect(Number(bonus.thalerCents)).toBeCloseTo(Number(plain.thalerCents) * 1.1, -1);
+    // Depois da temporada 1, nada de itens.
+    expect(perks(seasonAt(new Date('2027-03-01T00:00:00Z')), 5).earnBonus).toBe(0);
   });
 });
 
@@ -169,12 +195,14 @@ describe('API dos eventos e do GamePass', () => {
     payer.scity.set(me, 30n * WEI);
     expect((await app.inject({ url: '/v1/gamepass', headers: h })).json()).toMatchObject({ season: { code: 's1' }, level: 0, damage_cut: 0 });
     const two = await app.inject({ method: 'POST', url: '/v1/gamepass', headers: h, payload: { level: 2 } });
-    expect(two.json()).toMatchObject({ level: 2, wei: (10n * WEI).toString(), damage_cut: 0.2 });
+    expect(two.json()).toMatchObject({ level: 2, wei: (10n * WEI).toString(), damage_cut: 0.2, earn_bonus: 0.02 });
     const five = await app.inject({ method: 'POST', url: '/v1/gamepass', headers: h, payload: { level: 5 } });
     expect(five.json()).toMatchObject({ level: 5, wei: (15n * WEI).toString() });
     expect(payer.scity.get(me)).toBe(5n * WEI);
     const view = (await app.inject({ url: '/v1/gamepass', headers: h })).json();
     expect(view.items.every((i: { unlocked: boolean }) => i.unlocked)).toBe(true);
+    expect(view).toMatchObject({ origin: 'seed', max_level: 5, damage_cut: 0.55, earn_bonus: 0.1 });
+    expect(view.items.find((i: { code: string }) => i.code === 'placa-t1')).toMatchObject({ effect: 'earn', value: 0.05 });
     expect((await app.inject({ method: 'POST', url: '/v1/gamepass', headers: h, payload: { level: 5 } })).json().error.code).toBe('level_owned');
 
     const poor = randomUUID();
@@ -186,6 +214,83 @@ describe('API dos eventos e do GamePass', () => {
     const work = await app.inject({ method: 'POST', url: `/v1/avatars/${a.id}/work`, headers: h, payload: { shift: 6 } });
     expect(work.statusCode).toBe(201);
     const [shift] = await avatars.listShifts(a.id, 1);
-    expect(shift!.snapshot).toMatchObject({ event: 1.2, damageCut: 0.5 });
+    expect(shift!.snapshot).toMatchObject({ event: 1.2, damageCut: 0.55, items: 1.1 });
+  });
+});
+
+describe('eventos e temporadas vindos do Strapi', () => {
+  const group = (over: Partial<EventGroup> = {}): EventGroup => ({
+    code: 'g',
+    label: 'G',
+    order: 0,
+    factor: 1.2,
+    jobs: ['padeiro'],
+    events: ['Feira'],
+    ...over,
+  });
+  const season = (over: Partial<Season> = {}): Season => ({
+    ...SEED_SEASONS[0]!,
+    ...over,
+  });
+  const restore = () => {
+    replaceEventGroups(SEED_EVENT_GROUPS, 'seed');
+    replaceSeasons(SEED_SEASONS, 'seed', t0);
+  };
+
+  it('dado quebrado não entra', () => {
+    const msg = (fn: () => unknown) => {
+      try {
+        fn();
+      } catch (error) {
+        return (error as Error).message;
+      }
+      return null;
+    };
+    expect(msg(() => validateEventGroups([group({ jobs: ['inexistente'] })]))).toMatch(/profissão desconhecida/);
+    expect(msg(() => validateEventGroups([group(), group({ code: 'h', order: 1 })]))).toMatch(/padeiro está em g e em h/);
+    expect(msg(() => validateEventGroups([group({ factor: 3 })]))).toMatch(/fator/);
+    expect(msg(() => validateEventGroups([]))).toMatch(/nenhum grupo/);
+    const s1 = season();
+    const s2 = season({ code: 's2', startsAt: new Date(s1.endsAt.getTime() - 1000), endsAt: new Date(s1.endsAt.getTime() + 84 * 86_400_000) });
+    expect(msg(() => validateSeasons([s1, s2]))).toMatch(/começa antes de s1 acabar/);
+    const greedy = season({ items: [{ level: 1, code: 'x', label: 'X', effect: 'earn', value: 0.1 }, { level: 2, code: 'y', label: 'Y', effect: 'earn', value: 0.1 }] });
+    expect(msg(() => validateSeasons([greedy]))).toMatch(/mais de 15%/);
+    expect(msg(() => validateSeasons([season({ items: [{ level: 9, code: 'z', label: 'Z', effect: 'earn', value: 0.01 }] })]))).toMatch(/fora dos níveis/);
+  });
+
+  it('a temporada aberta não some nem muda de datas', () => {
+    try {
+      const later = season({ code: 's1', startsAt: new Date('2026-12-01T00:00:00Z'), endsAt: new Date('2027-03-01T00:00:00Z') });
+      expect(() => replaceSeasons([later], 'cms', t0)).toThrow(/temporada aberta s1/);
+      expect(() => replaceSeasons([season({ code: 'outra' })], 'cms', t0)).toThrow(/temporada aberta s1/);
+      // Mudar preço e itens da temporada aberta pode (vale para quem subir de nível depois).
+      replaceSeasons([season({ levelPriceScity: 7 })], 'cms', t0);
+      expect(checkPassUpgrade(0, 1, seasonAt(t0)).wei).toBe(7n * WEI);
+      expect(eventsOrigin().seasons).toBe('cms');
+    } finally {
+      restore();
+    }
+  });
+
+  it('lê o que o Strapi publica e troca o calendário', async () => {
+    const respond = (data: unknown) => (async () => new Response(JSON.stringify({ data }), { status: 200 })) as unknown as typeof fetch;
+    const groups = await fetchCmsEventGroups(
+      'http://cms.test/',
+      respond(SEED_EVENT_GROUPS.map((g) => ({ ...g, factor: g.code === 'comida' ? '1.5' : String(g.factor) }))),
+    );
+    const seasons = await fetchCmsSeasons(
+      'http://cms.test',
+      respond(SEED_SEASONS.map((x) => ({ ...x, startsAt: x.startsAt.toISOString(), endsAt: x.endsAt.toISOString(), damageCutPerLevel: '0.08' }))),
+    );
+    try {
+      replaceEventGroups(groups, 'cms');
+      replaceSeasons(seasons, 'cms', t0);
+      expect(eventFactor('padeiro', t0)).toBe(1.5);
+      expect(perks(seasonAt(t0), 1).damageCut).toBe(0.08);
+      expect(eventsOrigin()).toEqual({ groups: 'cms', seasons: 'cms' });
+    } finally {
+      restore();
+    }
+    await expect(fetchCmsSeasons('http://cms.test', (async () => new Response('', { status: 500 })) as unknown as typeof fetch)).rejects.toThrow(/500/);
   });
 });

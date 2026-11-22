@@ -1,0 +1,21 @@
+{
+  "kind": "collectionType",
+  "collectionName": "event_groups",
+  "info": {
+    "singularName": "event-group",
+    "pluralName": "event-groups",
+    "displayName": "Grupo de evento",
+    "description": "Eventos semanais por profissão (GDD §8, doc 04 §4): os grupos se revezam pela ordem, um por semana; o nome do evento gira na lista. O game-core lê os publicados."
+  },
+  "options": { "draftAndPublish": true },
+  "pluginOptions": {},
+  "attributes": {
+    "code": { "type": "uid", "required": true },
+    "label": { "type": "string", "required": true },
+    "order": { "type": "integer", "required": true, "min": 0 },
+    "factor": { "type": "decimal", "required": true, "default": 1.2, "min": 1, "max": 2 },
+    "jobs": { "type": "json", "required": true },
+    "events": { "type": "json", "required": true },
+    "conferir": { "type": "json" }
+  }
+}

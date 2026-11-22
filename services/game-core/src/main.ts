@@ -120,6 +120,12 @@ if (config.CMS_URL) {
   } catch (error) {
     app.log.warn(`mercado: alimentos do seed (${(error as Error).message})`);
   }
+  try {
+    const r = await (app as unknown as { loadEvents: () => Promise<{ groups: number; seasons: number }> }).loadEvents();
+    app.log.info(`eventos: ${r.groups} grupos e ${r.seasons} temporadas do Strapi`);
+  } catch (error) {
+    app.log.warn(`eventos: grupos e temporadas do seed (${(error as Error).message})`);
+  }
 }
 
 const decay = scheduleDecay(store, config.DECAY_EVERY_SECONDS * 1000, (msg) => app.log.info(msg));

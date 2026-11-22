@@ -1,4 +1,5 @@
 import type { Profession, Rarity } from '../domain/catalog.js';
+import { type EventGroup, type Season, parseSeasons } from '../domain/events.js';
 import type { Food, FoodGroup } from '../domain/foods.js';
 
 /**
@@ -54,4 +55,31 @@ export async function fetchCmsFoods(baseUrl: string, fetchFn: typeof fetch = fet
     pack: f.pack ?? 1,
     price: f.price ?? null,
   }));
+}
+
+/** Grupos de evento publicados no Strapi (E3.10). */
+export async function fetchCmsEventGroups(baseUrl: string, fetchFn: typeof fetch = fetch): Promise<EventGroup[]> {
+  const url = `${baseUrl.replace(/\/$/, '')}/api/event-groups?pagination[pageSize]=100&sort=order`;
+  const response = await fetchFn(url, { signal: AbortSignal.timeout(10_000) });
+  if (!response.ok) throw new Error(`Strapi respondeu ${response.status} em /api/event-groups`);
+  const body = (await response.json()) as {
+    data: { code: string; label: string; order: number; factor: number | string; jobs: string[]; events: string[] }[];
+  };
+  return body.data.map((g) => ({
+    code: g.code,
+    label: g.label,
+    order: Number(g.order),
+    factor: Number(g.factor),
+    jobs: Array.isArray(g.jobs) ? g.jobs : [],
+    events: Array.isArray(g.events) ? g.events : [],
+  }));
+}
+
+/** Temporadas do GamePass publicadas no Strapi, com os itens sazonais (E3.10). */
+export async function fetchCmsSeasons(baseUrl: string, fetchFn: typeof fetch = fetch): Promise<Season[]> {
+  const url = `${baseUrl.replace(/\/$/, '')}/api/seasons?pagination[pageSize]=100&populate=items&sort=startsAt`;
+  const response = await fetchFn(url, { signal: AbortSignal.timeout(10_000) });
+  if (!response.ok) throw new Error(`Strapi respondeu ${response.status} em /api/seasons`);
+  const body = (await response.json()) as { data: Parameters<typeof parseSeasons>[0] };
+  return parseSeasons(body.data);
 }

@@ -91,8 +91,10 @@ O **cabeçalho** de cada profissão (ganho e duração) é o valor oficial. Em 2
 | [`seed/raridades.json`](seed/raridades.json) | Tabela de Atributos, doc 02 §2.2 | À mão |
 | [`seed/multiplicadores.json`](seed/multiplicadores.json) | Tabela de Atributos, doc 02 §2.4 | À mão |
 | [`seed/imoveis.json`](seed/imoveis.json) | GDD §3.4, doc 03 §6 | À mão |
+| [`seed/eventos.json`](seed/eventos.json) | GDD §8 (grupos e nomes dos eventos), doc 04 §4 | À mão. Tipo `event-group`: ordem do rodízio semanal, fator, profissões e nomes |
+| [`seed/temporadas.json`](seed/temporadas.json) | GDD §8 (GamePass), doc 04 §8 | À mão. Tipo `season`: datas, preço por nível, corte de dano e os itens sazonais (componente `game.season-item`, com `effect` `cosmetic`, `earn` ou `damage` e o `value`) |
 
-O teste [`scripts/seed.test.mjs`](scripts/seed.test.mjs) confere os arquivos antes da carga: códigos únicos, efeitos na escala dos atributos (−10 a 10), profissões dentro da faixa da raridade, multiplicadores que não caem quando o nível sobe e upgrade de imóvel a partir de um tipo que existe.
+O teste [`scripts/seed.test.mjs`](scripts/seed.test.mjs) confere os arquivos antes da carga: códigos únicos, efeitos na escala dos atributos (−10 a 10), profissões dentro da faixa da raridade, multiplicadores que não caem quando o nível sobe e upgrade de imóvel a partir de um tipo que existe. Para eventos e temporadas, confere também que cada profissão está em exatamente um grupo, que as temporadas não se sobrepõem e que os itens ficam dentro dos níveis e dos tetos (+15% de ganho, 60% de corte de dano).
 
 ### Para o game designer conferir (demais tipos)
 
@@ -103,6 +105,7 @@ O teste [`scripts/seed.test.mjs`](scripts/seed.test.mjs) confere os arquivos ant
 | **Tomate** | A planilha tem o tomate duas vezes (+2 e +3 de saúde). O seed usa +2 e anota (doc 11, conflito 4) |
 | **Preço dos alimentos** | Não está no GDD nem na planilha transcrita. Fica vazio; o simulador conta 12 THALER/dia de alimentação |
 | **Multiplicador de pet** | A tabela pula do nível 7 para o 3. Os níveis 6, 5 e 4 seguem o passo de 0,02 (1,06, 1,04, 1,02) e estão anotados |
+| **Eventos e itens da temporada** | O grupo Cidade (as 18 profissões sem grupo no GDD), o fator de 1,2, o preço de 5 SCITY por nível e os efeitos dos itens da temporada 1 (+10% de ganho e −5% de dano no nível 5) são premissas. Estão anotados em `conferir`, para calibrar no simulador |
 | **Imóveis** | Capacidade, preço, renda e custo de upgrade estão na "Figura 16" do GDD, que não veio no texto (doc 11, lacuna 3). Os campos ficam vazios; só o T1 nível 1 traz a premissa do simulador (4000 THALER, renda de 10/dia) |
 
 ## Papéis do admin
