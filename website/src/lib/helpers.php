@@ -107,6 +107,11 @@ function public_js_config(): array
             'tokenAddress'  => cfg('chain.token_address') ?: OfficialContracts::address('SCityToken'),
             'marketplace'   => OfficialContracts::address('Marketplace'),
             'vault'         => OfficialContracts::address('GameVault'),
+            'collections'   => [
+                'land'     => OfficialContracts::address('LandNFT'),
+                'property' => OfficialContracts::address('PropertyNFT'),
+                'avatar'   => OfficialContracts::address('AvatarNFT'),
+            ],
             'tokenSymbol'   => cfg('chain.token_symbol'),
             'tokenDecimals' => cfg('chain.token_decimals'),
         ],

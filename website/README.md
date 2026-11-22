@@ -12,7 +12,11 @@ O visual segue o kit de marca da agência (menu de pedra, painéis de pedra, pla
 |-----|---------|----------|
 | `/` | `public/index.php` | Hero "Play Now" (logo, botões redondos Play/Conta/Depósito, painel de estatísticas), contrato + Trade Now, Roadmap, Trailer, "Viva a cidade", Equipe, Parceiros, Contato |
 | `/tutorial` | `public/tutorial.php` | "Na cidade que nunca dorme…", vídeo, Trade Now, 9 placas "Veja como comprar", PIX |
-| `/marketplace` | `public/marketplace.php` | Janela no estilo do inventário do jogo; abas Imóveis/Lotes/Avatares/Itens, busca, ordenação, modal de compra. Com `SCC_INDEXER_URL`, os anúncios são os do contrato `Marketplace`, lidos do chain-indexer: lote, imóvel, avatar ou combo, com vendedor, prazo e preço. A compra é feita pela carteira em duas transações: `approve` do SCITY para o mercado e `buy(listingId, maxPrice)` com o preço do anúncio como máximo. Sem o indexer, os anúncios de exemplo |
+| `/marketplace` | `public/marketplace.php` | Janela no estilo do inventário do jogo; abas Imóveis/Lotes/Avatares/Itens, busca, ordenação, modal de compra. Com `SCC_INDEXER_URL`, os anúncios são os do contrato `Marketplace`, lidos do chain-indexer: lote, imóvel, avatar ou combo, com vendedor, prazo e preço. A compra é feita pela carteira em duas transações: `approve` do SCITY para o mercado e `buy(listingId, maxPrice)` com o preço do anúncio como máximo. Abaixo, com o mercado on-chain:
+- **Leilões:** os abertos, com o maior lance e o mínimo. **Dar lance** faz `approve` + `bid`, e **Encerrar** (quando o prazo passou) faz `settle`.
+- **Vender:** os lotes, imóveis e avatares da carteira (`/api/owned.php`), até 5 num combo, a preço fixo (prazo em dias) ou em leilão (duração em horas). O `setApprovalForAll` da coleção só é pedido quando falta.
+
+Sem o indexer, os anúncios de exemplo |
 | `/private-sale` | `public/private-sale.php` | Preço do token, mínimo/máximo, barra de hard cap, calculadora, aviso de risco |
 | `/faq` | `public/faq.php` | Perguntas frequentes em grupos (jogo, lotes, carteira e segurança, token e risco), sem promessa de rendimento. Conteúdo em `src/data/faq.php` |
 | `/contratos` | `public/contratos.php` | Endereços oficiais (token, timelock, cofre, mercado, NFTs, vesting do TGE e trava do LP), com copiar e link do BscScan. Vêm dos arquivos de deploy (`contracts/deployments/<chainId>.json`, `-tge.json`, `-lp-lock.json`); sem eles, a página diz que ainda não há contrato publicado e que qualquer "SCITY" antes disso é falso |
@@ -26,6 +30,7 @@ O visual segue o kit de marca da agência (menu de pedra, painéis de pedra, pla
 | GET | `/api/stats.php` | `{avatars, lands, taxes, work_accidents, source}` — painel da home (atualizado a cada 60 s pelo JS) |
 | GET | `/api/listings.php?category=all\|property\|land\|avatar\|item` | `{category, items[]}` — 400 se a categoria for inválida |
 | GET | `/api/deposits.php?wallet=0x…` | `{deposits}`: os depósitos da carteira no GameVault, pelo chain-indexer (`SCC_INDEXER_URL`); `null` sem ele |
+| GET | `/api/owned.php?wallet=0x…` | `{items}`: lotes, imóveis e avatares da carteira, pelo chain-indexer, para vender |
 | GET | `/api/status.php` | `{switches}`: travas de incidente do economy (saque e câmbio). Com alguma ligada, o aviso vermelho aparece no topo de todas as páginas, com o motivo público |
 | POST | `/api/contact.php` | Formulário de contato. Exige `csrf`; honeypot `website`; 1 envio/minuto por sessão; 422 com `fields` em caso de erro de validação |
 
