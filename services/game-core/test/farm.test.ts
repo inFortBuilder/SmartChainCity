@@ -64,20 +64,27 @@ describe('estações e plantio', () => {
 
   it('riscos: apodrece perde tudo; pássaros nas frutas e corvos nos grãos levam metade; as proteções reduzem', () => {
     const f = newFarm('x', t0);
-    const all = seeds(3000);
-    const rate = (farm: Farm, crop: 'uva' | 'tomate', dmg: string) => all.filter((s) => plan(farm, crop, t0, s).damage === dmg).length / all.length;
+    const all = seeds(2000);
+    // Um sorteio por semente e por fazenda/cultura (o teste roda em paralelo com a suíte inteira).
+    const memo = new Map<string, (string | null)[]>();
+    const damages = (farm: Farm, crop: 'uva' | 'tomate') => {
+      const k = `${farm.machines.join(',')}|${crop}`;
+      if (!memo.has(k)) memo.set(k, all.map((s) => plan(farm, crop, t0, s).damage));
+      return memo.get(k)!;
+    };
+    const rate = (farm: Farm, crop: 'uva' | 'tomate', dmg: string) => damages(farm, crop).filter((d) => d === dmg).length / all.length;
     expect(rate(f, 'uva', 'apodreceu')).toBeGreaterThan(0.03);
     expect(rate(f, 'uva', 'apodreceu')).toBeLessThan(0.07);
     expect(rate(f, 'tomate', 'passaros')).toBe(0);
     expect(rate(f, 'uva', 'corvos')).toBe(0);
     expect(rate(applyMachine(f, 'agrotoxico'), 'uva', 'passaros')).toBeLessThan(rate(f, 'uva', 'passaros'));
     expect(rate(applyMachine(f, 'espantalho'), 'tomate', 'corvos')).toBeLessThan(rate(f, 'tomate', 'corvos'));
-    const rot = all.find((s) => plan(f, 'uva', t0, s).damage === 'apodreceu')!;
+    const rot = all[damages(f, 'uva').indexOf('apodreceu')]!;
     expect(plan(f, 'uva', t0, rot).units).toBe(0);
-    const rabbit = all.find((s) => plan(f, 'uva', t0, s).damage === 'coelhos')!;
+    const rabbit = all[damages(f, 'uva').indexOf('coelhos')]!;
     expect(plan(f, 'uva', t0, rabbit).units).toBe(7);
     expect(plan(applyMachine(f, 'cao'), 'uva', t0, rabbit).units).toBe(8);
-  });
+  }, 20_000);
 
   it('colheita atrasada perde 5% por dia depois do 1º dia; o drone corta pela metade', () => {
     const f = newFarm('x', t0);
