@@ -341,7 +341,8 @@ export const gamePass = game.table(
   },
   (t) => [
     uniqueIndex('game_pass_account_season_unique').on(t.accountId, t.season),
-    check('game_pass_level_check', sql`${t.level} between 1 and 5`),
+    // O teto é o PASS_LEVEL_CAP de events.ts: a temporada no Strapi escolhe o nível máximo até 10.
+    check('game_pass_level_check', sql`${t.level} between 1 and 10`),
   ],
 );
 

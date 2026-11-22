@@ -15,6 +15,7 @@ import {
   type GamePassStore,
   SEED_EVENT_GROUPS,
   SEED_SEASONS,
+  PASS_LEVEL_CAP,
   type Season,
   checkPassUpgrade,
   eventAt,
@@ -149,6 +150,14 @@ describe.each([
     expect(await s.level(me, 's1')).toBe(5);
     expect(await s.level(me, 's2')).toBe(0);
   });
+
+  it.skipIf(!enabled)('temporada do Strapi com mais níveis: o banco aceita até o teto (PASS_LEVEL_CAP)', async () => {
+    const s = make();
+    const me = randomUUID();
+    expect(await s.setLevel(me, 's-longa', 0, 8, t0)).toBe(true);
+    expect(await s.setLevel(me, 's-longa', 8, PASS_LEVEL_CAP, t0)).toBe(true);
+    expect(await s.level(me, 's-longa')).toBe(PASS_LEVEL_CAP);
+  });
 });
 
 class FakePayer implements GamePassPayer {
@@ -183,6 +192,36 @@ describe('API dos eventos e do GamePass', () => {
       .setIssuedAt()
       .setExpirationTime('5m')
       .sign(new TextEncoder().encode(SECRET))}`,
+  });
+
+  it('temporada de 8 níveis (CMS): compra o nível 8 e recusa o 9', async () => {
+    try {
+      replaceSeasons([{ ...SEED_SEASONS[0]!, maxLevel: 8, damageCutPerLevel: 0.05 }], 'cms', t0);
+      const me = randomUUID();
+      const h = await auth(me);
+      payer.scity.set(me, 100n * WEI);
+      const eight = await app.inject({ method: 'POST', url: '/v1/gamepass', headers: h, payload: { level: 8 } });
+      expect(eight.json()).toMatchObject({ level: 8, wei: (40n * WEI).toString() });
+      const nine = await app.inject({ method: 'POST', url: '/v1/gamepass', headers: h, payload: { level: 9 } });
+      expect(nine.json().error.code).toBe('invalid_level');
+      expect((await app.inject({ url: '/v1/gamepass', headers: h })).json()).toMatchObject({ level: 8, max_level: 8 });
+    } finally {
+      replaceSeasons(SEED_SEASONS, 'seed', t0);
+    }
+  });
+
+  it.skipIf(!pool)('nível 8 no Postgres pela API', async () => {
+    const pg = await buildApp(config, avatars, () => t0, null, null, null, () => 0.5, null, null, null, null, { store: new PostgresGamePassStore(pool!), payer });
+    try {
+      replaceSeasons([{ ...SEED_SEASONS[0]!, maxLevel: 8, damageCutPerLevel: 0.05 }], 'cms', t0);
+      const me = randomUUID();
+      payer.scity.set(me, 100n * WEI);
+      const r = await pg.inject({ method: 'POST', url: '/v1/gamepass', headers: await auth(me), payload: { level: 8 } });
+      expect(r.statusCode).toBe(200);
+      expect(r.json().level).toBe(8);
+    } finally {
+      replaceSeasons(SEED_SEASONS, 'seed', t0);
+    }
   });
 
   it('calendário dos eventos, compra do GamePass em degraus e o corte de dano no turno', async () => {

@@ -29,6 +29,8 @@ const EPOCH = Date.UTC(2026, 10, 16);
 const WEI = 10n ** 18n;
 export const MAX_EARN_BONUS = 0.15;
 export const MAX_DAMAGE_CUT = 0.6;
+/** Maior nível que uma temporada pode ter (o banco confere o mesmo teto em `game_pass`). */
+export const PASS_LEVEL_CAP = 10;
 
 export interface EventGroup {
   code: string;
@@ -100,7 +102,7 @@ export function validateSeasons(list: Season[]): Season[] {
     }
     const prev = sorted[i - 1];
     if (prev && s.startsAt < prev.endsAt) throw bad(`${s.code} começa antes de ${prev.code} acabar`);
-    if (!Number.isInteger(s.maxLevel) || s.maxLevel < 1 || s.maxLevel > 10) throw bad(`${s.code}: nível máximo inválido`);
+    if (!Number.isInteger(s.maxLevel) || s.maxLevel < 1 || s.maxLevel > PASS_LEVEL_CAP) throw bad(`${s.code}: nível máximo inválido`);
     if (!Number.isInteger(s.levelPriceScity) || s.levelPriceScity < 1) throw bad(`${s.code}: preço por nível inválido`);
     if (!(s.damageCutPerLevel >= 0 && s.damageCutPerLevel <= 0.1)) throw bad(`${s.code}: corte por nível fora de 0 a 0,1`);
     const items = new Set<string>();
