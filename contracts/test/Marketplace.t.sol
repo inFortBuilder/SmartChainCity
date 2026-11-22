@@ -6,6 +6,8 @@ import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {ERC2981} from "@openzeppelin/contracts/token/common/ERC2981.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+
 import {Marketplace} from "../src/Marketplace.sol";
 import {SCityToken} from "../src/SCityToken.sol";
 
@@ -49,7 +51,14 @@ contract MarketplaceTest is Test {
 
     function setUp() public {
         scity = new SCityToken(admin);
-        market = new Marketplace(admin, scity, treasury, 250);
+        market = Marketplace(
+            address(
+                new ERC1967Proxy(
+                    address(new Marketplace()),
+                    abi.encodeCall(Marketplace.initialize, (admin, admin, scity, treasury, 250))
+                )
+            )
+        );
         land = new PlainNFT();
         property = new PlainNFT();
         avatar = new RoyaltyNFT(creator, 250);

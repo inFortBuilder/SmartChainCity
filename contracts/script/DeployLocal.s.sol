@@ -5,6 +5,8 @@ import {Script, console} from "forge-std/Script.sol";
 
 import {AvatarNFT} from "../src/AvatarNFT.sol";
 import {BuildingNFT} from "../src/BuildingNFT.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol";
 import {GameVault} from "../src/GameVault.sol";
 import {LandNFT} from "../src/LandNFT.sol";
 import {LuckyBox} from "../src/LuckyBox.sol";
@@ -57,16 +59,32 @@ contract DeployLocal is Script {
     address localUsd;
     address localDexPool;
     address marketplace;
+    address timelock;
 
     /// Mercado secundário (E3.6): SCITY, taxa de 2,5% para a tesouraria (aqui, o deployer), lote, imóvel e avatar.
     function _deployMarket(address scity, address deployer, address land, address property, address avatar)
         internal
     {
-        Marketplace m = new Marketplace(deployer, SCityToken(scity), deployer, 250);
+        Marketplace m = Marketplace(
+            address(
+                new ERC1967Proxy(
+                    address(new Marketplace()),
+                    abi.encodeCall(
+                        Marketplace.initialize, (deployer, timelock, SCityToken(scity), deployer, 250)
+                    )
+                )
+            )
+        );
         m.setCollection(land, true);
         m.setCollection(property, true);
         m.setCollection(avatar, true);
         marketplace = address(m);
+    }
+
+    function _deployTimelock(address deployer) internal returns (address) {
+        address[] memory proposers = new address[](1);
+        proposers[0] = deployer;
+        return address(new TimelockController(0, proposers, proposers, address(0)));
     }
 
     /// Fora do `run` para não estourar a pilha.
@@ -121,7 +139,19 @@ contract DeployLocal is Script {
             new PropertyNFT(deployer, land, "http://localhost:8030/v1/world/nft/properties/");
         propertyNft.grantRole(propertyNft.SIGNER_ROLE(), worldSigner);
         // Cofre: limites de partida (PREMISSA) e uma reserva para os saques. No MVP local, o mesmo signer.
-        GameVault vault = new GameVault(deployer, scity, 1_000_000 ether, 10_000 ether);
+        // Upgrades só pelo timelock (doc 07 §5). No anvil, atraso 0 e o deployer propõe e executa; na mainnet,
+        // 48 h e o multisig 3-de-5.
+        timelock = _deployTimelock(deployer);
+        GameVault vault = GameVault(
+            address(
+                new ERC1967Proxy(
+                    address(new GameVault()),
+                    abi.encodeCall(
+                        GameVault.initialize, (deployer, timelock, scity, 1_000_000 ether, 10_000 ether)
+                    )
+                )
+            )
+        );
         vault.grantRole(vault.SIGNER_ROLE(), worldSigner);
         // forge-lint: disable-next-line(erc20-unchecked-transfer)
         scity.transfer(address(vault), 1_000_000 ether);
@@ -145,6 +175,7 @@ contract DeployLocal is Script {
         vm.serializeAddress(key, "LocalUSD", localUsd);
         vm.serializeAddress(key, "LocalDexPool", localDexPool);
         vm.serializeAddress(key, "Marketplace", marketplace);
+        vm.serializeAddress(key, "Timelock", timelock);
         string memory json = vm.serializeAddress(key, "worldSigner", worldSigner);
         vm.writeJson(json, "deployments/anvil.json");
 

@@ -28,7 +28,7 @@ import { LocalKeyVoucherSigner, WITHDRAWAL_TYPES, vaultDomain } from '../src/inf
 import { pool, stores } from './stores.js';
 
 /** GameVault num anvil recém-iniciado com o DeployLocal (contracts/deployments/anvil.json). */
-const ANVIL_VAULT: Address = '0x959922bE3CAee4b8Cd9a407cc3ac1C251C2007B1';
+const ANVIL_VAULT: Address = '0x68B1D87F95878fE05B998F19b66F4baba5De1aed';
 const T0 = new Date('2026-11-20T12:00:00Z');
 const DAY = 86_400_000;
 const at = (ms: number) => new Date(T0.getTime() + ms);
@@ -38,7 +38,7 @@ afterAll(async () => {
 });
 
 /** withdrawalDigest do contrato no anvil para o voucher fixo do teste abaixo. */
-const DIGEST = '0xdc921bddaa74a19e2a0d24025a3b419329df24457772b2afdedf249379131982';
+const DIGEST = '0x20231b8c328f66c237aeac465664fcf4173b12bcaa36a6cb6dfca282b1ac9adc';
 
 const wallet = privateKeyToAccount(generatePrivateKey()).address;
 

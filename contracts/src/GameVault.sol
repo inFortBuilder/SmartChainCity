@@ -4,10 +4,16 @@ pragma solidity 0.8.28;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
-import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
+import {
+    AccessControlUpgradeable
+} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
+import {
+    EIP712Upgradeable
+} from "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+// Sem estado próprio (ERC-7201, `@custom:stateless` na OZ 5.7): serve no proxy sem inicializar.
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 /// @title GameVault
@@ -21,12 +27,22 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 ///   voucher pode ser resgatado no dia seguinte (o prazo do voucher manda). `available` mostra quanto ainda sai hoje.
 /// - Desistência: o destinatário cancela o voucher com `cancelVoucher` e o servidor devolve o SCITY ao jogo, sem esperar
 ///   o prazo vencer.
-/// MVP: contrato sem proxy. A ADR de upgrade (UUPS atrás de timelock, doc 07 §5) entra antes da mainnet.
-contract GameVault is EIP712, AccessControl, Pausable, ReentrancyGuard {
+/// Upgrade (doc 07 §5): proxy UUPS (ERC-1967). Só o UPGRADER_ROLE troca a implementação, e esse papel fica com o
+/// TimelockController (48 h na mainnet, com o multisig propondo). A implementação nasce travada
+/// (`_disableInitializers`); o estado mora no proxy. As bases da OpenZeppelin usam armazenamento com namespace
+/// (ERC-7201); as variáveis deste contrato só podem ganhar novas no fim, nunca mudar de ordem.
+contract GameVault is
+    EIP712Upgradeable,
+    AccessControlUpgradeable,
+    PausableUpgradeable,
+    ReentrancyGuard,
+    UUPSUpgradeable
+{
     using SafeERC20 for IERC20;
 
     bytes32 public constant SIGNER_ROLE = keccak256("SIGNER_ROLE");
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
+    bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
 
     bytes32 public constant WITHDRAWAL_TYPEHASH =
         keccak256("Withdrawal(address to,uint256 amount,uint256 nonce,uint256 deadline)");
@@ -38,7 +54,7 @@ contract GameVault is EIP712, AccessControl, Pausable, ReentrancyGuard {
         uint256 deadline;
     }
 
-    IERC20 public immutable token;
+    IERC20 public token;
     /// @notice Teto de saque por dia (UTC), somando todos os endereços.
     uint256 public dailyLimit;
     /// @notice Teto de saque por dia para um endereço.
@@ -65,12 +81,26 @@ contract GameVault is EIP712, AccessControl, Pausable, ReentrancyGuard {
     error DailyLimitExceeded(uint256 available);
     error AddressLimitExceeded(uint256 available);
 
-    constructor(address admin, IERC20 token_, uint256 dailyLimit_, uint256 dailyLimitPerAddress_)
-        EIP712("SCC GameVault", "1")
-    {
-        if (admin == address(0) || address(token_) == address(0)) revert ZeroAddress();
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    /// @notice Inicializa o proxy. `admin` fica com DEFAULT_ADMIN e PAUSER; `upgrader` (o timelock) troca a implementação.
+    function initialize(
+        address admin,
+        address upgrader,
+        IERC20 token_,
+        uint256 dailyLimit_,
+        uint256 dailyLimitPerAddress_
+    ) external initializer {
+        if (admin == address(0) || upgrader == address(0) || address(token_) == address(0)) revert ZeroAddress();
+        __EIP712_init("SCC GameVault", "1");
+        __AccessControl_init();
+        __Pausable_init();
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(PAUSER_ROLE, admin);
+        _grantRole(UPGRADER_ROLE, upgrader);
         token = token_;
         dailyLimit = dailyLimit_;
         dailyLimitPerAddress = dailyLimitPerAddress_;
@@ -180,4 +210,7 @@ contract GameVault is EIP712, AccessControl, Pausable, ReentrancyGuard {
     function unpause() external onlyRole(PAUSER_ROLE) {
         _unpause();
     }
+
+    /// @dev Só o timelock (UPGRADER_ROLE) troca a implementação.
+    function _authorizeUpgrade(address) internal override onlyRole(UPGRADER_ROLE) {}
 }
