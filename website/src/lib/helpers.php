@@ -116,6 +116,12 @@ function public_js_config(): array
             'maxUsd'   => cfg('sale.max_usd'),
         ],
         'links'   => ['play' => cfg('links.play')],
+        // API do jogo para o login no site (trilha do site, passo 7). Nenhum segredo aqui: só URLs públicas.
+        'api'     => [
+            'gateway' => cfg('api.gateway_url'),
+            'game'    => cfg('api.game_url'),
+            'economy' => cfg('api.economy_api_url'),
+        ],
     ];
 }
 

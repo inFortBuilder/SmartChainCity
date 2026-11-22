@@ -6,7 +6,7 @@ partial('head', [
     'title'       => 'Minha conta',
     'description' => 'Conecte sua carteira para ver seus saldos e entrar no jogo.',
     'bodyClass'   => 'page-account',
-    'scripts'     => ['account.js'],
+    'scripts'     => ['siwe.js', 'account.js'],
 ]);
 partial('header');
 ?>
@@ -48,10 +48,24 @@ partial('header');
           <div class="wallet-actions">
             <a class="btn btn--green" href="<?= e(cfg('links.play')) ?>"><?= icon('play') ?> Jogar agora</a>
             <button class="btn btn--blue" type="button" data-wallet-add-token><?= icon('wallet') ?> Adicionar SCITY à carteira</button>
-            <button class="btn btn--ghost" type="button" data-wallet-sign>Verificar posse (assinar)</button>
+            <button class="btn btn--blue" type="button" data-game-login <?= cfg('api.gateway_url') ? '' : 'disabled' ?>>Entrar no jogo (assinar)</button>
             <button class="btn btn--ghost" type="button" data-wallet-disconnect>Desconectar</button>
           </div>
           <p class="form-status" data-wallet-status aria-live="polite"></p>
+        </div>
+
+        <div class="game-session" data-game-session hidden>
+          <h2>No jogo</h2>
+          <dl class="wallet-facts">
+            <div><dt>Conta</dt><dd data-game-account>—</dd></div>
+            <div><dt>THALER</dt><dd data-game-thaler>—</dd></div>
+            <div><dt>SCITY no jogo</dt><dd data-game-scity>—</dd></div>
+            <div><dt>Avatar</dt><dd data-game-avatar>—</dd></div>
+          </dl>
+          <div class="wallet-actions">
+            <a class="btn btn--green" href="<?= e(cfg('links.play')) ?>"><?= icon('play') ?> Continuar no jogo</a>
+            <button class="btn btn--ghost" type="button" data-game-logout>Sair do jogo</button>
+          </div>
         </div>
       </div>
     </div>
