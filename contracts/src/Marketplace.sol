@@ -6,8 +6,12 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {IERC2981} from "@openzeppelin/contracts/interfaces/IERC2981.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
-import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
-import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
+import {
+    AccessControlUpgradeable
+} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+// Sem estado próprio (ERC-7201, `@custom:stateless` na OZ 5.7): serve no proxy sem inicializar.
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /// @title Marketplace
@@ -21,11 +25,15 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 /// - A regra de bairro fica só no jogo (ADR-0014): o contrato não restringe quem compra.
 /// - Leilão com prazo: os NFTs ficam guardados aqui até o fim; lances em SCITY também (o anterior volta na hora),
 ///   5% acima do maior, e um lance nos últimos 10 minutos estica o prazo. No fim, qualquer um fecha.
-/// MVP: sem proxy. O UUPS atrás de timelock entra antes da mainnet (doc 07 §5).
-contract Marketplace is AccessControl, Pausable, ReentrancyGuard {
+/// Upgrade (doc 07 §5): proxy UUPS (ERC-1967). Só o UPGRADER_ROLE troca a implementação, e esse papel fica com o
+/// TimelockController (48 h na mainnet, com o multisig propondo). A implementação nasce travada
+/// (`_disableInitializers`); o estado mora no proxy. As bases da OpenZeppelin usam armazenamento com namespace
+/// (ERC-7201); as variáveis deste contrato só podem ganhar novas no fim, nunca mudar de ordem.
+contract Marketplace is AccessControlUpgradeable, PausableUpgradeable, ReentrancyGuard, UUPSUpgradeable {
     using SafeERC20 for IERC20;
 
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
+    bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
     uint16 public constant MAX_FEE_BPS = 1000; // 10%
     uint256 public constant MAX_ITEMS = 5;
 
@@ -41,10 +49,11 @@ contract Marketplace is AccessControl, Pausable, ReentrancyGuard {
         uint256 price;
     }
 
-    IERC20 public immutable currency;
+    IERC20 public currency;
     address public treasury;
     uint16 public feeBps;
-    uint256 public nextListingId = 1;
+    /// @dev Começa em 1 (0 é "sem listagem"), no `initialize`: no proxy, valor na declaração não vale.
+    uint256 public nextListingId;
 
     mapping(address collection => bool) public allowedCollection;
     mapping(uint256 listingId => Listing) public listings;
@@ -106,7 +115,8 @@ contract Marketplace is AccessControl, Pausable, ReentrancyGuard {
         uint256 highestBid;
     }
 
-    uint256 public nextAuctionId = 1;
+    /// @dev Começa em 1, no `initialize` (como `nextListingId`).
+    uint256 public nextAuctionId;
     mapping(uint256 auctionId => Auction) public auctions;
     mapping(uint256 auctionId => Item[]) internal _auctionItems;
 
@@ -135,10 +145,27 @@ contract Marketplace is AccessControl, Pausable, ReentrancyGuard {
     error BidTooLow(uint256 minimum);
     error HasBids();
 
-    constructor(address admin, IERC20 currency_, address treasury_, uint16 feeBps_) {
-        if (admin == address(0) || address(currency_) == address(0) || treasury_ == address(0)) {
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    /// @notice Inicializa o proxy. `admin` fica com DEFAULT_ADMIN e PAUSER; `upgrader` (o timelock) troca a implementação.
+    function initialize(address admin, address upgrader, IERC20 currency_, address treasury_, uint16 feeBps_)
+        external
+        initializer
+    {
+        if (
+            admin == address(0) || upgrader == address(0) || address(currency_) == address(0)
+                || treasury_ == address(0)
+        ) {
             revert ZeroAddress();
         }
+        __AccessControl_init();
+        __Pausable_init();
+        nextListingId = 1;
+        nextAuctionId = 1;
+        _grantRole(UPGRADER_ROLE, upgrader);
         if (feeBps_ > MAX_FEE_BPS) revert FeeTooHigh();
         currency = currency_;
         treasury = treasury_;
@@ -471,4 +498,7 @@ contract Marketplace is AccessControl, Pausable, ReentrancyGuard {
             return (address(0), 0);
         }
     }
+
+    /// @dev Só o timelock (UPGRADER_ROLE) troca a implementação.
+    function _authorizeUpgrade(address) internal override onlyRole(UPGRADER_ROLE) {}
 }

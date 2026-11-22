@@ -4,6 +4,8 @@ pragma solidity 0.8.28;
 import {Test} from "forge-std/Test.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+
 import {GameVault} from "../src/GameVault.sol";
 import {SCityToken} from "../src/SCityToken.sol";
 
@@ -23,7 +25,15 @@ contract GameVaultTest is Test {
     function setUp() public {
         (signer, signerKey) = makeAddrAndKey("economy-signer");
         scity = new SCityToken(admin);
-        vault = new GameVault(admin, scity, DAILY, PER_ADDRESS);
+        // Pelo proxy, como na rede (o timelock é o admin aqui, nos testes de upgrade é um TimelockController).
+        vault = GameVault(
+            address(
+                new ERC1967Proxy(
+                    address(new GameVault()),
+                    abi.encodeCall(GameVault.initialize, (admin, admin, scity, DAILY, PER_ADDRESS))
+                )
+            )
+        );
         vm.startPrank(admin);
         vault.grantRole(vault.SIGNER_ROLE(), signer);
         // forge-lint: disable-next-line(erc20-unchecked-transfer)

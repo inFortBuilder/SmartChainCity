@@ -51,7 +51,7 @@ function buyPrimary(LotQuote calldata q, bytes calldata sig) external payable;
 
 ### 2.4 `GameVault`
 
-**Pronto no anvil (2026-11-20):** depósito, `claim` com voucher, tetos diários (total e por endereço), pausa e `setLimits`. Desde 2026-11-21: depósito com permit numa transação, `available` (quanto ainda sai hoje), `cancelVoucher` (o jogador desiste e o SCITY volta ao jogo) e a tela no mapa para depositar, resgatar e desistir. Sem proxy por enquanto; o UUPS atrás de timelock entra antes da mainnet. O depósito credita **SCITY** no ledger (o mesmo que paga os lotes); a troca por THALER é a operação de câmbio.
+**Pronto no anvil (2026-11-20):** depósito, `claim` com voucher, tetos diários (total e por endereço), pausa e `setLimits`. Desde 2026-11-21: depósito com permit numa transação, `available` (quanto ainda sai hoje), `cancelVoucher` (o jogador desiste e o SCITY volta ao jogo) e a tela no mapa para depositar, resgatar e desistir. Desde 2026-11-22, proxy UUPS atrás do `TimelockController` ([contracts](../contracts/README.md#upgrade-uups-atrás-do-timelock)). O depósito credita **SCITY** no ledger (o mesmo que paga os lotes); a troca por THALER é a operação de câmbio.
 ```solidity
 function deposit(uint256 amount) external;                         // emite Deposited(account, amount)
 function depositWithPermit(uint256 amount, uint256 deadline, uint8 v, bytes32 r, bytes32 s) external; // EIP-2612
@@ -65,7 +65,7 @@ function available(address account) external view returns (uint256 total, uint25
 - Chave do assinante em **KMS**, rotacionável (`setSigner` via timelock).
 
 ### 2.5 `Marketplace`
-**Pronto no anvil (2026-11-21):** listagem on-chain com preço fixo em SCITY, combo de até 5 NFTs na mesma transação, taxa de 2,5% para a tesouraria, royalties EIP-2981 e pausa ([contracts](../contracts/README.md#marketplace-e36)). O chain-indexer serve as listagens em `/v1/market/listings`. A tela no mapa também: painel Mercado, compra, venda pela ficha do lote e cancelamento. O leilão com prazo também: NFTs guardados no contrato, lances 5% acima com devolução na hora, extensão de 10 minutos e encerramento por qualquer um. Falta o proxy UUPS.
+**Pronto no anvil (2026-11-21):** listagem on-chain com preço fixo em SCITY, combo de até 5 NFTs na mesma transação, taxa de 2,5% para a tesouraria, royalties EIP-2981 e pausa ([contracts](../contracts/README.md#marketplace-e36)). O chain-indexer serve as listagens em `/v1/market/listings`. A tela no mapa também: painel Mercado, compra, venda pela ficha do lote e cancelamento. O leilão com prazo também: NFTs guardados no contrato, lances 5% acima com devolução na hora, extensão de 10 minutos e encerramento por qualquer um. O proxy UUPS atrás do timelock também (2026-11-22).
 - Ordens assinadas off-chain (estilo Seaport simplificado) ou listagens on-chain simples no MVP.
 - Taxa de protocolo proposta: 2,5% → Treasury; royalties EIP-2981 (proposto: 2,5% para o projeto em avatares e imóveis raros).
 - Suporte a *bundle* (lote + imóvel).
@@ -94,4 +94,4 @@ O Mafagafo foi criticado por **não emitir eventos** das taxas: todos os contrat
 - **Auditoria externa** antes da mainnet, para `GameVault`, `LuckyBox`, `Marketplace` e `StakingPool`.
 - Bug bounty após o lançamento.
 - Contratos verificados no BscScan.
-- Upgradeability: preferir contratos **imutáveis** para token e NFTs; usar proxy (UUPS) só em `GameVault` e `Marketplace`, sempre atrás de timelock.
+- Upgradeability: preferir contratos **imutáveis** para token e NFTs; usar proxy (UUPS) só em `GameVault` e `Marketplace`, sempre atrás de timelock. ✅ Feito em 2026-11-22 (`UPGRADER_ROLE` com o `TimelockController`, teste em `test/Upgrades.t.sol`).

@@ -16,7 +16,7 @@ Mudanças aqui exigem 2 aprovações. Os endereços implantados ficam em `deploy
 | [`LuckyBox`](src/LuckyBox.sol) | Caixas por tier: moeda, preço e tabela de probabilidades por raridade, pública on-chain. `open` cobra e pede um número ao Chainlink VRF v2.5; o callback sorteia a raridade e a profissão e cria o avatar. A tabela vale como estava no momento da compra |
 | [`BuildingNFT`](src/BuildingNFT.sol) | Prédio de construtor (doc 13 §7). Guarda o lote, o hash do GLB aprovado (`modelHash`), os andares e o construtor. O mint usa o voucher EIP-712 do world, dado só a prédio com alvará. O construtor precisa ser dono do lote no `LandNFT`, e cada lote tem no máximo um prédio vigente. `demolish` (dono do prédio e do lote) libera o lote |
 | [`PropertyNFT`](src/PropertyNFT.sol) | Imóvel do catálogo (Casa T1 e os próximos) sobre um lote âncora (doc 07 §2.2). Guarda o lote, o tipo (`bytes32`, ex.: `t1`) e o nível; desgaste e renda ficam no world. O id do token é o id do imóvel no world (os 128 bits do UUID), então o mesmo imóvel não vira dois tokens. O mint usa o voucher do world, dado só a imóvel pronto, e exige que a carteira seja dona do lote no `LandNFT`; um imóvel por lote. `upgrade` leva o nível novo com outro voucher e só aceita nível maior. Depois do mint, a transferência é livre, salvo a apreensão do leilão (`seize`, [ADR-0016](../docs/adr/0016-apreensao-nft-leilao.md)) |
-| [`GameVault`](src/GameVault.sol) | Cofre do SCITY entre a carteira e o jogo (doc 07 §2.4). `deposit` (ou `depositWithPermit`, com a assinatura EIP-2612 do SCITY, numa transação só) guarda o SCITY e emite `Deposited`; o chain-indexer credita no ledger depois das confirmações. `claim` paga o saque assinado pelo servidor (EIP-712, um nonce por voucher), só para o destinatário; `cancelVoucher` deixa o destinatário desistir, e o servidor devolve o SCITY ao jogo. Circuit breaker: teto de saque por dia, no total e por endereço, com `available` para ver quanto ainda sai hoje; pausa. Sem proxy no MVP: o UUPS atrás de timelock (doc 07 §5) entra antes da mainnet |
+| [`GameVault`](src/GameVault.sol) | Cofre do SCITY entre a carteira e o jogo (doc 07 §2.4). `deposit` (ou `depositWithPermit`, com a assinatura EIP-2612 do SCITY, numa transação só) guarda o SCITY e emite `Deposited`; o chain-indexer credita no ledger depois das confirmações. `claim` paga o saque assinado pelo servidor (EIP-712, um nonce por voucher), só para o destinatário; `cancelVoucher` deixa o destinatário desistir, e o servidor devolve o SCITY ao jogo. Circuit breaker: teto de saque por dia, no total e por endereço, com `available` para ver quanto ainda sai hoje; pausa. Proxy UUPS atrás do timelock ([upgrade](#upgrade-uups-atrás-do-timelock)) |
 | [`SCityToken`](src/SCityToken.sol) | SCITY: ERC-20 com Permit e oferta fixa de 1 bilhão, criada uma única vez no deploy. Não tem função de mint |
 | [`LocalVRFCoordinator`](src/dev/LocalVRFCoordinator.sol) | Coordenador VRF **só para o anvil e os testes**: qualquer um entrega o sorteio. Na BSC entra o coordenador real da Chainlink |
 
@@ -42,7 +42,29 @@ O VRF usa uma interface mínima ([`src/vrf/VRFV2Plus.sol`](src/vrf/VRFV2Plus.sol
 | Cancelar leilão | `cancelAuction`: o vendedor, enquanto não há lance; o admin, sempre (moderação), devolvendo o lance |
 | Pausa | `PAUSER_ROLE` para listar, comprar, leiloar, dar lance e encerrar |
 
-A regra de bairro fica só no jogo ([ADR-0014](../docs/adr/0014-decisoes-produto-mvp.md)). Sem proxy no MVP: o UUPS atrás de timelock entra antes da mainnet, junto com a auditoria (E3.8). O `DeployLocal` cria o mercado por último, com taxa de 2,5% para o deployer e o lote, o imóvel e o avatar permitidos.
+A regra de bairro fica só no jogo ([ADR-0014](../docs/adr/0014-decisoes-produto-mvp.md)). Proxy UUPS atrás do timelock ([upgrade](#upgrade-uups-atrás-do-timelock)). O `DeployLocal` cria o mercado por último, com taxa de 2,5% para o deployer e o lote, o imóvel e o avatar permitidos.
+
+## Upgrade: UUPS atrás do timelock
+
+Só o `GameVault` e o `Marketplace` são atualizáveis (doc 07 §5); token e NFTs são imutáveis.
+
+- **Proxy:** cada um é um proxy ERC-1967 com implementação UUPS. O endereço que os serviços usam é o do proxy, e o estado mora nele.
+- **Implementação:** nasce travada (`_disableInitializers`) e é configurada uma vez só por `initialize(admin, upgrader, …)`.
+- **Quem troca a implementação:** só o `UPGRADER_ROLE` (`upgradeToAndCall`), e esse papel é do `TimelockController`.
+  - Na mainnet: atraso de 48 h, o multisig 3-de-5 propõe e executa, e o timelock não tem admin (doc 07 §3).
+  - No anvil: atraso 0, e o deployer propõe e executa.
+- **Outros papéis:** o `DEFAULT_ADMIN` (limites, taxa, coleções) e o `PAUSER` continuam com o admin (o multisig).
+- **Armazenamento:** as bases da OpenZeppelin usam namespace (ERC-7201). As variáveis destes contratos só podem ganhar novas **no fim**, sem mudar a ordem nem o tipo das que já existem.
+- **Valor na declaração não vale no proxy.** `nextListingId` e `nextAuctionId` começam em 1 dentro do `initialize` (o teste de upgrade confere).
+- **Reentrância:** o `ReentrancyGuard` da OZ 5.7 é `@custom:stateless` (ERC-7201) e serve no proxy sem inicializar.
+
+`test/Upgrades.t.sol` confere:
+- a implementação travada e a inicialização única;
+- que nem o admin nem um estranho atualizam direto;
+- que só o multisig propõe no timelock;
+- que antes do atraso a execução recusa;
+- o estado preservado na versão 2;
+- a recusa de uma implementação que não é UUPS.
 
 ## Rodar
 
