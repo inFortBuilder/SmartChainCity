@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { AppError } from '@scc/shared';
-import { and, asc, eq, lt, sql } from 'drizzle-orm';
+import { and, asc, eq, gte, inArray, lt, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import type { Pool } from 'pg';
 
@@ -12,10 +12,12 @@ import {
   type LotStatus,
   type Polygon,
   type Purchase,
+  type PurchaseCap,
   type PurchaseStatus,
   RESERVATION_MS,
   type WorldStore,
   type Zone,
+  checkCap,
   checkPurchase,
   isAvailable,
   nextOpenCount,
@@ -34,6 +36,22 @@ const toPurchase = (r: typeof purchaseT.$inferSelect): Purchase => ({
 });
 
 const notFound = () => new AppError('not_found', 'Lote não encontrado.', 404);
+
+/** Compras pagas ou em andamento da conta na cidade desde `since` (limite do lançamento). */
+async function countPurchases(db: Db | Tx, code: string, accountId: string, since: Date) {
+  const [r] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(purchaseT)
+    .where(
+      and(
+        eq(purchaseT.city, code),
+        eq(purchaseT.accountId, accountId),
+        gte(purchaseT.createdAt, since),
+        inArray(purchaseT.status, ['pending', 'paid']),
+      ),
+    );
+  return r?.n ?? 0;
+}
 
 /** Contagem por bairro, a partir da tabela de lotes. */
 async function districtCounts(db: Db | Tx, code: string) {
@@ -127,6 +145,7 @@ export class PostgresWorldStore implements WorldStore {
     accountId: string,
     now: Date,
     price: (lot: Lot, city: City) => { priceWei: bigint; priceUsd: number },
+    cap?: PurchaseCap,
   ) {
     return this.db.transaction(async (tx) => {
       // Trava por comprador: as regras de "um bairro" e "teto de área" olham os
@@ -153,6 +172,8 @@ export class PostgresWorldStore implements WorldStore {
       ).rows as [{ area: number }];
       const c = toCity(cityRow);
       checkPurchase(lot, c, { accountId, owned, districtArea: Number(area) }, now);
+      // Dentro da trava do comprador: duas compras juntas não passam do limite do lançamento.
+      if (cap) checkCap(cap, await countPurchases(tx, code, accountId, cap.since));
 
       const { priceWei, priceUsd } = price(lot, c);
       const p: Purchase = { id: randomUUID(), city: code, lotId, accountId, priceWei, priceUsd, status: 'pending', createdAt: now };
@@ -168,6 +189,10 @@ export class PostgresWorldStore implements WorldStore {
         .where(and(eq(lotT.city, code), eq(lotT.id, lotId)));
       return p;
     });
+  }
+
+  countPurchases(code: string, accountId: string, since: Date) {
+    return countPurchases(this.db, code, accountId, since);
   }
 
   async transferLot(code: string, lotId: number, from: string, to: string) {

@@ -26,6 +26,41 @@ Cidade, bairros e lotes: situação, dono, preço e a venda primária (doc 03 §
 
 Se a reserva venceu e outro comprou antes da posse, o valor volta (`lot-refund:<compra>`). Se a resposta do ledger se perdeu, a compra fica pendente, e o job `purchases.settle` (a cada 60 s) refaz a cobrança e a posse: como a cobrança é idempotente, o resultado é o mesmo. O teste de contrato cobre os três casos (corrida entre dois compradores, falta de saldo e reserva perdida com devolução), em memória e no Postgres.
 
+### Venda de lançamento: fila e limite por carteira (E4.3)
+
+Na abertura de uma cidade ou região, a operação agenda um **lançamento**. Até o fim dele, a compra passa por uma sala de espera:
+
+- **Fila:**
+  - A fila abre `pre_queue_seconds` antes da venda (padrão: 30 min).
+  - Quem entra antes da abertura tem a posição **sorteada** (aleatório do sistema), para não premiar o bot que chega primeiro.
+  - Quem entra depois vai por ordem de chegada, atrás dos sorteados.
+- **Vez:**
+  - A cada `batch_seconds` entram mais `batch_size` posições (padrão: 200 por minuto).
+  - A vez é calculada da posição, sem job: `max(entrada, abertura + ⌊(posição − 1) / batch_size⌋ · batch_seconds)`.
+  - Na vez, o jogador tem `window_seconds` para comprar (padrão: 10 min).
+  - Se a vez passar, entra de novo, no fim da fila.
+- **Limite por carteira:**
+  - Durante o lançamento, cada conta compra até `max_lots` lotes (padrão: 3). Contam as compras pagas e as em andamento desde a abertura, e a recusada por saldo não conta.
+  - A contagem roda dentro da trava do comprador na reserva, então compras em paralelo não passam do limite.
+  - Com `require_wallet` (padrão), só entra na fila quem tem carteira ligada. Como uma carteira só se liga a uma conta (gateway), o limite vale por carteira.
+  - Sem o gateway configurado (dev), essa exigência não é conferida.
+- **Depois de `ends_at`:** a venda volta ao normal, sem fila e sem limite extra, só com as regras de sempre (um bairro por jogador, teto de 30% da área).
+
+```bash
+# Agendar (ferramenta da operação; o token é o INTERNAL_TOKEN do world)
+curl -X PUT $WORLD/internal/v1/cities/pittsburg/sale -H "x-service-token: $INTERNAL_TOKEN" \
+  -H 'content-type: application/json' \
+  -d '{"opens_at":"2026-12-01T15:00:00Z","ends_at":"2026-12-04T15:00:00Z","batch_size":200,"max_lots":3}'
+```
+
+No mapa, a ficha do lote à venda mostra o bloco **Venda de lançamento**:
+- a fase;
+- o botão **Entrar na fila**;
+- a posição (provisória até o sorteio) e quanto falta para a vez;
+- o tempo para comprar e o limite.
+
+O **Comprar** só vale na vez, e a ficha se atualiza sozinha quando a vez chega.
+
 ## Posse on-chain (LandNFT)
 
 O lote é comprado em SCITY no ledger (acima). Depois, se quiser, o dono leva a posse para a blockchain:
@@ -201,7 +236,11 @@ TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc_test pnpm --filter
 | GET | `/v1/world/cities/:code/districts/:order/lots` | público (com Bearer, marca os seus) | Situação e preço dos lotes do bairro; o dono não é exposto |
 | GET | `/v1/world/cities/:code/lots/:id` | público (com Bearer, marca se é seu) | Um lote: zona, área, situação, preço em US$ e em SCITY |
 | GET | `/v1/world/me/lots` | jogador (Bearer) | Lotes do jogador |
-| POST | `/v1/world/cities/:code/lots/:id/buy` | jogador (Bearer) | Compra pagando SCITY no ledger |
+| POST | `/v1/world/cities/:code/lots/:id/buy` | jogador (Bearer) | Compra pagando SCITY no ledger. No lançamento, só na vez da fila e até o limite por carteira |
+| GET | `/v1/world/cities/:code/sale` | público (com Bearer, a sua ficha) | Lançamento agendado: fase (`soon`, `queue`, `launch`, `ended`), horários, lote de entrada e limite. Com Bearer, `me.ticket` (`waiting`, `admitted`, `expired`, posição, `provisional`, vez e prazo) e `me.bought` |
+| POST | `/v1/world/cities/:code/sale/queue` | jogador (Bearer) | Entra na fila (ou devolve a ficha que ainda vale) |
+| PUT | `/internal/v1/cities/:code/sale` | operação (`x-service-token`) | Agenda ou muda o lançamento: `opens_at`, `ends_at`, `pre_queue_seconds`, `batch_size`, `batch_seconds`, `window_seconds`, `max_lots`, `require_wallet` |
+| DELETE | `/internal/v1/cities/:code/sale` | operação (`x-service-token`) | Cancela o lançamento: a venda fica livre |
 | POST | `/v1/world/cities/:code/lots/:id/onchain-quote` | dono do lote (Bearer) | Cotação assinada para o `LandNFT` (corpo: `{wallet}`) |
 | GET | `/v1/world/property-types` | público | Tipos de imóvel, preço, obra, renda por nível e regras de desgaste e acúmulo; nos negócios de lazer, `venue` com a atividade e a entrada |
 | GET | `/v1/world/cities/:code/venues` | público (com Bearer, marca `mine`) | Academias e galerias da cidade: tipo, lote, entrada, `open` e fase |
@@ -230,7 +269,7 @@ TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc_test pnpm --filter
 | GET | `/v1/world/me/invitations` | jogador (Bearer) | Imóveis onde fui convidado e o convite ainda vale |
 | GET | `/healthz` | — | `{status: "ok"}` |
 
-Erros com código estável: `lot_not_for_sale`, `lot_reserved`, `district_closed`, `other_district`, `area_cap`, `insufficient_scity`, `reservation_lost`, `ledger_unavailable`, `not_found`, `not_lot_owner`, `wallet_not_linked`, `unknown_property_type`, `zone_not_allowed`, `lot_has_property`, `insufficient_thaler`, `property_not_ready`, `nothing_to_claim`, `claim_in_progress`, `nothing_to_repair`, `max_level`, `work_in_progress`, `lot_not_owned`, `nothing_to_upgrade`, `tax_default`, `taxes_disabled`, `auctions_disabled`, `own_auction`, `auction_closed`, `bid_too_low`, `other_district`, `area_cap`, `building_invalid`, `lot_has_building`, `lot_without_polygon`, `building_not_in_review`, `builder_unavailable`, `model_not_found`, `building_not_approved`, `model_hash_missing`, `pool_empty`, `properties_disabled`, `city_not_onchain`, `onchain_disabled`, `gateway_unavailable`, `missing_credentials`, `invalid_token`, `token_expired`.
+Erros com código estável: `sale_not_open`, `queue_required`, `queue_waiting`, `queue_expired`, `queue_not_open`, `sale_ended`, `sale_limit`, `no_sale`, `wallet_required`, `lot_not_for_sale`, `lot_reserved`, `district_closed`, `other_district`, `area_cap`, `insufficient_scity`, `reservation_lost`, `ledger_unavailable`, `not_found`, `not_lot_owner`, `wallet_not_linked`, `unknown_property_type`, `zone_not_allowed`, `lot_has_property`, `insufficient_thaler`, `property_not_ready`, `nothing_to_claim`, `claim_in_progress`, `nothing_to_repair`, `max_level`, `work_in_progress`, `lot_not_owned`, `nothing_to_upgrade`, `tax_default`, `taxes_disabled`, `auctions_disabled`, `own_auction`, `auction_closed`, `bid_too_low`, `other_district`, `area_cap`, `building_invalid`, `lot_has_building`, `lot_without_polygon`, `building_not_in_review`, `builder_unavailable`, `model_not_found`, `building_not_approved`, `model_hash_missing`, `pool_empty`, `properties_disabled`, `city_not_onchain`, `onchain_disabled`, `gateway_unavailable`, `missing_credentials`, `invalid_token`, `token_expired`.
 
 ## Visitas: entrar nos imóveis pelo street view
 
@@ -247,7 +286,7 @@ Tabela `place_guest`, migração `0010_visitas`.
 
 ## Banco
 
-Esquema próprio `world`: `city` (zonas, bairros abertos, limiar), `lot` (situação, dono, reserva) e `purchase` (cada compra, com o preço em wei e a situação), `property` (imóvel, obra, desgaste e última coleta; um por lote) e `property_claim` (cada coleta e se já foi paga) `property_work` (reparos e upgrades; uma pendente por imóvel), `tax_bill` (uma conta por lote, tipo e período), `auction` e `auction_bid` (leilão do lote inadimplente; um ativo por lote) e `building` (prédio validado, outorga, alvará; um vigente por lote), `chain_cursor` e `chain_transfer_pending` (posse on-chain → jogo). O `lot` ganhou `polygon`. Migrações em `drizzle/`, controladas em `drizzle.__world_migrations`.
+Esquema próprio `world`: `city` (zonas, bairros abertos, limiar), `lot` (situação, dono, reserva) e `purchase` (cada compra, com o preço em wei e a situação), `property` (imóvel, obra, desgaste e última coleta; um por lote) e `property_claim` (cada coleta e se já foi paga) `property_work` (reparos e upgrades; uma pendente por imóvel), `tax_bill` (uma conta por lote, tipo e período), `auction` e `auction_bid` (leilão do lote inadimplente; um ativo por lote) e `building` (prédio validado, outorga, alvará; um vigente por lote), `chain_cursor` e `chain_transfer_pending` (posse on-chain → jogo), `sale` (lançamento agendado por cidade) e `sale_ticket` (fichas da fila; a posição é calculada pelo sorteio e pela ordem de chegada). O `lot` ganhou `polygon`. Migrações em `drizzle/`, controladas em `drizzle.__world_migrations`.
 
 ## Ainda não
 

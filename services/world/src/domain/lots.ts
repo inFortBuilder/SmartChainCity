@@ -135,6 +135,18 @@ export function nextOpenCount(
 
 /** Persistência. Memória e Postgres passam pelo mesmo teste de contrato. */
 /** O que a importação da cidade traz de cada lote. */
+/** Limite do lançamento (E4.3): até `max` compras pagas ou em andamento desde `since`. */
+export interface PurchaseCap {
+  since: Date;
+  max: number;
+}
+
+export function checkCap(cap: PurchaseCap | undefined, bought: number) {
+  if (cap && bought >= cap.max) {
+    throw new AppError('sale_limit', `No lançamento, cada carteira compra até ${cap.max} lote${cap.max > 1 ? 's' : ''}.`, 409);
+  }
+}
+
 export type LotImport = Pick<Lot, 'id' | 'district' | 'zone' | 'areaM2' | 'status'> & { polygon?: Polygon | null };
 
 export interface WorldStore {
@@ -153,7 +165,16 @@ export interface WorldStore {
    * Trava o lote, confere a compra e reserva para o comprador; devolve a
    * compra pendente. Pedido repetido do mesmo comprador devolve a mesma compra.
    */
-  reserve(code: string, lotId: number, accountId: string, now: Date, price: (lot: Lot, city: City) => { priceWei: bigint; priceUsd: number }): Promise<Purchase>;
+  reserve(
+    code: string,
+    lotId: number,
+    accountId: string,
+    now: Date,
+    price: (lot: Lot, city: City) => { priceWei: bigint; priceUsd: number },
+    cap?: PurchaseCap,
+  ): Promise<Purchase>;
+  /** Compras pagas ou em andamento da conta na cidade, desde `since` (limite do lançamento). */
+  countPurchases(code: string, accountId: string, since: Date): Promise<number>;
   /** Pagamento feito: o lote passa a ser do comprador. false se a reserva se perdeu (vencida e tomada). */
   confirm(purchaseId: string, now: Date): Promise<boolean>;
   /** Pagamento recusado ou devolvido: libera o lote. */

@@ -32,6 +32,19 @@ import {
 import { type LandPayments, type Lot, type WorldStore, lotCode, priceOf } from './domain/lots.js';
 import { buyLot } from './domain/purchase.js';
 import {
+  type QueueTicket,
+  type SaleConfig,
+  type SaleStore,
+  admitPurchase,
+  joinQueue,
+  queueOpensAt,
+  salePhase,
+  ticketState,
+  turnOf,
+  validateSale,
+} from './domain/sale.js';
+import { MemorySaleStore } from './infra/memory-sale-store.js';
+import {
   type BuilderClient,
   type Building,
   BuildingInvalidError,
@@ -100,7 +113,10 @@ export async function buildApp(
     /** Carteira → conta, para convidar pela carteira (gateway). */
     owners: { ownerOf(wallet: string): Promise<string | null> } | null;
   } | null = null,
+  /** Venda de lançamento com fila e limite por carteira (E4.3). Sem store, fica em memória. */
+  sale: SaleStore | null = null,
 ) {
+  const sales = sale ?? new MemorySaleStore();
   const app = Fastify({
     ...serverOptions({ service: 'world', nodeEnv: config.NODE_ENV, logLevel: config.LOG_LEVEL }),
   });
@@ -206,7 +222,14 @@ export async function buildApp(
     const me = await player(request);
     const { code, id } = lotParams.parse(request.params);
     if (!payments) throw new AppError('ledger_unavailable', 'A venda de lotes está desligada.', 503);
-    const purchase = await buyLot(store, payments, { city: code, lotId: id, accountId: me, scityUsd: scityUsd(), requestId: request.id }, now);
+    // Lançamento: só com a vez na fila, e com o limite por carteira (conferido dentro da reserva).
+    const cap = (await admitPurchase(sales, code, me, now())) ?? undefined;
+    const purchase = await buyLot(
+      store,
+      payments,
+      { city: code, lotId: id, accountId: me, scityUsd: scityUsd(), requestId: request.id, cap },
+      now,
+    );
     const c = await cityOr404(code);
     const lot = (await store.getLot(code, id))!;
     return reply.status(201).send({
@@ -214,6 +237,108 @@ export async function buildApp(
       lot: lotDto(lot, me, lot.district < c.openCount, c.zones),
       city: { open_count: c.openCount },
     });
+  });
+
+  // ---------------------------------------------------------------- venda de lançamento (E4.3)
+
+  const saleDto = (s: SaleConfig) => ({
+    phase: salePhase(s, now()),
+    queue_opens_at: queueOpensAt(s).toISOString(),
+    opens_at: s.opensAt.toISOString(),
+    ends_at: s.endsAt.toISOString(),
+    batch_size: s.batchSize,
+    batch_seconds: s.batchSeconds,
+    window_seconds: s.windowSeconds,
+    max_lots: s.maxLots,
+    require_wallet: s.requireWallet,
+  });
+  const ticketDto = (s: SaleConfig, t: QueueTicket) => {
+    const { admitAt, expiresAt } = turnOf(s, t);
+    return {
+      state: ticketState(s, t, now()),
+      position: t.position,
+      // Antes da abertura, a posição de quem entrou cedo ainda muda: sai do sorteio na abertura.
+      provisional: t.preOpen && now().getTime() < s.opensAt.getTime(),
+      admit_at: admitAt.toISOString(),
+      expires_at: expiresAt.toISOString(),
+    };
+  };
+  const saleView = async (code: string, me: string | null) => {
+    const s = await sales.getSale(code);
+    if (!s) return { sale: null };
+    if (!me) return { sale: saleDto(s) };
+    const t = await sales.latestTicket(code, me);
+    const bought = await store.countPurchases(code, me, s.opensAt);
+    return { sale: saleDto(s), me: { ticket: t ? ticketDto(s, t) : null, bought } };
+  };
+
+  app.get('/v1/world/cities/:code/sale', async (request) => {
+    const { code } = codeParam.parse(request.params);
+    await cityOr404(code);
+    return saleView(code, await maybePlayer(request));
+  });
+
+  app.post('/v1/world/cities/:code/sale/queue', async (request, reply) => {
+    const me = await player(request);
+    const { code } = codeParam.parse(request.params);
+    const s = await sales.getSale(code);
+    if (!s) throw new AppError('no_sale', 'Esta cidade não tem venda de lançamento: compre direto.', 409);
+    // Uma carteira só se liga a uma conta (gateway): com carteira obrigatória, o limite vale por carteira.
+    const directory = land?.wallets ?? seizures?.wallets ?? null;
+    if (s.requireWallet && directory) {
+      const linked = await directory.walletsOf(me, request.id);
+      if (linked.length === 0) {
+        throw new AppError('wallet_required', 'O lançamento exige uma carteira ligada à conta.', 403);
+      }
+    }
+    await joinQueue(sales, s, me, now());
+    return reply.status(201).send(await saleView(code, me));
+  });
+
+  const internalOnly = (request: FastifyRequest) => {
+    if (!config.INTERNAL_TOKEN) {
+      throw new AppError('internal_disabled', 'Rotas internas desligadas: defina INTERNAL_TOKEN.', 503);
+    }
+    requireServiceToken(request.headers['x-service-token'], config.INTERNAL_TOKEN);
+  };
+  const saleBody = z.object({
+    opens_at: z.iso.datetime({ offset: true }),
+    ends_at: z.iso.datetime({ offset: true }),
+    pre_queue_seconds: z.number().int().min(0).max(86_400).default(1800),
+    batch_size: z.number().int().min(1).max(100_000).default(200),
+    batch_seconds: z.number().int().min(1).max(3600).default(60),
+    window_seconds: z.number().int().min(60).max(3600).default(600),
+    max_lots: z.number().int().min(1).max(324).default(3),
+    require_wallet: z.boolean().default(true),
+  });
+
+  // Ferramenta da operação: agenda (ou muda) o lançamento de uma cidade.
+  app.put('/internal/v1/cities/:code/sale', async (request) => {
+    internalOnly(request);
+    const { code } = codeParam.parse(request.params);
+    await cityOr404(code);
+    const b = saleBody.parse(request.body);
+    const s: SaleConfig = {
+      city: code,
+      opensAt: new Date(b.opens_at),
+      endsAt: new Date(b.ends_at),
+      preQueueSeconds: b.pre_queue_seconds,
+      batchSize: b.batch_size,
+      batchSeconds: b.batch_seconds,
+      windowSeconds: b.window_seconds,
+      maxLots: b.max_lots,
+      requireWallet: b.require_wallet,
+    };
+    validateSale(s);
+    await sales.setSale(s);
+    return { sale: saleDto(s) };
+  });
+
+  app.delete('/internal/v1/cities/:code/sale', async (request, reply) => {
+    internalOnly(request);
+    const { code } = codeParam.parse(request.params);
+    await sales.clearSale(code);
+    return reply.status(204).send();
   });
 
   // Cotação assinada para levar o lote (já pago no ledger) ao LandNFT. O jogador

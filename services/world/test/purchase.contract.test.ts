@@ -107,6 +107,22 @@ describe.each(stores)('compra de lote: %s', (_name, make, enabled) => {
     expect(await codeOf(buy(rich(), 12))).toBeNull();
   });
 
+  it.runIf(enabled)('limite do lançamento: até 2 compras, mesmo em paralelo, e recusada não conta', async () => {
+    const { store, code, pay, rich, now } = await setup();
+    const cap = { since: now(), max: 2 };
+    const a = rich();
+    const buyCapped = (lotId: number) => buyLot(store, pay, { city: code, lotId, accountId: a, scityUsd: 1, cap }, now);
+    // Três compras juntas de lotes diferentes: duas passam, a terceira bate no limite.
+    const outcomes = await Promise.all([codeOf(buyCapped(4)), codeOf(buyCapped(5)), codeOf(buyCapped(6))]);
+    expect(outcomes.filter((c) => c === null)).toHaveLength(2);
+    expect(outcomes.filter((c) => c === 'sale_limit')).toHaveLength(1);
+    expect(await store.countPurchases(code, a, cap.since)).toBe(2);
+    // Compra recusada por saldo não conta para o limite.
+    const b = randomUUID();
+    expect(await codeOf(buyLot(store, pay, { city: code, lotId: 7, accountId: b, scityUsd: 1, cap }, now))).toBe('insufficient_scity');
+    expect(await store.countPurchases(code, b, cap.since)).toBe(0);
+  });
+
   it.runIf(enabled)('reserva perdida depois de pago: devolve o valor', async () => {
     const { store, code, pay, rich, advance, now } = await setup();
     const a = rich();

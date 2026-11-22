@@ -78,6 +78,13 @@
       "when": 1795272459106,
       "tag": "0010_visitas",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1795353501604,
+      "tag": "0011_venda_lancamento",
+      "breakpoints": true
     }
   ]
 }
