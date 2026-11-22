@@ -53,7 +53,7 @@ Só o `GameVault` e o `Marketplace` são atualizáveis (doc 07 §5); token e NFT
 - **Quem troca a implementação:** só o `UPGRADER_ROLE` (`upgradeToAndCall`), e esse papel é do `TimelockController`.
   - Na mainnet: atraso de 48 h, o multisig 3-de-5 propõe e executa, e o timelock não tem admin (doc 07 §3).
   - No anvil: atraso 0, e o deployer propõe e executa.
-- **Outros papéis:** o `DEFAULT_ADMIN` (limites, taxa, coleções) e o `PAUSER` continuam com o admin (o multisig).
+- **Outros papéis:** na mainnet, o `DEFAULT_ADMIN` (limites, taxa, coleções) também fica com o timelock e o `PAUSER` com o multisig 2-de-3 ([deploy na BSC](#deploy-na-bsc-mainnet-e-testnet)). No anvil, os dois ficam com o deployer.
 - **Armazenamento:** as bases da OpenZeppelin usam namespace (ERC-7201). As variáveis destes contratos só podem ganhar novas **no fim**, sem mudar a ordem nem o tipo das que já existem.
 - **Valor na declaração não vale no proxy.** `nextListingId` e `nextAuctionId` começam em 1 dentro do `initialize` (o teste de upgrade confere).
 - **Reentrância:** o `ReentrancyGuard` da OZ 5.7 é `@custom:stateless` (ERC-7201) e serve no proxy sem inicializar.
@@ -65,6 +65,55 @@ Só o `GameVault` e o `Marketplace` são atualizáveis (doc 07 §5); token e NFT
 - que antes do atraso a execução recusa;
 - o estado preservado na versão 2;
 - a recusa de uma implementação que não é UUPS.
+
+## Deploy na BSC (mainnet e testnet)
+
+`script/DeployMainnet.s.sol` sobe tudo na BNB Smart Chain (56) ou na testnet (97) e entrega os papéis do doc 07 §3. Em outra rede, recusa.
+
+| Papel | Fica com |
+|---|---|
+| `DEFAULT_ADMIN_ROLE` de todos os contratos | `TimelockController` (atraso ≥ 48 h na mainnet; o multisig 3-de-5 propõe e executa; sem admin) |
+| `UPGRADER_ROLE` do `GameVault` e do `Marketplace` | O mesmo timelock |
+| `PAUSER_ROLE` | Multisig 2-de-3 (pausa na hora, sem esperar o atraso) |
+| `SIGNER_ROLE` do `LandNFT`, `PropertyNFT`, `BuildingNFT` e `GameVault` | A chave do backend no KMS |
+| `MINTER_ROLE` do `AvatarNFT` | A `LuckyBox` |
+
+**O deployer sai sem papel nenhum.** Ele é admin só durante o script, para configurar a caixa (tier 1 e profissões do seed do CMS), as coleções do mercado e os signers. No fim, o script confere cada papel na cadeia e reverte se o deployer ficou com algum, se o multisig tem admin direto ou se falta algo.
+
+**Configuração:** um JSON no formato de [`deploy/bsc.example.json`](deploy/bsc.example.json), sem nada secreto (só endereços e parâmetros):
+- os dois multisigs (têm de ser contratos, isto é, Safes já criados, e diferentes entre si);
+- o endereço do signer no KMS e a tesouraria;
+- o `scity` (token do TGE já criado) ou o `tokenRecipient` (o script cria o token com o suprimento para ele);
+- o atraso do timelock, os tetos do cofre, a taxa do mercado (até 10%), o royalty dos avatares e as base URIs;
+- a assinatura do Chainlink VRF v2.5 (coordenador, key hash, sub id) e o tier 1 da caixa (pesos somando 10.000).
+
+O script recusa endereço zero, o deployer como signer, tesouraria ou multisig e, na mainnet, atraso abaixo de 48 h.
+
+```bash
+cd contracts
+cp deploy/bsc.example.json deploy/bsc-testnet.local.json   # preencher; *.local.json fica fora do git
+DEPLOY_CONFIG=deploy/bsc-testnet.local.json forge script script/DeployMainnet.s.sol   --rpc-url "$BSC_TESTNET_RPC" --broadcast --verify --ledger
+```
+
+- **Chave do deployer:** carteira de hardware (`--ledger`) ou keystore (`--account`). Nunca `--private-key` na linha de comando.
+- **Verificação no BscScan:** `--verify` lê `ETHERSCAN_API_KEY` do ambiente.
+- **Mainnet:** também precisa de `CONFIRM_MAINNET=sim`.
+- **Depois do deploy:**
+  - Os endereços ficam em `deployments/<chainId>.json`.
+  - Adicionar a `LuckyBox` como consumidora da assinatura do VRF.
+  - Depositar a reserva do cofre (SCITY no `GameVault`).
+  - Configurar os serviços com os endereços.
+- **Custo medido no ensaio:** cerca de 30 M de gás, ou 0,06 BNB a 2 gwei.
+
+`test/DeployMainnet.t.sol` confere:
+- os papéis finais;
+- a pausa imediata pelo multisig 2-de-3;
+- que o multisig de admin não muda parâmetro direto, só pelo timelock e depois do atraso;
+- a recusa das configurações erradas;
+- as redes aceitas;
+- a leitura do JSON de exemplo.
+
+Ensaio: `anvil --chain-id 97`, com os dois Safes simulados por `anvil_setCode`. Depois do ensaio, `hasRole` foi conferido na cadeia em cada contrato: o deployer sem admin nem pausa, e o timelock com admin.
 
 ## Rodar
 

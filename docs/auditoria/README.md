@@ -48,11 +48,13 @@ O doc 07 cita um `StakingPool`, que **ainda não existe**: entra numa rodada pr�
 | Contrato | Papel | Quem (mainnet) | Pode |
 |---|---|---|---|
 | GameVault, Marketplace | `UPGRADER_ROLE` | `TimelockController` (48 h, o multisig 3-de-5 propõe e executa, sem admin) | Trocar a implementação |
-| Todos | `DEFAULT_ADMIN_ROLE` | Multisig 3-de-5 (atrás do timelock para parâmetros, doc 07 §3) | Dar papéis; limites do cofre; taxa e coleções do mercado; tesouraria, VRF, tiers e profissões da caixa; base URI |
+| Todos | `DEFAULT_ADMIN_ROLE` | O mesmo `TimelockController`: toda mudança de parâmetro espera 48 h (doc 07 §3) | Dar papéis; limites do cofre; taxa e coleções do mercado; tesouraria, VRF, tiers e profissões da caixa; base URI |
 | Todos com pausa | `PAUSER_ROLE` | Multisig 2-de-3 | Pausar e despausar. A pausa no Marketplace **não** trava o `cancelAuction`, e no cofre não trava o `cancelVoucher` |
 | GameVault, LandNFT, PropertyNFT, BuildingNFT | `SIGNER_ROLE` | Chave KMS do backend | Assinar vouchers (não move fundos sozinho) |
 | AvatarNFT | `MINTER_ROLE` | Contrato LuckyBox | Mintar avatar |
-| Marketplace | admin em `cancelAuction` | Multisig | Cancelar leilão com lance (moderação), devolvendo o lance |
+| Marketplace | admin em `cancelAuction` | Timelock | Cancelar leilão com lance (moderação), devolvendo o lance |
+
+O [`DeployMainnet.s.sol`](../../contracts/README.md#deploy-na-bsc-mainnet-e-testnet) entrega estes papéis e reverte se o deployer ficar com algum. O script está fora do escopo, mas vale uma leitura para conferir a entrega.
 
 ## 4. Premissas de confiança
 
@@ -122,6 +124,6 @@ O Slither roda no CI (`.github/workflows/ci.yml`, job `slither`, configuração 
 
 - [ ] Congelar o commit (tag `auditoria-v1`) e mandar o hash.
 - [ ] Parâmetros da mainnet: endereços do multisig (3-de-5 e 2-de-3), atraso de 48 h do timelock, tesouraria, assinatura do VRF (key hash e sub id), tetos do cofre e taxa do mercado.
-- [ ] Script de deploy da mainnet (hoje só existe o `DeployLocal`).
+- [x] Script de deploy da mainnet (`DeployMainnet.s.sol`, ensaiado num anvil com chain id 97).
 - [ ] Contato técnico e janela de perguntas.
 - [ ] Depois do relatório: corrigir, registrar cada achado e a resposta, e auditar de novo o que mudou.

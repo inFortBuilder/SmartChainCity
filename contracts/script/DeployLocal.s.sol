@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import {Script, console} from "forge-std/Script.sol";
+import {console} from "forge-std/Script.sol";
 
 import {AvatarNFT} from "../src/AvatarNFT.sol";
 import {BuildingNFT} from "../src/BuildingNFT.sol";
@@ -16,6 +16,7 @@ import {SCityToken} from "../src/SCityToken.sol";
 import {LocalDexPool, LocalUSD} from "../src/dev/LocalDexPool.sol";
 import {LocalVRFCoordinator} from "../src/dev/LocalVRFCoordinator.sol";
 import {IVRFCoordinatorV2Plus} from "../src/vrf/VRFV2Plus.sol";
+import {CatalogReader} from "./CatalogReader.sol";
 
 /// @notice Sobe os contratos da Etapa 2 no anvil (rede local, chain 31337) e grava os endereços em
 /// `deployments/anvil.json`. Só para desenvolvimento: usa o coordenador VRF local e a conta do anvil.
@@ -25,37 +26,7 @@ import {IVRFCoordinatorV2Plus} from "../src/vrf/VRFV2Plus.sol";
 ///     --unlocked --sender 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
 ///
 /// Variáveis opcionais: `WORLD_SIGNER` (quem assina as cotações de lote; padrão: o próprio deployer).
-contract DeployLocal is Script {
-    string constant PROFESSIONS = "../cms-strapi/seed/profissoes.json";
-    string[4] RARITIES = ["common", "rare", "epic", "legendary"];
-
-    /// Lê o seed item a item: o filtro JSONPath do forge não devolve listas.
-    function _professionsByRarity(string memory catalog) internal view returns (bytes32[][4] memory out) {
-        uint256 n;
-        while (vm.keyExistsJson(catalog, string.concat("$[", vm.toString(n), "]"))) n++;
-        uint256[4] memory counts;
-        bytes32[] memory codes = new bytes32[](n);
-        uint8[] memory rarities = new uint8[](n);
-        for (uint256 i; i < n; ++i) {
-            string memory at = string.concat("$[", vm.toString(i), "]");
-            codes[i] = bytes32(bytes(vm.parseJsonString(catalog, string.concat(at, ".code"))));
-            bytes32 rarity = keccak256(bytes(vm.parseJsonString(catalog, string.concat(at, ".rarity"))));
-            for (uint8 r; r < 4; ++r) {
-                if (rarity == keccak256(bytes(RARITIES[r]))) {
-                    rarities[i] = r;
-                    counts[r]++;
-                }
-            }
-        }
-        for (uint8 r; r < 4; ++r) {
-            out[r] = new bytes32[](counts[r]);
-            uint256 k;
-            for (uint256 i; i < n; ++i) {
-                if (rarities[i] == r) out[r][k++] = codes[i];
-            }
-        }
-    }
-
+contract DeployLocal is CatalogReader {
     address localUsd;
     address localDexPool;
     address marketplace;
