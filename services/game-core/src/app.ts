@@ -353,6 +353,17 @@ export async function buildApp(
       issuer: config.JWT_ISSUER,
     });
 
+  // Números públicos para o site (E4.5), com cache de 1 minuto: a home consulta a cada 60 s.
+  let publicCache: { at: number; body: { avatars: number; work_accidents: number } } | null = null;
+  app.get('/v1/public/stats', async () => {
+    const t = now().getTime();
+    if (!publicCache || t - publicCache.at >= 60_000) {
+      const s = await store.publicStats();
+      publicCache = { at: t, body: { avatars: s.avatars, work_accidents: s.workAccidents } };
+    }
+    return publicCache.body;
+  });
+
   app.get('/healthz', async () => ({ status: 'ok' }));
 
   // Catálogo público das profissões (do GDD), para a tela de avatar e a Lucky Box.

@@ -40,6 +40,11 @@ export class MemoryAvatarStore implements AvatarStore, ShiftStore, MealStore, Ho
   private readonly avatars = new Map<string, Avatar>();
   private readonly stays = new Map<string, HospitalStay>();
 
+  async publicStats() {
+    const accidents = [...this.shifts.values()].filter((s) => s.result?.damaged).length;
+    return { avatars: this.avatars.size, workAccidents: accidents };
+  }
+
   async admitDue(now: Date, batch: number, avatarId?: string) {
     const created: HospitalStay[] = [];
     for (const [id, stored] of this.avatars) {

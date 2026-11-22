@@ -34,10 +34,27 @@ final class GameData
         return $items;
     }
 
-    /** Busca JSON na API do jogo; retorna null em qualquer falha. */
-    private static function fetch(string $path): ?array
+    /**
+     * Travas de incidente do economy (saque e câmbio suspensos), para o aviso no topo do site.
+     * Sem a API, ou com ela fora, não há aviso: o site não inventa incidente.
+     * @return array<string, array{frozen:bool, reason:?string}>
+     */
+    public static function status(): array
     {
-        $base = cfg('api.game_api_url');
+        $remote = self::fetch('/v1/economy/status', (string) cfg('api.economy_api_url'));
+        $out = [];
+        foreach ((is_array($remote) ? ($remote['switches'] ?? []) : []) as $name => $s) {
+            if (is_string($name) && is_array($s)) {
+                $out[$name] = ['frozen' => (bool) ($s['frozen'] ?? false), 'reason' => isset($s['reason']) ? (string) $s['reason'] : null];
+            }
+        }
+        return $out;
+    }
+
+    /** Busca JSON na API do jogo; retorna null em qualquer falha. */
+    private static function fetch(string $path, ?string $base = null): ?array
+    {
+        $base = $base ?? cfg('api.game_api_url');
         if (!$base) {
             return null;
         }

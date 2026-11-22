@@ -11,6 +11,8 @@
         <li><a href="<?= e(cfg('links.support')) ?>">Suporte</a></li>
         <li><a href="<?= e(url('private-sale.php')) ?>">Venda privada</a></li>
         <li><a href="<?= e(url('account.php')) ?>">Minha conta</a></li>
+        <li><a href="<?= e(url('faq.php')) ?>">Perguntas frequentes</a></li>
+        <li><a href="<?= e(url('contratos.php')) ?>">Contratos oficiais</a></li>
         <?php if (cfg('links.audit')): ?><li><a href="<?= e(cfg('links.audit')) ?>" target="_blank" rel="noopener">Relatório de auditoria</a></li><?php endif; ?>
       </ul>
     </div>

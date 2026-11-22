@@ -12,6 +12,7 @@ ini_set('display_errors', $GLOBALS['scc_config']['app']['env'] === 'dev' ? '1' :
 require __DIR__ . '/lib/helpers.php';
 require __DIR__ . '/lib/icons.php';
 require __DIR__ . '/lib/GameData.php';
+require __DIR__ . '/lib/OfficialContracts.php';
 
 if (session_status() === PHP_SESSION_NONE && PHP_SAPI !== 'cli') {
     session_set_cookie_params([

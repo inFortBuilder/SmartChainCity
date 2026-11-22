@@ -27,6 +27,22 @@
     });
   }
 
+  // Aviso de incidente (E4.6): saque ou câmbio suspensos pela operação aparecem no topo de todas as páginas.
+  const banner = document.querySelector('[data-incident]');
+  if (banner) {
+    fetch(`${window.SCC.baseUrl}/api/status.php`, { headers: { Accept: 'application/json' } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        const labels = { withdrawals: 'Saques', exchange: 'Câmbio' };
+        const frozen = Object.entries(data?.switches ?? {}).filter(([, s]) => s && s.frozen);
+        if (!frozen.length) return;
+        const parts = frozen.map(([name, s]) => `${labels[name] ?? name} suspenso${name === 'withdrawals' ? 's' : ''}${s.reason ? ` (${s.reason})` : ''}`);
+        banner.textContent = `⛔ ${parts.join(' · ')}. Seus saldos estão seguros. Acompanhe no Discord.`;
+        banner.hidden = false;
+      })
+      .catch(() => {});
+  }
+
   // Copiar endereço do contrato
   document.querySelectorAll('[data-copy]').forEach((btn) => {
     btn.addEventListener('click', async () => {

@@ -59,6 +59,8 @@ export interface TaxStore {
   markPaid(id: string, at: Date): Promise<void>;
   /** Conta vencida há mais de `DEFAULT_AFTER_DAYS` neste lote? */
   inDefault(city: string, lotId: number, now: Date): Promise<boolean>;
+  /** Total pago em impostos, com as multas, em centavos de THALER (site). */
+  paidTotalCents(): Promise<bigint>;
 }
 
 export interface TaxPayments {

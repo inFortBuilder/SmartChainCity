@@ -8,6 +8,7 @@ import { getAddress } from 'viem';
 import { z } from 'zod';
 
 import type { Config } from './config.js';
+import { publicStatsSource } from './public-stats.js';
 import { AuthService } from './domain/auth.js';
 import { Captcha } from './domain/captcha.js';
 import { type KycStore, decideKyc, kycDto, startKyc } from './domain/kyc.js';
@@ -127,6 +128,10 @@ export async function buildApp(config: Config, store: AuthStore & KycStore, now?
   const authLimit = { rateLimit: { max: config.AUTH_RATE_LIMIT_PER_MINUTE, timeWindow: '1 minute' } };
 
   app.get('/healthz', { config: { rateLimit: false } }, async () => ({ status: 'ok' }));
+
+  // Números públicos da cidade para o site (E4.5): avatares, lotes, impostos e acidentes de trabalho.
+  const publicStats = publicStatsSource({ game: config.GAME_CORE_URL, world: config.WORLD_URL }, now ?? (() => new Date()));
+  app.get('/v1/public/stats', async () => publicStats());
 
   // Desafio do captcha. Desligado, o cliente recebe enabled: false e não manda nada.
   app.get('/v1/auth/captcha', { config: authLimit }, async () =>

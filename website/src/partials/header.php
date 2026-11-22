@@ -8,6 +8,8 @@ $menu = [
     ['label' => 'Parceiros',   'href' => url('index.php#parceiros'), 'key' => 'partners'],
     ['label' => 'Marketplace', 'href' => url('marketplace.php'),  'key' => 'marketplace'],
     ['label' => 'Tutorial',    'href' => url('tutorial.php'),     'key' => 'tutorial'],
+    ['label' => 'FAQ',         'href' => url('faq.php'),          'key' => 'faq'],
+    ['label' => 'Contratos',   'href' => url('contratos.php'),    'key' => 'contratos'],
 ];
 ?>
 <header class="site-header">
@@ -31,4 +33,5 @@ $menu = [
     </a>
   </nav>
 </header>
+<div class="incident-banner" data-incident hidden role="status" aria-live="polite"></div>
 <main id="conteudo">

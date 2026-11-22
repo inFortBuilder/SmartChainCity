@@ -655,3 +655,30 @@ input:focus, select:focus, textarea:focus { border-color: var(--blue); outline: 
   .wood-sign { padding: 12px 34px 12px 18px; }
   .btn--wood { font-size: .9rem; }
 }
+
+/* Aviso de incidente (E4.6) */
+.incident-banner { background: #8c1d1d; color: #fff; text-align: center; padding: 10px 16px; font-weight: 700; box-shadow: 0 4px 0 rgba(0,0,0,.2); }
+.incident-banner[hidden] { display: none; }
+
+/* Contratos oficiais e FAQ (E4.5) */
+.section-sub--light { color: #fff; text-shadow: 0 2px 0 rgba(0,0,0,.25); }
+.section-sub--light a { color: #fff; }
+.contracts-panel, .faq-group { max-width: 960px; margin: 0 auto 28px; }
+.contracts-chain { margin-top: 0; }
+.contracts-empty { background: var(--stone-light); padding: 16px; border-radius: 10px; }
+.contract-table { width: 100%; border-collapse: collapse; margin: 0 0 24px; }
+.contract-table caption { text-align: left; font-family: var(--font-title); font-size: 1.4rem; color: var(--navy); padding-bottom: 8px; }
+.contract-table th, .contract-table td { text-align: left; vertical-align: top; padding: 10px 12px; background: var(--stone-light); border-bottom: 4px solid #9d9d9d; }
+.contract-table th { width: 32%; }
+.contract-table th small { display: block; font-weight: 400; color: #555; margin-top: 2px; }
+.contract-table code { display: block; font-size: .92rem; overflow-wrap: anywhere; margin-bottom: 6px; }
+.contract-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.btn--small { padding: 4px 12px; font-size: .9rem; }
+.faq-group h2 { margin-top: 0; color: var(--navy); }
+.faq-item { background: var(--stone-light); border-radius: 10px; margin: 0 0 10px; padding: 12px 16px; box-shadow: 0 3px 0 rgba(0,0,0,.12); }
+.faq-item summary { cursor: pointer; font-weight: 700; }
+.faq-item p { margin: 10px 0 0; }
+@media (max-width: 640px) {
+  .contract-table th, .contract-table td { display: block; width: auto; }
+  .contract-table th { border-bottom: 0; padding-bottom: 0; }
+}
