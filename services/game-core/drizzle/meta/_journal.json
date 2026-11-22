@@ -127,6 +127,13 @@
       "when": 1795305179877,
       "tag": "0017_fazenda",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1795372579349,
+      "tag": "0018_pet_sitter",
+      "breakpoints": true
     }
   ]
 }

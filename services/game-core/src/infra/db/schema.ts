@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { check, index, integer, jsonb, numeric, pgSchema, smallint, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { bigint, boolean, check, index, integer, jsonb, numeric, pgSchema, smallint, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 
 /**
  * Esquema próprio `game` (o serviço não toca o banco dos outros). Tabela
@@ -361,4 +361,34 @@ export const farm = game.table(
     version: integer('version').notNull(),
   },
   (t) => [check('farm_level_check', sql`${t.level} between 1 and 3`)],
+);
+
+/** Pet Sitter (E3.1): a oferta do avatar com a profissão (preço da diária e se atende). */
+export const petSitterOffer = game.table('pet_sitter_offer', {
+  avatarId: uuid('avatar_id').primaryKey(),
+  accountId: uuid('account_id').notNull(),
+  priceCents: bigint('price_cents', { mode: 'bigint' }).notNull(),
+  open: boolean('open').notNull(),
+  updatedAt: timestamptz('updated_at').notNull(),
+});
+
+/** Cada estadia de pet com um Pet Sitter: a vaga é reservada antes da cobrança e cancelada se ela falhar. */
+export const petSitting = game.table(
+  'pet_sitting',
+  {
+    id: uuid('id').primaryKey(),
+    sitterAvatarId: uuid('sitter_avatar_id').notNull(),
+    sitterAccountId: uuid('sitter_account_id').notNull(),
+    ownerAvatarId: uuid('owner_avatar_id').notNull(),
+    ownerAccountId: uuid('owner_account_id').notNull(),
+    priceCents: bigint('price_cents', { mode: 'bigint' }).notNull(),
+    startsAt: timestamptz('starts_at').notNull(),
+    endsAt: timestamptz('ends_at').notNull(),
+    status: text('status').notNull(),
+  },
+  (t) => [
+    index('pet_sitting_sitter_idx').on(t.sitterAvatarId, t.endsAt),
+    index('pet_sitting_owner_idx').on(t.ownerAvatarId, t.startsAt),
+    check('pet_sitting_status_check', sql`${t.status} in ('reserved', 'active', 'cancelled')`),
+  ],
 );
