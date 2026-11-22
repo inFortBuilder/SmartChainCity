@@ -157,4 +157,13 @@ describe('cobranças no economy de verdade', () => {
     const scity = (await ledger.balances('player', me)).find((b) => b.currency === 'SCITY')?.amount;
     expect(scity).toBe(20n * 10n ** 18n);
   });
+
+  it('fazenda: slot e sementes para a queima, uma vez por chave', async () => {
+    const me = randomUUID();
+    await credit(me, 1_000_600n);
+    await payer.chargeFarm({ key: `farm-buy:${me}`, kind: 'farm_buy', accountId: me, cents: 1_000_000n });
+    await payer.chargeFarm({ key: `farm-buy:${me}`, kind: 'farm_buy', accountId: me, cents: 1_000_000n });
+    await payer.chargeFarm({ key: `farm-seed:${me}:1:0`, kind: 'farm_seed', accountId: me, cents: 500n });
+    expect(await thaler('player', me)).toBe(100n);
+  });
 });

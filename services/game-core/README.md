@@ -163,6 +163,23 @@ Autoescola, agência e IPVA ([vehicle.ts](src/domain/vehicle.ts), GDD §6 "Carro
 
 **Premissas:** Hatch 3.000, Sedã esportivo 8.000 e Superesportivo 20.000 THALER; a curva de queda; IPVA de 2%; recompra de 80%; autoescola de 50 THALER. Depois de atualizar o código, rode `pnpm db:migrate`: a migração `0014_veiculos` cria `vehicle` e a coluna `license` do avatar.
 
+## Fazenda: agricultura (E3.4)
+
+Plantio, estações, níveis e riscos ([farm.ts](src/domain/farm.ts), GDD §6). A pecuária vem no próximo passo. A região A3 (zona rural) ainda não existe no mapa. Por isso a fazenda é um slot da conta comprado da Prefeitura, com 4 canteiros (um por lote do slot), na tabela `farm` com trava otimista (`version`).
+
+| Regra | Como |
+|---|---|
+| Estações | Mudam a cada 7 dias (verão, outono, inverno, primavera) e multiplicam a colheita por 1; 0,7; 0,5; 0,85 (GDD: verão > primavera > outono > inverno) |
+| Arar | Precisa da enxada (GDD). Com o próprio agricultor (agricultor, fazendeiro ou agrônomo, `avatar_id`), custa 1 de energia; contratado, 10 THALER. Repete depois de cada colheita |
+| Plantar | Culturas pelo nível (GDD): no 1, uva, morango, tomate e cenoura; o 2 soma laranja, beterraba e milho; o 3 soma maçã, trigo e batata. Sementes de 5 THALER. Crescimento de 1, 2 ou 3 dias pelo nível da cultura (o irrigador corta 25%) |
+| Riscos | Sorteados no plantio, com a semente guardada no canteiro e mostrada na colheita: apodrecer 5% (perde tudo); pássaros nas frutas 5% (agrotóxico −20% da chance; leva 50%); corvos nos grãos 5% (espantalho −50%; leva 50%); coelhos 3% (leva 30%, 15% com o cão). Sem colher, perde 5% por dia depois do 1º dia (o drone corta pela metade) |
+| Colher | 10 unidades por canteiro no verão (+20% com o separador de sementes), para a despensa do avatar escolhido, como o alimento do catálogo |
+| Nível | 3 colheitas no nível + 5.000 (nível 2) ou 10.000 THALER (nível 3) (GDD: "≥ 3 colheitas + pagamento") |
+
+**Dinheiro:** slot, máquinas, sementes, aragem contratada e níveis vão para a queima (`burn/farm`). Cada cobrança tem a chave da operação (o slot da conta, a máquina, o ciclo do canteiro, o nível), então tentar de novo depois de um conflito não cobra outra vez.
+
+**Premissas:** os preços (slot 10.000, máquinas de 50 a 500), o crescimento, as unidades, as chances que o GDD não dá e o tamanho dos danos. Depois de atualizar o código, rode `pnpm db:migrate`: a migração `0017_fazenda` cria `farm`.
+
 ## Eventos semanais e GamePass (E3.10)
 
 Eventos por profissão e o GamePass da temporada ([events.ts](src/domain/events.ts), GDD §8, doc 04 §4 e §8).
@@ -310,6 +327,13 @@ TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc_test pnpm --filter
 | GET | `/v1/vehicles` | jogador (Bearer) | Carros da conta com a situação (`ok`, `suspended`, `worn_out`, `expired`), atributos de agora, valor, recompra e IPVA |
 | POST | `/v1/vehicles` | jogador (Bearer) | Compra `{model}` ou aluga `{model, rent: true}` na agência |
 | POST | `/v1/vehicles/:id/ipva` | jogador (Bearer) | Paga o IPVA do semestre |
+| GET | `/v1/farm` | jogador (Bearer) | O catálogo da fazenda (slot, sementes, aragem, níveis, estações, culturas, máquinas) e a fazenda da conta (ou null) |
+| POST | `/v1/farm` | jogador (Bearer) | Compra o slot da Prefeitura |
+| POST | `/v1/farm/machines` | jogador (Bearer) | Compra a máquina `{machine}` |
+| POST | `/v1/farm/plots/:i/plow` | jogador (Bearer) | Ara o canteiro 1–4: com o agricultor `{avatar_id}` ou contratado `{}` |
+| POST | `/v1/farm/plots/:i/plant` | jogador (Bearer) | Planta `{crop}` no canteiro arado |
+| POST | `/v1/farm/plots/:i/harvest` | jogador (Bearer) | Colhe para a despensa do avatar `{avatar_id}`; devolve unidades, dano e a semente |
+| POST | `/v1/farm/level` | jogador (Bearer) | Sobe a fazenda de nível |
 | GET | `/v1/events` | público | O evento semanal de agora (grupo, nome, profissões, fator, início e fim) e os 3 próximos |
 | GET | `/v1/gamepass` | público (com Bearer, o seu nível) | A temporada, o preço por nível, o seu nível, o corte de dano e os distintivos |
 | POST | `/v1/gamepass` | jogador (Bearer) | Sobe para `{level}`, pagando a diferença em SCITY |

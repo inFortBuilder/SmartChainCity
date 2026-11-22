@@ -344,3 +344,21 @@ export const gamePass = game.table(
     check('game_pass_level_check', sql`${t.level} between 1 and 5`),
   ],
 );
+
+/**
+ * Fazenda (E3.4): um slot por conta, com o nível, as colheitas, as máquinas e os 4 canteiros (jsonb).
+ * `version` é a trava otimista das gravações.
+ */
+export const farm = game.table(
+  'farm',
+  {
+    accountId: uuid('account_id').primaryKey(),
+    level: smallint('level').notNull(),
+    harvestsAtLevel: integer('harvests_at_level').notNull(),
+    harvestsTotal: integer('harvests_total').notNull(),
+    state: jsonb('state').notNull(),
+    boughtAt: timestamptz('bought_at').notNull(),
+    version: integer('version').notNull(),
+  },
+  (t) => [check('farm_level_check', sql`${t.level} between 1 and 3`)],
+);

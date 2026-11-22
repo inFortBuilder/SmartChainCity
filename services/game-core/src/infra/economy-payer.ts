@@ -7,6 +7,7 @@ import type { Championship, ChampionshipPayer, ChampionshipResult, Member } from
 import type { VehiclePayer } from '../domain/vehicle.js';
 import type { Race, RacePayer } from '../domain/race.js';
 import type { GamePassPayer } from '../domain/events.js';
+import type { FarmPayer } from '../domain/farm.js';
 import type { Payer, Shift } from '../domain/shift.js';
 
 /**
@@ -18,7 +19,7 @@ import type { Payer, Shift } from '../domain/shift.js';
 /** Escrow do campeonato no ledger: o id de sistema só aceita letras, números e _ (AAAA-MM → championship_AAAA_MM). */
 const escrowOf = (month: string) => `championship_${month.replace('-', '_')}`;
 
-export class EconomyPayer implements Payer, MealPayer, HospitalPayer, ChampionshipPayer, VehiclePayer, RacePayer, GamePassPayer {
+export class EconomyPayer implements Payer, MealPayer, HospitalPayer, ChampionshipPayer, VehiclePayer, RacePayer, GamePassPayer, FarmPayer {
   constructor(
     private readonly baseUrl: string,
     private readonly token: string,
@@ -134,6 +135,11 @@ export class EconomyPayer implements Payer, MealPayer, HospitalPayer, Championsh
     if (error === null) return;
     if (error === 'insufficient_funds') throw new AppError('insufficient_thaler', 'THALER insuficiente.', 409);
     throw new AppError('ledger_unavailable', 'O ledger recusou a cobrança.', 502);
+  }
+
+  /** Fazenda (E3.4): slot, máquinas, sementes, aragem contratada e níveis, para a queima. */
+  async chargeFarm(input: { key: string; kind: string; accountId: string; cents: bigint }, requestId?: string) {
+    await this.chargeVehicle({ key: input.key, kind: input.kind, accountId: input.accountId, cents: input.cents, sink: 'farm', refId: input.accountId }, requestId);
   }
 
   /** GamePass (E3.10): SCITY do jogador para a queima (sink, doc 04 §8). */
