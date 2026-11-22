@@ -104,7 +104,8 @@ function public_js_config(): array
             'chainName'     => cfg('chain.chain_name'),
             'rpcUrl'        => cfg('chain.rpc_url'),
             'explorer'      => cfg('chain.explorer'),
-            'tokenAddress'  => cfg('chain.token_address'),
+            'tokenAddress'  => cfg('chain.token_address') ?: OfficialContracts::address('SCityToken'),
+            'marketplace'   => OfficialContracts::address('Marketplace'),
             'tokenSymbol'   => cfg('chain.token_symbol'),
             'tokenDecimals' => cfg('chain.token_decimals'),
         ],
@@ -116,4 +117,30 @@ function public_js_config(): array
         ],
         'links'   => ['play' => cfg('links.play')],
     ];
+}
+
+/** Wei (string decimal, 18 casas) → float para exibir. O valor exato segue em price_wei. */
+function wei_to_float(string $wei): float
+{
+    if (!ctype_digit($wei)) {
+        return 0.0;
+    }
+    $wei = ltrim($wei, '0') ?: '0';
+    $int = strlen($wei) > 18 ? substr($wei, 0, -18) : '0';
+    $frac = str_pad(substr($wei, -18), 18, '0', STR_PAD_LEFT);
+    return (float) ($int . '.' . substr($frac, 0, 6));
+}
+
+/** $a mod $m para inteiros decimais grandes (tokenId de 64 bits ou mais), sem depender de bcmath. */
+function bcmod_safe(string $a, string $m): string
+{
+    if (function_exists('bcmod')) {
+        return bcmod($a, $m);
+    }
+    $mod = (int) $m;
+    $r = 0;
+    foreach (str_split($a) as $d) {
+        $r = ($r * 10 + (int) $d) % $mod;
+    }
+    return (string) $r;
 }

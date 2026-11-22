@@ -54,6 +54,8 @@ $config = [
         'game_api_url' => rtrim((string) $env('SCC_GAME_API_URL', ''), '/'),
         // Economy (travas de incidente). Em produção, a mesma API roteada por prefixo; separada só no dev.
         'economy_api_url' => rtrim((string) $env('SCC_ECONOMY_API_URL', (string) $env('SCC_GAME_API_URL', '')), '/'),
+        // Chain-indexer: as listagens on-chain do Marketplace (E3.6). Vazio = anúncios de exemplo.
+        'indexer_url'  => rtrim((string) $env('SCC_INDEXER_URL', ''), '/'),
         'timeout_s'    => 3,
     ],
     'contact' => [

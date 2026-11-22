@@ -12,7 +12,7 @@ O visual segue o kit de marca da agência (menu de pedra, painéis de pedra, pla
 |-----|---------|----------|
 | `/` | `public/index.php` | Hero "Play Now" (logo, botões redondos Play/Conta/Depósito, painel de estatísticas), contrato + Trade Now, Roadmap, Trailer, "Viva a cidade", Equipe, Parceiros, Contato |
 | `/tutorial` | `public/tutorial.php` | "Na cidade que nunca dorme…", vídeo, Trade Now, 9 placas "Veja como comprar", PIX |
-| `/marketplace` | `public/marketplace.php` | Janela no estilo do inventário do jogo; abas Imóveis/Lotes/Avatares/Itens, busca, ordenação, modal de compra |
+| `/marketplace` | `public/marketplace.php` | Janela no estilo do inventário do jogo; abas Imóveis/Lotes/Avatares/Itens, busca, ordenação, modal de compra. Com `SCC_INDEXER_URL`, os anúncios são os do contrato `Marketplace`, lidos do chain-indexer: lote, imóvel, avatar ou combo, com vendedor, prazo e preço. A compra é feita pela carteira em duas transações: `approve` do SCITY para o mercado e `buy(listingId, maxPrice)` com o preço do anúncio como máximo. Sem o indexer, os anúncios de exemplo |
 | `/private-sale` | `public/private-sale.php` | Preço do token, mínimo/máximo, barra de hard cap, calculadora, aviso de risco |
 | `/faq` | `public/faq.php` | Perguntas frequentes em grupos (jogo, lotes, carteira e segurança, token e risco), sem promessa de rendimento. Conteúdo em `src/data/faq.php` |
 | `/contratos` | `public/contratos.php` | Endereços oficiais (token, timelock, cofre, mercado, NFTs, vesting do TGE e trava do LP), com copiar e link do BscScan. Vêm dos arquivos de deploy (`contracts/deployments/<chainId>.json`, `-tge.json`, `-lp-lock.json`); sem eles, a página diz que ainda não há contrato publicado e que qualquer "SCITY" antes disso é falso |
@@ -82,6 +82,7 @@ Todas as opções ficam em `src/config.php` e podem ser definidas por **variáve
 | `SCC_DISCORD_URL`, `SCC_INSTAGRAM_URL`, `SCC_TELEGRAM_URL`, `SCC_TWITTER_URL` | `#` | Redes sociais |
 | `SCC_SUPPORT_URL`, `SCC_AUDIT_URL` | `#contato`, vazio | Rodapé ("Relatório de auditoria" só aparece se definido) |
 | `SCC_DEPLOYMENTS_DIR` | `../contracts/deployments` | Pasta dos arquivos de deploy que a página Contratos oficiais lê. No anvil (`SCC_CHAIN_ID=31337`), o arquivo é `anvil.json` |
+| `SCC_INDEXER_URL` | vazio | Chain-indexer, para os anúncios on-chain do Marketplace. Os endereços do token e do mercado vêm de `SCC_TOKEN_ADDRESS` ou dos arquivos de deploy |
 | `SCC_ECONOMY_API_URL` | o `SCC_GAME_API_URL` | Economy, para o aviso de incidente. Em produção é a mesma API roteada por prefixo; separada só no dev |
 | `SCC_CHAIN_ID` | `97` | 97 = BSC Testnet, 56 = BSC Mainnet |
 | `SCC_CHAIN_NAME`, `SCC_RPC_URL`, `SCC_EXPLORER_URL` | testnet | Usados ao pedir para a carteira trocar/adicionar a rede |

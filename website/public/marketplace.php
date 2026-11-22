@@ -10,7 +10,8 @@ $categories = [
     'item'     => ['label' => 'Itens',    'icon' => 'cart'],
 ];
 $active = isset($_GET['c']) && isset($categories[$_GET['c']]) ? $_GET['c'] : 'all';
-$items  = GameData::listings($active);
+$market = GameData::market($active);
+$items  = $market['items'];
 
 partial('head', [
     'title'       => 'Marketplace',
@@ -51,8 +52,12 @@ partial('header');
             <?php partial('listing-card', ['it' => $it]); ?>
           <?php endforeach; ?>
         </div>
-        <p class="empty-state" data-empty hidden>Nenhum anúncio encontrado.</p>
-        <p class="panel-note">Anúncios de demonstração. A compra exige carteira conectada e acontece no contrato do Marketplace (ver docs/07).</p>
+        <p class="empty-state" data-empty<?= $items ? ' hidden' : '' ?>>Nenhum anúncio encontrado.</p>
+        <?php if ($market['source'] === 'chain'): ?>
+          <p class="panel-note">Anúncios do contrato Marketplace na blockchain. A compra é feita pela sua carteira: aprova o SCITY e compra numa transação cada.</p>
+        <?php else: ?>
+          <p class="panel-note">Anúncios de demonstração. A compra exige carteira conectada e acontece no contrato do Marketplace (ver docs/07).</p>
+        <?php endif; ?>
       </div>
     </div>
   </div>

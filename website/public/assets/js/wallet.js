@@ -118,6 +118,27 @@
     return { message, signature };
   }
 
+  /** Envia uma transação pela carteira (o usuário confirma nela). Devolve o hash. */
+  async function sendTx(tx) {
+    if (!state.address) await connect();
+    await ensureChain();
+    return provider().request({ method: 'eth_sendTransaction', params: [{ from: state.address, ...tx }] });
+  }
+
+  /** Espera a transação entrar num bloco. Reverteu: erro 'reverted'. */
+  async function waitReceipt(hash, timeoutMs = 120000) {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      const r = await provider().request({ method: 'eth_getTransactionReceipt', params: [hash] });
+      if (r) {
+        if (r.status !== '0x1') throw Object.assign(new Error('reverted'), { code: 'reverted' });
+        return r;
+      }
+      await new Promise((ok) => setTimeout(ok, 1500));
+    }
+    throw Object.assign(new Error('timeout'), { code: 'timeout' });
+  }
+
   const p = provider();
   if (p && p.on) {
     p.on('accountsChanged', (accs) => { if (!accs.length) disconnect(); else { state.address = accs[0]; emit(); } });
@@ -136,7 +157,7 @@
 
   window.SCC = Object.assign(window.SCC || {}, {
     wallet: {
-      connect, disconnect, ensureChain, bnbBalance, tokenBalance, addToken, signOwnership,
+      connect, disconnect, ensureChain, bnbBalance, tokenBalance, addToken, signOwnership, sendTx, waitReceipt,
       onChange: (fn) => { listeners.add(fn); fn({ ...state }); return () => listeners.delete(fn); },
       get state() { return { ...state }; },
       hasProvider: () => !!provider(),
