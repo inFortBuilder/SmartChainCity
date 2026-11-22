@@ -7,8 +7,10 @@ import {
   type Lot,
   type LotImport,
   type Purchase,
+  type PurchaseCap,
   RESERVATION_MS,
   type WorldStore,
+  checkCap,
   checkPurchase,
   isAvailable,
   nextOpenCount,
@@ -88,6 +90,7 @@ export class MemoryWorldStore implements WorldStore {
     accountId: string,
     now: Date,
     price: (lot: Lot, city: City) => { priceWei: bigint; priceUsd: number },
+    cap?: PurchaseCap,
   ) {
     const city = this.cities.get(code);
     const lot = this.lots.get(this.key(code, lotId));
@@ -101,6 +104,8 @@ export class MemoryWorldStore implements WorldStore {
       .filter((l) => l.district === lot.district)
       .reduce((s, l) => s + l.areaM2, 0);
     checkPurchase(lot, city, { accountId, owned, districtArea }, now);
+    // Sem await entre contar e gravar: compras juntas não passam do limite.
+    if (cap) checkCap(cap, this.count(code, accountId, cap.since));
 
     const { priceWei, priceUsd } = price(lot, city);
     const purchase: Purchase = { id: randomUUID(), city: code, lotId, accountId, priceWei, priceUsd, status: 'pending', createdAt: now };
@@ -112,6 +117,20 @@ export class MemoryWorldStore implements WorldStore {
       reservationId: purchase.id,
     });
     return { ...purchase };
+  }
+
+  async countPurchases(code: string, accountId: string, since: Date) {
+    return this.count(code, accountId, since);
+  }
+
+  private count(code: string, accountId: string, since: Date) {
+    return [...this.purchases.values()].filter(
+      (p) =>
+        p.city === code &&
+        p.accountId === accountId &&
+        p.createdAt.getTime() >= since.getTime() &&
+        (p.status === 'pending' || p.status === 'paid'),
+    ).length;
   }
 
   async transferLot(code: string, lotId: number, from: string, to: string) {

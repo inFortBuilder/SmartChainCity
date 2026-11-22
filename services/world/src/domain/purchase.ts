@@ -1,6 +1,6 @@
 import { AppError } from '@scc/shared';
 
-import { type LandPayments, type Purchase, RESERVATION_MS, type WorldStore, priceOf } from './lots.js';
+import { type LandPayments, type Purchase, type PurchaseCap, RESERVATION_MS, type WorldStore, priceOf } from './lots.js';
 
 /**
  * Compra de lote em três passos, sem nunca cobrar sem entregar:
@@ -37,14 +37,14 @@ export async function settlePurchase(
 export async function buyLot(
   store: WorldStore,
   payments: LandPayments,
-  input: { city: string; lotId: number; accountId: string; scityUsd: number; requestId?: string },
+  input: { city: string; lotId: number; accountId: string; scityUsd: number; requestId?: string; cap?: PurchaseCap },
   now: () => Date,
 ) {
   const purchase = await store.reserve(input.city, input.lotId, input.accountId, now(), (lot, city) => {
     const zone = city.zones.find((z) => z.key === lot.zone);
     if (!zone) throw new AppError('invalid_zone', 'Zona do lote não existe.', 500);
     return priceOf(lot.areaM2, zone, input.scityUsd);
-  });
+  }, input.cap);
   if (purchase.status === 'paid') return purchase;
   return settlePurchase(store, payments, purchase, now(), input.requestId);
 }

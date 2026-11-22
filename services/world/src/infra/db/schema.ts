@@ -1,5 +1,7 @@
 import { sql } from 'drizzle-orm';
 import {
+  bigserial,
+  boolean,
   check,
   doublePrecision,
   index,
@@ -309,5 +311,47 @@ export const placeGuest = world.table(
     primaryKey({ columns: [t.kind, t.placeId, t.guestAccountId] }),
     index('place_guest_guest_idx').on(t.guestAccountId),
     check('place_guest_kind_check', sql`${t.kind} in ('property', 'building')`),
+  ],
+);
+
+/**
+ * Venda de lançamento (E4.3): a configuração da abertura de uma cidade, com fila e limite por carteira.
+ * Sem linha, a cidade vende sem fila.
+ */
+export const sale = world.table(
+  'sale',
+  {
+    city: text('city')
+      .primaryKey()
+      .references(() => city.code),
+    opensAt: timestamptz('opens_at').notNull(),
+    endsAt: timestamptz('ends_at').notNull(),
+    preQueueSeconds: integer('pre_queue_seconds').notNull(),
+    batchSize: integer('batch_size').notNull(),
+    batchSeconds: integer('batch_seconds').notNull(),
+    windowSeconds: integer('window_seconds').notNull(),
+    maxLots: integer('max_lots').notNull(),
+    requireWallet: boolean('require_wallet').notNull(),
+  },
+  (t) => [check('sale_window_check', sql`${t.endsAt} > ${t.opensAt} and ${t.batchSize} > 0 and ${t.maxLots} > 0`)],
+);
+
+/**
+ * Fichas da fila do lançamento. A posição é calculada: quem entrou antes da abertura (`pre_open`) fica na
+ * ordem do sorteio (`lottery`), e depois vêm os outros pela ordem de chegada (`id`).
+ */
+export const saleTicket = world.table(
+  'sale_ticket',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    city: text('city').notNull(),
+    accountId: uuid('account_id').notNull(),
+    joinedAt: timestamptz('joined_at').notNull(),
+    preOpen: boolean('pre_open').notNull(),
+    lottery: doublePrecision('lottery').notNull(),
+  },
+  (t) => [
+    index('sale_ticket_account_idx').on(t.city, t.accountId, t.id),
+    index('sale_ticket_rank_idx').on(t.city, t.preOpen, t.lottery),
   ],
 );

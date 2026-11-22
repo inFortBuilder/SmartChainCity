@@ -1613,6 +1613,7 @@ export function createServidor(map) {
             ${enough ? '' : '<p class="muted pequeno">SCITY insuficiente: use “+1.000 SCITY de teste” no painel.</p>'}`;
         }
         box.innerHTML = html;
+        if (box.querySelector('[data-buy]')) showLaunch(i, box);
         if (lot.mine) showBuild(i, lot, box);
         if (lot.status === 'sold') showVisit(i, box);
       })
@@ -1659,6 +1660,62 @@ export function createServidor(map) {
       map.showLot(i);
     });
     return true;
+  }
+
+  /**
+   * Venda de lançamento (E4.3): com a cidade abrindo, a compra passa pela fila. Mostra a fase, a posição
+   * (sorteada para quem entrou antes da abertura), a vez e o limite por carteira; o botão Comprar só vale na vez.
+   */
+  let launchTimer = null;
+  async function showLaunch(i, box) {
+    const v = await call(API.world, `/v1/world/cities/${CITY}/sale`, { token: session.token }).catch(() => null);
+    const s = v?.sale;
+    if (!s || s.phase === 'ended' || !box.isConnected) return;
+    const t = v.me?.ticket ?? null;
+    const myTurn = s.phase === 'launch' && t?.state === 'admitted';
+    const full = v.me ? v.me.bought >= s.max_lots : false;
+    const buy = box.querySelector('[data-buy]');
+    if (buy && (!myTurn || full)) buy.disabled = true;
+    const sec = document.createElement('div');
+    sec.className = 'srv-fila';
+    let html = '<h3>🎟️ Venda de lançamento</h3>';
+    if (s.phase === 'soon') {
+      html += `<p class="muted pequeno">A fila abre em ${left(s.queue_opens_at)}, e a venda, em ${left(s.opens_at)}.</p>`;
+    } else if (full) {
+      html += '<p><span class="tag">Limite atingido</span> Você já comprou o máximo do lançamento. Depois dele, a venda fica livre.</p>';
+    } else if (!t || t.state === 'expired') {
+      html += `<p class="muted pequeno">${t ? 'Sua vez passou. ' : ''}Para comprar, entre na fila${
+        s.phase === 'queue' ? '. Quem entra antes da abertura tem a posição sorteada, sem vantagem para quem chega primeiro.' : '.'
+      }</p><button class="btn btn--blue" type="button" data-fila>Entrar na fila</button>`;
+    } else if (t.state === 'waiting') {
+      html += `<p>Posição <strong>${t.position}</strong>${t.provisional ? ' (provisória: o sorteio fecha na abertura)' : ''}. Sua vez em ${left(t.admit_at)}.</p>`;
+    } else {
+      html += `<p><span class="tag tag--srv">Sua vez</span> Você tem ${left(t.expires_at)} para comprar.</p>`;
+    }
+    html += `<p class="muted pequeno">Até ${s.max_lots} lote${s.max_lots > 1 ? 's' : ''} por carteira no lançamento${
+      v.me ? ` · você comprou ${v.me.bought}` : ''
+    }. Entram ${s.batch_size} a cada ${s.batch_seconds} s.</p>`;
+    sec.innerHTML = html;
+    (buy?.parentElement === box ? buy : box.lastElementChild)?.after(sec);
+    sec.addEventListener('click', async (e) => {
+      const b = e.target.closest('[data-fila]');
+      if (!b) return;
+      e.stopPropagation();
+      b.disabled = true;
+      b.textContent = 'Entrando…';
+      try {
+        await call(API.world, `/v1/world/cities/${CITY}/sale/queue`, { method: 'POST', token: session.token });
+      } catch (error) {
+        message = error.message;
+        messageOk = false;
+      }
+      map.showLot(i);
+    });
+    // Esperando a vez (ou a abertura): reabre a ficha na hora certa, sem o jogador recarregar.
+    clearTimeout(launchTimer);
+    const next = s.phase === 'soon' ? s.queue_opens_at : t?.state === 'waiting' ? t.admit_at : myTurn ? t.expires_at : null;
+    const wait = next ? new Date(next).getTime() - Date.now() + 500 : 0;
+    if (wait > 0 && wait < 30 * 60_000) launchTimer = setTimeout(() => box.isConnected && map.showLot(i), wait);
   }
 
   /** Ficha do lote próprio: o imóvel que está nele ou, vazio, o que dá para construir na zona. */

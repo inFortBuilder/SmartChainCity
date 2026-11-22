@@ -104,6 +104,7 @@ Após comprar o imóvel, o lote deve ser **regularizado** na Prefeitura (residen
 - O mapa nasce com **A1 + parte de A2** (proposto: A1 + 4 regiões = 14.580 lotes).
 - Novas regiões são liberadas **em lote**, em datas anunciadas, conforme ocupação (gatilho proposto: > 70% dos lotes vendidos no anel atual).
 - Cada expansão é um evento de marketing e um *sink* de SCITY (venda primária).
+- **Lançamento com fila e limite por carteira (E4.3, 2026-11-22):** a abertura passa por uma sala de espera. Quem chega antes tem a posição sorteada, as entradas vão em lotes por minuto e cada carteira compra até N lotes até o fim do lançamento ([world](../services/world/README.md#venda-de-lançamento-fila-e-limite-por-carteira-e43)).
 
 ---
 

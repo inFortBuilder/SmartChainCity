@@ -19,7 +19,9 @@ import { tickAuctions } from './domain/auctions.js';
 import { syncChain } from './domain/chain-sync.js';
 import { GatewayWalletOwners, IndexerChainFeed } from './infra/chain-feed.js';
 import { PostgresGuestStore } from './infra/db/postgres-guest-store.js';
+import { PostgresSaleStore } from './infra/db/postgres-sale-store.js';
 import { MemoryGuestStore } from './infra/memory-guest-store.js';
+import { MemorySaleStore } from './infra/memory-sale-store.js';
 import { PostgresChainSyncStore } from './infra/db/postgres-chain-sync-store.js';
 import { MemoryChainSyncStore } from './infra/memory-chain-sync-store.js';
 import { PostgresPropertyStore } from './infra/db/postgres-property-store.js';
@@ -158,6 +160,7 @@ const app = await buildApp(
     store: guestStore,
     owners: config.GATEWAY_URL && config.GATEWAY_TOKEN ? new GatewayWalletOwners(config.GATEWAY_URL, config.GATEWAY_TOKEN) : null,
   },
+  pool ? new PostgresSaleStore(pool) : new MemorySaleStore(),
 );
 const priceTimer = price ? setInterval(() => void price.refresh(), 60_000) : null;
 priceTimer?.unref();
