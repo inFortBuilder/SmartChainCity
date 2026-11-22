@@ -1,0 +1,2 @@
+ALTER TABLE "game"."game_pass" DROP CONSTRAINT "game_pass_level_check";--> statement-breakpoint
+ALTER TABLE "game"."game_pass" ADD CONSTRAINT "game_pass_level_check" CHECK ("game"."game_pass"."level" between 1 and 10);

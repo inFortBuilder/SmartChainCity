@@ -134,6 +134,13 @@
       "when": 1795372579349,
       "tag": "0018_pet_sitter",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1795373653671,
+      "tag": "0019_gamepass_nivel_10",
+      "breakpoints": true
     }
   ]
 }
