@@ -162,3 +162,28 @@ jobs:
         run: forge build --sizes
       - if: steps.fp.outputs.present == 'true'
         run: forge test -vvv
+      # Cobertura (doc 07 §5): os contratos da auditoria com pelo menos 95% das linhas.
+      - name: Cobertura dos contratos da auditoria
+        if: steps.fp.outputs.present == 'true'
+        env:
+          FOUNDRY_INVARIANT_RUNS: '16'
+        run: |
+          forge coverage --report summary --no-match-coverage "(script|test|lib|dev)" | tee coverage.txt
+          node scripts/coverage-gate.mjs coverage.txt 95 src/GameVault.sol src/Marketplace.sol src/LuckyBox.sol
+
+  # Análise estática (doc 07 §5: "Slither no CI"). Falha com achado de severidade alta.
+  slither:
+    needs: changes
+    if: needs.changes.outputs.contracts == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@v1
+      - uses: crytic/slither-action@v0.4.1
+        with:
+          target: contracts
+          slither-config: contracts/slither.config.json
+          fail-on: high
+          slither-args: --exclude-dependencies
