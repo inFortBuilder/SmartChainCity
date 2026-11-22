@@ -68,8 +68,10 @@ export interface Snapshot {
   pet?: number;
   /** Fator do evento semanal da profissão (E3.10, doc 04 §4); ausente nos turnos de antes: 1. */
   event?: number;
-  /** Corte na chance de dano pelo GamePass (0 a 0,5); ausente: 0. */
+  /** Corte na chance de dano pelo GamePass (níveis e itens, até 0,6); ausente: 0. */
   damageCut?: number;
+  /** Multiplicador dos itens sazonais do GamePass (1 a 1,15); ausente nos turnos de antes: 1. */
+  items?: number;
 }
 
 export interface ShiftResult {
@@ -77,7 +79,17 @@ export interface ShiftResult {
   /** Valor do turno em centavos de THALER. */
   thalerCents: bigint;
   /** Fatores usados, para a tela e para auditoria. */
-  factors: { base: number; hours: number; health: number; happiness: number; expPet: number; damage: number; illness: number; event?: number };
+  factors: {
+    base: number;
+    hours: number;
+    health: number;
+    happiness: number;
+    expPet: number;
+    damage: number;
+    illness: number;
+    event?: number;
+    items?: number;
+  };
 }
 
 export type ShiftStatus = 'running' | 'done' | 'claimed';
@@ -119,6 +131,8 @@ export function startShift(
     seed?: string;
     /** Corte na chance de dano pelo GamePass da conta (E3.10). */
     damageCut?: number;
+    /** Bônus de ganho dos itens sazonais do GamePass (0 a 0,15). */
+    earnBonus?: number;
   },
   now: Date,
 ): { shift: Shift; avatar: Avatar } {
@@ -162,6 +176,8 @@ export function startShift(
       // Evento da semana em que o turno começa (E3.10).
       event: eventFactor(avatar.jobCode, now),
       damageCut: input.damageCut ?? 0,
+      // Itens sazonais da temporada em que o turno começa.
+      items: 1 + (input.earnBonus ?? 0),
       earnsReward: status(avatar, now).earnsReward,
       base: baseOf(avatar.jobCode),
       illness: yieldFactor(avatar.conditions, now),
@@ -197,11 +213,12 @@ export function settle(shift: Pick<Shift, 'id' | 'hours' | 'seed' | 'snapshot'>)
   // GDD: 48 h sem comer não gera recompensa.
   const illness = s.illness ?? 1;
   const event = s.event ?? 1;
-  const thaler = s.earnsReward ? s.base * dayShare * health * happiness * expPet * damage * illness * event : 0;
+  const items = s.items ?? 1;
+  const thaler = s.earnsReward ? s.base * dayShare * health * happiness * expPet * damage * illness * event * items : 0;
   return {
     damaged,
     thalerCents: BigInt(Math.round(thaler * 100)),
-    factors: { base: s.base, hours: shift.hours, health, happiness, expPet, damage, illness, event },
+    factors: { base: s.base, hours: shift.hours, health, happiness, expPet, damage, illness, event, items },
   };
 }
 

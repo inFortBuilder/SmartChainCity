@@ -1,0 +1,23 @@
+{
+  "kind": "collectionType",
+  "collectionName": "seasons",
+  "info": {
+    "singularName": "season",
+    "pluralName": "seasons",
+    "displayName": "Temporada",
+    "description": "Temporadas do GamePass (GDD §8): datas, preço por nível em SCITY, corte de dano por nível e os itens sazonais de cada nível, com efeito. O game-core lê as publicadas."
+  },
+  "options": { "draftAndPublish": true },
+  "pluginOptions": {},
+  "attributes": {
+    "code": { "type": "uid", "required": true },
+    "label": { "type": "string", "required": true },
+    "startsAt": { "type": "datetime", "required": true },
+    "endsAt": { "type": "datetime", "required": true },
+    "maxLevel": { "type": "integer", "required": true, "default": 5, "min": 1, "max": 10 },
+    "levelPriceScity": { "type": "integer", "required": true, "default": 5, "min": 1 },
+    "damageCutPerLevel": { "type": "decimal", "required": true, "default": 0.1, "min": 0, "max": 0.1 },
+    "items": { "type": "component", "repeatable": true, "component": "game.season-item" },
+    "conferir": { "type": "json" }
+  }
+}

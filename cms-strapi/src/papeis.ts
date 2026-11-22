@@ -22,6 +22,8 @@ export const TEXT_FIELDS: Record<string, string[]> = {
   'api::rarity.rarity': ['label'],
   'api::attribute-multiplier.attribute-multiplier': [],
   'api::property-type.property-type': ['label', 'description'],
+  'api::event-group.event-group': ['label'],
+  'api::season.season': ['label', 'items.label'],
 };
 
 export const CATALOG_TYPES = Object.keys(TEXT_FIELDS);

@@ -1,0 +1,16 @@
+{
+  "collectionName": "components_game_season_items",
+  "info": {
+    "displayName": "Item da temporada",
+    "description": "Item que o GamePass libera no nível. Vale só durante a temporada: earn soma ao ganho do turno, damage corta mais a chance de dano, cosmetic só aparece.",
+    "icon": "gift"
+  },
+  "options": {},
+  "attributes": {
+    "level": { "type": "integer", "required": true, "min": 1, "max": 10 },
+    "code": { "type": "string", "required": true },
+    "label": { "type": "string", "required": true },
+    "effect": { "type": "enumeration", "enum": ["cosmetic", "earn", "damage"], "required": true, "default": "cosmetic" },
+    "value": { "type": "decimal", "required": true, "default": 0, "min": 0, "max": 0.15 }
+  }
+}

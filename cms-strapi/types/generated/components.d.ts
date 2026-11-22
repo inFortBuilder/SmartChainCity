@@ -64,11 +64,47 @@ export interface GamePropertyLevel extends Struct.ComponentSchema {
   };
 }
 
+export interface GameSeasonItem extends Struct.ComponentSchema {
+  collectionName: 'components_game_season_items';
+  info: {
+    description: 'Item que o GamePass libera no n\u00EDvel. Vale s\u00F3 durante a temporada: earn soma ao ganho do turno, damage corta mais a chance de dano, cosmetic s\u00F3 aparece.';
+    displayName: 'Item da temporada';
+    icon: 'gift';
+  };
+  attributes: {
+    code: Schema.Attribute.String & Schema.Attribute.Required;
+    effect: Schema.Attribute.Enumeration<['cosmetic', 'earn', 'damage']> &
+      Schema.Attribute.Required &
+      Schema.Attribute.DefaultTo<'cosmetic'>;
+    label: Schema.Attribute.String & Schema.Attribute.Required;
+    level: Schema.Attribute.Integer &
+      Schema.Attribute.Required &
+      Schema.Attribute.SetMinMax<
+        {
+          max: 10;
+          min: 1;
+        },
+        number
+      >;
+    value: Schema.Attribute.Decimal &
+      Schema.Attribute.Required &
+      Schema.Attribute.SetMinMax<
+        {
+          max: 0.15;
+          min: 0;
+        },
+        number
+      > &
+      Schema.Attribute.DefaultTo<0>;
+  };
+}
+
 declare module '@strapi/strapi' {
   export namespace Public {
     export interface ComponentSchemas {
       'game.job-task': GameJobTask;
       'game.property-level': GamePropertyLevel;
+      'game.season-item': GameSeasonItem;
     }
   }
 }

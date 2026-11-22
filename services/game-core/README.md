@@ -201,14 +201,16 @@ Galinhas, porcos e gado ([livestock.ts](src/domain/livestock.ts), GDD §6 "Pecu�
 
 ## Eventos semanais e GamePass (E3.10)
 
-Eventos por profissão e o GamePass da temporada ([events.ts](src/domain/events.ts), GDD §8, doc 04 §4 e §8).
+Eventos por profissão e o GamePass da temporada ([events.ts](src/domain/events.ts), GDD §8, doc 04 §4 e §8). Os grupos de evento e as temporadas, com os itens, vêm do **Strapi** (tipos `event-group` e `season`). O seed fica em [`cms-strapi/seed/eventos.json`](../../cms-strapi/seed/eventos.json) e [`temporadas.json`](../../cms-strapi/seed/temporadas.json) e vale até o Strapi responder, e se ele cair.
 
 | Regra | Como |
 |---|---|
 | Evento da semana | Toda semana ISO (segunda a domingo, UTC) um grupo de profissões ganha ×1,2 no turno (`fator_evento_semanal` do doc 04 §4). Os grupos se revezam: Comida, Saúde, Lazer (do GDD §8) e Cidade (as 18 profissões que o GDD não pôs em nenhum grupo, **premissa**). O nome gira na lista do grupo. O fator vale para o turno que começa na semana e fica no retrato do turno (`snapshot.event`). `GET /v1/events` dá o evento de agora e os 3 próximos |
-| GamePass | Temporada 1: 12 semanas a partir de 16/11/2026. Níveis 1 a 5 pagos em SCITY (sink `burn/gamepass`, doc 04 §8). Subir paga só a diferença, com uma chave por nível. Cada nível corta 10% da chance de dano no turno (`snapshot.damageCut`; o nível 5 corta pela metade) e libera um distintivo da temporada |
+| GamePass | Temporada 1: 12 semanas a partir de 16/11/2026. Níveis 1 a 5 pagos em SCITY (sink `burn/gamepass`, doc 04 §8). Subir paga só a diferença, com uma chave por nível. Cada nível corta 10% da chance de dano no turno (`snapshot.damageCut`) e libera um item da temporada |
+| Itens sazonais | Cada item tem um efeito que vale **só durante a temporada**. `earn` soma ao ganho do turno (`snapshot.items`, multiplicador): na temporada 1, boné +2%, camiseta +3% e placa +5%. `damage` corta mais a chance de dano: o troféu corta 5%. `cosmetic` só aparece (o adesivo). Tetos: +15% de ganho e 60% de corte de dano. No nível 5 da temporada 1: −55% de dano e +10% de ganho. `GET /v1/gamepass` traz `earn_bonus`, `damage_cut` e os itens com `effect`, `value` e `unlocked` |
+| Strapi | Publicar um `event-group` ou uma `season` dispara o webhook, e o game-core recarrega sem deploy (`/internal/v1/catalog/refresh`, modelos `event-group` e `season`). Dado quebrado não entra, e o jogo segue com o anterior. Os casos: profissão desconhecida ou em dois grupos, ordem repetida, fator fora de 1 a 2, temporadas sobrepostas, item fora dos níveis, efeitos acima dos tetos, ou a temporada aberta sumir ou mudar de datas (quem pagou perderia o nível). Preço e itens da temporada aberta podem mudar. `origin` (`seed` ou `cms`) aparece em `/v1/events` e `/v1/gamepass` |
 
-**Premissas:** o grupo Cidade, o fator de 1,2, a ordem dos grupos, 5 SCITY por nível, o corte de 10% por nível e a duração da temporada. Os itens com efeito e os eventos sazonais (Natal, Carnaval) ficam para quando houver loja de itens; eventos e temporadas passam para o Strapi quando ele publicar o tipo `event`. Depois de atualizar o código, rode `pnpm db:migrate`: a migração `0016_gamepass` cria `game_pass`.
+**Premissas (no seed, editáveis no Strapi):** o grupo Cidade, o fator de 1,2, a ordem dos grupos, 5 SCITY por nível, o corte de 10% por nível, os efeitos dos itens e a duração da temporada. Os eventos de data marcada (Natal, Carnaval) e a loja de itens ficam para depois. Depois de atualizar o código, rode `pnpm db:migrate`: a migração `0016_gamepass` cria `game_pass`.
 
 ## Corridas e oficina (E3.5)
 

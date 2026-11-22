@@ -65,3 +65,33 @@ test('imóveis: códigos únicos, níveis 1–3 em ordem e upgrade de um tipo qu
     if (p.upgradesFrom) assert.ok(codes.has(p.upgradesFrom), `${p.code} sobe de ${p.upgradesFrom}, que não existe`);
   }
 });
+
+test('grupos de evento: ordem e códigos únicos, e cada profissão em exatamente um grupo', () => {
+  const groups = read('eventos.json').grupos;
+  unique(groups, (g) => g.code, 'grupo');
+  unique(groups, (g) => g.order, 'ordem');
+  const jobs = groups.flatMap((g) => g.jobs);
+  unique(jobs, (j) => j, 'profissão em mais de um grupo');
+  assert.deepEqual([...jobs].sort(), read('profissoes.json').profissoes.map((p) => p.code).sort());
+  for (const g of groups) {
+    assert.ok(g.factor >= 1 && g.factor <= 2, `${g.code}: fator`);
+    assert.ok(g.events.length > 0, `${g.code}: sem nomes de evento`);
+  }
+});
+
+test('temporadas: sem sobreposição, itens dentro dos níveis e efeitos dentro dos tetos', () => {
+  const seasons = read('temporadas.json').temporadas.toSorted((a, b) => a.startsAt.localeCompare(b.startsAt));
+  unique(seasons, (s) => s.code, 'temporada');
+  seasons.forEach((s, i) => {
+    assert.ok(new Date(s.endsAt) > new Date(s.startsAt), `${s.code}: datas`);
+    if (i > 0) assert.ok(new Date(s.startsAt) >= new Date(seasons[i - 1].endsAt), `${s.code} sobrepõe a anterior`);
+    unique(s.items, (it) => it.code, `item de ${s.code}`);
+    for (const it of s.items) {
+      assert.ok(it.level >= 1 && it.level <= s.maxLevel, `${it.code}: nível`);
+      assert.ok(['cosmetic', 'earn', 'damage'].includes(it.effect), `${it.code}: efeito`);
+    }
+    const sum = (e) => s.items.filter((it) => it.effect === e).reduce((acc, it) => acc + it.value, 0);
+    assert.ok(sum('earn') <= 0.15 + 1e-9, `${s.code}: ganho acima de 15%`);
+    assert.ok(s.maxLevel * s.damageCutPerLevel + sum('damage') <= 0.6 + 1e-9, `${s.code}: corte acima de 60%`);
+  });
+});

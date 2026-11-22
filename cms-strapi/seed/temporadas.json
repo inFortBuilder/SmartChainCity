@@ -1,0 +1,67 @@
+{
+  "fonte": "GDD §8 (GamePass sazonal, níveis 1 a 5) e doc 04 §8",
+  "gerado_por": "à mão (E3.10); valores são premissas a calibrar no simulador",
+  "regras": [
+    "Uma temporada por vez: as datas não se sobrepõem",
+    "O GamePass sobe de nível pagando SCITY (queima); subir paga só a diferença",
+    "Cada nível corta damageCutPerLevel da chance de dano no turno",
+    "Os itens valem só durante a temporada: earn soma ao ganho do turno, damage corta mais a chance de dano, cosmetic só aparece",
+    "Tetos: earn somado até 15%; corte de dano total (níveis + itens) até 60%"
+  ],
+  "unidades": {
+    "levelPriceScity": "SCITY por nível",
+    "damageCutPerLevel": "fração da chance de dano cortada por nível (0 a 0,1)",
+    "items.value": "earn: fração somada ao ganho (0,02 = +2%); damage: fração a mais de corte; cosmetic: 0"
+  },
+  "temporadas": [
+    {
+      "code": "s1",
+      "label": "Temporada 1",
+      "startsAt": "2026-11-16T00:00:00.000Z",
+      "endsAt": "2027-02-08T00:00:00.000Z",
+      "maxLevel": 5,
+      "levelPriceScity": 5,
+      "damageCutPerLevel": 0.1,
+      "items": [
+        {
+          "level": 1,
+          "code": "adesivo-t1",
+          "label": "Adesivo da Temporada 1",
+          "effect": "cosmetic",
+          "value": 0
+        },
+        {
+          "level": 2,
+          "code": "bone-t1",
+          "label": "Boné da Temporada 1",
+          "effect": "earn",
+          "value": 0.02
+        },
+        {
+          "level": 3,
+          "code": "camiseta-t1",
+          "label": "Camiseta da Temporada 1",
+          "effect": "earn",
+          "value": 0.03
+        },
+        {
+          "level": 4,
+          "code": "trofeu-t1",
+          "label": "Troféu da Temporada 1",
+          "effect": "damage",
+          "value": 0.05
+        },
+        {
+          "level": 5,
+          "code": "placa-t1",
+          "label": "Placa dourada da Temporada 1",
+          "effect": "earn",
+          "value": 0.05
+        }
+      ],
+      "conferir": [
+        "Efeitos dos itens são premissa (E3.10): +10% de ganho e +5% de corte de dano no nível 5, a calibrar no simulador"
+      ]
+    }
+  ]
+}

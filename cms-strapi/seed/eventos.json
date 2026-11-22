@@ -1,0 +1,118 @@
+{
+  "fonte": "GDD §8 (grupos Comida, Saúde e Lazer e os nomes dos eventos) e doc 04 §4 (fator_evento_semanal)",
+  "gerado_por": "à mão, a partir de services/game-core/src/domain/events.ts (E3.10)",
+  "regras": [
+    "A semana é a ISO (segunda a domingo, UTC), contada a partir de 16/11/2026",
+    "Os grupos se revezam pela ordem (order), um por semana; o nome do evento gira na lista do grupo",
+    "O fator vale no turno que começa na semana do evento, para as profissões do grupo",
+    "Cada profissão está em um grupo só"
+  ],
+  "unidades": {
+    "factor": "multiplicador do ganho do turno (1,0 a 2,0)"
+  },
+  "grupos": [
+    {
+      "code": "comida",
+      "label": "Comida",
+      "order": 0,
+      "factor": 1.2,
+      "jobs": [
+        "padeiro",
+        "agricultor",
+        "confeiteiro",
+        "pescador",
+        "recepcionista",
+        "garcom",
+        "cozinheiro",
+        "fazendeiro",
+        "chef",
+        "agronomo"
+      ],
+      "events": [
+        "Evento gastronômico",
+        "Agroweek",
+        "Feira orgânica",
+        "Fim do defeso"
+      ]
+    },
+    {
+      "code": "saude",
+      "label": "Saúde",
+      "order": 1,
+      "factor": 1.2,
+      "jobs": [
+        "enfermeira",
+        "bombeiro",
+        "farmaceutico",
+        "dentista",
+        "medico",
+        "veterinario"
+      ],
+      "events": [
+        "Semana da Saúde",
+        "Congresso de Saúde",
+        "Dia do Médico",
+        "Olimpíadas"
+      ]
+    },
+    {
+      "code": "lazer",
+      "label": "Lazer",
+      "order": 2,
+      "factor": 1.2,
+      "jobs": [
+        "alfaiate",
+        "professor",
+        "modelista",
+        "orientador_escolar",
+        "arquiteto",
+        "designer_acessorios",
+        "hoteleiro",
+        "concierge",
+        "estilista",
+        "astronauta"
+      ],
+      "events": [
+        "Fashion week",
+        "Competição de arte",
+        "Feira literária",
+        "Voo para outro planeta"
+      ]
+    },
+    {
+      "code": "cidade",
+      "label": "Cidade",
+      "order": 3,
+      "factor": 1.2,
+      "jobs": [
+        "pedreiro",
+        "motorista",
+        "tosador",
+        "corretor_imoveis",
+        "construtor",
+        "policial",
+        "mecanico",
+        "pet_sitter",
+        "consultor_imoveis",
+        "coordenador_escolar",
+        "perito",
+        "piloto",
+        "adestrador",
+        "administrador_condominio",
+        "incorporador",
+        "engenheiro_civil",
+        "diretor",
+        "delegado"
+      ],
+      "events": [
+        "Semana da Construção",
+        "Salão do Imóvel",
+        "Semana da Segurança",
+        "Feira de Serviços"
+      ],
+      "conferir": [
+        "Premissa: o GDD não pôs estas profissões em nenhum grupo; sem ele, elas nunca teriam evento"
+      ]
+    }
+  ]
+}

@@ -709,8 +709,17 @@ export function createServidor(map) {
       const lvl = pass.level;
       const off = busy ? 'disabled' : '';
       const price = (target) => scity((BigInt(target) * BigInt(pass.level_price_wei) - BigInt(lvl) * BigInt(pass.level_price_wei)).toString());
-      const items = pass.items.filter((i) => i.unlocked).map((i) => esc(i.label));
-      html += `<p class="muted pequeno">🎟️ GamePass ${esc(pass.season.label)} (até ${new Date(pass.season.ends_at).toLocaleDateString('pt-BR')}): nível ${lvl}/${pass.max_level}${lvl ? ` · dano no turno −${Math.round(pass.damage_cut * 100)}%` : ''}.${items.length ? ` Distintivos: ${items.join(', ')}.` : ''}</p>`;
+      // Itens sazonais: valem só nesta temporada. O efeito aparece ao lado; o bloqueado mostra o nível.
+      const effect = (i) => (i.effect === 'earn' ? ` +${Math.round(i.value * 100)}% no ganho` : i.effect === 'damage' ? ` −${Math.round(i.value * 100)}% de dano` : '');
+      const items = pass.items
+        .map((i) => (i.unlocked ? `<strong>${esc(i.label)}</strong>${effect(i)}` : `<span class="muted">${esc(i.label)}${effect(i)} (nível ${i.level})</span>`))
+        .join(' · ');
+      const perks = [
+        pass.damage_cut ? `dano no turno −${Math.round(pass.damage_cut * 100)}%` : '',
+        pass.earn_bonus ? `ganho +${Math.round(pass.earn_bonus * 100)}%` : '',
+      ].filter(Boolean);
+      html += `<p class="muted pequeno">🎟️ GamePass ${esc(pass.season.label)} (até ${new Date(pass.season.ends_at).toLocaleDateString('pt-BR')}): nível ${lvl}/${pass.max_level}${perks.length ? ` · ${perks.join(' · ')}` : ''}.</p>
+        ${items ? `<p class="pequeno">Itens da temporada: ${items}.</p>` : ''}`;
       if (lvl < pass.max_level) {
         html += `<div class="linha">${[lvl + 1, pass.max_level]
           .filter((v, i, arr) => arr.indexOf(v) === i)
@@ -1411,7 +1420,7 @@ export function createServidor(map) {
       const level = Number(b.dataset.l);
       return act(async () => {
         const r = await call(API.game, '/v1/gamepass', { method: 'POST', token: session.token, body: { level } });
-        message = `GamePass nível ${r.level}: −${scity(r.wei)} SCITY. Dano no turno −${Math.round(r.damage_cut * 100)}%.`;
+        message = `GamePass nível ${r.level}: −${scity(r.wei)} SCITY. Dano no turno −${Math.round(r.damage_cut * 100)}%${r.earn_bonus ? `, ganho +${Math.round(r.earn_bonus * 100)}%` : ''}.`;
         messageOk = true;
       });
     }

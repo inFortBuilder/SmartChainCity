@@ -118,19 +118,19 @@ import {
   slaughter,
 } from './domain/livestock.js';
 import {
-  EVENT_FACTOR,
   type GamePassPayer,
   type GamePassStore,
-  PASS_DAMAGE_CUT_PER_LEVEL,
-  PASS_ITEMS,
-  PASS_LEVEL_WEI,
-  PASS_MAX_LEVEL,
   checkPassUpgrade,
-  damageCut,
   eventAt,
   eventDto,
   eventOfWeek,
+  eventsOrigin,
+  itemDto,
   passKey,
+  passPriceWei,
+  perks,
+  replaceEventGroups,
+  replaceSeasons,
   seasonAt,
   weekOf,
 } from './domain/events.js';
@@ -177,7 +177,7 @@ import {
   planPack,
   unitPriceCents,
 } from './domain/meal.js';
-import { fetchCmsFoods, fetchCmsProfessions } from './infra/cms-catalog.js';
+import { fetchCmsEventGroups, fetchCmsFoods, fetchCmsProfessions, fetchCmsSeasons } from './infra/cms-catalog.js';
 import { type Payer, type Shift, type ShiftStore, startShift } from './domain/shift.js';
 import { chargeStay } from './jobs/hospital.js';
 import { completeShifts } from './jobs/shift.js';
@@ -447,13 +447,16 @@ export async function buildApp(
     // GamePass da temporada: corta a chance de dano do turno (E3.10).
     const season = seasonAt(now());
     const passLevel = passes && season ? await passes.store.level(accountId, season.code) : 0;
+    // Níveis e itens sazonais da temporada: corte de dano e bônus de ganho.
+    const perk = perks(season, passLevel);
     const started = await store.beginShift(id, accountId, now(), (avatar, context) =>
       startShift(
         avatar,
         {
           id: randomUUID(),
           hours: shift,
-          damageCut: damageCut(passLevel),
+          damageCut: perk.damageCut,
+          earnBonus: perk.earnBonus,
           ...context,
           durationMs: config.DEV_SHIFT_MINUTES ? config.DEV_SHIFT_MINUTES * 60_000 : undefined,
         },
@@ -1067,9 +1070,11 @@ export async function buildApp(
   // O evento da semana e os próximos 3: o calendário é público.
   app.get('/v1/events', async () => {
     const week = weekOf(now());
+    const current = eventAt(now());
     return {
-      factor: EVENT_FACTOR,
-      current: eventDto(eventAt(now())),
+      factor: current.factor,
+      origin: eventsOrigin().groups,
+      current: eventDto(current),
       next: [1, 2, 3].map((n) => eventDto(eventOfWeek(week + n))),
     };
   });
@@ -1083,14 +1088,17 @@ export async function buildApp(
     const accountId = request.headers.authorization ? await player(request) : null;
     const season = seasonAt(now());
     const level = season && accountId && passes ? await passes.store.level(accountId, season.code) : 0;
+    const perk = perks(season, level);
     return {
+      origin: eventsOrigin().seasons,
       season: season ? { code: season.code, label: season.label, starts_at: season.startsAt.toISOString(), ends_at: season.endsAt.toISOString() } : null,
-      max_level: PASS_MAX_LEVEL,
-      level_price_wei: PASS_LEVEL_WEI.toString(),
-      damage_cut_per_level: PASS_DAMAGE_CUT_PER_LEVEL,
+      max_level: season?.maxLevel ?? 0,
+      level_price_wei: season ? passPriceWei(season, 1).toString() : '0',
+      damage_cut_per_level: season?.damageCutPerLevel ?? 0,
       level,
-      damage_cut: damageCut(level),
-      items: PASS_ITEMS.map((i) => ({ ...i, unlocked: i.level <= level })),
+      damage_cut: perk.damageCut,
+      earn_bonus: perk.earnBonus,
+      items: (season?.items ?? []).map((i) => itemDto(i, level)),
     };
   });
 
@@ -1107,7 +1115,8 @@ export async function buildApp(
     if (!(await p.store.setLevel(accountId, season!.code, current, level, now()))) {
       throw new AppError('gamepass_conflict', 'Outro pedido mudou o GamePass agora. Tente de novo: a cobrança não se repete.', 409);
     }
-    return { level, wei: wei.toString(), damage_cut: damageCut(level), items: PASS_ITEMS.filter((i) => i.level <= level) };
+    const perk = perks(season, level);
+    return { level, wei: wei.toString(), damage_cut: perk.damageCut, earn_bonus: perk.earnBonus, items: perk.items };
   });
 
   // ---------------------------------------------------------------- corridas e oficina (E3.5)
@@ -1373,14 +1382,28 @@ export async function buildApp(
   };
   app.decorate('loadFoods', loadFoods);
 
+  /** Grupos de evento e temporadas do GamePass (E3.10). Lista vazia no Strapi não apaga o calendário. */
+  const loadEvents = async () => {
+    if (!config.CMS_URL) throw new AppError('cms_disabled', 'CMS_URL não está configurado.', 503);
+    const [list, seasons] = await Promise.all([fetchCmsEventGroups(config.CMS_URL), fetchCmsSeasons(config.CMS_URL)]);
+    if (!list.length) throw new Error('Strapi sem grupos de evento publicados');
+    if (!seasons.length) throw new Error('Strapi sem temporadas publicadas');
+    replaceEventGroups(list, 'cms');
+    replaceSeasons(seasons, 'cms', now());
+    return { groups: list.length, seasons: seasons.length };
+  };
+  app.decorate('loadEvents', loadEvents);
+
   // Webhook do Strapi (entry.publish): o jogo muda sem deploy (trilha do CMS, passo 6).
   app.post('/internal/v1/catalog/refresh', async (request) => {
     requireServiceToken(request.headers['x-service-token'], config.INTERNAL_TOKEN);
-    // O webhook dispara para todo tipo do catálogo; o game-core usa profissões e alimentos.
+    // O webhook dispara para todo tipo do catálogo; o game-core usa profissões, alimentos, eventos e temporadas.
     const model = (request.body as { model?: unknown } | undefined)?.model;
-    if (typeof model === 'string' && model !== 'job' && model !== 'food') return { ignored: model };
+    const used = ['job', 'food', 'event-group', 'season'];
+    if (typeof model === 'string' && !used.includes(model)) return { ignored: model };
     try {
       if (model === 'food') return { foods: await loadFoods(), origin: foodsOrigin() };
+      if (model === 'event-group' || model === 'season') return { events: await loadEvents(), origin: eventsOrigin() };
       return { professions: await loadCatalog(), origin: catalogOrigin() };
     } catch (error) {
       if (error instanceof AppError) throw error;

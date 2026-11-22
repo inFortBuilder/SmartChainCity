@@ -1,6 +1,6 @@
 /**
  * Carrega o catálogo do seed no Strapi e publica: profissões, atividades,
- * alimentos, raridades, multiplicadores e tipos de imóvel.
+ * alimentos, raridades, multiplicadores, tipos de imóvel, grupos de evento e temporadas.
  * Idempotente: o que já existe (pela chave de cada tipo) é atualizado, não duplicado.
  *
  *   npm run seed            (na pasta cms-strapi, com o Postgres no ar)
@@ -105,6 +105,30 @@ const TYPES = [
       buildMinutes: p.buildMinutes ?? null,
       levels: p.levels.map((l) => ({ level: l.level, maxIncome: l.maxIncome ?? null, upgradeCost: l.upgradeCost ?? null })),
       conferir: notes(p),
+    }),
+  },
+  {
+    uid: 'api::event-group.event-group',
+    name: 'grupos de evento',
+    list: () => read('eventos.json').grupos,
+    key: (g) => ({ code: g.code }),
+    data: (g) => ({ code: g.code, label: g.label, order: g.order, factor: g.factor, jobs: g.jobs, events: g.events, conferir: notes(g) }),
+  },
+  {
+    uid: 'api::season.season',
+    name: 'temporadas',
+    list: () => read('temporadas.json').temporadas,
+    key: (t) => ({ code: t.code }),
+    data: (t) => ({
+      code: t.code,
+      label: t.label,
+      startsAt: t.startsAt,
+      endsAt: t.endsAt,
+      maxLevel: t.maxLevel,
+      levelPriceScity: t.levelPriceScity,
+      damageCutPerLevel: t.damageCutPerLevel,
+      items: t.items.map((i) => ({ level: i.level, code: i.code, label: i.label, effect: i.effect, value: i.value })),
+      conferir: notes(t),
     }),
   },
 ];
