@@ -30,6 +30,16 @@ O jogo é assíncrono. Esta sala só mostra quem está por perto e o que dizem; 
 
 A lista de palavras é curta de propósito (MVP); a versão final deve vir do CMS, por idioma.
 
+### Vários processos, divididos por bairro (E3.9)
+
+Um processo do realtime chega a um núcleo com cerca de 10 mil jogadores. Como cada sala é de um bairro (ou do interior de um lote), vários processos dividem a cidade sem compartilhar estado:
+- cada processo sobe com `SHARD=i/n` (0/3, 1/3, 2/3) e recusa o bairro de outro com `421 wrong_shard`;
+- o mapa recebe a lista dos processos em `?realtime=a,b,c` (ou `window.SCC_REALTIME`), na mesma ordem dos índices.
+
+A regra é a mesma nos dois lados: FNV-1a de 32 bits de `cidade:bairro` (no interior, `cidade:lote:N`), módulo o número de processos. Está em [src/shard.ts](src/shard.ts) e em [realtime-shard.js](../../docs/proposta-cidade-realista/realtime-shard.js), e o teste confere que dão igual. Sem `SHARD`, o processo cuida de tudo (como antes).
+
+`POST /internal/v1/broadcast` vale para as salas do próprio processo: um evento global vai para cada um.
+
 ### Carga da cidade (E3.9: 10 mil simultâneos)
 
 `pnpm --filter @scc/realtime load:city` espalha os clientes por bairros de 100. Os clientes rodam em threads, entram em rampa e podem ir para vários processos (`--urls a,b,c`: o bairro `d` vai para o `d % n`). O método e os resultados de 2026-11-22 estão em [teste de carga](../../docs/desenvolvimento/teste-de-carga.md):
