@@ -25,6 +25,11 @@ export class ViemChainReader implements ChainReader {
     return this.client.getBlockNumber({ cacheTime: 0 });
   }
 
+  /** Timestamp (segundos) do bloco mais novo: o relógio dos prazos dos contratos. */
+  async headTime() {
+    return Number((await this.client.getBlock({ blockTag: 'latest' })).timestamp);
+  }
+
   async blockHash(block: bigint): Promise<Hex | null> {
     try {
       return (await this.client.getBlock({ blockNumber: block })).hash;

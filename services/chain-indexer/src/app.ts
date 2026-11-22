@@ -12,7 +12,19 @@ export interface IndexerStatus {
   head: bigint | null;
   lastTickAt: Date | null;
   lastError: string | null;
+  /**
+   * Relógio da cadeia: o timestamp do bloco mais novo (segundos) e quando o laço o leu (ms). Prazos de
+   * anúncio e de leilão são do contrato (block.timestamp), então "vencido" e "encerrado" seguem a cadeia,
+   * não o relógio do servidor. Sem leitura ainda, vale o relógio do servidor.
+   */
+  chainTime?: { seconds: number; seenAt: number } | null;
 }
+
+/** Agora, pelo relógio da cadeia: o último bloco mais o tempo desde que foi lido. */
+export const chainNowSec = (status: Pick<IndexerStatus, 'chainTime'>, nowMs = Date.now()) => {
+  const t = status.chainTime;
+  return t ? t.seconds + Math.max(0, Math.floor((nowMs - t.seenAt) / 1000)) : Math.floor(nowMs / 1000);
+};
 
 const tokenParam = z.object({ tokenId: z.string().regex(/^[0-9]{1,78}$/) });
 const addressParam = z.object({ address: z.string().regex(/^0x[0-9a-fA-F]{40}$/) });
@@ -73,6 +85,7 @@ export async function buildApp(config: Config, store: IndexerStore, status: Inde
       lag_blocks: status.head !== null && cursor ? (status.head - cursor.block).toString() : null,
       last_tick_at: status.lastTickAt?.toISOString() ?? null,
       last_error: status.lastError,
+      chain_time: new Date(chainNowSec(status) * 1000).toISOString(),
       contracts: config.contracts,
     };
   });
@@ -174,7 +187,7 @@ export async function buildApp(config: Config, store: IndexerStore, status: Inde
     const q = z
       .object({ limit: z.coerce.number().int().min(1).max(200).default(50), all: z.stringbool().default(false) })
       .parse(request.query);
-    const nowSec = Math.floor(Date.now() / 1000);
+    const nowSec = chainNowSec(status);
     const list = await Promise.all((await store.activeListings(chainId, q.limit)).map((l) => listingDto(l, nowSec)));
     return { marketplace: config.contracts.Marketplace ?? null, listings: q.all ? list : list.filter((l) => !l.stale && !l.expired) };
   });
@@ -183,7 +196,7 @@ export async function buildApp(config: Config, store: IndexerStore, status: Inde
     const { id } = z.object({ id: z.string().regex(/^[0-9]{1,78}$/) }).parse(request.params);
     const l = await store.listing(chainId, id);
     if (!l) throw new AppError('not_found', 'Listagem não encontrada.', 404);
-    return { listing: await listingDto(l, Math.floor(Date.now() / 1000)) };
+    return { listing: await listingDto(l, chainNowSec(status)) };
   });
 
   /** `ended`: passou do prazo e falta alguém chamar `settle` (qualquer um pode). */
@@ -208,7 +221,7 @@ export async function buildApp(config: Config, store: IndexerStore, status: Inde
 
   app.get('/v1/market/auctions', async (request) => {
     const q = z.object({ limit: z.coerce.number().int().min(1).max(200).default(50) }).parse(request.query);
-    const nowSec = Math.floor(Date.now() / 1000);
+    const nowSec = chainNowSec(status);
     return {
       marketplace: config.contracts.Marketplace ?? null,
       auctions: await Promise.all((await store.activeAuctions(chainId, q.limit)).map((a) => auctionDto(a, nowSec))),
@@ -219,7 +232,7 @@ export async function buildApp(config: Config, store: IndexerStore, status: Inde
     const { id } = z.object({ id: z.string().regex(/^[0-9]{1,78}$/) }).parse(request.params);
     const a = await store.auction(chainId, id);
     if (!a) throw new AppError('not_found', 'Leilão não encontrado.', 404);
-    return { auction: await auctionDto(a, Math.floor(Date.now() / 1000)) };
+    return { auction: await auctionDto(a, chainNowSec(status)) };
   });
 
   // Feed para os outros serviços (world, game-core): eventos confirmados, em ordem.
