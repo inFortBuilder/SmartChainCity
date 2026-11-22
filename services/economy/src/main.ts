@@ -10,6 +10,7 @@ import { refreshFxFromDex } from './domain/fx-twap.js';
 import { RpcDexPool } from './infra/dex-pool.js';
 import { PostgresExchangeStore } from './infra/db/postgres-exchange-store.js';
 import { MemoryExchangeStore } from './infra/memory-exchange-store.js';
+import { MemorySwitchStore, PostgresSwitchStore } from './infra/switch-stores.js';
 import { PostgresWithdrawalStore } from './infra/db/postgres-withdrawal-store.js';
 import { MemoryWithdrawalStore } from './infra/memory-withdrawal-store.js';
 import { GatewayAccountDirectory, LocalKeyVoucherSigner, RpcVaultReader } from './infra/vault-chain.js';
@@ -48,6 +49,7 @@ const app = await buildApp(
       }
     : null,
   { store: exchangeStore, earnings: store, poolStart: config.P2E_START ?? null, freeUntil: config.FREE_PERIOD_UNTIL ?? null },
+  pool ? new PostgresSwitchStore(pool) : new MemorySwitchStore(),
 );
 app.log.info(`armazenamento: ${pool ? 'postgres' : 'memória'}; saque: ${vaultOn ? `${config.GAME_VAULT_ADDRESS} (signer ${signer!.address})` : 'desligado'}`);
 
