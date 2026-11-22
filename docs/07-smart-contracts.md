@@ -89,8 +89,8 @@ O Mafagafo foi criticado por **não emitir eventos** das taxas: todos os contrat
 
 ## 5. Qualidade e segurança
 
-- Testes unitários e *fuzz* (Foundry) com cobertura ≥ 95% nas linhas críticas.
-- Análise estática (Slither) no CI.
+- Testes unitários e *fuzz* (Foundry) com cobertura ≥ 95% nas linhas críticas. ✅ 100% no GameVault, no Marketplace e na LuckyBox, com piso no CI e invariantes com estado (2026-11-22).
+- Análise estática (Slither) no CI. ✅ Desde 2026-11-22 (0 alto, 0 médio; triagem no [pacote do auditor](auditoria/README.md)).
 - **Auditoria externa** antes da mainnet, para `GameVault`, `LuckyBox`, `Marketplace` e `StakingPool`.
 - Bug bounty após o lançamento.
 - Contratos verificados no BscScan.
