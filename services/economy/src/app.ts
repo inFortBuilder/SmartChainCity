@@ -18,6 +18,8 @@ import {
   rateFromUsd,
 } from './domain/exchange.js';
 import { TWAP_SOURCE } from './domain/fx-twap.js';
+import { type SwitchStore, assertOpen, isSwitch, statusOf, switchDto } from './domain/switches.js';
+import { MemorySwitchStore } from './infra/switch-stores.js';
 import {
   type AccountDirectory,
   type VaultReader,
@@ -133,7 +135,10 @@ export async function buildApp(
   now: () => Date = () => new Date(),
   withdrawals: WithdrawalsWiring | null = null,
   exchange: ExchangeWiring | null = null,
+  /** Travas de incidente (E4.6). Sem store, ficam em memória. */
+  switchStore: SwitchStore | null = null,
 ) {
+  const switches = switchStore ?? new MemorySwitchStore();
   const app = Fastify({
     ...serverOptions({
       service: 'economy',
@@ -275,6 +280,7 @@ export async function buildApp(
   app.post('/v1/economy/exchange', async (request, reply) => {
     const accountId = await player(request);
     const x = exchangeOn();
+    await assertOpen(switches, 'exchange');
     const body = z
       .object({ direction: z.enum(['scity_to_thaler', 'thaler_to_scity']), amount: z.string().regex(/^\d{1,40}$/) })
       .parse(request.body);
@@ -304,6 +310,32 @@ export async function buildApp(
     return reply.status(201).send({ thaler_per_scity: Number(rate.thalerPerScityMicro) / 1_000_000, valid_from: rate.validFrom.toISOString() });
   });
 
+  // ---------------------------------------------------------------- travas de incidente (E4.6)
+
+  const switchGauges = (list: Awaited<ReturnType<typeof statusOf>>) => {
+    for (const x of list) metrics.set('economy_incident_switch', 'Trava de incidente ligada (1) ou não (0)', { switch: x.name }, x.frozen ? 1 : 0);
+  };
+
+  // Público: o mapa mostra o aviso quando saque ou câmbio estão travados.
+  app.get('/v1/economy/status', async () => {
+    const list = await statusOf(switches);
+    switchGauges(list);
+    return { switches: Object.fromEntries(list.map((x) => [x.name, switchDto(x)])) };
+  });
+
+  // Operação: liga ou desliga uma trava (runbooks em docs/incidentes).
+  app.put('/internal/v1/economy/switches/:name', async (request) => {
+    requireServiceToken(request.headers['x-service-token'], config.INTERNAL_TOKEN);
+    const { name } = z.object({ name: z.string() }).parse(request.params);
+    if (!isSwitch(name)) throw new AppError('unknown_switch', 'Trava desconhecida: use withdrawals ou exchange.', 404);
+    const b = z.object({ frozen: z.boolean(), reason: z.string().max(200).optional(), by: z.string().min(1).max(80) }).parse(request.body);
+    await switches.set({ name, frozen: b.frozen, reason: b.frozen ? (b.reason ?? null) : null, by: b.by, since: now() });
+    request.log.warn({ switch: name, frozen: b.frozen, by: b.by }, 'trava de incidente alterada');
+    const list = await statusOf(switches);
+    switchGauges(list);
+    return { switches: Object.fromEntries(list.map((x) => [x.name, switchDto(x)])) };
+  });
+
   // ---------------------------------------------------------------- saques (E3.7)
 
   const withdrawalsOn = () => {
@@ -314,6 +346,7 @@ export async function buildApp(
   app.post('/v1/economy/withdrawals', async (request, reply) => {
     const accountId = await player(request);
     const w = withdrawalsOn();
+    await assertOpen(switches, 'withdrawals');
     const body = z.object({ wallet: z.string(), amount_wei: z.string().regex(/^\d{1,40}$/) }).parse(request.body);
     const created = await requestWithdrawal(
       { ledger: store, store: w.store, signer: w.signer, accounts: w.accounts, vault: w.reader ?? undefined },

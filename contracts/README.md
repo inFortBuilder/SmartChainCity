@@ -181,6 +181,14 @@ O TGE roda **antes** do `DeployMainnet`, que recebe o token criado aqui. É `scr
 - `lockLiquidity` (prazo de cerca de 366 dias);
 - o deployer terminou com 0 SCITY.
 
+## Resposta a incidentes
+
+`scripts/safe-lote.mjs` gera o JSON do Transaction Builder do Safe a partir de `deployments/<chainId>.json`, sem chave nenhuma:
+- `pausar` e `despausar`: os 6 contratos com pausa, assinados pelo Safe 2-de-3;
+- `trocar-signer --antigo --novo`: dois lotes do timelock, agendar e executar, para tirar o `SIGNER_ROLE` da chave vazada e dar à nova nos 4 contratos que conferem voucher.
+
+A codificação é conferida com o `cast calldata` (`scripts/safe-lote.test.mjs`, no CI) e foi ensaiada num anvil com chain id 97. Os runbooks ficam em [docs/incidentes](../docs/incidentes/README.md).
+
 ## Rodar
 
 Instale o [Foundry](https://getfoundry.sh) (1.9 ou mais novo). Depois, nesta pasta:

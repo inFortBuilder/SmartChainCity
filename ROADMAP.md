@@ -183,7 +183,7 @@ O MVP roda inteiro na máquina local, sem serviços pagos. Por isso, publicar o 
 | E4.3 Venda de lotes da A1 | backend · client | Venda primária com fila e limites por carteira. ✅ Desde 2026-11-22, no world e no mapa ([world](services/world/README.md#venda-de-lançamento-fila-e-limite-por-carteira-e43)). A operação agenda o lançamento. A fila abre antes, com posição sorteada para quem chega cedo, e as entradas vão em lotes por minuto. Na vez, há 10 min para comprar, até N lotes por carteira (carteira ligada obrigatória). Depois do lançamento, a venda fica livre |
 | E4.4 Espaços Spatial | metaverse | Stand de Vendas, Prefeitura Virtual e Showroom ([doc 08 §5](docs/08-metaverso-webgl.md#5-espaços-spatial-a-partir-de-spatial-virtualcamp)) |
 | E4.5 Landing e comunidade | site · art | Site em PHP/JS já criado em [`website/`](website/README.md) (ver [trilha-site](docs/desenvolvimento/trilha-site.md)); publicar com dados reais, Discord, documentação pública e FAQ |
-| E4.6 Plano de incidentes | infra · legal | Runbooks, contatos, comunicação pronta |
+| E4.6 Plano de incidentes | infra · legal | Runbooks, contatos, comunicação pronta. 🟡 Desde 2026-11-22: [plano](docs/incidentes/README.md) com severidade, papéis, primeiros 15 minutos, ressarcimento pelo ledger e treino. Runbooks de 8 casos, modelos de aviso e pós-incidente. Travas do economy (saque e câmbio sem deploy, com aviso no mapa e alerta) e lotes do Safe para pausar tudo e trocar o signer pelo timelock, ensaiados num anvil com chain id 97. Faltam os contatos reais no cofre da equipe, os Safes da mainnet e o primeiro treino na testnet |
 
 ---
 

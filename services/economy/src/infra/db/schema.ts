@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import {
   bigserial,
+  boolean,
   check,
   index,
   integer,
@@ -136,3 +137,12 @@ export const fxConversion = economy.table(
     check('fx_conversion_status_check', sql`${t.status} in ('created', 'done', 'failed')`),
   ],
 );
+
+/** Travas de incidente (E4.6): uma linha por trava, com quem mudou, quando e o motivo público. */
+export const incidentSwitch = economy.table('incident_switch', {
+  name: text('name').primaryKey(),
+  frozen: boolean('frozen').notNull(),
+  reason: text('reason'),
+  changedBy: text('changed_by'),
+  since: timestamptz('since'),
+});
