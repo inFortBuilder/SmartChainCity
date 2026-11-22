@@ -107,6 +107,29 @@ final class GameData
         return $out;
     }
 
+    /**
+     * Depósitos de uma carteira no GameVault e se já viraram saldo (chain-indexer). null sem o indexer.
+     * @return ?list<array{tx_hash:string, amount_wei:string, status:string}>
+     */
+    public static function deposits(string $wallet): ?array
+    {
+        $base = (string) cfg('api.indexer_url');
+        if (!$base || !preg_match('/^0x[0-9a-fA-F]{40}$/', $wallet)) {
+            return null;
+        }
+        $r = self::fetch('/v1/chain/deposits/' . $wallet, $base);
+        if (!is_array($r) || !isset($r['deposits']) || !is_array($r['deposits'])) {
+            return null;
+        }
+        $out = [];
+        foreach (array_slice($r['deposits'], 0, 10) as $d) {
+            if (is_array($d) && isset($d['tx_hash'], $d['amount_wei'], $d['status'])) {
+                $out[] = ['tx_hash' => (string) $d['tx_hash'], 'amount_wei' => (string) $d['amount_wei'], 'status' => (string) $d['status']];
+            }
+        }
+        return $out;
+    }
+
     /** Busca JSON na API do jogo; retorna null em qualquer falha. */
     private static function fetch(string $path, ?string $base = null): ?array
     {

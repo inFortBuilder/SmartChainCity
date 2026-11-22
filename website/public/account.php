@@ -72,9 +72,19 @@ partial('header');
 
     <div class="stone-panel deposit-panel" id="deposito">
       <h2>Depósito no jogo</h2>
-      <p>Depósitos de SCITY → THALER acontecem pelo contrato <em>GameVault</em> e são creditados após as confirmações da rede.
-        A função será liberada no lançamento da mainnet.</p>
-      <button class="btn btn--blue" type="button" disabled><?= icon('download') ?> Depositar (em breve)</button>
+      <p>O SCITY da carteira entra no jogo pelo contrato <em>GameVault</em> e vira saldo depois das confirmações da rede.
+        A carteira precisa estar ligada à sua conta: entre no jogo com ela uma vez.</p>
+      <?php if (OfficialContracts::address('GameVault')): ?>
+        <form class="deposit-form" data-deposit-form>
+          <label>SCITY a depositar <input name="valor" inputmode="decimal" required placeholder="Ex.: 25" data-deposit-amount></label>
+          <button class="btn btn--blue" type="submit" data-deposit-submit><?= icon('download') ?> Depositar</button>
+        </form>
+        <p class="hint">Duas confirmações na carteira: aprovar o SCITY para o cofre e depositar.</p>
+        <p class="form-status" data-deposit-status aria-live="polite"></p>
+        <ul class="deposit-list" data-deposit-list hidden></ul>
+      <?php else: ?>
+        <button class="btn btn--blue" type="button" disabled><?= icon('download') ?> Depositar (o cofre ainda não foi publicado)</button>
+      <?php endif; ?>
     </div>
   </div>
 </section>

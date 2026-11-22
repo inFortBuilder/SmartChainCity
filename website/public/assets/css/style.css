@@ -687,3 +687,8 @@ input:focus, select:focus, textarea:focus { border-color: var(--blue); outline: 
 .game-session { margin-top: 22px; border-top: 3px solid rgba(0,0,0,.12); padding-top: 14px; }
 .game-session h2 { margin: 0 0 8px; color: var(--navy); }
 .game-session[hidden] { display: none; }
+
+/* Depósito no GameVault pela conta */
+.deposit-form { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; margin: 12px 0 4px; }
+.deposit-form label { display: grid; gap: 4px; font-weight: 700; }
+.deposit-list { margin: 8px 0 0; padding-left: 18px; }
