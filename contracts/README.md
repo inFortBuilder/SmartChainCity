@@ -181,6 +181,17 @@ O TGE roda **antes** do `DeployMainnet`, que recebe o token criado aqui. É `scr
 - `lockLiquidity` (prazo de cerca de 366 dias);
 - o deployer terminou com 0 SCITY.
 
+## Ensaio do lançamento
+
+`node scripts/ensaio-lancamento.mjs` roda num anvil com chain id 97 a sequência do dia do TGE ([checklist](../docs/lancamento.md)) e confere cada passo (23 conferências):
+- **TGE:** oferta inteira distribuída, deployer e distribuidor com 0;
+- **`DeployMainnet`** com o token do TGE: timelock de 48 h, admin no timelock, deployer sem papel;
+- **LP travado:** o Safe da liquidez manda o LP ao `TokenLock` (o LP é simulado pelo SCITY), com liberação em 365 dias ou mais;
+- **Pausa de incidente:** pausar e despausar tudo pelo Safe 2-de-3, com os lotes do `safe-lote.mjs`. O Safe de admin não pausa;
+- **Troca do signer pelo timelock:** só o Safe de admin agenda, a execução antes de 48 h é recusada e depois passa.
+
+Os Safes são endereços com código (`anvil_setCode`), movidos por impersonação, e nenhuma chave é usada. Os arquivos de um deploy real na testnet (`deployments/97*.json`, `broadcast/*/97`) são guardados antes e devolvidos no fim. Roda no CI a cada PR que mexe nos contratos.
+
 ## Resposta a incidentes
 
 `scripts/safe-lote.mjs` gera o JSON do Transaction Builder do Safe a partir de `deployments/<chainId>.json`, sem chave nenhuma:

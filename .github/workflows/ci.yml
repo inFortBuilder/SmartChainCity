@@ -165,6 +165,10 @@ jobs:
       # Lotes do Safe da resposta a incidentes (docs/incidentes): codificação conferida com o Foundry.
       - name: Lotes do Safe (incidentes)
         run: node --test scripts/safe-lote.test.mjs
+      # Ensaio do lançamento (docs/lancamento.md): TGE, deploy, LP travado, pausa e troca do signer num anvil 97.
+      - name: Ensaio do lançamento
+        if: steps.fp.outputs.present == 'true'
+        run: node scripts/ensaio-lancamento.mjs
       # Cobertura (doc 07 §5): os contratos da auditoria com pelo menos 95% das linhas.
       - name: Cobertura dos contratos da auditoria
         if: steps.fp.outputs.present == 'true'

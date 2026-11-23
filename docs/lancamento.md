@@ -55,6 +55,9 @@ Cada item diz **quem** (papel, não nome; contatos no cofre da equipe, como no [
 
 Tudo o que vai acontecer na mainnet, com os Safes e a chave de verdade, em rede de teste.
 
+O ensaio automático já roda no CI ([`scripts/ensaio-lancamento.mjs`](../contracts/README.md#ensaio-do-lançamento)): a sequência num anvil com chain id 97 e Safes simulados. Ele garante o roteiro. Esta fase garante as pessoas, as chaves e a rede de verdade.
+
+
 - [ ] **TGE:** `DeployTGE.s.sol` com os Safes de teste ([contracts](../contracts/README.md#tge-vesting-e-lp-travado-e42)).
 - [ ] **Contratos:** `DeployMainnet.s.sol` com `scity` = o token do TGE.
   - O próprio script confere os papéis finais e reverte se o deployer ficar com algum.
