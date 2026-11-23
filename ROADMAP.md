@@ -210,7 +210,7 @@ Simulador (E0.5 ✅) ─► Ledger (E1.5 ✅) ─► Contratos (E2.1, E2.5) ─�
 Parecer jurídico (E0.8) ──────────────────────────────────────────────────────────────────────────────────► TGE (E4.2)
 ```
 
-Desde 2026-11-22, os contratos, o TGE, os serviços, o mapa e o site estão prontos no repositório. O que falta depende de pessoas de fora (auditoria, parecer jurídico, Safes, KMS, VRF, domínio e arte), na ordem do [checklist de lançamento](docs/lancamento.md). Antes, em 2026-11-20, os gargalos eram os **contratos** (pasta vazia), a **auditoria** (E3.8) e o **parecer jurídico** (E0.8). O projeto Unity (E0.3) saiu do caminho crítico pela [ADR-0009](docs/adr/0009-cliente-web-nativo.md).
+Desde 2026-11-22, os contratos, o TGE, os serviços, o mapa e o site estão prontos no repositório. O que falta depende de pessoas de fora (auditoria, parecer jurídico, Safes, KMS, VRF, domínio e arte), na ordem do [checklist de lançamento](docs/lancamento.md). O que falta no próprio jogo (moradia, atividades, deslocamento, itens, arte, premissas) e a ordem sugerida estão em [Estado do jogo](docs/estado-do-jogo.md). Antes, em 2026-11-20, os gargalos eram os **contratos** (pasta vazia), a **auditoria** (E3.8) e o **parecer jurídico** (E0.8). O projeto Unity (E0.3) saiu do caminho crítico pela [ADR-0009](docs/adr/0009-cliente-web-nativo.md).
 
 ## Riscos do roadmap
 

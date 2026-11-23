@@ -97,7 +97,7 @@ As migrações ficam em `drizzle/`, controladas em `drizzle.__indexer_migrations
 
 ## Ainda não
 
-- **Marketplace:** o feed já é usado pelo world (`LandNFT`, `PropertyNFT`) e pelo game-core (`AvatarNFT`, [game-core](../game-core/README.md#avatar-na-blockchain-avatarnft)); falta o contrato `Marketplace` e os eventos dele.
+- **`BuildingNFT`:** os prédios de construtores ainda não são lidos (o `Marketplace`, os lotes, os imóveis, os avatares e o `GameVault` já são).
 - **Teste na BSC Testnet:** precisa do VRF da Chainlink e de BNB de teste.
 
 ## Relógio da cadeia

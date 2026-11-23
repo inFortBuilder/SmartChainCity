@@ -167,4 +167,3 @@ Esquema próprio `economy` (o serviço não toca as tabelas do gateway): `ledger
 - O pool SCITY/USDT na BSC (TGE, E4.2): endereço, observações e liquidez travada.
 - Provedor de KYC (hoje a revisão é manual; parecer E0.8).
 - `openapi.yaml` deste serviço.
-- Quem chama o lançamento interno: o game-core (turno de trabalho, passo 7) e o world (compra de lote) ainda não existem.
