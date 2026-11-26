@@ -22,6 +22,7 @@ import { leisureFromJson, leisureToJson } from '../../domain/leisure.js';
 import { licenseFromJson, licenseToJson } from '../../domain/vehicle.js';
 import { housingFromJson, housingToJson } from '../../domain/housing.js';
 import { choresFromJson, choresToJson, restFromJson, restToJson } from '../../domain/routine.js';
+import { gearFromJson, gearToJson } from '../../domain/shop.js';
 import {
   type FeeStatus,
   type HospitalReason,
@@ -138,6 +139,7 @@ const toAvatar = (r: Row): Avatar => ({
   housing: housingFromJson(r.housing),
   rest: restFromJson(r.rest),
   chores: choresFromJson(r.chores),
+  gear: gearFromJson(r.gear),
   createdAt: r.createdAt,
   updatedAt: r.updatedAt,
 });
@@ -168,6 +170,7 @@ const toRow = (a: Avatar) => ({
   housing: housingToJson(a.housing),
   rest: restToJson(a.rest),
   chores: choresToJson(a.chores),
+  gear: gearToJson(a.gear),
   createdAt: a.createdAt,
   updatedAt: a.updatedAt,
   ...marks(a),

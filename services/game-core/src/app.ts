@@ -166,10 +166,12 @@ import {
   isPetShop,
   isLeisure,
   isHousing,
+  isShop,
   isLicense,
   isSchool,
   planLeisure,
   planHousing,
+  planShop,
   planLicense,
   planPetShop,
   planSitter,
@@ -194,6 +196,7 @@ import {
   sittingDto,
 } from './domain/sitter.js';
 import { MemoryPetSitterStore } from './infra/memory-sitter-store.js';
+import { type ShopItem, checkShop, gearDto, gearFactor, gearOf, shopCatalog } from './domain/shop.js';
 import {
   CHORES,
   CHORE_CODES,
@@ -262,6 +265,8 @@ const avatarDto = (a: Avatar, at: Date) => ({
   // Descanso em curso (energia ao acordar) e quando cada atividade de casa libera.
   rest: a.rest && a.rest.endsAt > at ? { ends_at: a.rest.endsAt.toISOString(), energy: a.rest.energy } : null,
   chores: choresDto(a, at),
+  // Itens da loja: roupa, ferramenta de trabalho e cama, com o bônus do próximo turno.
+  gear: gearDto(a, at),
   // Só as que estão em curso: a sorteada no turno aparece quando o turno acaba.
   conditions: activeConditions(a.conditions, at).map((c) => ({
     code: c.code,
@@ -531,6 +536,8 @@ export async function buildApp(
           sitter: sitterFactor(avatar, caring),
           housing: housingFactor(avatar, ownRegular, now()),
           commute,
+          gear: gearFactor(avatar, now()),
+          bed: gearOf(avatar).bed,
           ...context,
           durationMs: config.DEV_SHIFT_MINUTES ? config.DEV_SHIFT_MINUTES * 60_000 : undefined,
         },
@@ -582,6 +589,22 @@ export async function buildApp(
   app.get('/v1/housing/prices', async () => housingPrices());
 
   // ---------------------------------------------------------------- descanso, higiene e deslocamento (GDD §2.3, §3.3)
+
+  // ---------------------------------------------------------------- loja do jogo (GDD §6 "Lojas", fase 1)
+
+  app.get('/v1/catalog/shop', async () => shopCatalog());
+
+  // Compra na loja: {item: roupa|ferramenta|cama, level?}. Pelo caminho das refeições (duas fases).
+  app.post('/v1/avatars/:id/shop', async (request, reply) => {
+    const body = z.object({ item: z.enum(['roupa', 'ferramenta', 'cama']), level: z.number().int().min(1).max(3).optional() }).parse(request.body);
+    const { avatar, done } = await purchase(request, (clientKey) => (current) => {
+      const { cents, effect } = checkShop(current, { item: body.item as ShopItem, level: body.level }, now());
+      return planShop(current, { id: randomUUID(), clientKey, effect, cents }, now());
+    });
+    const fresh = (await store.get(avatar.id))!;
+    const at = now();
+    return reply.status(201).send({ purchase: mealDto(done), avatar: avatarDto(decayed(fresh, at), at) });
+  });
 
   app.get('/v1/catalog/routine', async () => ({
     rest: { hours: REST_HOURS, energy: REST_ENERGY, unhoused_share: UNHOUSED_REST_SHARE },
@@ -716,7 +739,7 @@ export async function buildApp(
     const meal = await store.beginMeal(avatar.id, avatar.accountId, clientKey, now(), plan(clientKey));
     const done = await settleMeal(meal, request.id);
     if (done.status === 'failed') {
-      const what = isHousing(done) ? (done.effects.housing?.kind === 'hotel' ? 'o hotel' : 'o aluguel') : isLicense(done) ? 'a autoescola' : isLeisure(done) ? 'a entrada' : isSchool(done) ? 'a escola' : isPetShop(done) ? 'o Pet Shop' : isMedicine(done) ? 'o remédio' : isPack(done) ? 'o pacote' : 'esta refeição';
+      const what = isShop(done) ? 'este item' : isHousing(done) ? (done.effects.housing?.kind === 'hotel' ? 'o hotel' : 'o aluguel') : isLicense(done) ? 'a autoescola' : isLeisure(done) ? 'a entrada' : isSchool(done) ? 'a escola' : isPetShop(done) ? 'o Pet Shop' : isMedicine(done) ? 'o remédio' : isPack(done) ? 'o pacote' : 'esta refeição';
       throw new AppError('insufficient_thaler', `THALER insuficiente para ${what}.`, 409);
     }
     return { avatar, done };

@@ -202,7 +202,8 @@ describe('API da moradia', () => {
   };
 
   it('sem moradia o turno leva 0,5; com aluguel, 1; o hotel cobra e dá refeição', async () => {
-    const a = await store.create(make());
+    // Com cama: dois turnos de 6 h no mesmo dia (GDD §3.2).
+    const a = await store.create(make({ gear: { clothes: 0, tool: null, bed: true } }));
     ledger.balances.set(a.accountId, 200_00n);
     const h = await auth(a.accountId);
 

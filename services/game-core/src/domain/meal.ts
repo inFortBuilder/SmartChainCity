@@ -9,6 +9,7 @@ import { type SchoolEffect, applySchoolEffect } from './school.js';
 import { type LeisureEffect, applyLeisure } from './leisure.js';
 import { applyLicense } from './vehicle.js';
 import { type HousingEffect, applyStay } from './housing.js';
+import { type ShopEffect, applyShop } from './shop.js';
 
 /**
  * Refeição no mercado do jogo (E2.3, GDD §2.3 e §4): o avatar compra uma
@@ -46,6 +47,8 @@ export interface MealEffects {
   license?: true;
   /** Só moradia: aluguel ou hotel por N dias, aplicado depois da cobrança. */
   housing?: HousingEffect;
+  /** Só loja do jogo: roupa, ferramenta ou cama, aplicada depois da cobrança. */
+  shop?: ShopEffect;
   /** Só Pet Sitter (E3.1): a estadia reservada e quem recebe a diária. O efeito no pet vai em `pet`. */
   sitter?: { sittingId: string; sitterAccountId: string; sitterAvatarId: string };
 }
@@ -114,6 +117,24 @@ export function planLicense(avatar: Avatar, input: { id: string; clientKey: stri
     foodCode: 'autoescola',
     priceCents: input.cents,
     effects: { food: 0, energy: 0, health: 0, license: true },
+    status: 'pending',
+    clientKey: input.clientKey,
+    createdAt: now,
+    eatenAt: null,
+  };
+}
+
+/** Loja do jogo: pelo mesmo caminho. Código `loja:<item>`. */
+export const isShop = (m: Pick<Meal, 'foodCode'>) => m.foodCode?.startsWith('loja:') ?? false;
+
+export function planShop(avatar: Avatar, input: { id: string; clientKey: string | null; effect: ShopEffect; cents: bigint }, now: Date): Meal {
+  return {
+    id: input.id,
+    avatarId: avatar.id,
+    accountId: avatar.accountId,
+    foodCode: `loja:${input.effect.item}${input.effect.level ? `:${input.effect.level}` : ''}`,
+    priceCents: input.cents,
+    effects: { food: 0, energy: 0, health: 0, shop: input.effect },
     status: 'pending',
     clientKey: input.clientKey,
     createdAt: now,
@@ -331,6 +352,7 @@ export function eat(avatar: Avatar, effects: MealEffects, now: Date): Avatar {
   if (effects.leisure) return applyLeisure(avatar, effects.leisure, now);
   if (effects.license) return applyLicense(avatar, now);
   if (effects.housing) return applyStay(avatar, effects.housing, now);
+  if (effects.shop) return applyShop(avatar, effects.shop, now);
   const a = avatar.attributes;
   let conditions = avatar.conditions;
   if (effects.condition) conditions = catchCondition(conditions, effects.condition, now);

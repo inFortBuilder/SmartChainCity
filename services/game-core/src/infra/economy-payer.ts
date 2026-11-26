@@ -1,7 +1,7 @@
 import { AppError, forwardRequestId } from '@scc/shared';
 
 import type { HospitalPayer, HospitalStay } from '../domain/hospital.js';
-import { type Meal, type MealPayer, isHousing, isLeisure, isLicense, isMedicine, isPack, isPetShop, isSchool, isSitter } from '../domain/meal.js';
+import { type Meal, type MealPayer, isHousing, isLeisure, isShop, isLicense, isMedicine, isPack, isPetShop, isSchool, isSitter } from '../domain/meal.js';
 import { rentSplit } from '../domain/housing.js';
 import { feeSplit } from '../domain/leisure.js';
 import { sitterSplit } from '../domain/sitter.js';
@@ -77,6 +77,7 @@ export class EconomyPayer implements Payer, MealPayer, HospitalPayer, Championsh
   async chargeMeal(meal: Meal, requestId?: string) {
     if (isSitter(meal)) return this.chargeSitter(meal, requestId);
     if (isHousing(meal)) return this.chargeHousing(meal, requestId);
+    if (isShop(meal)) return this.chargeShop(meal, requestId);
     if (isLeisure(meal)) return this.chargeLeisure(meal, requestId);
     const medicine = isMedicine(meal);
     const petShop = isPetShop(meal);
@@ -137,6 +138,18 @@ export class EconomyPayer implements Payer, MealPayer, HospitalPayer, Championsh
     const error = await this.post(`meal:${meal.id}`, { kind: rent ? 'rent_fee' : 'hotel_fee', ref_type: 'meal', ref_id: meal.id, legs }, requestId);
     if (error === null) return;
     if (error === 'insufficient_funds') throw new AppError('insufficient_thaler', `THALER insuficiente para ${rent ? 'o aluguel' : 'o hotel'}.`, 409);
+    throw new AppError('ledger_unavailable', 'O ledger recusou a cobrança.', 502);
+  }
+
+  /** Loja do jogo (fase 1): tudo para a queima (`burn/shop`). */
+  private async chargeShop(meal: Meal, requestId?: string) {
+    const legs = [
+      { owner_type: 'player', owner_id: meal.accountId, currency: 'THALER', amount: `-${meal.priceCents}` },
+      { owner_type: 'burn', owner_id: 'shop', currency: 'THALER', amount: `${meal.priceCents}` },
+    ];
+    const error = await this.post(`meal:${meal.id}`, { kind: 'shop_buy', ref_type: 'meal', ref_id: meal.id, legs }, requestId);
+    if (error === null) return;
+    if (error === 'insufficient_funds') throw new AppError('insufficient_thaler', 'THALER insuficiente para este item.', 409);
     throw new AppError('ledger_unavailable', 'O ledger recusou a cobrança.', 502);
   }
 

@@ -153,6 +153,10 @@ export function startShift(
     housing?: number;
     /** Deslocamento (GDD §3.3): atraso e tarifa. */
     commute?: Commute;
+    /** Bônus dos itens da loja (roupa × ferramenta), multiplicado aos itens sazonais. */
+    gear?: number;
+    /** Tem cama? Sem ela (`false`), o segundo turno de 6 h do dia é recusado (GDD §3.2). A API sempre informa. */
+    bed?: boolean;
   },
   now: Date,
 ): { shift: Shift; avatar: Avatar } {
@@ -170,6 +174,9 @@ export function startShift(
   if (inDrivingSchool(avatar, now)) throw new AppError('in_driving_school', 'Na autoescola: 3 h sem trabalhar.', 409);
   assertCanWorkHealthy(avatar.conditions, now);
   assertNotResting(avatar, now);
+  if (input.bed === false && hours === 6 && input.hoursToday >= 6) {
+    throw new AppError('bed_required', 'O segundo turno de 6 h no dia exige uma cama (loja do jogo).', 409);
+  }
   const cost = ENERGY_COST[hours];
   const a = avatar.attributes;
   if (!status(avatar, now).canWork || a.energy < cost) {
@@ -198,7 +205,8 @@ export function startShift(
       event: eventFactor(avatar.jobCode, now),
       damageCut: input.damageCut ?? 0,
       // Itens sazonais da temporada em que o turno começa.
-      items: 1 + (input.earnBonus ?? 0),
+      // Itens: os sazonais do GamePass × os da loja (roupa e ferramenta de trabalho).
+      items: Math.round((1 + (input.earnBonus ?? 0)) * (input.gear ?? 1) * 1000) / 1000,
       ...(input.sitter && input.sitter !== 1 ? { sitter: input.sitter } : {}),
       ...(input.housing !== undefined ? { housing: input.housing } : {}),
       ...(input.commute
