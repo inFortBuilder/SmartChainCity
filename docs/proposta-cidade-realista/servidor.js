@@ -1720,6 +1720,23 @@ export function createServidor(map) {
         await call(API.world, `/v1/world/places/${rm.dataset.kind}/${rm.dataset.place}/guests/${rm.dataset.remover}`, { method: 'DELETE', token: session.token }).catch(() => null);
         return showVisit(i, box);
       }
+      // Prefeitura e serviços do imóvel (regularizar, água, energia).
+      const obra = e.target.closest('[data-obra]');
+      if (obra && !obra.disabled) {
+        const here = (await call(API.world, '/v1/world/me/properties', { token: session.token })).properties.find((p) => p.lot_id === i);
+        obra.disabled = true;
+        try {
+          const r = await call(API.world, `/v1/world/properties/${here.id}/${obra.dataset.obra}`, { method: 'POST', token: session.token });
+          const what = { regularize: 'Regularizado na Prefeitura', water: 'Água ligada', power: 'Energia ligada' }[obra.dataset.obra];
+          message = `${what}: −${thaler(r.work.cost_cents)} THALER.${r.property.regular ? ' O imóvel rende 100%.' : ''}`;
+          messageOk = true;
+        } catch (error) {
+          message = error.message;
+          messageOk = false;
+        }
+        await refresh();
+        return map.showLot(i);
+      }
       const build = e.target.closest('[data-construir]');
       if (build && !build.disabled) {
         const type = box.querySelector('select[name=tipo]')?.value;
@@ -1810,6 +1827,25 @@ export function createServidor(map) {
     if (wait > 0 && wait < 30 * 60_000) launchTimer = setTimeout(() => box.isConnected && map.showLot(i), wait);
   }
 
+  /**
+   * Prefeitura e serviços do imóvel pronto (doc 03 §3): regularizar uma vez, água e energia por 30 dias.
+   * Sem as três, o imóvel rende 50%; a casa regular também é a moradia própria do avatar.
+   */
+  function regularBox(p) {
+    const until = (iso) => (iso && new Date(iso) > new Date() ? `até ${new Date(iso).toLocaleDateString('pt-BR')}` : null);
+    const row = (icon, label, status, action, cost) =>
+      `<li>${icon} ${label}: <strong>${status ?? 'não'}</strong> <button class="btn btn--ghost pequeno" type="button" data-obra="${action}">${status ? 'Renovar' : 'Contratar'} · ${thaler(cost)}</button></li>`;
+    const reg = p.regularized_at
+      ? `<li>🏛️ Prefeitura: <strong>regularizado (${p.use})</strong></li>`
+      : `<li>🏛️ Prefeitura: <strong>não</strong> <button class="btn btn--ghost pequeno" type="button" data-obra="regularize">Regularizar · ${thaler(p.regularization_cost_cents)}</button></li>`;
+    const water = until(p.water_until);
+    const power = until(p.power_until);
+    return `<ul class="srv-lista pequeno">${reg}
+      ${row('💧', 'Água', water, 'water', p.utility_cost_cents?.water ?? 0)}
+      ${row('⚡', 'Energia', power, 'power', p.utility_cost_cents?.power ?? 0)}</ul>
+      <p class="muted pequeno">${p.regular ? '✅ Rende 100%.' : '⚠️ Rende 50% até regularizar e ligar água e energia.'} Serviços por 30 dias, mais caros longe do centro.</p>`;
+  }
+
   /** Ficha do lote próprio: o imóvel que está nele ou, vazio, o que dá para construir na zona. */
   async function showBuild(i, lot, box) {
     const sec = document.createElement('div');
@@ -1824,7 +1860,7 @@ export function createServidor(map) {
     if (here) {
       const t = types.find((x) => x.code === here.type);
       const state = here.phase === 'building' ? `em obra, pronta em ${left(here.ready_at)}` : here.phase === 'ready' ? `pronta · desgaste ${here.wear}` : 'aguardando pagamento';
-      sec.innerHTML = `<h3>🏗️ ${esc(here.label)}</h3><p class="muted pequeno">${state}${t?.venue ? ` · entrada de ${thaler(t.venue.fee_cents)} (90% para você)` : ''}</p>`;
+      sec.innerHTML = `<h3>🏗️ ${esc(here.label)}</h3><p class="muted pequeno">${state}${t?.venue ? ` · entrada de ${thaler(t.venue.fee_cents)} (90% para você)` : ''}</p>${here.phase === 'ready' ? regularBox(here) : ''}`;
       return;
     }
     const fits = types.filter((t) => t.zones.includes(lot.zone));

@@ -43,6 +43,12 @@ const house = (over: Partial<Property> = {}): Property => ({
   wearBase: 100,
   wearSince: T0,
   lastClaimAt: T0,
+  // Regularizada, com água e energia: renda de 100% (doc 03 §3).
+  regularizedAt: at(-1),
+  waterFrom: at(-1),
+  waterUntil: at(1000),
+  powerFrom: at(-1),
+  powerUntil: at(1000),
   ...over,
 });
 
@@ -198,23 +204,23 @@ describe('reparo e upgrade de ponta a ponta (world + economy)', () => {
     await credit({ owner_type: 'player', owner_id: me }, 'THALER', 4000_00n + thalerAfterBuild);
     await world.inject({ method: 'POST', url: '/v1/world/cities/teste/lots/4/buy', headers });
     const built = await world.inject({ method: 'POST', url: '/v1/world/cities/teste/lots/4/property', headers, payload: { type: 't1' } });
-    clock = at(31); // 1 dia de obra + 30 dias pronta
+    clock = at(31); // 1 dia de obra + 30 dias pronta, sem regularização (renda de 50%, doc 03 §3)
     return { headers, id: built.json().property.id as string };
   };
 
   it('reparo cobra pelo desgaste, paga a renda acumulada e volta o desgaste a 100', async () => {
     const { headers, id } = await readyHouse(100_00n);
     const before = (await world.inject({ method: 'GET', url: '/v1/world/me/properties', headers })).json().properties[0];
-    expect(before).toMatchObject({ wear: 70, repair_cost_cents: 6000, accrued_cents: 6755 });
+    expect(before).toMatchObject({ wear: 70, repair_cost_cents: 6000, accrued_cents: 3377 });
 
     const r = await world.inject({ method: 'POST', url: `/v1/world/properties/${id}/repair`, headers });
     expect(r.statusCode).toBe(200);
     expect(r.json()).toMatchObject({
       work: { kind: 'repair', cost_cents: 6000 },
-      claim: { amount_cents: 6755, status: 'paid' },
+      claim: { amount_cents: 3377, status: 'paid' },
       property: { wear: 100, accrued_cents: 0, repair_cost_cents: 0 },
     });
-    expect(await thalerOf(headers)).toBe(String(100_00 - 6000 + 6755));
+    expect(await thalerOf(headers)).toBe(String(100_00 - 6000 + 3377));
 
     const again = await world.inject({ method: 'POST', url: `/v1/world/properties/${id}/repair`, headers });
     expect(again.json().error.code).toBe('nothing_to_repair');
@@ -226,7 +232,7 @@ describe('reparo e upgrade de ponta a ponta (world + economy)', () => {
     expect(poor.statusCode).toBe(409);
     expect(poor.json().error.code).toBe('insufficient_thaler');
     const unchanged = (await world.inject({ method: 'GET', url: '/v1/world/me/properties', headers })).json().properties[0];
-    expect(unchanged).toMatchObject({ level: 1, accrued_cents: 6755 });
+    expect(unchanged).toMatchObject({ level: 1, accrued_cents: 3377 });
 
     await credit({ owner_type: 'player', owner_id: unchangedOwner(headers) }, 'THALER', 6000_00n);
     const up = await world.inject({ method: 'POST', url: `/v1/world/properties/${id}/upgrade`, headers });
