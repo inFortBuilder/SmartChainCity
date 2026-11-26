@@ -292,5 +292,5 @@ Esquema próprio `world`: `city` (zonas, bairros abertos, limiar), `lot` (situa�
 
 - Imóveis: troca de tipo (T1 → T2 → T3), seguro, aluguel e hotel, lote duplo (Residencial 2 e 3), regularização e água/energia; os outros tipos do doc 03 §6; o catálogo vindo do Strapi (hoje fica no código, igual ao seed).
 - Prédios: o chain-indexer ler o `BuildingNFT`, unidades e venda (E3.11), taxa de alvará, prazo de obra proporcional à área, IPTU por unidade.
-- Impostos: o leilão tomar também o NFT do lote e do imóvel; IPTU por unidade dos prédios de construtores (doc 13).
-- Mercado secundário entre jogadores, imóveis e utilidades.
+- Impostos: IPTU por unidade dos prédios de construtores (doc 13). A apreensão do NFT no leilão já existe ([ADR-0016](../../docs/adr/0016-apreensao-nft-leilao.md)).
+- Mercado de utilidades entre jogadores (o mercado on-chain de lotes, imóveis e avatares já existe: [contratos](../../contracts/README.md#marketplace-e36)).
