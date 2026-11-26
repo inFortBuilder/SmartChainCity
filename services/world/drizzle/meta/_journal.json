@@ -85,6 +85,13 @@
       "when": 1795353501604,
       "tag": "0011_venda_lancamento",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1795733810538,
+      "tag": "0012_moradia",
+      "breakpoints": true
     }
   ]
 }

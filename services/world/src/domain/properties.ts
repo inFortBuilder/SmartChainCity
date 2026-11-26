@@ -18,6 +18,18 @@ import type { WorldStore } from './lots.js';
  * - O desgaste cai 1 ponto por dia depois da obra.
  *
  * Do doc 03 §6.3: renda × desgaste/100, e abaixo de 30 o imóvel para de render.
+ *
+ * Regularização e infraestrutura (doc 03 §3, §4 e §6.3; doc 04 §4 "fator_regularizacao_moradia"):
+ * - o imóvel pronto é regularizado na Prefeitura uma vez (residencial ou comercial, pelo tipo);
+ * - água e energia são contratadas por períodos de 30 dias, com custo que cresce com a distância ao centro
+ *   (o número do bairro, contado do centro para fora);
+ * - sem regularização, água ou energia, o imóvel rende 50% (`UNREGULAR_FACTOR`, o mesmo do simulador).
+ * Cada uma é uma obra (`PropertyWork`): fecha a renda até ali com o estado antigo e muda o imóvel.
+ *
+ * PREMISSAS (o simulador só tem o plano de energia, 5 THALER/dia, em sinks.energyPlan):
+ * - taxa de regularização de 2% do preço do imóvel (Casa T1: 80 THALER);
+ * - água 2 e energia 3 THALER/dia no centro, até o dobro no último bairro;
+ * - no máximo 60 dias de serviço pagos adiantado.
  */
 
 export interface PropertyLevel {
@@ -27,6 +39,8 @@ export interface PropertyLevel {
   /** Custo para subir a este nível (a partir do anterior), em centavos de THALER. */
   upgradeCostCents?: number;
 }
+
+export type PropertyUse = 'residencial' | 'comercial';
 
 export interface PropertyType {
   code: string;
@@ -38,6 +52,8 @@ export interface PropertyType {
   levels: PropertyLevel[];
   /** Valores provisórios, para a API e a tela avisarem. */
   provisional: string[];
+  /** Regularização na Prefeitura (doc 03 §3): residencial ou comercial. */
+  use: PropertyUse;
   /**
    * Negócio de lazer de jogador (E3.3): o avatar paga a entrada para usar, e ela vai
    * para o dono (sem renda do pool P2E). A atividade e o efeito moram no game-core.
@@ -50,6 +66,7 @@ export const PROPERTY_TYPES: PropertyType[] = [
     code: 't1',
     label: 'Casa T1',
     zones: ['residential', 'mixed'],
+    use: 'residencial',
     priceCents: 4000_00,
     buildMinutes: 24 * 60,
     levels: [
@@ -70,6 +87,7 @@ export const PROPERTY_TYPES: PropertyType[] = [
     code: 'academia',
     label: 'Academia',
     zones: ['commercial', 'mixed'],
+    use: 'comercial',
     priceCents: 6000_00,
     buildMinutes: 24 * 60,
     levels: [{ level: 1, incomeCentsPerDay: 0 }],
@@ -80,6 +98,7 @@ export const PROPERTY_TYPES: PropertyType[] = [
     code: 'galeria',
     label: 'Galeria de arte',
     zones: ['commercial', 'mixed'],
+    use: 'comercial',
     priceCents: 5000_00,
     buildMinutes: 24 * 60,
     levels: [{ level: 1, incomeCentsPerDay: 0 }],
@@ -101,6 +120,21 @@ export const MIN_WEAR_FOR_INCOME = 30;
 /** Reparo: fração do preço do imóvel por ponto de desgaste recuperado (premissa: T1 = 2 THALER/ponto). */
 export const REPAIR_SHARE_PER_POINT = 0.0005;
 
+/** Fator da renda sem regularização, água ou energia (doc 03 §3; simulador: work.unregularizedFactor). */
+export const UNREGULAR_FACTOR = 0.5;
+/** Taxa de regularização: fração do preço do imóvel (premissa). */
+export const REGULARIZATION_SHARE = 0.02;
+export type Utility = 'water' | 'power';
+export const UTILITIES: Utility[] = ['water', 'power'];
+/** Período de cada contratação de água ou energia. */
+export const UTILITY_PERIOD_DAYS = 30;
+/** No máximo este tanto de serviço pago adiantado. */
+export const UTILITY_MAX_AHEAD_DAYS = 60;
+/** Diária no bairro central, em centavos (premissa; soma 5 THALER/dia, o plano de energia do simulador). */
+export const UTILITY_DAILY_CENTS: Record<Utility, number> = { water: 2_00, power: 3_00 };
+/** Acréscimo no último bairro: o custo vai de 1× no centro a (1 + isto)× na borda (premissa). */
+export const UTILITY_EDGE_EXTRA = 1;
+
 /** `pending`: obra criada, esperando a cobrança no ledger. `active`: pago (em obra ou pronto). */
 export type PropertyStatus = 'pending' | 'active';
 
@@ -120,6 +154,14 @@ export interface Property {
   wearSince: Date;
   /** Até onde a renda já foi coletada. */
   lastClaimAt: Date;
+  /** Regularizado na Prefeitura desde (null: não regularizado). Imóveis antigos não têm o campo. */
+  regularizedAt?: Date | null;
+  /** Água contratada: janela [desde, até). */
+  waterFrom?: Date | null;
+  waterUntil?: Date | null;
+  /** Energia contratada: janela [desde, até). */
+  powerFrom?: Date | null;
+  powerUntil?: Date | null;
 }
 
 export type ClaimStatus = 'pending' | 'paid';
@@ -180,8 +222,12 @@ export interface PropertyPayments {
   chargeWork(w: PropertyWork, requestId?: string): Promise<void>;
 }
 
-/** Obras sobre um imóvel pronto: reparo (desgaste volta a 100) e upgrade (sobe um nível). */
-export type WorkKind = 'repair' | 'upgrade';
+/**
+ * Obras sobre um imóvel pronto: reparo (desgaste volta a 100), upgrade (sobe um nível), regularização
+ * na Prefeitura e contratação de água ou energia por 30 dias.
+ */
+export type WorkKind = 'repair' | 'upgrade' | 'regularize' | Utility;
+export const WORK_KINDS: WorkKind[] = ['repair', 'upgrade', 'regularize', 'water', 'power'];
 export type WorkStatus = 'pending' | 'applied' | 'failed';
 
 export interface PropertyWork {
@@ -206,6 +252,26 @@ export function wearAt(p: Property, at: Date): number {
   return Math.max(0, p.wearBase - WEAR_PER_DAY * daysBetween(p.wearSince, at));
 }
 
+/**
+ * Janela em que o imóvel rende 100%: regularizado, com água e com energia. A interseção de
+ * intervalos é um intervalo; sem algum dos três, `null`.
+ */
+export function regularWindow(p: Property): [Date, Date] | null {
+  if (!p.regularizedAt || !p.waterFrom || !p.waterUntil || !p.powerFrom || !p.powerUntil) return null;
+  const from = Math.max(p.regularizedAt.getTime(), p.waterFrom.getTime(), p.powerFrom.getTime());
+  const until = Math.min(p.waterUntil.getTime(), p.powerUntil.getTime());
+  return from < until ? [new Date(from), new Date(until)] : null;
+}
+
+/** Regular em `at`: regularizado e com água e energia em dia. */
+export function isRegular(p: Property, at: Date): boolean {
+  const w = regularWindow(p);
+  return !!w && at >= w[0] && at < w[1];
+}
+
+/** Fator da renda em `at` (1 ou 0,5). */
+export const regularFactor = (p: Property, at: Date) => (isRegular(p, at) ? 1 : UNREGULAR_FACTOR);
+
 export function incomePerDay(p: Property): number {
   const t = typeOf(p.type);
   return t?.levels.find((l) => l.level === p.level)?.incomeCentsPerDay ?? 0;
@@ -214,7 +280,8 @@ export function incomePerDay(p: Property): number {
 /**
  * Renda acumulada em centavos, entre a última coleta e `now`, com teto de 7 dias.
  * O desgaste cai em linha reta, então a renda é a integral de M × w(t)/100
- * enquanto w ≥ 30.
+ * enquanto w ≥ 30, vezes o fator de regularização: 0,5 no período todo e mais
+ * 0,5 dentro da janela regular.
  */
 export function accrued(p: Property, now: Date): { cents: number; until: Date; capped: boolean } {
   const start = new Date(Math.max(p.lastClaimAt.getTime(), p.readyAt.getTime()));
@@ -231,7 +298,14 @@ export function accrued(p: Property, now: Date): { cents: number; until: Date; c
   const xb = Math.min(xEnd, xStop);
   const M = incomePerDay(p);
   const integral = (x: number) => W0 * x - (k * x * x) / 2;
-  const cents = xb > xa ? Math.floor((M / 100) * (integral(xb) - integral(xa))) : 0;
+  const part = (a: number, b: number) => (b > a ? integral(b) - integral(a) : 0);
+  const total = part(xa, xb);
+  const w = regularWindow(p);
+  const inWindow = w
+    ? part(Math.max(xa, Math.max(0, daysBetween(p.wearSince, w[0]))), Math.min(xb, Math.max(0, daysBetween(p.wearSince, w[1]))))
+    : 0;
+  const factored = UNREGULAR_FACTOR * total + (1 - UNREGULAR_FACTOR) * inWindow;
+  const cents = Math.floor((M / 100) * factored + 1e-9);
   return { cents, until: now, capped: now > capEnd };
 }
 
@@ -420,6 +494,32 @@ export function repairCostCents(p: Property, at: Date): number {
   return lost < 0.5 ? 0 : Math.ceil(type.priceCents * REPAIR_SHARE_PER_POINT * lost);
 }
 
+export function regularizationCostCents(p: Property): number {
+  const type = typeOf(p.type);
+  return type ? Math.ceil(type.priceCents * REGULARIZATION_SHARE) : 0;
+}
+
+/**
+ * Custo de 30 dias de água ou energia. `district` é o bairro do lote (0 = centro) e
+ * `districts` quantos a cidade tem: o custo sobe em linha reta até a borda.
+ */
+export function utilityCostCents(service: Utility, district: number, districts: number): number {
+  const edge = districts > 1 ? Math.min(1, Math.max(0, district / (districts - 1))) : 0;
+  return Math.round(UTILITY_DAILY_CENTS[service] * UTILITY_PERIOD_DAYS * (1 + UTILITY_EDGE_EXTRA * edge));
+}
+
+const untilOf = (p: Property, s: Utility) => (s === 'water' ? p.waterUntil : p.powerUntil) ?? null;
+const fromOf = (p: Property, s: Utility) => (s === 'water' ? p.waterFrom : p.powerFrom) ?? null;
+
+/** Contrata mais 30 dias: em dia, estende; vencido (ou nunca contratado), começa agora. */
+export function extendUtility(p: Property, s: Utility, t: Date): { from: Date; until: Date } {
+  const until = untilOf(p, s);
+  const active = until !== null && until > t;
+  const from = active ? (fromOf(p, s) ?? t) : t;
+  const base = active ? until! : t;
+  return { from, until: new Date(base.getTime() + UTILITY_PERIOD_DAYS * DAY_MS) };
+}
+
 export function nextLevel(p: Property): PropertyLevel | undefined {
   return typeOf(p.type)?.levels.find((l) => l.level === p.level + 1 && l.upgradeCostCents !== undefined);
 }
@@ -442,10 +542,30 @@ export function applyWorkAt(
     cents > 0 && rents
       ? { id: randomUUID(), propertyId: p.id, accountId: p.ownerAccountId, amountCents: cents, status: 'pending', createdAt: t }
       : null;
-  const property: Property =
-    w.kind === 'repair'
-      ? { ...p, lastClaimAt: t, wearBase: 100, wearSince: t }
-      : { ...p, lastClaimAt: t, level: w.toLevel ?? p.level, wearBase: wearAt(p, t), wearSince: t };
+  // Daqui em diante vale o novo estado; o desgaste segue de onde estava (menos no reparo).
+  const kept: Property = { ...p, lastClaimAt: t, wearBase: wearAt(p, t), wearSince: t };
+  let property: Property;
+  switch (w.kind) {
+    case 'repair':
+      property = { ...kept, wearBase: 100 };
+      break;
+    case 'upgrade':
+      property = { ...kept, level: w.toLevel ?? p.level };
+      break;
+    case 'regularize':
+      property = { ...kept, regularizedAt: p.regularizedAt ?? t };
+      break;
+    case 'water': {
+      const { from, until } = extendUtility(p, 'water', t);
+      property = { ...kept, waterFrom: from, waterUntil: until };
+      break;
+    }
+    case 'power': {
+      const { from, until } = extendUtility(p, 'power', t);
+      property = { ...kept, powerFrom: from, powerUntil: until };
+      break;
+    }
+  }
   return { property, claim };
 }
 
@@ -473,12 +593,23 @@ async function finishWork(
   return result;
 }
 
+/** Custo de 30 dias do serviço no lote do imóvel; sem o mapa da cidade, o preço do centro. */
+export async function utilityCostOf(
+  lots: (Pick<WorldStore, 'getLot'> & Partial<Pick<WorldStore, 'getCity'>>) | undefined,
+  p: Property,
+  service: Utility,
+): Promise<number> {
+  const lot = lots ? await lots.getLot(p.city, p.lotId) : null;
+  const city = lots?.getCity ? await lots.getCity(p.city) : null;
+  return utilityCostCents(service, lot?.district ?? 0, city?.districtCount ?? 1);
+}
+
 export async function startWork(
   store: PropertyStore,
   payments: PropertyPayments,
   input: { propertyId: string; accountId: string; kind: WorkKind; requestId?: string },
   now: () => Date,
-  lots?: Pick<WorldStore, 'getLot'>,
+  lots?: Pick<WorldStore, 'getLot'> & Partial<Pick<WorldStore, 'getCity'>>,
 ): Promise<{ work: PropertyWork; property: Property; claim: PropertyClaim | null }> {
   const p = await store.getProperty(input.propertyId);
   if (!p || p.ownerAccountId !== input.accountId) throw new AppError('not_found', 'Imóvel não encontrado.', 404);
@@ -490,11 +621,20 @@ export async function startWork(
   if (input.kind === 'repair') {
     costCents = repairCostCents(p, t);
     if (costCents <= 0) throw new AppError('nothing_to_repair', 'O imóvel não precisa de reparo.', 409);
-  } else {
+  } else if (input.kind === 'upgrade') {
     const next = nextLevel(p);
     if (!next) throw new AppError('max_level', 'O imóvel já está no nível máximo.', 409);
     costCents = next.upgradeCostCents!;
     toLevel = next.level;
+  } else if (input.kind === 'regularize') {
+    if (p.regularizedAt) throw new AppError('already_regularized', 'O imóvel já está regularizado.', 409);
+    costCents = regularizationCostCents(p);
+  } else {
+    const until = untilOf(p, input.kind);
+    if (until && until.getTime() - t.getTime() > (UTILITY_MAX_AHEAD_DAYS - UTILITY_PERIOD_DAYS) * DAY_MS) {
+      throw new AppError('utility_prepaid', `Já há serviço pago para mais de ${UTILITY_MAX_AHEAD_DAYS - UTILITY_PERIOD_DAYS} dias.`, 409);
+    }
+    costCents = await utilityCostOf(lots, p, input.kind);
   }
 
   const work: PropertyWork = {

@@ -1,6 +1,18 @@
 import { AppError, forwardRequestId } from '@scc/shared';
 
-import type { Property, PropertyClaim, PropertyPayments, PropertyWork } from '../domain/properties.js';
+import type { Property, PropertyClaim, PropertyPayments, PropertyWork, WorkKind } from '../domain/properties.js';
+
+/**
+ * Lançamento e sink de cada obra (doc 04 §7): reparo é "reparos"; upgrade, "upgrades de imóvel";
+ * a regularização é taxa da Prefeitura; água e energia, "serviços".
+ */
+const WORK_LEDGER: Record<WorkKind, { kind: string; sink: string; label: string }> = {
+  repair: { kind: 'property_repair', sink: 'repair', label: 'o reparo' },
+  upgrade: { kind: 'property_upgrade', sink: 'construction', label: 'o upgrade' },
+  regularize: { kind: 'property_regularization', sink: 'prefeitura', label: 'a regularização' },
+  water: { kind: 'property_water', sink: 'utilities', label: 'a água' },
+  power: { kind: 'property_power', sink: 'utilities', label: 'a energia' },
+};
 
 type Leg = { owner_type: string; owner_id: string; currency: 'THALER'; amount: string };
 
@@ -56,20 +68,20 @@ export class LedgerPropertyPayments implements PropertyPayments {
 
   async chargeWork(w: PropertyWork, requestId?: string) {
     const amount = String(w.costCents);
+    const { kind, sink, label } = WORK_LEDGER[w.kind];
     const code = await this.post(
       `property-work:${w.id}`,
-      w.kind === 'repair' ? 'property_repair' : 'property_upgrade',
+      kind,
       w.propertyId,
       [
         { owner_type: 'player', owner_id: w.accountId, currency: 'THALER', amount: `-${amount}` },
-        // Reparo é sink de "reparos"; upgrade, de "upgrades de imóvel" (doc 04 §7).
-        { owner_type: 'burn', owner_id: w.kind === 'repair' ? 'repair' : 'construction', currency: 'THALER', amount },
+        { owner_type: 'burn', owner_id: sink, currency: 'THALER', amount },
       ],
       requestId,
     );
     if (!code) return;
     if (code === 'insufficient_funds') {
-      throw new AppError('insufficient_thaler', `THALER insuficiente para o ${w.kind === 'repair' ? 'reparo' : 'upgrade'}.`, 409);
+      throw new AppError('insufficient_thaler', `THALER insuficiente para ${label}.`, 409);
     }
     throw new AppError('ledger_unavailable', 'O ledger recusou o lançamento.', 502);
   }

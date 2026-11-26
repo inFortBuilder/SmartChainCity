@@ -127,6 +127,24 @@ O job `properties.settle` (junto do `purchases.settle`) refaz obras e coletas qu
 - **Desgaste:** 1 ponto por dia.
 - **Reparo:** 0,05% do preço por ponto recuperado; na T1, 2 THALER por ponto.
 - **Upgrade da T1:** nível 2 custa 2.000 THALER e rende 15/dia; nível 3 custa 4.000 e rende 20/dia.
+- **Regularização e serviços:** taxa de 2% do preço; água 2 e energia 3 THALER/dia no centro (somam os 5/dia do plano de energia do simulador), até o dobro na borda; 60 dias adiantados no máximo.
+
+### Regularização, água e energia (doc 03 §3)
+
+O imóvel pronto rende **50%** até estar regular: regularizado na Prefeitura e com água e energia em dia. É o `fator_regularizacao_moradia` do doc 04 §4 e o `work.unregularizedFactor` do simulador. Cada passo é uma obra, como o reparo: cobra antes, fecha a renda até ali com o estado antigo e só então muda o imóvel.
+
+| Passo | Rota | Custo (premissa) | Sink |
+|---|---|---|---|
+| Regularizar (uma vez; residencial ou comercial, pelo tipo) | `POST /v1/world/properties/:id/regularize` | 2% do preço: 80 THALER na T1 | `burn/prefeitura` |
+| Água por 30 dias | `POST /v1/world/properties/:id/water` | 2 THALER/dia no centro | `burn/utilities` |
+| Energia por 30 dias | `POST /v1/world/properties/:id/power` | 3 THALER/dia no centro | `burn/utilities` |
+
+- O custo dos serviços sobe em linha reta com o bairro, até o dobro no último (o lote vem sem água e energia, e o custo cresce com a distância ao centro, doc 03 §4).
+- Em dia, a contratação estende 30 dias; vencida, recomeça na hora.
+- No máximo 60 dias pagos adiantado (`409 utility_prepaid`). Regularizar duas vezes dá `409 already_regularized`.
+- A renda é a integral do desgaste vezes 0,5 no período todo, mais 0,5 dentro da janela em que as três valem. Por isso a janela pode abrir ou fechar no meio do acúmulo.
+- `GET /v1/world/me/properties` mostra `regular`, `income_factor`, `regularization_cost_cents`, `utility_cost_cents` (água e energia no lote), `water_until` e `power_until`. A ficha do lote no mapa tem os botões.
+- **Moradia própria.** `GET /internal/v1/accounts/:accountId/homes`, com o `INTERNAL_TOKEN`, lista as casas prontas da conta e até quando cada uma fica regular (`regular_until`). A casa só conta se o dono do imóvel também for o dono do lote. O game-core usa isso no turno.
 
 Com isso, uma T1 coletada toda semana rende 455 THALER até o desgaste chegar a 30, em 70 dias, contra 4.000 de obra. Com reparo a cada 30 dias (60 THALER), sobra ~195 THALER por mês, e a obra se paga em ~620 dias. O [simulador](../../tools/econ-sim/README.md), que conta 10 THALER/dia sem desgaste, precisa passar a contar o desgaste, o reparo e os níveis antes de esses números virarem regra.
 
@@ -250,6 +268,10 @@ TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc_test pnpm --filter
 | POST | `/v1/world/properties/:id/claim` | dono (Bearer) | Coleta a renda acumulada |
 | POST | `/v1/world/properties/:id/repair` | dono (Bearer) | Reparo: desgaste volta a 100 |
 | POST | `/v1/world/properties/:id/upgrade` | dono (Bearer) | Sobe um nível |
+| POST | `/v1/world/properties/:id/regularize` | dono (Bearer) | Regulariza na Prefeitura (uma vez) |
+| POST | `/v1/world/properties/:id/water` | dono (Bearer) | Água por 30 dias |
+| POST | `/v1/world/properties/:id/power` | dono (Bearer) | Energia por 30 dias |
+| GET | `/internal/v1/accounts/:accountId/homes` | `x-service-token` | Casas prontas da conta e até quando são moradia regular |
 | POST | `/v1/world/properties/:id/onchain-voucher` | dono (Bearer) | Voucher EIP-712 do `PropertyNFT` para o imóvel pronto (corpo: `{wallet}`) |
 | POST | `/v1/world/properties/:id/level-voucher` | dono (Bearer) | Voucher do nível atual para `PropertyNFT.upgrade` |
 | GET | `/v1/world/me/taxes` | jogador (Bearer) | Contas de imposto: valor, multa, vencimento, situação e dias de atraso; total devido |
@@ -269,7 +291,7 @@ TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc_test pnpm --filter
 | GET | `/v1/world/me/invitations` | jogador (Bearer) | Imóveis onde fui convidado e o convite ainda vale |
 | GET | `/healthz` | — | `{status: "ok"}` |
 
-Erros com código estável: `sale_not_open`, `queue_required`, `queue_waiting`, `queue_expired`, `queue_not_open`, `sale_ended`, `sale_limit`, `no_sale`, `wallet_required`, `lot_not_for_sale`, `lot_reserved`, `district_closed`, `other_district`, `area_cap`, `insufficient_scity`, `reservation_lost`, `ledger_unavailable`, `not_found`, `not_lot_owner`, `wallet_not_linked`, `unknown_property_type`, `zone_not_allowed`, `lot_has_property`, `insufficient_thaler`, `property_not_ready`, `nothing_to_claim`, `claim_in_progress`, `nothing_to_repair`, `max_level`, `work_in_progress`, `lot_not_owned`, `nothing_to_upgrade`, `tax_default`, `taxes_disabled`, `auctions_disabled`, `own_auction`, `auction_closed`, `bid_too_low`, `other_district`, `area_cap`, `building_invalid`, `lot_has_building`, `lot_without_polygon`, `building_not_in_review`, `builder_unavailable`, `model_not_found`, `building_not_approved`, `model_hash_missing`, `pool_empty`, `properties_disabled`, `city_not_onchain`, `onchain_disabled`, `gateway_unavailable`, `missing_credentials`, `invalid_token`, `token_expired`.
+Erros com código estável: `sale_not_open`, `queue_required`, `queue_waiting`, `queue_expired`, `queue_not_open`, `sale_ended`, `sale_limit`, `no_sale`, `wallet_required`, `lot_not_for_sale`, `lot_reserved`, `district_closed`, `other_district`, `area_cap`, `insufficient_scity`, `reservation_lost`, `ledger_unavailable`, `not_found`, `not_lot_owner`, `wallet_not_linked`, `unknown_property_type`, `zone_not_allowed`, `lot_has_property`, `insufficient_thaler`, `property_not_ready`, `nothing_to_claim`, `claim_in_progress`, `nothing_to_repair`, `max_level`, `already_regularized`, `utility_prepaid`, `work_in_progress`, `lot_not_owned`, `nothing_to_upgrade`, `tax_default`, `taxes_disabled`, `auctions_disabled`, `own_auction`, `auction_closed`, `bid_too_low`, `other_district`, `area_cap`, `building_invalid`, `lot_has_building`, `lot_without_polygon`, `building_not_in_review`, `builder_unavailable`, `model_not_found`, `building_not_approved`, `model_hash_missing`, `pool_empty`, `properties_disabled`, `city_not_onchain`, `onchain_disabled`, `gateway_unavailable`, `missing_credentials`, `invalid_token`, `token_expired`.
 
 ## Visitas: entrar nos imóveis pelo street view
 
@@ -286,11 +308,11 @@ Tabela `place_guest`, migração `0010_visitas`.
 
 ## Banco
 
-Esquema próprio `world`: `city` (zonas, bairros abertos, limiar), `lot` (situação, dono, reserva) e `purchase` (cada compra, com o preço em wei e a situação), `property` (imóvel, obra, desgaste e última coleta; um por lote) e `property_claim` (cada coleta e se já foi paga) `property_work` (reparos e upgrades; uma pendente por imóvel), `tax_bill` (uma conta por lote, tipo e período), `auction` e `auction_bid` (leilão do lote inadimplente; um ativo por lote) e `building` (prédio validado, outorga, alvará; um vigente por lote), `chain_cursor` e `chain_transfer_pending` (posse on-chain → jogo), `sale` (lançamento agendado por cidade) e `sale_ticket` (fichas da fila; a posição é calculada pelo sorteio e pela ordem de chegada). O `lot` ganhou `polygon`. Migrações em `drizzle/`, controladas em `drizzle.__world_migrations`.
+Esquema próprio `world`: `city` (zonas, bairros abertos, limiar), `lot` (situação, dono, reserva) e `purchase` (cada compra, com o preço em wei e a situação), `property` (imóvel, obra, desgaste, última coleta, regularização e janelas de água e energia; um por lote) e `property_claim` (cada coleta e se já foi paga) `property_work` (reparos, upgrades, regularização, água e energia; uma pendente por imóvel), `tax_bill` (uma conta por lote, tipo e período), `auction` e `auction_bid` (leilão do lote inadimplente; um ativo por lote) e `building` (prédio validado, outorga, alvará; um vigente por lote), `chain_cursor` e `chain_transfer_pending` (posse on-chain → jogo), `sale` (lançamento agendado por cidade) e `sale_ticket` (fichas da fila; a posição é calculada pelo sorteio e pela ordem de chegada). O `lot` ganhou `polygon`. Migrações em `drizzle/`, controladas em `drizzle.__world_migrations`.
 
 ## Ainda não
 
-- Imóveis: troca de tipo (T1 → T2 → T3), seguro, aluguel e hotel, lote duplo (Residencial 2 e 3), regularização e água/energia; os outros tipos do doc 03 §6; o catálogo vindo do Strapi (hoje fica no código, igual ao seed).
+- Imóveis: troca de tipo (T1 → T2 → T3), seguro, aluguel de unidades entre jogadores (com os prédios, E3.11), lote duplo (Residencial 2 e 3); os outros tipos do doc 03 §6; o catálogo vindo do Strapi (hoje fica no código, igual ao seed).
 - Prédios: o chain-indexer ler o `BuildingNFT`, unidades e venda (E3.11), taxa de alvará, prazo de obra proporcional à área, IPTU por unidade.
 - Impostos: IPTU por unidade dos prédios de construtores (doc 13). A apreensão do NFT no leilão já existe ([ADR-0016](../../docs/adr/0016-apreensao-nft-leilao.md)).
 - Mercado de utilidades entre jogadores (o mercado on-chain de lotes, imóveis e avatares já existe: [contratos](../../contracts/README.md#marketplace-e36)).

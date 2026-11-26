@@ -45,6 +45,12 @@ const house = (owner: string, lotId: number, over: Partial<Property> = {}): Prop
   wearBase: 100,
   wearSince: T0,
   lastClaimAt: T0,
+  // Regularizada, com água e energia: renda de 100% (doc 03 §3).
+  regularizedAt: at(-1),
+  waterFrom: at(-1),
+  waterUntil: at(1000),
+  powerFrom: at(-1),
+  powerUntil: at(1000),
   ...over,
 });
 

@@ -99,6 +99,12 @@ export const property = world.table(
     wearBase: real('wear_base').notNull(),
     wearSince: timestamptz('wear_since').notNull(),
     lastClaimAt: timestamptz('last_claim_at').notNull(),
+    // Regularização e infraestrutura (doc 03 §3): sem elas, renda de 50%.
+    regularizedAt: timestamptz('regularized_at'),
+    waterFrom: timestamptz('water_from'),
+    waterUntil: timestamptz('water_until'),
+    powerFrom: timestamptz('power_from'),
+    powerUntil: timestamptz('power_until'),
   },
   (t) => [
     uniqueIndex('property_lot_idx').on(t.city, t.lotId),
@@ -145,7 +151,7 @@ export const propertyWork = world.table(
   (t) => [
     uniqueIndex('property_work_one_pending_idx').on(t.propertyId).where(sql`status = 'pending'`),
     index('property_work_pending_idx').on(t.status, t.createdAt),
-    check('property_work_kind_check', sql`${t.kind} in ('repair', 'upgrade')`),
+    check('property_work_kind_check', sql`${t.kind} in ('repair', 'upgrade', 'regularize', 'water', 'power')`),
     check('property_work_status_check', sql`${t.status} in ('pending', 'applied', 'failed')`),
   ],
 );

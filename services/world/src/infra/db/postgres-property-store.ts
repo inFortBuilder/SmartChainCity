@@ -170,7 +170,17 @@ export class PostgresPropertyStore implements PropertyStore {
       const next = result.property;
       await tx
         .update(propertyT)
-        .set({ level: next.level, wearBase: next.wearBase, wearSince: next.wearSince, lastClaimAt: next.lastClaimAt })
+        .set({
+          level: next.level,
+          wearBase: next.wearBase,
+          wearSince: next.wearSince,
+          lastClaimAt: next.lastClaimAt,
+          regularizedAt: next.regularizedAt ?? null,
+          waterFrom: next.waterFrom ?? null,
+          waterUntil: next.waterUntil ?? null,
+          powerFrom: next.powerFrom ?? null,
+          powerUntil: next.powerUntil ?? null,
+        })
         .where(eq(propertyT.id, next.id));
       if (result.claim) {
         await tx.insert(claimT).values({ ...result.claim, amountCents: String(result.claim.amountCents) });

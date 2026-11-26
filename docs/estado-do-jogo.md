@@ -23,6 +23,7 @@ Tudo roda na máquina local, sem serviços pagos. O mapa da cidade real (Pittsbu
 | Ledger de THALER e SCITY, câmbio com TWAP, painel econômico | ✅ 🟡 limites de alerta provisórios | [economy](../services/economy/README.md) |
 | Lotes (compra, um bairro por jogador, teto de área), venda de lançamento com fila | ✅ | [world](../services/world/README.md) |
 | Imóveis (Casa T1, obra, desgaste, renda, reparo, nível) e prédios de construtores (SCC Builder) | 🟡 só a Casa T1 com valores | world |
+| Regularização na Prefeitura, água e energia (sem elas, renda de 50%) | ✅ 🟡 custos provisórios | world |
 | Impostos (IPTU e lote vazio), multa, leilão do lote inadimplente com apreensão do NFT | 🟡 valores provisórios | world |
 | Pets, Pet Shop e Pet Sitter | 🟡 falta a arte | game-core |
 | Escola e troca de profissão | ✅ 🟡 preços provisórios | game-core |
@@ -49,7 +50,6 @@ O GDD amarra o ganho do turno à moradia: sem regularização, o imóvel rende m
 | Falta | Quem | Observação |
 |---|---|---|
 | ⬜ **Aluguel e hotel:** quem não tem casa paga para morar; o dono do prédio ou do hotel recebe | 🔧 | GDD §3; o `fator_regularizacao_moradia` (doc 04 §4) entra no turno |
-| ⬜ **Regularização do lote** na Prefeitura (residencial ou comercial) e **água e energia** contratadas, com custo pela distância | 🔧 | doc 03 §4: imóvel sem regularização rende 50% |
 | ⬜ **Troca de tipo** T1 → T2 → T3, Residencial 2 e 3 (lote duplo) e os outros tipos do doc 03 §6 | 🔧 👤 | Os valores vêm da "Figura 16" do GDD, que não veio no texto (doc 11, lacuna 3) |
 | ⬜ **Seguro** do imóvel | 🔧 👤 | Faltam regra e preço |
 | ⬜ **Catálogo de imóveis no Strapi** (hoje fica no código, igual ao seed) | 🔧 | O tipo `property-type` já existe no CMS |
@@ -93,6 +93,7 @@ Os valores abaixo funcionam no jogo, mas são **premissas** marcadas no código.
 - **GamePass:** 5 SCITY por nível, o corte de dano e os efeitos dos itens;
 - **antifraude:** limites de contas por aparelho e de velocidade;
 - **câmbio:** teto e spread;
+- **Prefeitura e serviços:** taxa de regularização de 2% do preço, água e energia (2 e 3 THALER/dia no centro, até o dobro na borda);
 - **alertas do painel econômico:** os limites de partida.
 
 ### 2.6 Técnico
@@ -112,8 +113,6 @@ A ordem prioriza o que deixa o jogo **completo para o jogador** no lançamento d
 1. **Calibrar a economia** 👤 (com 🔧 para aplicar). Sem os números definitivos, todo o resto é provisório. O game designer roda o simulador com as premissas acima; o código só troca constantes e o seed do Strapi.
 2. **Moradia completa** 🔧, o maior buraco do laço do jogador:
    - aluguel e hotel;
-   - regularização na Prefeitura;
-   - água e energia;
    - o fator de moradia no turno.
 3. **Descansar, atividades e deslocamento** 🔧 👤: fecham o dia do avatar (trabalhar → comer → descansar → se divertir → ir e voltar).
 4. **Tipos de imóvel e catálogo no Strapi** 🔧 👤: T2, T3, os residenciais e os comerciais, com os valores da Figura 16 quando o game designer fechar.

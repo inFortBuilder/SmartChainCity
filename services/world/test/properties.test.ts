@@ -43,6 +43,12 @@ const house = (over: Partial<Property> = {}): Property => ({
   wearBase: 100,
   wearSince: T0,
   lastClaimAt: T0,
+  // Regularizada, com água e energia: renda de 100% (doc 03 §3).
+  regularizedAt: at(-1),
+  waterFrom: at(-1),
+  waterUntil: at(1000),
+  powerFrom: at(-1),
+  powerUntil: at(1000),
   ...over,
 });
 
@@ -234,14 +240,14 @@ describe('imóveis de ponta a ponta (world + economy)', () => {
     const early = await world.inject({ method: 'POST', url: `/v1/world/properties/${property.id}/claim`, headers });
     expect(early.json().error.code).toBe('property_not_ready');
 
-    clock = new Date(T0.getTime() + 2 * DAY_MS); // 1 dia de obra + 1 dia de renda
+    clock = new Date(T0.getTime() + 2 * DAY_MS); // 1 dia de obra + 1 dia de renda, sem regularização (50%)
     const mine = (await world.inject({ method: 'GET', url: '/v1/world/me/properties', headers })).json().properties;
-    expect(mine[0]).toMatchObject({ phase: 'ready', producing: true, accrued_cents: 995, wear: 99 });
+    expect(mine[0]).toMatchObject({ phase: 'ready', producing: true, accrued_cents: 497, wear: 99, regular: false, income_factor: 0.5 });
 
     const claimed = await world.inject({ method: 'POST', url: `/v1/world/properties/${property.id}/claim`, headers });
     expect(claimed.statusCode).toBe(200);
-    expect(claimed.json().claim).toMatchObject({ amount_cents: 995, status: 'paid' });
-    expect(await thalerOf(headers)).toBe('100995');
+    expect(claimed.json().claim).toMatchObject({ amount_cents: 497, status: 'paid' });
+    expect(await thalerOf(headers)).toBe('100497');
 
     const again = await world.inject({ method: 'POST', url: `/v1/world/properties/${property.id}/claim`, headers });
     expect(again.json().error.code).toBe('nothing_to_claim');
@@ -283,7 +289,7 @@ describe('imóveis de ponta a ponta (world + economy)', () => {
 
     await credit({ owner_type: 'pool', owner_id: 'p2e' }, 'THALER', 1_000_000n);
     expect(await settleProperties(propertyStore, propertyPayments, new Date(clock.getTime() + 60_000))).toBe(1);
-    expect(await thalerOf(headers)).toBe('100995');
+    expect(await thalerOf(headers)).toBe('100497');
   });
 });
 

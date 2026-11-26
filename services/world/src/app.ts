@@ -11,7 +11,14 @@ import {
   ACCRUAL_CAP_DAYS,
   MIN_WEAR_FOR_INCOME,
   PROPERTY_TYPES,
+  REGULARIZATION_SHARE,
   REPAIR_SHARE_PER_POINT,
+  UNREGULAR_FACTOR,
+  UTILITIES,
+  UTILITY_DAILY_CENTS,
+  UTILITY_EDGE_EXTRA,
+  UTILITY_MAX_AHEAD_DAYS,
+  UTILITY_PERIOD_DAYS,
   type Property,
   type PropertyPayments,
   type PropertyStore,
@@ -20,9 +27,14 @@ import {
   buildProperty,
   claimIncome,
   incomePerDay,
+  isRegular,
   nextLevel,
   phaseOf,
+  regularWindow,
+  regularizationCostCents,
   repairCostCents,
+  utilityCostOf,
+  type WorkKind,
   startWork,
   typeOf,
   wearAt,
@@ -408,6 +420,14 @@ export async function buildApp(
       accrued_cents: income.cents,
       accrual_full: income.capped,
       repair_cost_cents: phase === 'ready' ? repairCostCents(p, t) : 0,
+      // Regularização e infraestrutura (doc 03 §3): sem as três, a renda é de 50%.
+      use: type?.use ?? null,
+      regularized_at: p.regularizedAt?.toISOString() ?? null,
+      water_until: p.waterUntil?.toISOString() ?? null,
+      power_until: p.powerUntil?.toISOString() ?? null,
+      regular: isRegular(p, t),
+      income_factor: isRegular(p, t) ? 1 : UNREGULAR_FACTOR,
+      regularization_cost_cents: p.regularizedAt ? 0 : regularizationCostCents(p),
       next_level: (() => {
         const n = nextLevel(p);
         return n ? { level: n.level, cost_cents: n.upgradeCostCents, income_cents_per_day: n.incomeCentsPerDay } : null;
@@ -415,7 +435,16 @@ export async function buildApp(
     };
   };
 
-  const workRoute = (kind: 'repair' | 'upgrade') => async (request: FastifyRequest) => {
+  /** O imóvel com os custos de 30 dias de água e energia no lote dele (sobem com a distância ao centro). */
+  const propertyOut = async (p: Property) => ({
+    ...propertyDto(p),
+    utility_cost_cents: {
+      water: await utilityCostOf(store, p, 'water'),
+      power: await utilityCostOf(store, p, 'power'),
+    },
+  });
+
+  const workRoute = (kind: WorkKind) => async (request: FastifyRequest) => {
     const me = await player(request);
     const { id } = z.object({ id: z.uuid() }).parse(request.params);
     const { store: propStore, payments: propPayments } = propertiesOn();
@@ -427,7 +456,7 @@ export async function buildApp(
       work: { id: work.id, kind: work.kind, cost_cents: work.costCents, to_level: work.toLevel },
       // Renda acumulada até a obra, fechada e paga antes de o imóvel mudar.
       claim: claim ? { id: claim.id, amount_cents: claim.amountCents, status: claim.status } : null,
-      property: propertyDto(property),
+      property: await propertyOut(property),
     };
   };
 
@@ -437,6 +466,13 @@ export async function buildApp(
       wear_per_day: WEAR_PER_DAY,
       min_wear_for_income: MIN_WEAR_FOR_INCOME,
       repair_share_per_point: REPAIR_SHARE_PER_POINT,
+      unregular_factor: UNREGULAR_FACTOR,
+      regularization_share: REGULARIZATION_SHARE,
+      utility_period_days: UTILITY_PERIOD_DAYS,
+      utility_max_ahead_days: UTILITY_MAX_AHEAD_DAYS,
+      utility_daily_cents: UTILITY_DAILY_CENTS,
+      utility_edge_extra: UTILITY_EDGE_EXTRA,
+      utilities: UTILITIES,
     },
     types: PROPERTY_TYPES.map((t) => ({
       code: t.code,
@@ -446,6 +482,7 @@ export async function buildApp(
       build_minutes: t.buildMinutes,
       levels: t.levels.map((l) => ({ level: l.level, income_cents_per_day: l.incomeCentsPerDay, upgrade_cost_cents: l.upgradeCostCents ?? null })),
       provisional: t.provisional,
+      use: t.use,
       venue: t.venue ? { activity: t.venue.activity, fee_cents: t.venue.feeCents } : null,
     })),
   }));
@@ -518,7 +555,7 @@ export async function buildApp(
   app.get('/v1/world/me/properties', async (request) => {
     const me = await player(request);
     const list = await propertiesOn().store.propertiesOf(me);
-    return { properties: list.map(propertyDto) };
+    return { properties: await Promise.all(list.map(propertyOut)) };
   });
 
   app.post('/v1/world/properties/:id/claim', async (request) => {
@@ -537,6 +574,46 @@ export async function buildApp(
 
   app.post('/v1/world/properties/:id/repair', workRoute('repair'));
   app.post('/v1/world/properties/:id/upgrade', workRoute('upgrade'));
+  // Prefeitura e serviços (doc 03 §3): regularizar uma vez; água e energia por 30 dias.
+  app.post('/v1/world/properties/:id/regularize', workRoute('regularize'));
+  app.post('/v1/world/properties/:id/water', workRoute('water'));
+  app.post('/v1/world/properties/:id/power', workRoute('power'));
+
+  // Moradia própria para o game-core (fator do turno, doc 04 §4): as casas prontas da conta e até quando
+  // cada uma fica regular (regularizada, com água e energia).
+  app.get('/internal/v1/accounts/:accountId/homes', async (request) => {
+    if (!config.INTERNAL_TOKEN) {
+      throw new AppError('internal_disabled', 'Rotas internas desligadas: defina INTERNAL_TOKEN.', 503);
+    }
+    requireServiceToken(request.headers['x-service-token'], config.INTERNAL_TOKEN);
+    const { accountId } = z.object({ accountId: z.uuid() }).parse(request.params);
+    const t = now();
+    const homes = (await propertiesOn().store.propertiesOf(accountId)).filter(
+      (p) => typeOf(p.type)?.use === 'residencial' && phaseOf(p, t) === 'ready',
+    );
+    return {
+      homes: await Promise.all(
+        homes.map(async (p) => {
+          // A casa só vale enquanto o dono também tem o lote (doc 07 §2.2).
+          const lot = await store.getLot(p.city, p.lotId);
+          const window = regularWindow(p);
+          const regular = isRegular(p, t) && lot?.ownerAccountId === p.ownerAccountId;
+          return {
+            id: p.id,
+            city: p.city,
+            lot_id: p.lotId,
+            type: p.type,
+            label: typeOf(p.type)?.label ?? p.type,
+            regular,
+            regular_until: regular && window ? window[1].toISOString() : null,
+            regularized: !!p.regularizedAt,
+            water_until: p.waterUntil?.toISOString() ?? null,
+            power_until: p.powerUntil?.toISOString() ?? null,
+          };
+        }),
+      ),
+    };
+  });
 
   // PropertyNFT (E2.5): o imóvel pronto vai para a carteira do dono do lote; o nível sobe com outro voucher.
   const propertyChain = () => {
