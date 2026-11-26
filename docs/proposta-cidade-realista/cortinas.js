@@ -1,5 +1,6 @@
-// Cortinas laterais à esquerda: painéis que ocupam da barra do topo até a base da tela, com a rolagem do
-// lado esquerdo, e abrem pelas abas na borda da tela. Uma cortina aberta por vez (elas dividem o espaço).
+// Cortinas laterais à esquerda: painéis colados na borda, da barra do topo até a base da tela, com a rolagem
+// do lado esquerdo. Abrem pelas abas na borda; abertas, cobrem as abas e fecham pelo botão com
+// `data-cortina-fechar` no cabeçalho (ou Esc). Uma cortina aberta por vez (elas dividem o espaço).
 //
 //   const cortinas = createCortinas([
 //     { name: 'jogo', el: painelDoJogo, label: 'Jogo', icon: '🎮', open: true },
@@ -72,6 +73,9 @@ export function createCortinas(items) {
   rail.addEventListener('click', (e) => {
     const b = e.target.closest('[data-cortina]');
     if (b) api.toggle(b.dataset.cortina);
+  });
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('.cortina [data-cortina-fechar]')) api.close();
   });
   document.addEventListener('cortina', (e) => {
     const { name, open } = e.detail ?? {};
