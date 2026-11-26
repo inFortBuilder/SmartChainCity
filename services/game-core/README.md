@@ -40,7 +40,24 @@ Cada atributo que cai guarda o **instante de referência** (`food_at`, `happines
 | Sorteio auditável | No começo, o servidor publica `seed_commit` = sha256(semente). No fim, revela a semente; o resultado é HMAC(semente, turno), que qualquer um refaz |
 | Pagamento | O "Coletar" paga pelo ledger do economy, do pool P2E para o jogador, com a chave `shift:<id>`: repetir nunca paga em dobro. O `x-request-id` da coleta vai junto, para achar o pagamento no log do economy. Pool vazio responde `503 pool_empty` e o turno fica para coletar depois |
 
-Moradia irregular (×0,5) e evento semanal (×1,15) ficam em 1 até existirem imóveis e eventos. O pet entra no teto de 2,5× quando existir.
+O evento semanal, o pet (no teto de 2,5×), os itens da temporada e o Pet Sitter também entram no ganho, cada um na sua seção. A moradia entra pela seção abaixo.
+
+## Moradia: casa própria, aluguel ou hotel
+
+Sem moradia regular, o turno rende **50%**: é o `fator_regularizacao_moradia` do doc 04 §4 e o `work.unregularizedFactor` do simulador. O fator vai na foto do turno (`snapshot.housing`), tirada no começo; turnos de antes não têm o campo e valem 1.
+
+| Moradia | Como |
+|---|---|
+| Casa própria | Uma casa pronta da conta, regularizada e com água e energia em dia. O game-core pergunta ao world (`GET /internal/v1/accounts/:id/homes`, com `WORLD_URL` e `WORLD_TOKEN`). A regularização se faz no world, pela ficha do lote. Com o world fora do ar, o turno não perde o fator (vale 1) e o aviso fica no log. Sem `WORLD_URL`, a casa própria não conta |
+| Aluguel | `POST /v1/avatars/:id/housing` com `{kind: "aluguel", days}`: quarto num residencial da Prefeitura, 15 THALER/dia. 40% viram queima (`burn/rent`) e 60% voltam ao pool P2E, de onde sai a renda dos imóveis, até os prédios de jogadores alugarem unidades (E3.11) |
+| Hotel do jogo | `{kind: "hotel", level, days}`: níveis 1, 2 e 3 a 25, 40 e 60 THALER/dia, com 1, 2 e 3 refeições incluídas por dia (`POST /v1/avatars/:id/housing/meal`, +3 de alimentação, sem cobrança). Tudo vira queima (`burn/hotel`) |
+
+- De 1 a 30 dias por vez, até 30 dias pagos adiantado (`409 housing_prepaid`). A mesma estadia estende; outra dá `409 housing_active`.
+- `DELETE /v1/avatars/:id/housing` sai agora, sem reembolso, para trocar de moradia.
+- A cobrança segue o caminho das refeições (duas fases, `Idempotency-Key`, `rent_fee` e `hotel_fee` no ledger).
+- `GET /v1/avatars/:id/housing` mostra o fator do próximo turno, a estadia, as casas próprias e os preços. O avatar traz `housing` (a estadia em curso).
+- **Premissas:** os preços, a divisão 40/60 (do simulador: `sinks.rentRenter` e `sinks.rentNpcShare`), as refeições do hotel e o limite de 30 dias.
+- Depois de atualizar o código, rode `pnpm db:migrate`: a migração `0020_moradia` cria a coluna `housing` do avatar.
 
 ## Minigame do turno (E2.2)
 
@@ -346,6 +363,11 @@ TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc_test pnpm --filter
 | GET | `/v1/catalog/pharmacy` | público | Preço do remédio, chance de cura e a tabela das doenças |
 | GET | `/v1/catalog/vehicles` | público | Modelos da agência (preço, aluguel, velocidade, força) e as regras de vida útil, IPVA, aluguel, recompra e autoescola |
 | POST | `/v1/avatars/:id/license` | jogador (Bearer) | Autoescola: paga e fica 3 h parado. Aceita `Idempotency-Key` |
+| GET | `/v1/avatars/:id/housing` | jogador (Bearer) | Moradia: fator do próximo turno, estadia, casas próprias e preços |
+| POST | `/v1/avatars/:id/housing` | jogador (Bearer) | Aluguel ou hotel `{kind, level?, days}`. Aceita `Idempotency-Key` |
+| DELETE | `/v1/avatars/:id/housing` | jogador (Bearer) | Sai do aluguel ou do hotel, sem reembolso |
+| POST | `/v1/avatars/:id/housing/meal` | jogador (Bearer) | Refeição incluída no hotel |
+| GET | `/v1/housing/prices` | público | Preços do aluguel e do hotel |
 | GET | `/v1/vehicles` | jogador (Bearer) | Carros da conta com a situação (`ok`, `suspended`, `worn_out`, `expired`), atributos de agora, valor, recompra e IPVA |
 | POST | `/v1/vehicles` | jogador (Bearer) | Compra `{model}` ou aluga `{model, rent: true}` na agência |
 | POST | `/v1/vehicles/:id/ipva` | jogador (Bearer) | Paga o IPVA do semestre |
@@ -400,7 +422,7 @@ TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc_test pnpm --filter
 | GET | `/v1/catalog/professions` | público | As 44 profissões com ganho do dia, duração e tarefas; das tarefas, só a direção (+/−) de energia e felicidade (GDD §2.4) |
 | GET | `/healthz` | — | `{status: "ok"}` |
 
-Erros com código estável: `invalid_rarity`, `invalid_job`, `avatar_limit`, `invalid_shift`, `shift_running`, `daily_limit`, `too_tired`, `pool_empty`, `unknown_food`, `not_hungry`, `not_in_pantry`, `in_hospital`, `sick`, `not_sick`, `invalid_condition`, `hospital_only`, `nothing_to_treat`, `insufficient_thaler`, `ledger_unavailable`, `not_found`, `forbidden`, `missing_credentials`, `invalid_token`, `token_expired`.
+Erros com código estável: `invalid_rarity`, `invalid_job`, `avatar_limit`, `invalid_shift`, `shift_running`, `daily_limit`, `too_tired`, `pool_empty`, `unknown_food`, `not_hungry`, `not_in_pantry`, `invalid_stay`, `housing_active`, `housing_prepaid`, `not_staying`, `not_in_hotel`, `hotel_meals_used`, `in_hospital`, `sick`, `not_sick`, `invalid_condition`, `hospital_only`, `nothing_to_treat`, `insufficient_thaler`, `ledger_unavailable`, `not_found`, `forbidden`, `missing_credentials`, `invalid_token`, `token_expired`.
 
 ## Banco
 
@@ -409,7 +431,8 @@ Esquema próprio `game`: tabela `avatar` do doc 06, com os instantes de referên
 ## Ainda não
 
 - Deslocamento (carro, skate, ônibus, a pé, home office). Efeito real de energia e felicidade por tarefa, que depende do game designer acertar os números do catálogo. Cards de arte das 12 profissões do MVP.
-- Bônus de itens e moradia no ganho (o do pet e o dos eventos semanais já entram).
+- Bônus de roupas e ferramentas no ganho (o pet, os eventos semanais, os itens da temporada e a moradia já entram).
+- Aluguel de unidades de prédios de jogadores (com o E3.11); bônus por ocupação do hotel de jogador.
 - Descansar e atividades (sobem os atributos); as doenças do hospital (febre, enxaqueca, virose: −1 de saúde a cada 15 min).
 - O tempo de compra do mercado e o limite da despensa pela casa.
 - Fila do BullMQ: o job roda no próprio processo até haver Redis no ambiente.
