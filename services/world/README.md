@@ -129,6 +129,29 @@ O job `properties.settle` (junto do `purchases.settle`) refaz obras e coletas qu
 - **Upgrade da T1:** nível 2 custa 2.000 THALER e rende 15/dia; nível 3 custa 4.000 e rende 20/dia.
 - **Regularização e serviços:** taxa de 2% do preço; água 2 e energia 3 THALER/dia no centro (somam os 5/dia do plano de energia do simulador), até o dobro na borda; 60 dias adiantados no máximo.
 
+### Catálogo do Strapi e troca de tipo (doc 03 §6)
+
+**Catálogo.** Com `CMS_URL`, o world lê os tipos publicados no Strapi (`/api/property-types`, com os níveis) na partida e a cada `CATALOG_REFRESH_SECONDS` (padrão 300). Junta com o catálogo do código, que é o mesmo do seed:
+- o que o CMS traz vale; o que falta (preço, renda, custo de nível) vem do tipo de mesmo código no código;
+- o negócio de lazer (entrada da academia e da galeria), o uso na Prefeitura e as premissas ficam do código;
+- sem preço ou sem a renda do nível 1, o tipo aparece em `/v1/world/property-types` com `available: false` e o motivo, mas não constrói (`409 type_unavailable`); um nível sem renda ou sem custo para subir encerra a lista de níveis;
+- tipos raros (só em eventos) e de lote duplo também não constroem ainda;
+- com o Strapi fora do ar, segue o catálogo que já estava. Sem `CMS_URL`, vale o do código.
+
+**Troca de tipo (T1 → T2 → T3).** `POST /v1/world/properties/:id/retype`, uma obra como as outras:
+- pede a casa no último nível do tipo (`409 max_level_first`);
+- cobra a diferença de preço entre os tipos (`burn/construction`, `property_retype`);
+- fecha a renda até ali e começa no nível 1 do tipo novo.
+
+T2 e T3 não se constroem direto (`409 type_by_upgrade`). O imóvel traz `next_type` (tipo, custo, renda e `ready`).
+
+**No `PropertyNFT`.** O contrato guarda o `typeCode` do mint e só aceita nível maior. Por isso a família da casa vai como a T1, com o nível corrido: T1 1 a 3, T2 4 a 6, T3 7 a 9 (`chain` no imóvel). Assim a troca de tipo é um "nível" a mais no token, sem mudar o contrato auditado.
+
+**Premissas** (a "Figura 16" do GDD não veio no texto):
+- **T2:** 7.000 THALER; renda de 24, 30 e 36/dia; níveis a 3.000 e 5.000.
+- **T3:** 12.000 THALER; renda de 42, 50 e 58/dia; níveis a 5.000 e 8.000.
+- A troca da T1 no nível 3 custa 3.000; a da T2, 5.000.
+
 ### Regularização, água e energia (doc 03 §3)
 
 O imóvel pronto rende **50%** até estar regular: regularizado na Prefeitura e com água e energia em dia. É o `fator_regularizacao_moradia` do doc 04 §4 e o `work.unregularizedFactor` do simulador. Cada passo é uma obra, como o reparo: cobra antes, fecha a renda até ali com o estado antigo e só então muda o imóvel.
@@ -269,6 +292,7 @@ TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc_test pnpm --filter
 | POST | `/v1/world/properties/:id/repair` | dono (Bearer) | Reparo: desgaste volta a 100 |
 | POST | `/v1/world/properties/:id/upgrade` | dono (Bearer) | Sobe um nível |
 | POST | `/v1/world/properties/:id/regularize` | dono (Bearer) | Regulariza na Prefeitura (uma vez) |
+| POST | `/v1/world/properties/:id/retype` | dono (Bearer) | Troca de tipo: T1 → T2 → T3, no último nível |
 | POST | `/v1/world/properties/:id/water` | dono (Bearer) | Água por 30 dias |
 | POST | `/v1/world/properties/:id/power` | dono (Bearer) | Energia por 30 dias |
 | GET | `/internal/v1/accounts/:accountId/homes` | `x-service-token` | Casas prontas da conta e até quando são moradia regular |
@@ -291,7 +315,7 @@ TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc_test pnpm --filter
 | GET | `/v1/world/me/invitations` | jogador (Bearer) | Imóveis onde fui convidado e o convite ainda vale |
 | GET | `/healthz` | — | `{status: "ok"}` |
 
-Erros com código estável: `sale_not_open`, `queue_required`, `queue_waiting`, `queue_expired`, `queue_not_open`, `sale_ended`, `sale_limit`, `no_sale`, `wallet_required`, `lot_not_for_sale`, `lot_reserved`, `district_closed`, `other_district`, `area_cap`, `insufficient_scity`, `reservation_lost`, `ledger_unavailable`, `not_found`, `not_lot_owner`, `wallet_not_linked`, `unknown_property_type`, `zone_not_allowed`, `lot_has_property`, `insufficient_thaler`, `property_not_ready`, `nothing_to_claim`, `claim_in_progress`, `nothing_to_repair`, `max_level`, `already_regularized`, `utility_prepaid`, `work_in_progress`, `lot_not_owned`, `nothing_to_upgrade`, `tax_default`, `taxes_disabled`, `auctions_disabled`, `own_auction`, `auction_closed`, `bid_too_low`, `other_district`, `area_cap`, `building_invalid`, `lot_has_building`, `lot_without_polygon`, `building_not_in_review`, `builder_unavailable`, `model_not_found`, `building_not_approved`, `model_hash_missing`, `pool_empty`, `properties_disabled`, `city_not_onchain`, `onchain_disabled`, `gateway_unavailable`, `missing_credentials`, `invalid_token`, `token_expired`.
+Erros com código estável: `sale_not_open`, `queue_required`, `queue_waiting`, `queue_expired`, `queue_not_open`, `sale_ended`, `sale_limit`, `no_sale`, `wallet_required`, `lot_not_for_sale`, `lot_reserved`, `district_closed`, `other_district`, `area_cap`, `insufficient_scity`, `reservation_lost`, `ledger_unavailable`, `not_found`, `not_lot_owner`, `wallet_not_linked`, `unknown_property_type`, `zone_not_allowed`, `lot_has_property`, `insufficient_thaler`, `property_not_ready`, `nothing_to_claim`, `claim_in_progress`, `nothing_to_repair`, `max_level`, `already_regularized`, `utility_prepaid`, `type_unavailable`, `type_by_upgrade`, `no_next_type`, `max_level_first`, `work_in_progress`, `lot_not_owned`, `nothing_to_upgrade`, `tax_default`, `taxes_disabled`, `auctions_disabled`, `own_auction`, `auction_closed`, `bid_too_low`, `other_district`, `area_cap`, `building_invalid`, `lot_has_building`, `lot_without_polygon`, `building_not_in_review`, `builder_unavailable`, `model_not_found`, `building_not_approved`, `model_hash_missing`, `pool_empty`, `properties_disabled`, `city_not_onchain`, `onchain_disabled`, `gateway_unavailable`, `missing_credentials`, `invalid_token`, `token_expired`.
 
 ## Visitas: entrar nos imóveis pelo street view
 
@@ -312,7 +336,7 @@ Esquema próprio `world`: `city` (zonas, bairros abertos, limiar), `lot` (situa�
 
 ## Ainda não
 
-- Imóveis: troca de tipo (T1 → T2 → T3), seguro, aluguel de unidades entre jogadores (com os prédios, E3.11), lote duplo (Residencial 2 e 3); os outros tipos do doc 03 §6; o catálogo vindo do Strapi (hoje fica no código, igual ao seed).
+- Imóveis: os valores definitivos dos tipos (Figura 16 do GDD), seguro, aluguel de unidades entre jogadores (com os prédios, E3.11), lote duplo (Residencial 2 e 3); os outros tipos do doc 03 §6.
 - Prédios: o chain-indexer ler o `BuildingNFT`, unidades e venda (E3.11), taxa de alvará, prazo de obra proporcional à área, IPTU por unidade.
 - Impostos: IPTU por unidade dos prédios de construtores (doc 13). A apreensão do NFT no leilão já existe ([ADR-0016](../../docs/adr/0016-apreensao-nft-leilao.md)).
 - Mercado de utilidades entre jogadores (o mercado on-chain de lotes, imóveis e avatares já existe: [contratos](../../contracts/README.md#marketplace-e36)).
