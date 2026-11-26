@@ -10,6 +10,7 @@ import { happinessWithPet, petFactors } from './pet.js';
 import { assertNotInSchool } from './school.js';
 import { inDrivingSchool } from './vehicle.js';
 import { eventFactor } from './events.js';
+import { type Commute, applyHomeOffice, assertNotResting } from './routine.js';
 
 /**
  * Turno de trabalho (E1.4; doc 02 §3.2, doc 04 §4). O ganho segue a mesma
@@ -76,6 +77,11 @@ export interface Snapshot {
   sitter?: number;
   /** Moradia regular no começo (casa própria regular, aluguel ou hotel): 1; sem: 0,5. Turnos antigos: 1. */
   housing?: number;
+  /** Deslocamento (GDD §3.3): fração que rende depois do atraso; ausente nos turnos antigos: 1. */
+  commute?: number;
+  /** Modo do deslocamento e a tarifa (centavos), que sai do pagamento. */
+  commuteMode?: string;
+  commuteCostCents?: number;
 }
 
 export interface ShiftResult {
@@ -95,6 +101,8 @@ export interface ShiftResult {
     items?: number;
     sitter?: number;
     housing?: number;
+    commute?: number;
+    commuteCost?: number;
   };
 }
 
@@ -143,6 +151,8 @@ export function startShift(
     sitter?: number;
     /** Fator de moradia (doc 04 §4): 1 com moradia regular, 0,5 sem. */
     housing?: number;
+    /** Deslocamento (GDD §3.3): atraso e tarifa. */
+    commute?: Commute;
   },
   now: Date,
 ): { shift: Shift; avatar: Avatar } {
@@ -159,6 +169,7 @@ export function startShift(
   assertNotInSchool(avatar, now);
   if (inDrivingSchool(avatar, now)) throw new AppError('in_driving_school', 'Na autoescola: 3 h sem trabalhar.', 409);
   assertCanWorkHealthy(avatar.conditions, now);
+  assertNotResting(avatar, now);
   const cost = ENERGY_COST[hours];
   const a = avatar.attributes;
   if (!status(avatar, now).canWork || a.energy < cost) {
@@ -190,6 +201,9 @@ export function startShift(
       items: 1 + (input.earnBonus ?? 0),
       ...(input.sitter && input.sitter !== 1 ? { sitter: input.sitter } : {}),
       ...(input.housing !== undefined ? { housing: input.housing } : {}),
+      ...(input.commute
+        ? { commute: input.commute.factor, commuteMode: input.commute.mode, commuteCostCents: Number(input.commute.costCents) }
+        : {}),
       earnsReward: status(avatar, now).earnsReward,
       base: baseOf(avatar.jobCode),
       illness: yieldFactor(avatar.conditions, now),
@@ -203,7 +217,9 @@ export function startShift(
   for (const code of ['gripe', 'dor_de_cabeca', 'febre', 'enxaqueca', 'virose'] as const) {
     if (draw(seed, id, code) < CONDITIONS[code].chance) conditions = catchCondition(conditions, code, shift.endsAt);
   }
-  return { shift, avatar: { ...avatar, attributes, conditions, updatedAt: now } };
+  // Home office: perde felicidade e saúde (GDD §3.2), depois da foto do turno.
+  const after = input.commute ? applyHomeOffice({ ...avatar, attributes }, input.commute) : { ...avatar, attributes };
+  return { shift, avatar: { ...after, conditions, updatedAt: now } };
 }
 
 /** Número de 0 a 1 tirado da semente e do turno: quem tem a semente revelada refaz a conta. */
@@ -229,7 +245,11 @@ export function settle(shift: Pick<Shift, 'id' | 'hours' | 'seed' | 'snapshot'>)
   const sitter = s.sitter ?? 1;
   // Fator de moradia (doc 04 §4): sem moradia regular, 50%.
   const housing = s.housing ?? 1;
-  const thaler = s.earnsReward ? s.base * dayShare * health * happiness * expPet * damage * illness * event * items * sitter * housing : 0;
+  // Deslocamento (GDD §3.3): o atraso tira a fração do turno; a tarifa sai do pagamento.
+  const commute = s.commute ?? 1;
+  const gross = s.earnsReward ? s.base * dayShare * health * happiness * expPet * damage * illness * event * items * sitter * housing * commute : 0;
+  const cost = (s.commuteCostCents ?? 0) / 100;
+  const thaler = Math.max(0, gross - (gross > 0 ? cost : 0));
   return {
     damaged,
     thalerCents: BigInt(Math.round(thaler * 100)),
@@ -245,6 +265,7 @@ export function settle(shift: Pick<Shift, 'id' | 'hours' | 'seed' | 'snapshot'>)
       items,
       ...(sitter !== 1 ? { sitter } : {}),
       ...(s.housing !== undefined ? { housing } : {}),
+      ...(s.commute !== undefined ? { commute, commuteCost: s.commuteCostCents ?? 0 } : {}),
     },
   };
 }

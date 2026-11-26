@@ -286,6 +286,16 @@ export function createServidor(map) {
   let carCatalog = null;
   /** Moradia do avatar (doc 04 §4): casa própria, aluguel ou hotel, e o fator do turno. */
   let moradia = null;
+  /** Descanso, higiene e deslocamento (GDD §2.3 e §3.3): o catálogo, uma vez. */
+  let rotina = null;
+  /** O modo de ir ao trabalho escolhido aqui (fica no navegador). */
+  let commuteMode = (() => {
+    try {
+      return localStorage.getItem('scc-deslocamento') || 'a_pe';
+    } catch {
+      return 'a_pe';
+    }
+  })();
   let events = null;
   let farm = null;
   let pass = null;
@@ -358,6 +368,7 @@ export function createServidor(map) {
       moradia = data.avatar
         ? await call(API.game, `/v1/avatars/${data.avatar.id}/housing`, { token: session.token }).catch(() => null)
         : null;
+      if (!rotina) rotina = await call(API.game, '/v1/catalog/routine').catch(() => null);
       // Veículos (E3.5): a agência e os carros da conta.
       if (!carCatalog) carCatalog = await call(API.game, '/v1/catalog/vehicles').catch(() => null);
       cars = await call(API.game, '/v1/vehicles', { token: session.token })
@@ -757,6 +768,28 @@ export function createServidor(map) {
     return html;
   };
 
+  /** Descanso (4 ou 8 h, energia ao acordar) e higiene em casa (GDD §2.3). */
+  const routineSection = (a) => {
+    const off = busy ? 'disabled' : '';
+    const housed = moradia?.factor === 1;
+    let html = '<h3>😴 Descanso e higiene</h3>';
+    if (a.rest) {
+      html += `<p class="muted pequeno">Dormindo até ${new Date(a.rest.ends_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}.</p>`;
+    } else {
+      html += `<div class="linha">${rotina.rest.hours
+        .map((h) => `<button class="btn btn--ghost pequeno" type="button" data-s="descansar" data-h="${h}" ${off || (a.attributes.energy >= 10 ? 'disabled' : '')}>Dormir ${h} h · +${housed ? rotina.rest.energy[h] : Math.floor(rotina.rest.energy[h] * rotina.rest.unhoused_share)} energia</button>`)
+        .join('')}</div>`;
+    }
+    html += `<div class="linha moradia-opcoes">${rotina.chores
+      .map((c) => {
+        const wait = a.chores?.[c.code];
+        return `<button class="btn btn--ghost pequeno" type="button" data-s="higiene" data-c="${esc(c.code)}" ${off || (wait || !housed || a.rest ? 'disabled' : '')} title="${wait ? `de novo em ${left(wait)}` : ''}">${esc(c.label)}</button>`;
+      })
+      .join('')}</div>
+      <p class="muted pequeno">${housed ? 'Higiene de graça em casa, cada uma a cada 4 h.' : 'Sem moradia regular: dorme mal (metade da energia) e não toma banho.'} Valores provisórios.</p>`;
+    return html;
+  };
+
   /**
    * Moradia (doc 04 §4): sem casa própria regular, aluguel ou hotel, o turno rende 50%.
    * A casa própria se regulariza na ficha do lote (Prefeitura, água e energia).
@@ -1139,6 +1172,7 @@ export function createServidor(map) {
         </form>`;
       }
       if (moradia) body += housingSection(a);
+      if (rotina && !internado) body += routineSection(a);
       if (events) body += eventSection(a);
       if (!internado && leisure && a.leisure) body += leisureSection(a);
       if (cup) body += cupSection(a);
@@ -1157,6 +1191,14 @@ export function createServidor(map) {
         // Minigame (E2.2): as tarefas da profissão ao longo do turno, calculadas pelo relógio daqui.
         if (running.minigame) body += minigameList(running.minigame);
       } else if (!internado) {
+        // Deslocamento (GDD §3.3): o modo atrasa o começo do ganho e pode custar (sai do pagamento).
+        if (rotina) {
+          const opts = rotina.commutes
+            .map((c) => `<option value="${esc(c.mode)}" ${c.mode === commuteMode ? 'selected' : ''}>${esc(c.label)} · ${c.delay_min} min${c.cost !== '0' ? ` · ${thaler(c.cost)}` : ''}</option>`)
+            .join('');
+          body += `<label class="pequeno moradia-dias">Ir ao trabalho: <select class="campo" data-deslocamento aria-label="Como ir ao trabalho">${opts}</select></label>`;
+        }
+        if (a.rest) body += `<p class="muted pequeno">😴 Dormindo: acorda em ${left(a.rest.ends_at)} com +${a.rest.energy} de energia.</p>`;
         body += `<div class="linha">
           <button class="btn btn--blue" type="button" data-s="work" data-h="6" ${busy || !a.status.canWork ? 'disabled' : ''}>Trabalhar 6 h</button>
           <button class="btn btn--blue" type="button" data-s="work" data-h="12" ${busy || !a.status.canWork ? 'disabled' : ''}>Trabalhar 12 h</button></div>`;
@@ -1207,6 +1249,18 @@ export function createServidor(map) {
       ${body}${note}
       <button class="btn btn--ghost pequeno" type="button" data-s="sair">Sair</button>`;
   }
+
+  // O modo de ir ao trabalho fica guardado: o painel redesenha e o select volta ao escolhido.
+  panel.addEventListener('change', (e) => {
+    const sel = e.target.closest('[data-deslocamento]');
+    if (!sel) return;
+    commuteMode = sel.value;
+    try {
+      localStorage.setItem('scc-deslocamento', commuteMode);
+    } catch {
+      /* armazenamento indisponível */
+    }
+  });
 
   panel.addEventListener('submit', (e) => {
     e.preventDefault();
@@ -1470,8 +1524,26 @@ export function createServidor(map) {
     if (what === 'avatar') return act(() => call(API.game, '/v1/dev/avatar', { method: 'POST', token: session.token }));
     if (what === 'work') {
       return act(() =>
-        call(API.game, `/v1/avatars/${data.avatar.id}/work`, { method: 'POST', token: session.token, body: { shift: Number(b.dataset.h) } }),
+        call(API.game, `/v1/avatars/${data.avatar.id}/work`, {
+          method: 'POST',
+          token: session.token,
+          body: { shift: Number(b.dataset.h), commute: panel.querySelector('[data-deslocamento]')?.value ?? commuteMode },
+        }),
       );
+    }
+    if (what === 'descansar') {
+      return act(async () => {
+        const r = await call(API.game, `/v1/avatars/${data.avatar.id}/rest`, { method: 'POST', token: session.token, body: { hours: Number(b.dataset.h) } });
+        message = `Dormindo ${b.dataset.h} h: acorda com +${r.avatar.rest.energy} de energia${r.housed ? '' : ' (sem moradia regular, metade)'}.`;
+        messageOk = true;
+      });
+    }
+    if (what === 'higiene') {
+      return act(async () => {
+        await call(API.game, `/v1/avatars/${data.avatar.id}/chores`, { method: 'POST', token: session.token, body: { code: b.dataset.c } });
+        message = `${rotina.chores.find((c) => c.code === b.dataset.c)?.label ?? 'Feito'}: feito.`;
+        messageOk = true;
+      });
     }
     if (what === 'moradia') {
       const days = Number(panel.querySelector('[data-dias]')?.value ?? 7);

@@ -7,6 +7,7 @@ import { type School, inSchool, schooled } from './school.js';
 import type { Leisure } from './leisure.js';
 import { type License, inDrivingSchool } from './vehicle.js';
 import type { Housing } from './housing.js';
+import { type Chores, type Rest, rested, resting } from './routine.js';
 
 /**
  * Avatar e atributos (doc 02 §2.3, doc 06 §2). Atributos de 0 a 10, educação
@@ -72,6 +73,10 @@ export interface Avatar {
   license?: License | null;
   /** Moradia paga (aluguel ou hotel); null sem estadia. A casa própria vem do world. */
   housing?: Housing | null;
+  /** Descanso em curso: a energia entra ao acordar; null acordado. */
+  rest?: Rest | null;
+  /** Higiene em casa: última vez de cada atividade. */
+  chores?: Chores | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -96,7 +101,8 @@ export function decayed(avatar: Avatar, now: Date): Avatar {
   // O pet cai junto (pet.ts): alimentação em 0 o mata.
   const pet = avatar.pet ? decayedPet(avatar.pet, now) : (avatar.pet ?? null);
   // A escola anda junto: o bônus de felicidade do 2º dia e a troca de profissão no fim dos 4 dias.
-  return schooled({ ...avatar, attributes, anchors, conditions: drained.conditions, pet }, now);
+  // Quem já dormiu o bastante acorda com a energia (routine.ts).
+  return rested(schooled({ ...avatar, attributes, anchors, conditions: drained.conditions, pet }, now), now);
 }
 
 /** Algo caiu desde a última gravação? É o que o job procura. */
@@ -115,7 +121,8 @@ export function status(avatar: Avatar, now: Date = new Date()) {
   const bedridden = activeConditions(avatar.conditions, now).some((c) => CONDITIONS[c.code].blocksWork);
   // Na escola trocando de profissão também não trabalha (E3.2).
   // Na autoescola (3 h parado, GDD) também.
-  const free = !inHospital(avatar, now) && !bedridden && !inSchool(avatar, now) && !inDrivingSchool(avatar, now);
+  // Dormindo também não (routine.ts).
+  const free = !inHospital(avatar, now) && !bedridden && !inSchool(avatar, now) && !inDrivingSchool(avatar, now) && !resting(avatar, now);
   return {
     // GDD: 48 h sem comer não gera recompensa.
     earnsReward: a.food > 0,
@@ -123,6 +130,7 @@ export function status(avatar: Avatar, now: Date = new Date()) {
     canWork: free && a.energy >= 1 && a.health >= 1,
     canLeisure: free && a.energy >= 2 && a.health >= 1,
     inHospital: inHospital(avatar, now),
+    resting: resting(avatar, now),
   };
 }
 
@@ -151,6 +159,8 @@ export function newAvatar(
     leisure: null,
     license: null,
     housing: null,
+    rest: null,
+    chores: null,
     createdAt: now,
     updatedAt: now,
   };

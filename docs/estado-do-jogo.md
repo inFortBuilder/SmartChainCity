@@ -1,6 +1,6 @@
 # Estado do jogo e próximas etapas
 
-Retrato em 2026-11-22, atualizado em 2026-11-26 (moradia): o que já dá para jogar, o que falta no jogo e a ordem sugerida para as próximas etapas. O detalhe de cada item fica no [ROADMAP](../ROADMAP.md) e nos READMEs dos serviços. O caminho até a mainnet, que depende de pessoas de fora, está no [checklist de lançamento](lancamento.md).
+Retrato em 2026-11-22, atualizado em 2026-11-26 (moradia, descanso e deslocamento): o que já dá para jogar, o que falta no jogo e a ordem sugerida para as próximas etapas. O detalhe de cada item fica no [ROADMAP](../ROADMAP.md) e nos READMEs dos serviços. O caminho até a mainnet, que depende de pessoas de fora, está no [checklist de lançamento](lancamento.md).
 
 **Legenda:**
 - ✅ pronto e testado;
@@ -25,6 +25,7 @@ Tudo roda na máquina local, sem serviços pagos. O mapa da cidade real (Pittsbu
 | Imóveis (Casa T1, obra, desgaste, renda, reparo, nível) e prédios de construtores (SCC Builder) | 🟡 só a Casa T1 com valores | world |
 | Regularização na Prefeitura, água e energia (sem elas, renda de 50%) | ✅ 🟡 custos provisórios | world |
 | Moradia do avatar: casa própria regular, aluguel ou hotel com refeições (sem moradia, turno de 50%) | ✅ 🟡 preços provisórios | game-core e world |
+| Descanso (dormir 4 ou 8 h), higiene em casa e o modo de ir ao trabalho (atraso e tarifa no turno) | ✅ 🟡 efeitos provisórios | game-core |
 | Impostos (IPTU e lote vazio), multa, leilão do lote inadimplente com apreensão do NFT | 🟡 valores provisórios | world |
 | Pets, Pet Shop e Pet Sitter | 🟡 falta a arte | game-core |
 | Escola e troca de profissão | ✅ 🟡 preços provisórios | game-core |
@@ -60,8 +61,7 @@ O GDD amarra o ganho do turno à moradia. Já funcionam a regularização, água
 
 | Falta | Quem | Observação |
 |---|---|---|
-| ⬜ **Descansar e atividades do dia a dia**, que sobem os atributos (o seed tem as atividades do GDD §4.5) | 🔧 👤 | O GDD só dá a direção do efeito; os números saem do game designer |
-| ⬜ **Deslocamento** (carro, skate, ônibus, a pé, home office), com custo e tempo | 🔧 👤 | GDD §2 |
+| 🟡 **Descanso obrigatório após 16 h** acordado e o skate como item comprado | 🔧 | O descanso, a higiene e o deslocamento já funcionam (game-core) |
 | ⬜ **Bônus de itens no ganho** (roupas 1,10/1,15/1,20 e ferramentas temporárias) e **loja de itens** | 🔧 👤 | doc 04 §4; os itens da temporada já entram |
 | 🟡 **Energia e felicidade reais por tarefa** do minigame | 👤 | Hoje o turno gasta a energia pelo total; os números por tarefa são do game designer |
 | ⬜ **Limite da despensa pela casa** e tempo de compra no mercado | 🔧 | game-core, "Ainda não" |
@@ -94,6 +94,7 @@ Os valores abaixo funcionam no jogo, mas são **premissas** marcadas no código.
 - **GamePass:** 5 SCITY por nível, o corte de dano e os efeitos dos itens;
 - **antifraude:** limites de contas por aparelho e de velocidade;
 - **câmbio:** teto e spread;
+- **descanso e deslocamento:** +4/+8 de energia (metade sem moradia), efeitos da higiene, atrasos de ônibus e a pé, tarifas (ônibus 3, combustível 2, internet 2) e o home office;
 - **moradia:** aluguel de 15 THALER/dia (40% queima, 60% de volta ao pool P2E) e hotel de 25, 40 e 60 THALER/dia, com 1, 2 e 3 refeições;
 - **Prefeitura e serviços:** taxa de regularização de 2% do preço, água e energia (2 e 3 THALER/dia no centro, até o dobro na borda);
 - **alertas do painel econômico:** os limites de partida.
@@ -114,7 +115,7 @@ A ordem prioriza o que deixa o jogo **completo para o jogador** no lançamento d
 
 1. **Calibrar a economia** 👤 (com 🔧 para aplicar). Sem os números definitivos, todo o resto é provisório. O game designer roda o simulador com as premissas acima; o código só troca constantes e o seed do Strapi.
 2. ~~**Moradia completa**~~ ✅ (2026-11-26): regularização, água e energia, aluguel, hotel e o fator no turno. O aluguel e o hotel de jogadores vêm com o item 7.
-3. **Descansar, atividades e deslocamento** 🔧 👤: fecham o dia do avatar (trabalhar → comer → descansar → se divertir → ir e voltar).
+3. ~~**Descansar, atividades e deslocamento**~~ ✅ (2026-11-26): dormir, higiene em casa e o modo de ir ao trabalho. Falta o descanso obrigatório após 16 h e os números do game designer.
 4. **Tipos de imóvel e catálogo no Strapi** 🔧 👤: T2, T3, os residenciais e os comerciais, com os valores da Figura 16 quando o game designer fechar.
 5. **Bônus de itens e loja** 🔧 👤: roupas, ferramentas e os itens de temporada à venda.
 6. **Arte** 👤: profissões, pets, Lucky Box e trailer. Não bloqueia o código, mas bloqueia o lançamento.

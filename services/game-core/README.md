@@ -59,6 +59,19 @@ Sem moradia regular, o turno rende **50%**: é o `fator_regularizacao_moradia` d
 - **Premissas:** os preços, a divisão 40/60 (do simulador: `sinks.rentRenter` e `sinks.rentNpcShare`), as refeições do hotel e o limite de 30 dias.
 - Depois de atualizar o código, rode `pnpm db:migrate`: a migração `0020_moradia` cria a coluna `housing` do avatar.
 
+## Descanso, higiene e deslocamento (GDD §2.3, §3.3)
+
+| O quê | Como |
+|---|---|
+| Dormir | `POST /v1/avatars/:id/rest` com `{hours: 4 \| 8}`. Enquanto dorme, não trabalha nem sai para o lazer (`409 resting`). Ao acordar, ganha +4 ou +8 de energia, até 10. Sem moradia regular, metade. Não dorme com turno rodando nem com a energia cheia |
+| Higiene em casa | `POST /v1/avatars/:id/chores` com `{code}`: banho (+3 higiene, +1 saúde), ducha (+3 higiene, +1 felicidade), dentes (+1 higiene, +1 saúde) e mãos (+1 higiene). De graça, cada uma a cada 4 h, só com moradia regular (`409 no_home`) |
+| Ir ao trabalho | `POST /v1/avatars/:id/work` aceita `commute`: `a_pe` (15 min, o padrão), `skate` (10 min), `onibus` (6 min, 3 THALER), `carro` (4 min, 2 THALER de combustível; precisa de habilitação e de um carro em dia) e `home_office` (0 min, 2 THALER de internet, −1 de felicidade e de saúde). O atraso tira a fração do turno e a tarifa sai do pagamento. Vai na foto do turno (`commute`, `commuteMode`, `commuteCostCents`) |
+
+- `GET /v1/catalog/routine` lista os descansos, as atividades de casa e os modos. O avatar traz `rest` (acorda em, energia) e `chores` (quando cada uma libera).
+- **Premissas:** a energia do descanso, o corte sem moradia, os efeitos da higiene (o seed só dá a direção), os atrasos de ônibus e a pé (o GDD propõe), as tarifas, o efeito do home office e liberar o home office para todas as profissões até o catálogo marcar quais podem.
+- Ainda não: o "descanso obrigatório após 16 h" (contar as horas acordado) e o skate como item comprado (hoje todos podem ir de skate).
+- Depois de atualizar o código, rode `pnpm db:migrate`: a migração `0021_rotina` cria as colunas `rest` e `chores` do avatar.
+
 ## Minigame do turno (E2.2)
 
 O turno percorre as tarefas da profissão, no servidor e sem o jogo aberto (doc 02 §3.2). Cada tarefa ocupa uma parte do turno proporcional à duração dela no GDD. No Pedreiro, por exemplo, "Construir a casa" leva 160 de 265 min, então 60% do turno. Cada turno em `GET /v1/avatars/:id/shifts` e `POST /work` traz `minigame`:
@@ -368,6 +381,9 @@ TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc_test pnpm --filter
 | DELETE | `/v1/avatars/:id/housing` | jogador (Bearer) | Sai do aluguel ou do hotel, sem reembolso |
 | POST | `/v1/avatars/:id/housing/meal` | jogador (Bearer) | Refeição incluída no hotel |
 | GET | `/v1/housing/prices` | público | Preços do aluguel e do hotel |
+| POST | `/v1/avatars/:id/rest` | jogador (Bearer) | Dorme 4 ou 8 h `{hours}` |
+| POST | `/v1/avatars/:id/chores` | jogador (Bearer) | Higiene em casa `{code}` |
+| GET | `/v1/catalog/routine` | público | Descanso, higiene e modos de ir ao trabalho |
 | GET | `/v1/vehicles` | jogador (Bearer) | Carros da conta com a situação (`ok`, `suspended`, `worn_out`, `expired`), atributos de agora, valor, recompra e IPVA |
 | POST | `/v1/vehicles` | jogador (Bearer) | Compra `{model}` ou aluga `{model, rent: true}` na agência |
 | POST | `/v1/vehicles/:id/ipva` | jogador (Bearer) | Paga o IPVA do semestre |
@@ -422,7 +438,7 @@ TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc_test pnpm --filter
 | GET | `/v1/catalog/professions` | público | As 44 profissões com ganho do dia, duração e tarefas; das tarefas, só a direção (+/−) de energia e felicidade (GDD §2.4) |
 | GET | `/healthz` | — | `{status: "ok"}` |
 
-Erros com código estável: `invalid_rarity`, `invalid_job`, `avatar_limit`, `invalid_shift`, `shift_running`, `daily_limit`, `too_tired`, `pool_empty`, `unknown_food`, `not_hungry`, `not_in_pantry`, `invalid_stay`, `housing_active`, `housing_prepaid`, `not_staying`, `not_in_hotel`, `hotel_meals_used`, `in_hospital`, `sick`, `not_sick`, `invalid_condition`, `hospital_only`, `nothing_to_treat`, `insufficient_thaler`, `ledger_unavailable`, `not_found`, `forbidden`, `missing_credentials`, `invalid_token`, `token_expired`.
+Erros com código estável: `invalid_rarity`, `invalid_job`, `avatar_limit`, `invalid_shift`, `shift_running`, `daily_limit`, `too_tired`, `pool_empty`, `unknown_food`, `not_hungry`, `not_in_pantry`, `invalid_stay`, `housing_active`, `housing_prepaid`, `not_staying`, `not_in_hotel`, `hotel_meals_used`, `resting`, `invalid_rest`, `not_tired`, `unknown_chore`, `no_home`, `chore_cooldown`, `invalid_commute`, `no_car`, `in_hospital`, `sick`, `not_sick`, `invalid_condition`, `hospital_only`, `nothing_to_treat`, `insufficient_thaler`, `ledger_unavailable`, `not_found`, `forbidden`, `missing_credentials`, `invalid_token`, `token_expired`.
 
 ## Banco
 
@@ -430,10 +446,10 @@ Esquema próprio `game`: tabela `avatar` do doc 06, com os instantes de referên
 
 ## Ainda não
 
-- Deslocamento (carro, skate, ônibus, a pé, home office). Efeito real de energia e felicidade por tarefa, que depende do game designer acertar os números do catálogo. Cards de arte das 12 profissões do MVP.
+- Efeito real de energia e felicidade por tarefa, que depende do game designer acertar os números do catálogo. Cards de arte das 12 profissões do MVP.
 - Bônus de roupas e ferramentas no ganho (o pet, os eventos semanais, os itens da temporada e a moradia já entram).
 - Aluguel de unidades de prédios de jogadores (com o E3.11); bônus por ocupação do hotel de jogador.
-- Descansar e atividades (sobem os atributos); as doenças do hospital (febre, enxaqueca, virose: −1 de saúde a cada 15 min).
+- As outras atividades extras do seed (parque, ginásio e lojas já têm o lazer; as de transporte, pets e escola são parte de outros sistemas); as doenças do hospital (febre, enxaqueca, virose: −1 de saúde a cada 15 min).
 - O tempo de compra do mercado e o limite da despensa pela casa.
 - Fila do BullMQ: o job roda no próprio processo até haver Redis no ambiente.
 - Calibrar as premissas de felicidade e higiene no simulador.

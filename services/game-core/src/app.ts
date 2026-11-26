@@ -61,6 +61,7 @@ import {
   checkSale,
   isBroken,
   licensed,
+  stateOf,
   newVehicle,
   rentCents,
   settleVehicle,
@@ -194,6 +195,18 @@ import {
 } from './domain/sitter.js';
 import { MemoryPetSitterStore } from './infra/memory-sitter-store.js';
 import {
+  CHORES,
+  CHORE_CODES,
+  REST_ENERGY,
+  REST_HOURS,
+  UNHOUSED_REST_SHARE,
+  choresDto,
+  commuteCatalog,
+  doChore,
+  planCommute,
+  startRest,
+} from './domain/routine.js';
+import {
   type HomeDirectory,
   type StayKind,
   checkStay,
@@ -212,7 +225,7 @@ import { AccountRateLimit, DEVICE_ACCOUNT_LIMIT, RiskGuard, type RiskStore } fro
 
 const uuid = z.uuid();
 
-const workBody = z.object({ shift: z.number().int() });
+const workBody = z.object({ shift: z.number().int(), commute: z.string().max(32).optional() });
 const mealBody = z.object({ food: z.string().min(1).max(64) });
 const medicineBody = z.object({ condition: z.string().min(1).max(64) });
 const idempotencyKey = z.string().min(8).max(128).optional();
@@ -246,6 +259,9 @@ const avatarDto = (a: Avatar, at: Date) => ({
   license: a.license ? { ready_at: a.license.readyAt.toISOString(), licensed: licensed(a, at) } : null,
   // Moradia paga em curso (aluguel ou hotel); a casa própria fica em /housing.
   housing: housingDto(a, at),
+  // Descanso em curso (energia ao acordar) e quando cada atividade de casa libera.
+  rest: a.rest && a.rest.endsAt > at ? { ends_at: a.rest.endsAt.toISOString(), energy: a.rest.energy } : null,
+  chores: choresDto(a, at),
   // Só as que estão em curso: a sorteada no turno aparece quando o turno acaba.
   conditions: activeConditions(a.conditions, at).map((c) => ({
     code: c.code,
@@ -481,7 +497,7 @@ export async function buildApp(
 
   // Começa o turno. Depois disso o cliente pode fechar: o job conclui no horário.
   app.post('/v1/avatars/:id/work', async (request, reply) => {
-    const { shift } = workBody.parse(request.body);
+    const { shift, commute: mode } = workBody.parse(request.body);
     // O turno que já venceu não segura o próximo, mesmo antes da passada do job.
     await completeShifts(store, now());
     const { id, accountId } = await ownAvatar(request);
@@ -498,6 +514,12 @@ export async function buildApp(
     const caring = own?.jobCode === 'pet_sitter' ? (await sitters.current(id, now())).length : 0;
     // Moradia (doc 04 §4): casa própria regular, aluguel ou hotel; sem nenhum, o turno rende 50%.
     const ownRegular = await ownRegularHome(accountId, request);
+    // Deslocamento (GDD §3.3): de carro, precisa de habilitação e de um carro em dia na conta.
+    const carReady =
+      mode === 'carro' && !!own && licensed(own, now()) && !!vehicles
+        ? (await vehicles.store.listByAccount(accountId)).some((v) => stateOf(v, now()) === 'ok')
+        : false;
+    const commute = planCommute(mode, shift, carReady);
     const started = await store.beginShift(id, accountId, now(), (avatar, context) =>
       startShift(
         avatar,
@@ -508,6 +530,7 @@ export async function buildApp(
           earnBonus: perk.earnBonus,
           sitter: sitterFactor(avatar, caring),
           housing: housingFactor(avatar, ownRegular, now()),
+          commute,
           ...context,
           durationMs: config.DEV_SHIFT_MINUTES ? config.DEV_SHIFT_MINUTES * 60_000 : undefined,
         },
@@ -557,6 +580,41 @@ export async function buildApp(
   };
 
   app.get('/v1/housing/prices', async () => housingPrices());
+
+  // ---------------------------------------------------------------- descanso, higiene e deslocamento (GDD §2.3, §3.3)
+
+  app.get('/v1/catalog/routine', async () => ({
+    rest: { hours: REST_HOURS, energy: REST_ENERGY, unhoused_share: UNHOUSED_REST_SHARE },
+    chores: CHORE_CODES.map((c) => ({ code: c, ...CHORES[c] })),
+    commutes: commuteCatalog(),
+    default_commute: 'a_pe',
+  }));
+
+  /** Tem moradia regular agora (casa própria regular, aluguel ou hotel)? */
+  const housedNow = async (avatar: Avatar, request: FastifyRequest) =>
+    housingFactor(avatar, await ownRegularHome(avatar.accountId, request), now()) === 1;
+
+  // Dorme 4 ou 8 h: {hours}. A energia entra ao acordar; sem moradia regular, metade.
+  app.post('/v1/avatars/:id/rest', async (request, reply) => {
+    const { hours } = z.object({ hours: z.number().int() }).parse(request.body);
+    const avatar = await ownAvatar(request);
+    await completeShifts(store, now());
+    const running = (await store.listShifts(avatar.id, 1)).some((s) => s.status === 'running');
+    const housed = await housedNow(decayed(avatar, now()), request);
+    const slept = await store.updateAvatar(avatar.id, avatar.accountId, now(), (current) => startRest(current, { hours, housed, running }, now()));
+    const at = now();
+    return reply.status(201).send({ avatar: avatarDto(decayed(slept, at), at), housed });
+  });
+
+  // Higiene em casa (banho, ducha, dentes, mãos): de graça, com moradia regular, cada uma a cada 4 h.
+  app.post('/v1/avatars/:id/chores', async (request) => {
+    const { code } = z.object({ code: z.string().min(1).max(32) }).parse(request.body);
+    const avatar = await ownAvatar(request);
+    const housed = await housedNow(decayed(avatar, now()), request);
+    const done = await store.updateAvatar(avatar.id, avatar.accountId, now(), (current) => doChore(current, code, housed, now()));
+    const at = now();
+    return { avatar: avatarDto(decayed(done, at), at) };
+  });
 
   // A moradia do avatar: estadia em curso, casas próprias e o fator do turno.
   app.get('/v1/avatars/:id/housing', async (request) => {

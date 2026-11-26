@@ -18,6 +18,7 @@ import { cloneSchool } from '../domain/school.js';
 import { cloneLeisure } from '../domain/leisure.js';
 import { licenseFromJson, licenseToJson } from '../domain/vehicle.js';
 import { housingFromJson, housingToJson } from '../domain/housing.js';
+import { choresFromJson, choresToJson, restFromJson, restToJson } from '../domain/routine.js';
 
 const cloneShift = (s: Shift): Shift => ({ ...s, snapshot: { ...s.snapshot }, result: s.result && { ...s.result } });
 
@@ -35,6 +36,8 @@ const clone = (a: Avatar): Avatar => ({
   leisure: cloneLeisure(a.leisure),
   license: licenseFromJson(licenseToJson(a.license)),
   housing: housingFromJson(housingToJson(a.housing)),
+  rest: restFromJson(restToJson(a.rest)),
+  chores: choresFromJson(choresToJson(a.chores)),
 });
 
 /** Para testes e desenvolvimento. Uma thread só: cada operação é atômica. */
