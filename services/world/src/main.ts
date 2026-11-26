@@ -3,8 +3,9 @@ import type { Address, Hex } from 'viem';
 
 import { buildApp } from './app.js';
 import { loadConfig } from './config.js';
+import { fetchCmsPropertyTypes, mergeCatalog } from './domain/catalog.js';
 import { settleBuildings } from './domain/buildings.js';
-import { settleProperties } from './domain/properties.js';
+import { setPropertyCatalog, settleProperties } from './domain/properties.js';
 import { HttpBuilderClient } from './infra/builder-client.js';
 import { PostgresAuctionStore } from './infra/db/postgres-auction-store.js';
 import { PostgresBuildingStore } from './infra/db/postgres-building-store.js';
@@ -162,6 +163,20 @@ const app = await buildApp(
   },
   pool ? new PostgresSaleStore(pool) : new MemorySaleStore(),
 );
+// Catálogo de imóveis do Strapi (tipos, preços e renda); fora do ar, segue o do código.
+const loadCatalog = async () => {
+  if (!config.CMS_URL) return;
+  try {
+    const types = mergeCatalog(await fetchCmsPropertyTypes(config.CMS_URL));
+    setPropertyCatalog(types);
+    app.log.info(`catálogo de imóveis: ${types.length} tipos do Strapi, ${types.filter((t) => t.available !== false).length} à venda`);
+  } catch (error) {
+    app.log.warn(`catálogo de imóveis: Strapi indisponível, segue o atual (${(error as Error).message})`);
+  }
+};
+await loadCatalog();
+const catalogTimer = config.CMS_URL ? setInterval(() => void loadCatalog(), config.CATALOG_REFRESH_SECONDS * 1000) : null;
+catalogTimer?.unref();
 const priceTimer = price ? setInterval(() => void price.refresh(), 60_000) : null;
 priceTimer?.unref();
 const onchain = land ? `${land.contract} (chain ${land.chainId}, signer ${land.signer.address})` : 'desligada';

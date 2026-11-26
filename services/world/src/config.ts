@@ -37,6 +37,10 @@ const schema = z.object({
   /** Job auctions.tick: abre os leilões devidos e fecha os vencidos. */
   AUCTION_EVERY_SECONDS: z.coerce.number().int().positive().default(60),
   /** SCC Builder (tools/scc-builder): valida os prédios dos construtores. Sem ele, o envio responde 503. */
+  /** Strapi (catálogo de imóveis, ADR-0006). Sem ele, vale o catálogo do código (o mesmo do seed). */
+  CMS_URL: optional(z.url()),
+  /** De quanto em quanto tempo relê o catálogo do Strapi. */
+  CATALOG_REFRESH_SECONDS: z.coerce.number().int().positive().default(300),
   BUILDER_URL: optional(z.url()),
   /** Token das ferramentas internas (alvará dos prédios). Sem ele, as rotas /internal respondem 503. */
   INTERNAL_TOKEN: optional(z.string().min(32, 'INTERNAL_TOKEN precisa de pelo menos 32 caracteres')),

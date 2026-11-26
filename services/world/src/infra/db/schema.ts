@@ -145,13 +145,15 @@ export const propertyWork = world.table(
     kind: text('kind').notNull(),
     costCents: numeric('cost_cents', { precision: 20, scale: 0 }).notNull(),
     toLevel: smallint('to_level'),
+    /** Troca de tipo: o tipo de destino (T1 → T2). */
+    toType: text('to_type'),
     status: text('status').notNull(),
     createdAt: timestamptz('created_at').notNull(),
   },
   (t) => [
     uniqueIndex('property_work_one_pending_idx').on(t.propertyId).where(sql`status = 'pending'`),
     index('property_work_pending_idx').on(t.status, t.createdAt),
-    check('property_work_kind_check', sql`${t.kind} in ('repair', 'upgrade', 'regularize', 'water', 'power')`),
+    check('property_work_kind_check', sql`${t.kind} in ('repair', 'upgrade', 'regularize', 'water', 'power', 'retype')`),
     check('property_work_status_check', sql`${t.status} in ('pending', 'applied', 'failed')`),
   ],
 );

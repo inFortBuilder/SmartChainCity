@@ -54,6 +54,12 @@ export interface PropertyType {
   provisional: string[];
   /** Regularização na Prefeitura (doc 03 §3): residencial ou comercial. */
   use: PropertyUse;
+  /** Troca de tipo (doc 03 §6.1): T2 vem da T1, T3 da T2. A troca exige o tipo de origem no último nível. */
+  upgradesFrom?: string;
+  /** Falso quando o catálogo ainda não tem os valores (o tipo aparece, mas não constrói). */
+  available?: boolean;
+  /** Por que não está disponível. */
+  unavailableReason?: string;
   /**
    * Negócio de lazer de jogador (E3.3): o avatar paga a entrada para usar, e ela vai
    * para o dono (sem renda do pool P2E). A atividade e o efeito moram no game-core.
@@ -61,7 +67,11 @@ export interface PropertyType {
   venue?: { activity: string; feeCents: number };
 }
 
-export const PROPERTY_TYPES: PropertyType[] = [
+/**
+ * Catálogo de partida (o mesmo do seed do Strapi, cms-strapi/seed/imoveis.json). Com `CMS_URL`, o world
+ * troca pelo catálogo publicado no Strapi (`setPropertyCatalog`), e este fica de reserva.
+ */
+export const DEFAULT_PROPERTY_TYPES: PropertyType[] = [
   {
     code: 't1',
     label: 'Casa T1',
@@ -80,6 +90,38 @@ export const PROPERTY_TYPES: PropertyType[] = [
       'renda e custo dos níveis 2 e 3',
       'custo do reparo',
     ],
+  },
+  // Troca de tipo (doc 03 §6.1). PREMISSAS: a "Figura 16" do GDD não veio no texto (doc 11, lacuna 3).
+  // Preço total da casa (a troca cobra a diferença para o tipo de origem), renda e níveis.
+  {
+    code: 't2',
+    label: 'Casa T2',
+    zones: ['residential', 'mixed'],
+    use: 'residencial',
+    upgradesFrom: 't1',
+    priceCents: 7000_00,
+    buildMinutes: 24 * 60,
+    levels: [
+      { level: 1, incomeCentsPerDay: 24_00 },
+      { level: 2, incomeCentsPerDay: 30_00, upgradeCostCents: 3000_00 },
+      { level: 3, incomeCentsPerDay: 36_00, upgradeCostCents: 5000_00 },
+    ],
+    provisional: ['preço, renda e níveis da T2 (Figura 16 do GDD ausente)'],
+  },
+  {
+    code: 't3',
+    label: 'Casa T3',
+    zones: ['residential', 'mixed'],
+    use: 'residencial',
+    upgradesFrom: 't2',
+    priceCents: 12000_00,
+    buildMinutes: 24 * 60,
+    levels: [
+      { level: 1, incomeCentsPerDay: 42_00 },
+      { level: 2, incomeCentsPerDay: 50_00, upgradeCostCents: 5000_00 },
+      { level: 3, incomeCentsPerDay: 58_00, upgradeCostCents: 8000_00 },
+    ],
+    provisional: ['preço, renda e níveis da T3 (Figura 16 do GDD ausente)', 'o pequeno negócio da T3'],
   },
   // Lazer (E3.3, GDD §6 "Lazer"): academias e galerias são negócios de jogador com custo de
   // entrada baixo. PREMISSAS: preço da obra, entrada e zonas; a renda é a entrada, não o pool.
@@ -107,8 +149,16 @@ export const PROPERTY_TYPES: PropertyType[] = [
   },
 ];
 
+let catalog: PropertyType[] = DEFAULT_PROPERTY_TYPES;
+/** O catálogo em uso: o do Strapi, se carregou, ou o de partida. */
+export const propertyTypes = () => catalog;
+/** Troca o catálogo (Strapi). Lista vazia volta ao de partida. */
+export function setPropertyCatalog(types: PropertyType[]) {
+  catalog = types.length ? types : DEFAULT_PROPERTY_TYPES;
+}
+
 /** Tipos que são negócios de lazer de jogador. */
-export const VENUE_TYPES = () => PROPERTY_TYPES.filter((t) => t.venue).map((t) => t.code);
+export const VENUE_TYPES = () => catalog.filter((t) => t.venue).map((t) => t.code);
 
 /** O negócio abre com a obra pronta e o desgaste acima do mínimo (o mesmo da renda, doc 03 §6.3). */
 export const venueOpen = (p: Property, now: Date) => phaseOf(p, now) === 'ready' && wearAt(p, now) >= MIN_WEAR_FOR_INCOME;
@@ -226,8 +276,8 @@ export interface PropertyPayments {
  * Obras sobre um imóvel pronto: reparo (desgaste volta a 100), upgrade (sobe um nível), regularização
  * na Prefeitura e contratação de água ou energia por 30 dias.
  */
-export type WorkKind = 'repair' | 'upgrade' | 'regularize' | Utility;
-export const WORK_KINDS: WorkKind[] = ['repair', 'upgrade', 'regularize', 'water', 'power'];
+export type WorkKind = 'repair' | 'upgrade' | 'regularize' | Utility | 'retype';
+export const WORK_KINDS: WorkKind[] = ['repair', 'upgrade', 'regularize', 'water', 'power', 'retype'];
 export type WorkStatus = 'pending' | 'applied' | 'failed';
 
 export interface PropertyWork {
@@ -238,11 +288,40 @@ export interface PropertyWork {
   costCents: number;
   /** Nível de destino do upgrade. */
   toLevel: number | null;
+  /** Tipo de destino da troca de tipo (T1 → T2); null nas outras obras. */
+  toType?: string | null;
   status: WorkStatus;
   createdAt: Date;
 }
 
-export const typeOf = (code: string) => PROPERTY_TYPES.find((t) => t.code === code);
+export const typeOf = (code: string) => catalog.find((t) => t.code === code);
+/** Constrói-se direto: disponível e sem tipo de origem (T2 e T3 vêm por troca). */
+export const buildable = (t: PropertyType) => t.available !== false && !t.upgradesFrom;
+
+/** O próximo tipo da família (T1 → T2 → T3), se o catálogo tem os valores. */
+export const nextTypeOf = (code: string) => catalog.find((t) => t.upgradesFrom === code && t.available !== false);
+
+/** A família do tipo, da raiz até ele: [t1, t2] para a T2. */
+export function familyOf(code: string): PropertyType[] {
+  const chain: PropertyType[] = [];
+  let t = typeOf(code);
+  while (t && chain.length < 10) {
+    chain.unshift(t);
+    t = t.upgradesFrom ? typeOf(t.upgradesFrom) : undefined;
+  }
+  return chain;
+}
+
+/**
+ * Tipo e nível no `PropertyNFT`. O contrato guarda o `typeCode` do mint e só aceita nível maior, então a
+ * família da casa vai como o tipo da raiz (`t1`) e o nível corrido: T1 1–3, T2 4–6, T3 7–9.
+ */
+export function chainTypeAndLevel(p: Pick<Property, 'type' | 'level'>): { typeCode: string; level: number } {
+  const family = familyOf(p.type);
+  if (family.length <= 1) return { typeCode: p.type, level: p.level };
+  const before = family.slice(0, -1).reduce((sum, t) => sum + t.levels.length, 0);
+  return { typeCode: family[0]!.code, level: before + p.level };
+}
 
 const daysBetween = (a: Date, b: Date) => (b.getTime() - a.getTime()) / DAY_MS;
 
@@ -370,6 +449,10 @@ export async function buildProperty(
 ): Promise<Property> {
   const type = typeOf(input.type);
   if (!type) throw new AppError('unknown_property_type', 'Tipo de imóvel desconhecido.', 400);
+  if (type.available === false) throw new AppError('type_unavailable', type.unavailableReason ?? `${type.label} ainda não está à venda.`, 409);
+  if (type.upgradesFrom) {
+    throw new AppError('type_by_upgrade', `${type.label} vem da troca de tipo de ${typeOf(type.upgradesFrom)?.label ?? type.upgradesFrom}.`, 409);
+  }
   const lot = await lots.getLot(input.city, input.lotId);
   if (!lot) throw new AppError('not_found', 'Lote não encontrado.', 404);
   if (lot.status !== 'sold' || lot.ownerAccountId !== input.accountId) {
@@ -555,6 +638,12 @@ export function applyWorkAt(
     case 'regularize':
       property = { ...kept, regularizedAt: p.regularizedAt ?? t };
       break;
+    case 'retype': {
+      // Troca de tipo: começa no nível 1 do tipo novo; o preço de referência (reparo) passa a ser o dele.
+      const to = typeOf(w.toType ?? '');
+      property = { ...kept, type: w.toType ?? p.type, level: 1, priceCents: to?.priceCents ?? p.priceCents };
+      break;
+    }
     case 'water': {
       const { from, until } = extendUtility(p, 'water', t);
       property = { ...kept, waterFrom: from, waterUntil: until };
@@ -618,6 +707,7 @@ export async function startWork(
 
   let costCents: number;
   let toLevel: number | null = null;
+  let toType: string | null = null;
   if (input.kind === 'repair') {
     costCents = repairCostCents(p, t);
     if (costCents <= 0) throw new AppError('nothing_to_repair', 'O imóvel não precisa de reparo.', 409);
@@ -626,6 +716,15 @@ export async function startWork(
     if (!next) throw new AppError('max_level', 'O imóvel já está no nível máximo.', 409);
     costCents = next.upgradeCostCents!;
     toLevel = next.level;
+  } else if (input.kind === 'retype') {
+    const current = typeOf(p.type);
+    const next = nextTypeOf(p.type);
+    if (!current || !next) throw new AppError('no_next_type', 'Este imóvel não tem troca de tipo disponível.', 409);
+    if (p.level < current.levels.length) {
+      throw new AppError('max_level_first', `Suba a ${current.label} até o nível ${current.levels.length} antes de trocar de tipo.`, 409);
+    }
+    costCents = Math.max(0, next.priceCents - current.priceCents);
+    toType = next.code;
   } else if (input.kind === 'regularize') {
     if (p.regularizedAt) throw new AppError('already_regularized', 'O imóvel já está regularizado.', 409);
     costCents = regularizationCostCents(p);
@@ -644,6 +743,7 @@ export async function startWork(
     kind: input.kind,
     costCents,
     toLevel,
+    toType,
     status: 'pending',
     createdAt: t,
   };
