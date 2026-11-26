@@ -550,7 +550,8 @@ export function createGestao(api) {
 
   function togglePanel(force) {
     panel.hidden = force === undefined ? !panel.hidden : !force;
-    if (layers) layers.hidden = !panel.hidden;
+    // O patrimônio usa o mesmo lado da tela: abrir fecha as cortinas (jogo e camadas).
+    if (!panel.hidden) document.dispatchEvent(new CustomEvent('cortina', { detail: {} }));
     renderPanel();
   }
 

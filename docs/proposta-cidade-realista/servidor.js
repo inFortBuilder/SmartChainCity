@@ -1354,8 +1354,9 @@ export function createServidor(map) {
     if (!b || b.disabled) return;
     const what = b.dataset.s;
     if (what === 'fechar' || what === 'abrir') {
-      open = what === 'abrir';
-      return render();
+      // O painel é uma cortina lateral (cortinas.js): recolher fecha a cortina, e a aba na borda reabre.
+      document.dispatchEvent(new CustomEvent('cortina', { detail: { name: 'jogo', open: what === 'abrir' } }));
+      return;
     }
     if (what === 'sair') return logout();
     if (what === 'visitar') return map.walkTo?.(Number(b.dataset.lote));
