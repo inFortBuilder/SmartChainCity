@@ -141,6 +141,13 @@
       "when": 1795373653671,
       "tag": "0019_gamepass_nivel_10",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1795734517089,
+      "tag": "0020_moradia",
+      "breakpoints": true
     }
   ]
 }

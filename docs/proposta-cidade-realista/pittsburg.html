@@ -70,6 +70,11 @@
   @media (max-width: 640px) { .multiplayer { right: 8px; left: 8px; width: auto; bottom: 8px; } }
   .servidor { position: fixed; left: 16px; bottom: 40px; z-index: 6; width: 300px; max-height: 48vh; overflow-y: auto; padding: 12px 14px; border-radius: var(--radius); font-size: 13px; }
   .servidor h2 { margin: 0; font-size: 15px; }
+  /* Moradia (servidor.js): as opções quebram a linha; os dias ficam numa linha própria. */
+  .moradia-opcoes { flex-wrap: wrap; }
+  .moradia-dias { display: flex; align-items: center; gap: 6px; margin: 4px 0; }
+  .moradia-dias select.campo { width: auto; }
+  .moradia-dias select.campo option { color: #111; }
   /* Minigame do turno (E2.2): tarefas feitas, em andamento e próximas. */
   .servidor .minigame { list-style: none; margin: 6px 0; padding: 0; display: grid; gap: 3px; font-size: 12px; }
   .servidor .minigame li { display: flex; justify-content: space-between; gap: 8px; }

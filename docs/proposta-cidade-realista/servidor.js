@@ -284,6 +284,8 @@ export function createServidor(map) {
   let propertyTypes = null;
   let cup = null;
   let carCatalog = null;
+  /** Moradia do avatar (doc 04 §4): casa própria, aluguel ou hotel, e o fator do turno. */
+  let moradia = null;
   let events = null;
   let farm = null;
   let pass = null;
@@ -352,6 +354,10 @@ export function createServidor(map) {
         call(API.game, '/v1/events').catch(() => null),
         call(API.game, '/v1/gamepass', { token: session.token }).catch(() => null),
       ]);
+      // Moradia: o fator do próximo turno, a estadia e as casas próprias.
+      moradia = data.avatar
+        ? await call(API.game, `/v1/avatars/${data.avatar.id}/housing`, { token: session.token }).catch(() => null)
+        : null;
       // Veículos (E3.5): a agência e os carros da conta.
       if (!carCatalog) carCatalog = await call(API.game, '/v1/catalog/vehicles').catch(() => null);
       cars = await call(API.game, '/v1/vehicles', { token: session.token })
@@ -752,6 +758,47 @@ export function createServidor(map) {
   };
 
   /**
+   * Moradia (doc 04 §4): sem casa própria regular, aluguel ou hotel, o turno rende 50%.
+   * A casa própria se regulariza na ficha do lote (Prefeitura, água e energia).
+   */
+  const housingSection = () => {
+    const m = moradia;
+    const off = busy ? 'disabled' : '';
+    const day = (iso) => new Date(iso).toLocaleDateString('pt-BR');
+    let html = `<h3>🏠 Moradia</h3><p class="pequeno">${
+      m.factor === 1 ? '✅ Moradia regular: o turno rende 100%.' : '⚠️ Sem moradia regular: o turno rende <strong>50%</strong>.'
+    }</p>`;
+    const casas = m.own_homes ?? [];
+    if (casas.length) {
+      html += `<p class="muted pequeno">${casas
+        .map((c) => `${esc(c.label)}: ${c.regular ? `regular até ${day(c.regular_until)}` : 'falta regularizar ou ligar água e energia (na ficha do lote)'}`)
+        .join(' · ')}</p>`;
+    }
+    if (m.stay) {
+      const s = m.stay;
+      html += `<p class="muted pequeno">${s.kind === 'hotel' ? `🏨 Hotel nível ${s.level}` : '🔑 Aluguel'} até ${day(s.until)}${
+        s.kind === 'hotel' ? ` · ${s.meals_left_today} refeição(ões) incluída(s) hoje` : ''
+      }.</p><div class="linha moradia-opcoes">
+        <button class="btn btn--ghost pequeno" type="button" data-s="moradia" data-k="${s.kind}" data-l="${s.level}" ${off}>Mais dias</button>
+        ${s.kind === 'hotel' ? `<button class="btn btn--blue pequeno" type="button" data-s="moradia-refeicao" ${off || (s.meals_left_today ? '' : 'disabled')}>Refeição do hotel</button>` : ''}
+        <button class="btn btn--ghost pequeno" type="button" data-s="moradia-sair" ${off}>Sair</button></div>`;
+    }
+    const p = m.prices;
+    const dias = [1, 3, 7, 15, 30].map((d) => `<option value="${d}" ${d === 7 ? 'selected' : ''}>${d} dia${d > 1 ? 's' : ''}</option>`).join('');
+    if (!m.stay) {
+      html += `<label class="pequeno moradia-dias">Por <select class="campo" data-dias aria-label="Dias">${dias}</select></label>
+        <div class="linha moradia-opcoes"><button class="btn btn--ghost pequeno" type="button" data-s="moradia" data-k="aluguel" data-l="1" ${off}>Aluguel · ${thaler(p.aluguel.cents_per_day)}/dia</button>
+        ${p.hotel
+          .map((h) => `<button class="btn btn--ghost pequeno" type="button" data-s="moradia" data-k="hotel" data-l="${h.level}" ${off}>Hotel ${h.level} · ${thaler(h.cents_per_day)}/dia</button>`)
+          .join('')}</div>
+        <p class="muted pequeno">O hotel inclui 1, 2 ou 3 refeições por dia, pelo nível. Valores provisórios.</p>`;
+    } else {
+      html += `<label class="pequeno moradia-dias">Mais dias: <select class="campo" data-dias aria-label="Dias">${dias}</select></label>`;
+    }
+    return html;
+  };
+
+  /**
    * Veículos (E3.5): autoescola, agência (compra, aluguel e recompra) e IPVA.
    * O carro existe só no jogo por enquanto; as corridas vêm depois.
    */
@@ -1091,6 +1138,7 @@ export function createServidor(map) {
           <p class="muted pequeno">Cada refeição dá +3 de alimentação; o pacote vai para a despensa.${foods.some((f) => f.provisional_price) ? ' Preço provisório até o game designer definir.' : ''}</p>
         </form>`;
       }
+      if (moradia) body += housingSection(a);
       if (events) body += eventSection(a);
       if (!internado && leisure && a.leisure) body += leisureSection(a);
       if (cup) body += cupSection(a);
@@ -1424,6 +1472,37 @@ export function createServidor(map) {
       return act(() =>
         call(API.game, `/v1/avatars/${data.avatar.id}/work`, { method: 'POST', token: session.token, body: { shift: Number(b.dataset.h) } }),
       );
+    }
+    if (what === 'moradia') {
+      const days = Number(panel.querySelector('[data-dias]')?.value ?? 7);
+      const kind = b.dataset.k;
+      const level = Number(b.dataset.l ?? 1);
+      return act(async () => {
+        const r = await call(API.game, `/v1/avatars/${data.avatar.id}/housing`, {
+          method: 'POST',
+          token: session.token,
+          body: { kind, level, days },
+          headers: { 'idempotency-key': crypto.randomUUID() },
+        });
+        moradia = r.housing;
+        message = `${kind === 'hotel' ? `Hotel nível ${level}` : 'Aluguel'}: −${thaler(r.purchase.price)} THALER, até ${new Date(r.housing.stay.until).toLocaleDateString('pt-BR')}.`;
+        messageOk = true;
+      });
+    }
+    if (what === 'moradia-sair') {
+      return act(async () => {
+        const r = await call(API.game, `/v1/avatars/${data.avatar.id}/housing`, { method: 'DELETE', token: session.token });
+        moradia = r.housing;
+        message = 'Saiu da moradia paga (sem reembolso).';
+        messageOk = true;
+      });
+    }
+    if (what === 'moradia-refeicao') {
+      return act(async () => {
+        await call(API.game, `/v1/avatars/${data.avatar.id}/housing/meal`, { method: 'POST', token: session.token });
+        message = 'Refeição do hotel: +3 de alimentação, sem cobrança.';
+        messageOk = true;
+      });
     }
     if (what === 'autoescola') {
       return act(async () => {

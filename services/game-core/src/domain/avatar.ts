@@ -6,6 +6,7 @@ import { type Pet, decayedPet } from './pet.js';
 import { type School, inSchool, schooled } from './school.js';
 import type { Leisure } from './leisure.js';
 import { type License, inDrivingSchool } from './vehicle.js';
+import type { Housing } from './housing.js';
 
 /**
  * Avatar e atributos (doc 02 §2.3, doc 06 §2). Atributos de 0 a 10, educação
@@ -69,6 +70,8 @@ export interface Avatar {
   leisure?: Leisure | null;
   /** Habilitação (E3.5): o fim da autoescola; null sem habilitação. */
   license?: License | null;
+  /** Moradia paga (aluguel ou hotel); null sem estadia. A casa própria vem do world. */
+  housing?: Housing | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -147,6 +150,7 @@ export function newAvatar(
     school: null,
     leisure: null,
     license: null,
+    housing: null,
     createdAt: now,
     updatedAt: now,
   };
