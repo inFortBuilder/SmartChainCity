@@ -74,6 +74,8 @@ export interface Snapshot {
   items?: number;
   /** Pet Sitter cuidando de algum pet no começo do turno: 1,2 (E3.1); ausente: 1. */
   sitter?: number;
+  /** Moradia regular no começo (casa própria regular, aluguel ou hotel): 1; sem: 0,5. Turnos antigos: 1. */
+  housing?: number;
 }
 
 export interface ShiftResult {
@@ -92,6 +94,7 @@ export interface ShiftResult {
     event?: number;
     items?: number;
     sitter?: number;
+    housing?: number;
   };
 }
 
@@ -138,6 +141,8 @@ export function startShift(
     earnBonus?: number;
     /** Fator do Pet Sitter com pet sob cuidado (E3.1). */
     sitter?: number;
+    /** Fator de moradia (doc 04 §4): 1 com moradia regular, 0,5 sem. */
+    housing?: number;
   },
   now: Date,
 ): { shift: Shift; avatar: Avatar } {
@@ -184,6 +189,7 @@ export function startShift(
       // Itens sazonais da temporada em que o turno começa.
       items: 1 + (input.earnBonus ?? 0),
       ...(input.sitter && input.sitter !== 1 ? { sitter: input.sitter } : {}),
+      ...(input.housing !== undefined ? { housing: input.housing } : {}),
       earnsReward: status(avatar, now).earnsReward,
       base: baseOf(avatar.jobCode),
       illness: yieldFactor(avatar.conditions, now),
@@ -221,11 +227,25 @@ export function settle(shift: Pick<Shift, 'id' | 'hours' | 'seed' | 'snapshot'>)
   const event = s.event ?? 1;
   const items = s.items ?? 1;
   const sitter = s.sitter ?? 1;
-  const thaler = s.earnsReward ? s.base * dayShare * health * happiness * expPet * damage * illness * event * items * sitter : 0;
+  // Fator de moradia (doc 04 §4): sem moradia regular, 50%.
+  const housing = s.housing ?? 1;
+  const thaler = s.earnsReward ? s.base * dayShare * health * happiness * expPet * damage * illness * event * items * sitter * housing : 0;
   return {
     damaged,
     thalerCents: BigInt(Math.round(thaler * 100)),
-    factors: { base: s.base, hours: shift.hours, health, happiness, expPet, damage, illness, event, items, ...(sitter !== 1 ? { sitter } : {}) },
+    factors: {
+      base: s.base,
+      hours: shift.hours,
+      health,
+      happiness,
+      expPet,
+      damage,
+      illness,
+      event,
+      items,
+      ...(sitter !== 1 ? { sitter } : {}),
+      ...(s.housing !== undefined ? { housing } : {}),
+    },
   };
 }
 

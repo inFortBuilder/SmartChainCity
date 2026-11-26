@@ -164,9 +164,11 @@ import {
   isMedicine,
   isPetShop,
   isLeisure,
+  isHousing,
   isLicense,
   isSchool,
   planLeisure,
+  planHousing,
   planLicense,
   planPetShop,
   planSitter,
@@ -191,6 +193,16 @@ import {
   sittingDto,
 } from './domain/sitter.js';
 import { MemoryPetSitterStore } from './infra/memory-sitter-store.js';
+import {
+  type HomeDirectory,
+  type StayKind,
+  checkStay,
+  hotelMeal,
+  housingDto,
+  housingFactor,
+  housingPrices,
+  leaveStay,
+} from './domain/housing.js';
 import { fetchCmsEventGroups, fetchCmsFoods, fetchCmsProfessions, fetchCmsSeasons } from './infra/cms-catalog.js';
 import { type Payer, type Shift, type ShiftStore, startShift } from './domain/shift.js';
 import { chargeStay } from './jobs/hospital.js';
@@ -232,6 +244,8 @@ const avatarDto = (a: Avatar, at: Date) => ({
   leisure: leisureDto(a, at),
   // Habilitação (E3.5): null sem; com a autoescola em curso, `licensed` é falso até `ready_at`.
   license: a.license ? { ready_at: a.license.readyAt.toISOString(), licensed: licensed(a, at) } : null,
+  // Moradia paga em curso (aluguel ou hotel); a casa própria fica em /housing.
+  housing: housingDto(a, at),
   // Só as que estão em curso: a sorteada no turno aparece quando o turno acaba.
   conditions: activeConditions(a.conditions, at).map((c) => ({
     code: c.code,
@@ -326,6 +340,8 @@ export async function buildApp(
   farms: { store: FarmStore; payer: FarmPayer } | null = null,
   /** Pet Sitter como serviço de jogador (E3.1). Sem store, fica em memória. */
   sitterStore: PetSitterStore | null = null,
+  /** Casas próprias da conta no world (moradia, doc 04 §4). Sem ele, só aluguel e hotel contam. */
+  homes: HomeDirectory | null = null,
 ) {
   const sitters = sitterStore ?? new MemoryPetSitterStore();
   const app = Fastify({
@@ -480,6 +496,8 @@ export async function buildApp(
     // Pet Sitter com algum pet sob cuidado: +20% no turno (E3.1).
     const own = await store.get(id);
     const caring = own?.jobCode === 'pet_sitter' ? (await sitters.current(id, now())).length : 0;
+    // Moradia (doc 04 §4): casa própria regular, aluguel ou hotel; sem nenhum, o turno rende 50%.
+    const ownRegular = await ownRegularHome(accountId, request);
     const started = await store.beginShift(id, accountId, now(), (avatar, context) =>
       startShift(
         avatar,
@@ -489,6 +507,7 @@ export async function buildApp(
           damageCut: perk.damageCut,
           earnBonus: perk.earnBonus,
           sitter: sitterFactor(avatar, caring),
+          housing: housingFactor(avatar, ownRegular, now()),
           ...context,
           durationMs: config.DEV_SHIFT_MINUTES ? config.DEV_SHIFT_MINUTES * 60_000 : undefined,
         },
@@ -503,6 +522,81 @@ export async function buildApp(
     // Não espera a próxima passada do job: o que já venceu aparece concluído.
     await completeShifts(store, now());
     return { shifts: (await store.listShifts(avatar.id, 20)).map((s) => shiftDto(s, now())) };
+  });
+
+  // ---------------------------------------------------------------- moradia (doc 04 §4, GDD §4)
+
+  /** Casas próprias da conta pelo world; `null` se o world não respondeu (o turno não perde o fator). */
+  const homesOf = async (accountId: string, request: FastifyRequest) => {
+    if (!homes) return [];
+    try {
+      return await homes.homes(accountId, request.id);
+    } catch (error) {
+      request.log.warn(`moradia própria sem resposta do world: ${(error as Error).message}`);
+      return null;
+    }
+  };
+  const ownRegularHome = async (accountId: string, request: FastifyRequest) => {
+    const list = await homesOf(accountId, request);
+    return list === null ? true : list.some((h) => h.regular);
+  };
+
+  const housingView = async (avatar: Avatar, request: FastifyRequest) => {
+    const at = now();
+    const own = await homesOf(avatar.accountId, request);
+    const ownRegular = own === null ? true : own.some((h) => h.regular);
+    return {
+      // Fator do próximo turno: 1 com moradia regular, 0,5 sem.
+      factor: housingFactor(avatar, ownRegular, at),
+      stay: housingDto(avatar, at),
+      own_homes:
+        own?.map((h) => ({ id: h.id, label: h.label, regular: h.regular, regular_until: h.regularUntil?.toISOString() ?? null })) ?? null,
+      world_on: homes !== null,
+      prices: housingPrices(),
+    };
+  };
+
+  app.get('/v1/housing/prices', async () => housingPrices());
+
+  // A moradia do avatar: estadia em curso, casas próprias e o fator do turno.
+  app.get('/v1/avatars/:id/housing', async (request) => {
+    const avatar = await ownAvatar(request);
+    return housingView(decayed(avatar, now()), request);
+  });
+
+  // Aluguel ou hotel por N dias: {kind, level?, days}. A mesma estadia estende; outra exige sair antes.
+  app.post('/v1/avatars/:id/housing', async (request, reply) => {
+    const body = z
+      .object({ kind: z.enum(['aluguel', 'hotel']), level: z.number().int().min(1).max(3).default(1), days: z.number().int().min(1).max(30) })
+      .parse(request.body);
+    const effect = { kind: body.kind as StayKind, level: body.kind === 'hotel' ? body.level : 1, days: body.days };
+    const { avatar, done } = await purchase(request, (clientKey) => (current) => {
+      const { cents } = checkStay(current, effect, now());
+      return planHousing(current, { id: randomUUID(), clientKey, effect, cents }, now());
+    });
+    const fresh = (await store.get(avatar.id))!;
+    const at = now();
+    return reply.status(201).send({
+      purchase: mealDto(done),
+      avatar: avatarDto(decayed(fresh, at), at),
+      housing: await housingView(decayed(fresh, at), request),
+    });
+  });
+
+  // Sai do aluguel ou do hotel agora, sem reembolso (para trocar de moradia).
+  app.delete('/v1/avatars/:id/housing', async (request) => {
+    const avatar = await ownAvatar(request);
+    const fresh = await store.updateAvatar(avatar.id, avatar.accountId, now(), (current) => leaveStay(current, now()));
+    const at = now();
+    return { avatar: avatarDto(decayed(fresh, at), at), housing: await housingView(decayed(fresh, at), request) };
+  });
+
+  // Refeição incluída no hotel (GDD §6 "Hotel"): até 1, 2 ou 3 por dia, pelo nível, sem cobrança.
+  app.post('/v1/avatars/:id/housing/meal', async (request) => {
+    const avatar = await ownAvatar(request);
+    const fed = await store.updateAvatar(avatar.id, avatar.accountId, now(), (current) => hotelMeal(current, now()));
+    const at = now();
+    return { avatar: avatarDto(decayed(fed, at), at) };
   });
 
   // Mercado do jogo (E2.3): a lista com o preço de uma unidade, em centavos de THALER.
@@ -564,7 +658,7 @@ export async function buildApp(
     const meal = await store.beginMeal(avatar.id, avatar.accountId, clientKey, now(), plan(clientKey));
     const done = await settleMeal(meal, request.id);
     if (done.status === 'failed') {
-      const what = isLicense(done) ? 'a autoescola' : isLeisure(done) ? 'a entrada' : isSchool(done) ? 'a escola' : isPetShop(done) ? 'o Pet Shop' : isMedicine(done) ? 'o remédio' : isPack(done) ? 'o pacote' : 'esta refeição';
+      const what = isHousing(done) ? (done.effects.housing?.kind === 'hotel' ? 'o hotel' : 'o aluguel') : isLicense(done) ? 'a autoescola' : isLeisure(done) ? 'a entrada' : isSchool(done) ? 'a escola' : isPetShop(done) ? 'o Pet Shop' : isMedicine(done) ? 'o remédio' : isPack(done) ? 'o pacote' : 'esta refeição';
       throw new AppError('insufficient_thaler', `THALER insuficiente para ${what}.`, 409);
     }
     return { avatar, done };

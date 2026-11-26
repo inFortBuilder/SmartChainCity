@@ -1,7 +1,8 @@
 import { AppError, forwardRequestId } from '@scc/shared';
 
 import type { HospitalPayer, HospitalStay } from '../domain/hospital.js';
-import { type Meal, type MealPayer, isLeisure, isLicense, isMedicine, isPack, isPetShop, isSchool, isSitter } from '../domain/meal.js';
+import { type Meal, type MealPayer, isHousing, isLeisure, isLicense, isMedicine, isPack, isPetShop, isSchool, isSitter } from '../domain/meal.js';
+import { rentSplit } from '../domain/housing.js';
 import { feeSplit } from '../domain/leisure.js';
 import { sitterSplit } from '../domain/sitter.js';
 import type { Championship, ChampionshipPayer, ChampionshipResult, Member } from '../domain/championship.js';
@@ -75,6 +76,7 @@ export class EconomyPayer implements Payer, MealPayer, HospitalPayer, Championsh
   /** Refeição ou remédio: os dois são sink (doc 04 §7), o THALER do jogador vai para a queima. */
   async chargeMeal(meal: Meal, requestId?: string) {
     if (isSitter(meal)) return this.chargeSitter(meal, requestId);
+    if (isHousing(meal)) return this.chargeHousing(meal, requestId);
     if (isLeisure(meal)) return this.chargeLeisure(meal, requestId);
     const medicine = isMedicine(meal);
     const petShop = isPetShop(meal);
@@ -120,6 +122,24 @@ export class EconomyPayer implements Payer, MealPayer, HospitalPayer, Championsh
   }
 
   /** Diária do Pet Sitter (E3.1): 90% para o sitter e 10% para a queima (taxa da Prefeitura). */
+  /**
+   * Moradia: o hotel do jogo é queima; o aluguel segue o simulador (40% queima, 60% de volta ao pool P2E,
+   * de onde sai a renda dos imóveis, até os prédios de jogadores alugarem unidades).
+   */
+  private async chargeHousing(meal: Meal, requestId?: string) {
+    const rent = meal.effects.housing?.kind === 'aluguel';
+    const split = rent ? rentSplit(meal.priceCents) : { burn: meal.priceCents, pool: 0n };
+    const legs = [
+      { owner_type: 'player', owner_id: meal.accountId, currency: 'THALER', amount: `-${meal.priceCents}` },
+      ...(split.burn > 0n ? [{ owner_type: 'burn', owner_id: rent ? 'rent' : 'hotel', currency: 'THALER', amount: `${split.burn}` }] : []),
+      ...(split.pool > 0n ? [{ owner_type: 'pool', owner_id: 'p2e', currency: 'THALER', amount: `${split.pool}` }] : []),
+    ];
+    const error = await this.post(`meal:${meal.id}`, { kind: rent ? 'rent_fee' : 'hotel_fee', ref_type: 'meal', ref_id: meal.id, legs }, requestId);
+    if (error === null) return;
+    if (error === 'insufficient_funds') throw new AppError('insufficient_thaler', `THALER insuficiente para ${rent ? 'o aluguel' : 'o hotel'}.`, 409);
+    throw new AppError('ledger_unavailable', 'O ledger recusou a cobrança.', 502);
+  }
+
   private async chargeSitter(meal: Meal, requestId?: string) {
     const sitter = meal.effects.sitter;
     if (!sitter) throw new AppError('ledger_unavailable', 'Diária sem o Pet Sitter.', 500);

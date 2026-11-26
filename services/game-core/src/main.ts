@@ -13,6 +13,7 @@ import { MemoryChainSyncStore } from './infra/memory-chain-sync-store.js';
 import { MemoryRiskStore, PostgresRiskStore } from './infra/risk-store.js';
 import { EconomyPayer } from './infra/economy-payer.js';
 import { WorldVenues } from './infra/world-venues.js';
+import { WorldHomes } from './infra/world-homes.js';
 import { decayed } from './domain/avatar.js';
 import { settleDue, settleEntry } from './domain/championship.js';
 import { PostgresChampionshipStore } from './infra/db/postgres-championship-store.js';
@@ -63,7 +64,9 @@ const farmStore = pool ? new PostgresFarmStore(pool) : new MemoryFarmStore();
 const farms = payer ? { store: farmStore, payer } : null;
 // Pet Sitter (E3.1): ofertas e estadias.
 const sitterStore = pool ? new PostgresPetSitterStore(pool) : new MemoryPetSitterStore();
-const app = await buildApp(config, store, undefined, payer, payer, payer, undefined, riskStore, venues, championships, vehicles, passes, farms, sitterStore);
+// Moradia própria (doc 04 §4): as casas regulares da conta pela rota interna do world.
+const homes = config.WORLD_URL && config.WORLD_TOKEN ? new WorldHomes(config.WORLD_URL, config.WORLD_TOKEN) : null;
+const app = await buildApp(config, store, undefined, payer, payer, payer, undefined, riskStore, venues, championships, vehicles, passes, farms, sitterStore, homes);
 
 // Job championship.settle: disputa o campeonato do mês que virou e cobra as inscrições paradas.
 const championshipTimer = championships
