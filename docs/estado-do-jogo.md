@@ -1,6 +1,6 @@
 # Estado do jogo e próximas etapas
 
-Retrato em 2026-11-22, atualizado em 2026-11-26 (moradia, descanso, deslocamento e catálogo de imóveis): o que já dá para jogar, o que falta no jogo e a ordem sugerida para as próximas etapas. O detalhe de cada item fica no [ROADMAP](../ROADMAP.md) e nos READMEs dos serviços. O caminho até a mainnet, que depende de pessoas de fora, está no [checklist de lançamento](lancamento.md).
+Retrato em 2026-11-22, atualizado em 2026-11-26 (moradia, descanso, deslocamento, catálogo de imóveis e loja): o que já dá para jogar, o que falta no jogo e a ordem sugerida para as próximas etapas. O detalhe de cada item fica no [ROADMAP](../ROADMAP.md) e nos READMEs dos serviços. O caminho até a mainnet, que depende de pessoas de fora, está no [checklist de lançamento](lancamento.md).
 
 **Legenda:**
 - ✅ pronto e testado;
@@ -26,6 +26,7 @@ Tudo roda na máquina local, sem serviços pagos. O mapa da cidade real (Pittsbu
 | Regularização na Prefeitura, água e energia (sem elas, renda de 50%) | ✅ 🟡 custos provisórios | world |
 | Moradia do avatar: casa própria regular, aluguel ou hotel com refeições (sem moradia, turno de 50%) | ✅ 🟡 preços provisórios | game-core e world |
 | Descanso (dormir 4 ou 8 h), higiene em casa e o modo de ir ao trabalho (atraso e tarifa no turno) | ✅ 🟡 efeitos provisórios | game-core |
+| Loja do jogo: roupas (+10/15/20%), ferramenta de trabalho (+30% por 3 dias) e cama (2º turno de 6 h) | ✅ 🟡 preços provisórios | game-core |
 | Impostos (IPTU e lote vazio), multa, leilão do lote inadimplente com apreensão do NFT | 🟡 valores provisórios | world |
 | Pets, Pet Shop e Pet Sitter | 🟡 falta a arte | game-core |
 | Escola e troca de profissão | ✅ 🟡 preços provisórios | game-core |
@@ -61,7 +62,7 @@ O GDD amarra o ganho do turno à moradia. Já funcionam a regularização, água
 | Falta | Quem | Observação |
 |---|---|---|
 | 🟡 **Descanso obrigatório após 16 h** acordado e o skate como item comprado | 🔧 | O descanso, a higiene e o deslocamento já funcionam (game-core) |
-| ⬜ **Bônus de itens no ganho** (roupas 1,10/1,15/1,20 e ferramentas temporárias) e **loja de itens** | 🔧 👤 | doc 04 §4; os itens da temporada já entram |
+| ⬜ **Móveis e eletrodomésticos** (casa completa +1 de felicidade, cozinhar), calçados e roupas sazonais | 🔧 👤 | GDD §6 "Lojas"; roupas, ferramenta e cama já estão na loja do jogo |
 | 🟡 **Energia e felicidade reais por tarefa** do minigame | 👤 | Hoje o turno gasta a energia pelo total; os números por tarefa são do game designer |
 | ⬜ **Limite da despensa pela casa** e tempo de compra no mercado | 🔧 | game-core, "Ainda não" |
 
@@ -94,6 +95,7 @@ Os valores abaixo funcionam no jogo, mas são **premissas** marcadas no código.
 - **antifraude:** limites de contas por aparelho e de velocidade;
 - **câmbio:** teto e spread;
 - **descanso e deslocamento:** +4/+8 de energia (metade sem moradia), efeitos da higiene, atrasos de ônibus e a pé, tarifas (ônibus 3, combustível 2, internet 2) e o home office;
+- **loja:** preços das roupas, da ferramenta e da cama, e a ferramenta genérica por profissão;
 - **imóveis:** preço, renda e níveis da T2 e da T3;
 - **moradia:** aluguel de 15 THALER/dia (40% queima, 60% de volta ao pool P2E) e hotel de 25, 40 e 60 THALER/dia, com 1, 2 e 3 refeições;
 - **Prefeitura e serviços:** taxa de regularização de 2% do preço, água e energia (2 e 3 THALER/dia no centro, até o dobro na borda);
@@ -117,7 +119,7 @@ A ordem prioriza o que deixa o jogo **completo para o jogador** no lançamento d
 2. ~~**Moradia completa**~~ ✅ (2026-11-26): regularização, água e energia, aluguel, hotel e o fator no turno. O aluguel e o hotel de jogadores vêm com o item 7.
 3. ~~**Descansar, atividades e deslocamento**~~ ✅ (2026-11-26): dormir, higiene em casa e o modo de ir ao trabalho. Falta o descanso obrigatório após 16 h e os números do game designer.
 4. ~~**Tipos de imóvel e catálogo no Strapi**~~ ✅ (2026-11-26): o catálogo vem do Strapi e a T1 troca para T2 e T3. Os outros tipos entram sozinhos quando o game designer preencher preço e renda no CMS; o lote duplo ainda falta.
-5. **Bônus de itens e loja** 🔧 👤: roupas, ferramentas e os itens de temporada à venda.
+5. ~~**Bônus de itens e loja**~~ ✅ (2026-11-26): roupas, ferramenta de trabalho e cama na loja do jogo, com o bônus no turno. Móveis, eletrodomésticos e roupas sazonais ficam para depois.
 6. **Arte** 👤: profissões, pets, Lucky Box e trailer. Não bloqueia o código, mas bloqueia o lançamento.
 7. **Prédios com unidades e venda** (E3.11) 🔧: o mercado dos construtores.
 8. **Agendador de eventos ao vivo** 🔧, depois os eventos de data marcada.
