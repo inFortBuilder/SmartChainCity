@@ -546,7 +546,6 @@ export function createGestao(api) {
   panel.className = 'patrimonio glass';
   panel.hidden = true;
   document.body.append(panel);
-  const layers = document.querySelector('.layers');
 
   function togglePanel(force) {
     panel.hidden = force === undefined ? !panel.hidden : !force;
