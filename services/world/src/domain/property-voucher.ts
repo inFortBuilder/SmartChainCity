@@ -2,7 +2,7 @@ import { AppError } from '@scc/shared';
 import { type Address, type Hex, getAddress, isAddress, stringToHex } from 'viem';
 
 import { type WalletDirectory, lotTokenId } from './land-quote.js';
-import { type Property, type PropertyStore, phaseOf } from './properties.js';
+import { type Property, type PropertyStore, chainTypeAndLevel, phaseOf } from './properties.js';
 
 /**
  * Vouchers EIP-712 do `PropertyNFT` (contracts/src/PropertyNFT.sol, doc 07 §2.2, E2.5).
@@ -109,8 +109,9 @@ export async function issuePropertyVoucher(
     tokenId: propertyTokenId(p.id),
     owner,
     lotId: lotTokenId(city, p.lotId),
-    typeCode: typeCodeHex(p.type),
-    level: p.level,
+    // A família da casa vai como a T1 com o nível corrido (properties.ts, chainTypeAndLevel).
+    typeCode: typeCodeHex(chainTypeAndLevel(p).typeCode),
+    level: chainTypeAndLevel(p).level,
     deadline: deadline(t, input.ttlSeconds),
   };
   return { voucher, signature: await signer.signProperty(voucher), property: p };
@@ -128,7 +129,8 @@ export async function issueLevelVoucher(
 ) {
   const t = now();
   const p = await readyProperty(store, input, t);
-  if (p.level < 2) throw new AppError('nothing_to_upgrade', 'O imóvel ainda está no nível 1: o mint já leva esse nível.', 409);
-  const voucher: LevelVoucher = { tokenId: propertyTokenId(p.id), level: p.level, deadline: deadline(t, input.ttlSeconds) };
+  const { level } = chainTypeAndLevel(p);
+  if (level < 2) throw new AppError('nothing_to_upgrade', 'O imóvel ainda está no nível 1: o mint já leva esse nível.', 409);
+  const voucher: LevelVoucher = { tokenId: propertyTokenId(p.id), level, deadline: deadline(t, input.ttlSeconds) };
   return { voucher, signature: await signer.signLevel(voucher), property: p };
 }

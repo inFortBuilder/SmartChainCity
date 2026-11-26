@@ -1878,7 +1878,7 @@ export function createServidor(map) {
         obra.disabled = true;
         try {
           const r = await call(API.world, `/v1/world/properties/${here.id}/${obra.dataset.obra}`, { method: 'POST', token: session.token });
-          const what = { regularize: 'Regularizado na Prefeitura', water: 'Água ligada', power: 'Energia ligada' }[obra.dataset.obra];
+          const what = { regularize: 'Regularizado na Prefeitura', water: 'Água ligada', power: 'Energia ligada', upgrade: `Nível ${r.property.level}`, retype: `Agora é ${r.property.label}` }[obra.dataset.obra];
           message = `${what}: −${thaler(r.work.cost_cents)} THALER.${r.property.regular ? ' O imóvel rende 100%.' : ''}`;
           messageOk = true;
         } catch (error) {
@@ -1986,12 +1986,19 @@ export function createServidor(map) {
     const until = (iso) => (iso && new Date(iso) > new Date() ? `até ${new Date(iso).toLocaleDateString('pt-BR')}` : null);
     const row = (icon, label, status, action, cost) =>
       `<li>${icon} ${label}: <strong>${status ?? 'não'}</strong> <button class="btn btn--ghost pequeno" type="button" data-obra="${action}">${status ? 'Renovar' : 'Contratar'} · ${thaler(cost)}</button></li>`;
+    // Nível e troca de tipo (T1 → T2 → T3): a troca pede o último nível e cobra a diferença de preço.
+    const grow = [
+      p.next_level ? `<button class="btn btn--ghost pequeno" type="button" data-obra="upgrade">Nível ${p.next_level.level} · ${thaler(p.next_level.cost_cents)}</button>` : '',
+      p.next_type
+        ? `<button class="btn btn--blue pequeno" type="button" data-obra="retype" ${p.next_type.ready ? '' : 'disabled'} title="${p.next_type.ready ? '' : 'Suba até o último nível antes'}">Trocar para ${esc(p.next_type.label)} · ${thaler(p.next_type.cost_cents)}</button>`
+        : '',
+    ].filter(Boolean).join('');
     const reg = p.regularized_at
       ? `<li>🏛️ Prefeitura: <strong>regularizado (${p.use})</strong></li>`
       : `<li>🏛️ Prefeitura: <strong>não</strong> <button class="btn btn--ghost pequeno" type="button" data-obra="regularize">Regularizar · ${thaler(p.regularization_cost_cents)}</button></li>`;
     const water = until(p.water_until);
     const power = until(p.power_until);
-    return `<ul class="srv-lista pequeno">${reg}
+    return `${grow ? `<p class="muted pequeno">Nível ${p.level} · renda ${thaler(p.income_cents_per_day)}/dia</p><div class="linha moradia-opcoes">${grow}</div>` : ''}<ul class="srv-lista pequeno">${reg}
       ${row('💧', 'Água', water, 'water', p.utility_cost_cents?.water ?? 0)}
       ${row('⚡', 'Energia', power, 'power', p.utility_cost_cents?.power ?? 0)}</ul>
       <p class="muted pequeno">${p.regular ? '✅ Rende 100%.' : '⚠️ Rende 50% até regularizar e ligar água e energia.'} Serviços por 30 dias, mais caros longe do centro.</p>`;
@@ -2014,7 +2021,8 @@ export function createServidor(map) {
       sec.innerHTML = `<h3>🏗️ ${esc(here.label)}</h3><p class="muted pequeno">${state}${t?.venue ? ` · entrada de ${thaler(t.venue.fee_cents)} (90% para você)` : ''}</p>${here.phase === 'ready' ? regularBox(here) : ''}`;
       return;
     }
-    const fits = types.filter((t) => t.zones.includes(lot.zone));
+    // Só o que se constrói direto: T2 e T3 vêm da troca de tipo; sem valores no catálogo, não aparece.
+    const fits = types.filter((t) => t.zones.includes(lot.zone) && t.buildable !== false);
     if (!fits.length) return sec.remove();
     const options = fits.map((t) => `<option value="${esc(t.code)}">${esc(t.label)} · ${thaler(t.price_cents)}${t.venue ? ` · entrada ${thaler(t.venue.fee_cents)}` : ''}</option>`).join('');
     sec.innerHTML = `<h3>🏗️ Construir</h3>

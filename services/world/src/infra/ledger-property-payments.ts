@@ -12,6 +12,7 @@ const WORK_LEDGER: Record<WorkKind, { kind: string; sink: string; label: string 
   regularize: { kind: 'property_regularization', sink: 'prefeitura', label: 'a regularização' },
   water: { kind: 'property_water', sink: 'utilities', label: 'a água' },
   power: { kind: 'property_power', sink: 'utilities', label: 'a energia' },
+  retype: { kind: 'property_retype', sink: 'construction', label: 'a troca de tipo' },
 };
 
 type Leg = { owner_type: string; owner_id: string; currency: 'THALER'; amount: string };

@@ -10,7 +10,6 @@ import { type PropertyVoucherSigner, issueLevelVoucher, issuePropertyVoucher } f
 import {
   ACCRUAL_CAP_DAYS,
   MIN_WEAR_FOR_INCOME,
-  PROPERTY_TYPES,
   REGULARIZATION_SHARE,
   REPAIR_SHARE_PER_POINT,
   UNREGULAR_FACTOR,
@@ -30,6 +29,10 @@ import {
   isRegular,
   nextLevel,
   phaseOf,
+  propertyTypes,
+  buildable,
+  nextTypeOf,
+  chainTypeAndLevel,
   regularWindow,
   regularizationCostCents,
   repairCostCents,
@@ -428,6 +431,20 @@ export async function buildApp(
       regular: isRegular(p, t),
       income_factor: isRegular(p, t) ? 1 : UNREGULAR_FACTOR,
       regularization_cost_cents: p.regularizedAt ? 0 : regularizationCostCents(p),
+      // Troca de tipo: o próximo da família, o custo (a diferença de preço) e se já pode (último nível).
+      next_type: (() => {
+        const n = nextTypeOf(p.type);
+        if (!n || !type) return null;
+        return {
+          code: n.code,
+          label: n.label,
+          cost_cents: Math.max(0, n.priceCents - type.priceCents),
+          income_cents_per_day: n.levels[0]?.incomeCentsPerDay ?? 0,
+          ready: p.level >= type.levels.length,
+        };
+      })(),
+      // No PropertyNFT: a família vai como o tipo da raiz e o nível corrido.
+      chain: chainTypeAndLevel(p),
       next_level: (() => {
         const n = nextLevel(p);
         return n ? { level: n.level, cost_cents: n.upgradeCostCents, income_cents_per_day: n.incomeCentsPerDay } : null;
@@ -453,7 +470,7 @@ export async function buildApp(
     if (target && target.ownerAccountId === me) await assertNotInDefault(taxes?.store ?? null, target.city, target.lotId, now());
     const { work, property, claim } = await startWork(propStore, propPayments, { propertyId: id, accountId: me, kind, requestId: request.id }, now, store);
     return {
-      work: { id: work.id, kind: work.kind, cost_cents: work.costCents, to_level: work.toLevel },
+      work: { id: work.id, kind: work.kind, cost_cents: work.costCents, to_level: work.toLevel, to_type: work.toType ?? null },
       // Renda acumulada até a obra, fechada e paga antes de o imóvel mudar.
       claim: claim ? { id: claim.id, amount_cents: claim.amountCents, status: claim.status } : null,
       property: await propertyOut(property),
@@ -474,7 +491,7 @@ export async function buildApp(
       utility_edge_extra: UTILITY_EDGE_EXTRA,
       utilities: UTILITIES,
     },
-    types: PROPERTY_TYPES.map((t) => ({
+    types: propertyTypes().map((t) => ({
       code: t.code,
       label: t.label,
       zones: t.zones,
@@ -483,6 +500,11 @@ export async function buildApp(
       levels: t.levels.map((l) => ({ level: l.level, income_cents_per_day: l.incomeCentsPerDay, upgrade_cost_cents: l.upgradeCostCents ?? null })),
       provisional: t.provisional,
       use: t.use,
+      // Troca de tipo (T1 → T2 → T3) e disponibilidade: sem os valores no catálogo, o tipo aparece e não constrói.
+      upgrades_from: t.upgradesFrom ?? null,
+      available: t.available !== false,
+      unavailable_reason: t.unavailableReason ?? null,
+      buildable: buildable(t),
       venue: t.venue ? { activity: t.venue.activity, fee_cents: t.venue.feeCents } : null,
     })),
   }));
@@ -576,6 +598,8 @@ export async function buildApp(
   app.post('/v1/world/properties/:id/upgrade', workRoute('upgrade'));
   // Prefeitura e serviços (doc 03 §3): regularizar uma vez; água e energia por 30 dias.
   app.post('/v1/world/properties/:id/regularize', workRoute('regularize'));
+  // Troca de tipo (doc 03 §6.1): T1 → T2 → T3, com o tipo de origem no último nível.
+  app.post('/v1/world/properties/:id/retype', workRoute('retype'));
   app.post('/v1/world/properties/:id/water', workRoute('water'));
   app.post('/v1/world/properties/:id/power', workRoute('power'));
 

@@ -8,7 +8,7 @@
     "levels.maxIncome": "renda máxima por dia, em THALER (com desgaste 100)",
     "levels.upgradeCost": "custo para subir a este nível, em THALER"
   },
-  "pendente": "Capacidade de moradores, preços e renda por tipo estão na \"Figura 16\" do GDD, que não veio no texto (doc 11, lacuna 3). Os campos ficam vazios até o game designer definir; só o T1 nível 1 traz a premissa do simulador.",
+  "pendente": "Capacidade de moradores, preços e renda por tipo estão na \"Figura 16\" do GDD, que não veio no texto (doc 11, lacuna 3). Os campos vazios ficam assim até o game designer definir; T1, T2, T3, academia e galeria trazem as premissas que o world usa hoje (marcadas em conferir).",
   "imoveis": [
     {
       "code": "t1",
@@ -17,10 +17,22 @@
       "lots": 1,
       "availability": "always",
       "price": 4000,
-      "levels": [{ "level": 1, "maxIncome": 10 }, { "level": 2 }, { "level": 3 }],
-      "conferir": ["Preço (4000) e renda (10/dia) são premissas do simulador econômico, não do GDD"]
+      "levels": [{ "level": 1, "maxIncome": 10 }, { "level": 2, "maxIncome": 15, "upgradeCost": 2000 }, { "level": 3, "maxIncome": 20, "upgradeCost": 4000 }],
+      "conferir": ["Preço (4000) e renda (10/dia) do nível 1 são premissas do simulador econômico, não do GDD", "Níveis 2 e 3 (15 e 20/dia, 2000 e 4000 de upgrade) são premissas do world"],
+      "buildMinutes": 1440
     },
-    { "code": "t2", "label": "Casa T2", "zone": "residential", "lots": 1, "availability": "always", "upgradesFrom": "t1", "levels": [{ "level": 1 }, { "level": 2 }, { "level": 3 }] },
+    {
+      "code": "t2",
+      "label": "Casa T2",
+      "zone": "residential",
+      "lots": 1,
+      "availability": "always",
+      "upgradesFrom": "t1",
+      "levels": [{ "level": 1, "maxIncome": 24 }, { "level": 2, "maxIncome": 30, "upgradeCost": 3000 }, { "level": 3, "maxIncome": 36, "upgradeCost": 5000 }],
+      "price": 7000,
+      "buildMinutes": 1440,
+      "conferir": ["Premissa do world: a Figura 16 do GDD não veio no texto. Troca da T1 no nível 3 pela diferença de preço"]
+    },
     {
       "code": "t3",
       "label": "Casa T3",
@@ -29,7 +41,10 @@
       "availability": "always",
       "upgradesFrom": "t2",
       "description": "Casa com pequeno negócio e renda extra",
-      "levels": [{ "level": 1 }, { "level": 2 }, { "level": 3 }]
+      "levels": [{ "level": 1, "maxIncome": 42 }, { "level": 2, "maxIncome": 50, "upgradeCost": 5000 }, { "level": 3, "maxIncome": 58, "upgradeCost": 8000 }],
+      "price": 12000,
+      "buildMinutes": 1440,
+      "conferir": ["Premissa do world: a Figura 16 do GDD não veio no texto. Troca da T2 no nível 3 pela diferença de preço"]
     },
     { "code": "residencial_1", "label": "Residencial 1", "zone": "residential", "lots": 1, "availability": "events", "description": "Edifício; aluga unidades", "levels": [{ "level": 1 }, { "level": 2 }, { "level": 3 }] },
     { "code": "residencial_2", "label": "Residencial 2", "zone": "residential", "lots": 2, "availability": "events", "description": "Edifício em lote duplo", "levels": [{ "level": 1 }, { "level": 2 }, { "level": 3 }] },
@@ -43,8 +58,28 @@
     { "code": "farmacia", "label": "Farmácia", "zone": "commercial", "lots": 1, "availability": "always", "description": "Exige avatar enfermeiro como dono", "levels": [{ "level": 1 }] },
     { "code": "pet_shop", "label": "Pet shop", "zone": "commercial", "lots": 1, "availability": "always", "levels": [{ "level": 1 }] },
     { "code": "oficina", "label": "Oficina", "zone": "commercial", "lots": 1, "availability": "always", "levels": [{ "level": 1 }] },
-    { "code": "academia", "label": "Academia", "zone": "commercial", "lots": 1, "availability": "always", "levels": [{ "level": 1 }] },
-    { "code": "galeria", "label": "Galeria de arte", "zone": "commercial", "lots": 1, "availability": "always", "levels": [{ "level": 1 }] },
+    {
+      "code": "academia",
+      "label": "Academia",
+      "zone": "commercial",
+      "lots": 1,
+      "availability": "always",
+      "levels": [{ "level": 1, "maxIncome": 0 }],
+      "price": 6000,
+      "buildMinutes": 1440,
+      "conferir": ["Premissa do world: a renda é a entrada (5 THALER, 90% para o dono), não o pool"]
+    },
+    {
+      "code": "galeria",
+      "label": "Galeria de arte",
+      "zone": "commercial",
+      "lots": 1,
+      "availability": "always",
+      "levels": [{ "level": 1, "maxIncome": 0 }],
+      "price": 5000,
+      "buildMinutes": 1440,
+      "conferir": ["Premissa do world: a renda é a entrada (4 THALER, 90% para o dono), não o pool"]
+    },
     { "code": "hotel", "label": "Hotel", "zone": "commercial", "lots": 1, "availability": "always", "description": "Inclui alimentação; bônus por ocupação", "levels": [{ "level": 1 }, { "level": 2 }, { "level": 3 }] },
     { "code": "posto", "label": "Posto de gasolina", "zone": "industrial", "lots": 1, "availability": "always", "levels": [{ "level": 1 }] },
     { "code": "industria", "label": "Indústria", "zone": "industrial", "lots": 1, "availability": "always", "description": "Um tipo por setor (alimentos, carnes, cimento, veículos...) quando a fase 2 abrir", "levels": [{ "level": 1 }] },

@@ -171,6 +171,8 @@ export class PostgresPropertyStore implements PropertyStore {
       await tx
         .update(propertyT)
         .set({
+          type: next.type,
+          priceCents: String(next.priceCents),
           level: next.level,
           wearBase: next.wearBase,
           wearSince: next.wearSince,
