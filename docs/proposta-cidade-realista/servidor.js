@@ -1008,7 +1008,7 @@ export function createServidor(map) {
       panel.innerHTML = '<button class="btn btn--ghost" type="button" data-s="abrir">🎮 Jogo no servidor</button>';
       return;
     }
-    const head = `<div class="linha cab"><h2>🎮 Jogo no servidor</h2><button class="btn btn--ghost" type="button" data-s="fechar" aria-label="Recolher">–</button></div>`;
+    const head = `<div class="linha cab"><h2>🎮 Jogo no servidor</h2><button class="btn btn--ghost" type="button" data-s="fechar" aria-label="Fechar o painel do jogo">–</button></div>`;
     const note = message ? `<p class="${messageOk ? 'ok-s' : 'aviso-s'}">${esc(message)}</p>` : '';
     if (!session) {
       panel.innerHTML = `${head}
