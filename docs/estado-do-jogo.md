@@ -1,6 +1,6 @@
 # Estado do jogo e próximas etapas
 
-Retrato em 2026-11-22: o que já dá para jogar, o que falta no jogo e a ordem sugerida para as próximas etapas. O detalhe de cada item fica no [ROADMAP](../ROADMAP.md) e nos READMEs dos serviços. O caminho até a mainnet, que depende de pessoas de fora, está no [checklist de lançamento](lancamento.md).
+Retrato em 2026-11-22, atualizado em 2026-11-26 (moradia): o que já dá para jogar, o que falta no jogo e a ordem sugerida para as próximas etapas. O detalhe de cada item fica no [ROADMAP](../ROADMAP.md) e nos READMEs dos serviços. O caminho até a mainnet, que depende de pessoas de fora, está no [checklist de lançamento](lancamento.md).
 
 **Legenda:**
 - ✅ pronto e testado;
@@ -24,6 +24,7 @@ Tudo roda na máquina local, sem serviços pagos. O mapa da cidade real (Pittsbu
 | Lotes (compra, um bairro por jogador, teto de área), venda de lançamento com fila | ✅ | [world](../services/world/README.md) |
 | Imóveis (Casa T1, obra, desgaste, renda, reparo, nível) e prédios de construtores (SCC Builder) | 🟡 só a Casa T1 com valores | world |
 | Regularização na Prefeitura, água e energia (sem elas, renda de 50%) | ✅ 🟡 custos provisórios | world |
+| Moradia do avatar: casa própria regular, aluguel ou hotel com refeições (sem moradia, turno de 50%) | ✅ 🟡 preços provisórios | game-core e world |
 | Impostos (IPTU e lote vazio), multa, leilão do lote inadimplente com apreensão do NFT | 🟡 valores provisórios | world |
 | Pets, Pet Shop e Pet Sitter | 🟡 falta a arte | game-core |
 | Escola e troca de profissão | ✅ 🟡 preços provisórios | game-core |
@@ -45,11 +46,11 @@ Tudo roda na máquina local, sem serviços pagos. O mapa da cidade real (Pittsbu
 
 ### 2.1 Moradia e imóveis (o laço principal do jogador)
 
-O GDD amarra o ganho do turno à moradia: sem regularização, o imóvel rende metade. Hoje só a Casa T1 existe com valores.
+O GDD amarra o ganho do turno à moradia. Já funcionam a regularização, água e energia (sem elas, o imóvel rende metade) e a moradia do avatar: casa própria regular, aluguel no residencial da Prefeitura ou hotel do jogo (sem moradia, o turno rende metade). Hoje só a Casa T1 existe com valores.
 
 | Falta | Quem | Observação |
 |---|---|---|
-| ⬜ **Aluguel e hotel:** quem não tem casa paga para morar; o dono do prédio ou do hotel recebe | 🔧 | GDD §3; o `fator_regularizacao_moradia` (doc 04 §4) entra no turno |
+| ⬜ **Aluguel e hotel de jogadores:** o dono do prédio ou do hotel recebe (hoje o aluguel é da Prefeitura e o hotel é do jogo) | 🔧 | Junto das unidades dos prédios (E3.11) |
 | ⬜ **Troca de tipo** T1 → T2 → T3, Residencial 2 e 3 (lote duplo) e os outros tipos do doc 03 §6 | 🔧 👤 | Os valores vêm da "Figura 16" do GDD, que não veio no texto (doc 11, lacuna 3) |
 | ⬜ **Seguro** do imóvel | 🔧 👤 | Faltam regra e preço |
 | ⬜ **Catálogo de imóveis no Strapi** (hoje fica no código, igual ao seed) | 🔧 | O tipo `property-type` já existe no CMS |
@@ -93,6 +94,7 @@ Os valores abaixo funcionam no jogo, mas são **premissas** marcadas no código.
 - **GamePass:** 5 SCITY por nível, o corte de dano e os efeitos dos itens;
 - **antifraude:** limites de contas por aparelho e de velocidade;
 - **câmbio:** teto e spread;
+- **moradia:** aluguel de 15 THALER/dia (40% queima, 60% de volta ao pool P2E) e hotel de 25, 40 e 60 THALER/dia, com 1, 2 e 3 refeições;
 - **Prefeitura e serviços:** taxa de regularização de 2% do preço, água e energia (2 e 3 THALER/dia no centro, até o dobro na borda);
 - **alertas do painel econômico:** os limites de partida.
 
@@ -111,9 +113,7 @@ Os valores abaixo funcionam no jogo, mas são **premissas** marcadas no código.
 A ordem prioriza o que deixa o jogo **completo para o jogador** no lançamento da A1. Em paralelo, segue o que depende de pessoas de fora.
 
 1. **Calibrar a economia** 👤 (com 🔧 para aplicar). Sem os números definitivos, todo o resto é provisório. O game designer roda o simulador com as premissas acima; o código só troca constantes e o seed do Strapi.
-2. **Moradia completa** 🔧, o maior buraco do laço do jogador:
-   - aluguel e hotel;
-   - o fator de moradia no turno.
+2. ~~**Moradia completa**~~ ✅ (2026-11-26): regularização, água e energia, aluguel, hotel e o fator no turno. O aluguel e o hotel de jogadores vêm com o item 7.
 3. **Descansar, atividades e deslocamento** 🔧 👤: fecham o dia do avatar (trabalhar → comer → descansar → se divertir → ir e voltar).
 4. **Tipos de imóvel e catálogo no Strapi** 🔧 👤: T2, T3, os residenciais e os comerciais, com os valores da Figura 16 quando o game designer fechar.
 5. **Bônus de itens e loja** 🔧 👤: roupas, ferramentas e os itens de temporada à venda.
