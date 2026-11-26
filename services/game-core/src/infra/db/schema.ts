@@ -60,6 +60,10 @@ export const avatar = game.table(
     license: jsonb('license'),
     /** Moradia paga: {kind, level, since, until, mealsDay?, mealsUsed?}; null sem estadia. */
     housing: jsonb('housing'),
+    /** Descanso em curso: {startsAt, endsAt, energy}; null acordado. */
+    rest: jsonb('rest'),
+    /** Higiene em casa: {codigo: ISO} da última vez. */
+    chores: jsonb('chores'),
     createdAt: timestamptz('created_at').notNull(),
     updatedAt: timestamptz('updated_at').notNull(),
   },
