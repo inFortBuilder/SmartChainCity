@@ -778,7 +778,7 @@ export function createServidor(map) {
       const s = m.stay;
       html += `<p class="muted pequeno">${s.kind === 'hotel' ? `🏨 Hotel nível ${s.level}` : '🔑 Aluguel'} até ${day(s.until)}${
         s.kind === 'hotel' ? ` · ${s.meals_left_today} refeição(ões) incluída(s) hoje` : ''
-      }.</p><div class="linha">
+      }.</p><div class="linha moradia-opcoes">
         <button class="btn btn--ghost pequeno" type="button" data-s="moradia" data-k="${s.kind}" data-l="${s.level}" ${off}>Mais dias</button>
         ${s.kind === 'hotel' ? `<button class="btn btn--blue pequeno" type="button" data-s="moradia-refeicao" ${off || (s.meals_left_today ? '' : 'disabled')}>Refeição do hotel</button>` : ''}
         <button class="btn btn--ghost pequeno" type="button" data-s="moradia-sair" ${off}>Sair</button></div>`;
@@ -786,14 +786,14 @@ export function createServidor(map) {
     const p = m.prices;
     const dias = [1, 3, 7, 15, 30].map((d) => `<option value="${d}" ${d === 7 ? 'selected' : ''}>${d} dia${d > 1 ? 's' : ''}</option>`).join('');
     if (!m.stay) {
-      html += `<div class="linha"><select class="campo" data-dias aria-label="Dias">${dias}</select>
-        <button class="btn btn--ghost pequeno" type="button" data-s="moradia" data-k="aluguel" data-l="1" ${off}>Aluguel · ${thaler(p.aluguel.cents_per_day)}/dia</button>
+      html += `<label class="pequeno moradia-dias">Por <select class="campo" data-dias aria-label="Dias">${dias}</select></label>
+        <div class="linha moradia-opcoes"><button class="btn btn--ghost pequeno" type="button" data-s="moradia" data-k="aluguel" data-l="1" ${off}>Aluguel · ${thaler(p.aluguel.cents_per_day)}/dia</button>
         ${p.hotel
           .map((h) => `<button class="btn btn--ghost pequeno" type="button" data-s="moradia" data-k="hotel" data-l="${h.level}" ${off}>Hotel ${h.level} · ${thaler(h.cents_per_day)}/dia</button>`)
           .join('')}</div>
         <p class="muted pequeno">O hotel inclui 1, 2 ou 3 refeições por dia, pelo nível. Valores provisórios.</p>`;
     } else {
-      html += `<div class="linha"><select class="campo" data-dias aria-label="Dias">${dias}</select></div>`;
+      html += `<label class="pequeno moradia-dias">Mais dias: <select class="campo" data-dias aria-label="Dias">${dias}</select></label>`;
     }
     return html;
   };
