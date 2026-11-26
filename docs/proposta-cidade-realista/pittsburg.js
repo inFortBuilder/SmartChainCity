@@ -11,6 +11,7 @@ import { readChunk } from '../../tools/scc-builder/bin/lib/lot-chunks.js';
 
 import { createGestao } from './gestao.js';
 import { createServidor } from './servidor.js';
+import { createCortinas } from './cortinas.js';
 import { createMultiplayer } from './multiplayer.js';
 import { createStreetView } from './streetview.js';
 import { createMercado } from './mercado.js';
@@ -719,6 +720,11 @@ try {
   });
   // Célula jogável (E1.6): login, avatar, THALER e turno pelos serviços.
   servidor = createServidor({ THREE, scene, lotRing, loadLotsFor, showLot, walkTo: (i) => walkToLot(i), enterLot: (i) => enterLot(i) });
+  // Cortinas laterais: o jogo começa aberto; as camadas, fechadas (abrem pela aba na borda).
+  createCortinas([
+    { name: 'jogo', el: document.querySelector('.servidor'), label: 'Jogo', icon: '🎮', open: true },
+    { name: 'camadas', el: document.querySelector('.layers'), label: 'Camadas', icon: '🗺️' },
+  ]);
   // Mercado (E3.6): listagens do Marketplace, compra e venda pela carteira.
   mercado = createMercado({
     getSession: () => servidor.getSession(),

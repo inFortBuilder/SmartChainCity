@@ -107,6 +107,35 @@
   .tag--srv, .tag-srv { background: rgba(139,92,246,.25); color: #c4b5fd; border-radius: 999px; padding: 1px 8px; font-size: 11px; }
   .servidor > .btn--ghost:only-child { margin: 0; }
   @media (max-width: 640px) { .layers { top: auto; bottom: 16px; left: 8px; width: 150px; } .ficha { right: 8px; width: 190px; } }
+  /* Cortinas laterais (cortinas.js): Jogo e Camadas ocupam da barra do topo até a base da tela, à esquerda,
+     com a rolagem do lado esquerdo. Fechadas, saem da tela; as abas na borda abrem e fecham. */
+  :root { --trilho: 46px; }
+  .cortina-trilho { position: fixed; left: 0; top: calc(var(--topbar-h, 64px) + 8px); z-index: 7; display: flex; flex-direction: column; gap: 8px; padding-left: 4px; }
+  .cortina-aba { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 38px; padding: 10px 0; border-radius: 0 12px 12px 0; border-left: 0; color: var(--text); cursor: pointer; font: 600 12px/1 Inter, system-ui, sans-serif; }
+  .cortina-aba__txt { writing-mode: vertical-rl; transform: rotate(180deg); letter-spacing: .04em; }
+  .cortina-aba.is-active { background: rgba(34,211,238,.28); border-color: rgba(34,211,238,.6); }
+  .cortina-aba:focus-visible { outline: 2px solid #22d3ee; outline-offset: 2px; }
+  .layers.cortina, .servidor.cortina {
+    position: fixed; left: var(--trilho); right: auto; top: calc(var(--topbar-h, 64px) + 8px); bottom: 0;
+    width: 340px; max-width: calc(100vw - var(--trilho) - 8px); max-height: none; margin: 0;
+    border-radius: 0 var(--radius) 0 0; overflow-y: auto; overscroll-behavior: contain; z-index: 6;
+    /* Rolagem à esquerda: o contêiner é rtl e o conteúdo volta a ltr. */
+    direction: rtl; padding: 14px 16px 18px;
+    transform: translateX(calc(-100% - var(--trilho))); transition: transform .22s ease, visibility .22s;
+    visibility: hidden;
+  }
+  .layers.cortina { width: 260px; }
+  .cortina > * { direction: ltr; }
+  .cortina.cortina--aberta { transform: none; visibility: visible; }
+  .cortina::-webkit-scrollbar { width: 8px; }
+  .cortina::-webkit-scrollbar-thumb { background: rgba(255,255,255,.22); border-radius: 999px; }
+  /* "Meu patrimônio" abre ao lado das abas, sem cobrir o trilho. */
+  .patrimonio { left: calc(var(--trilho) + 8px); }
+  body.sv-on .cortina-trilho { display: none !important; }
+  @media (prefers-reduced-motion: reduce) { .layers.cortina, .servidor.cortina { transition: none; } }
+  @media (max-width: 640px) {
+    .layers.cortina, .servidor.cortina { width: calc(100vw - var(--trilho) - 8px); }
+  }
 </style>
 <script type="importmap">
 { "imports": {
