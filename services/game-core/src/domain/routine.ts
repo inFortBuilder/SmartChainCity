@@ -10,7 +10,10 @@ import { assertNotInHospital } from './hospital.js';
  * Descanso ("comer · dormir", GDD §1; "descanso obrigatório após 16 h", §2.3):
  * - o avatar dorme 4 ou 8 h; enquanto dorme, não trabalha nem sai para o lazer;
  * - ao acordar, ganha a energia: +4 em 4 h e +8 em 8 h, até 10;
- * - sem moradia regular (casa própria regular, aluguel ou hotel), dorme mal: ganha metade.
+ * - sem moradia regular (casa própria regular, aluguel ou hotel), dorme mal: ganha metade;
+ * - **descanso obrigatório:** com 16 h acordado (desde o fim do último descanso), o avatar não trabalha
+ *   nem sai para o lazer até dormir (`409 must_rest`). Pode dormir mesmo com a energia cheia; comer,
+ *   a higiene e o hospital continuam. O turno que já começou termina.
  *
  * Higiene (GDD §2.3 e §4.5 "Atividades extras", grupo higiene do seed): tomar banho, escovar os dentes,
  * lavar as mãos e usar a ducha, de graça, em casa. Cada uma uma vez a cada 4 h. Precisa de moradia
@@ -20,7 +23,7 @@ import { assertNotInHospital } from './hospital.js';
  * O ganho do turno cai na proporção do atraso; a tarifa sai do pagamento do turno.
  *
  * PREMISSAS, a calibrar no simulador:
- * - descanso: +4/+8 de energia; metade sem moradia;
+ * - descanso: +4/+8 de energia; metade sem moradia; o cochilo de 4 h também zera as horas acordado;
  * - higiene: +3 de higiene no banho e na ducha, +1 nos dentes e nas mãos, +1 de saúde no banho;
  * - deslocamento: a pé 15 min; skate ou bicicleta 10 min; ônibus 6 min e 3 THALER; carro 4 min e 2 THALER
  *   de combustível (precisa de habilitação e de um carro em dia); home office sem atraso, 2 THALER de
@@ -32,6 +35,7 @@ export const REST_HOURS = [4, 8] as const;
 export type RestHours = (typeof REST_HOURS)[number];
 export const REST_ENERGY: Record<RestHours, number> = { 4: 4, 8: 8 };
 export const UNHOUSED_REST_SHARE = 0.5;
+export const AWAKE_LIMIT_HOURS = 16;
 const HOUR = 3_600_000;
 
 export interface Rest {
@@ -47,7 +51,22 @@ export function assertNotResting(avatar: Pick<Avatar, 'rest'>, now: Date) {
   if (resting(avatar, now)) throw new AppError('resting', `O avatar está dormindo até ${avatar.rest!.endsAt.toISOString()}.`, 409);
 }
 
-/** Acorda quem já dormiu o bastante: a energia entra uma vez e o descanso sai do avatar. */
+/** Até quando pode ficar acordado (null: sem a conta, como nos avatares de teste montados à mão). */
+export const mustRestAt = (a: Pick<Avatar, 'awakeSince'>) => (a.awakeSince ? new Date(a.awakeSince.getTime() + AWAKE_LIMIT_HOURS * HOUR) : null);
+
+/** Passou das 16 h acordado e não está dormindo. */
+export const mustRest = (a: Pick<Avatar, 'rest' | 'awakeSince'>, now: Date) => {
+  const at = mustRestAt(a);
+  return !!at && at <= now && !resting(a, now);
+};
+
+export function assertNotMustRest(avatar: Pick<Avatar, 'rest' | 'awakeSince'>, now: Date) {
+  if (mustRest(avatar, now)) {
+    throw new AppError('must_rest', `O avatar está acordado há ${AWAKE_LIMIT_HOURS} h ou mais: precisa dormir antes de trabalhar ou sair.`, 409);
+  }
+}
+
+/** Acorda quem já dormiu o bastante: a energia entra uma vez, o descanso sai e as horas acordado zeram. */
 export function rested(avatar: Avatar, now: Date): Avatar {
   const r = avatar.rest;
   if (!r || r.endsAt > now) return avatar;
@@ -55,6 +74,7 @@ export function rested(avatar: Avatar, now: Date): Avatar {
     ...avatar,
     attributes: { ...avatar.attributes, energy: Math.min(ATTRIBUTE_MAX, avatar.attributes.energy + r.energy) },
     rest: null,
+    awakeSince: r.endsAt,
   };
 }
 
@@ -64,7 +84,7 @@ export function startRest(avatar: Avatar, input: { hours: number; housed: boolea
   assertNotInHospital(avatar, now);
   assertNotResting(avatar, now);
   if (input.running) throw new AppError('shift_running', 'O avatar está trabalhando: descanse depois do turno.', 409);
-  if (avatar.attributes.energy >= ATTRIBUTE_MAX) throw new AppError('not_tired', 'O avatar está com a energia cheia.', 409);
+  if (avatar.attributes.energy >= ATTRIBUTE_MAX && !mustRest(avatar, now)) throw new AppError('not_tired', 'O avatar está com a energia cheia.', 409);
   const full = REST_ENERGY[input.hours as RestHours];
   const energy = input.housed ? full : Math.floor(full * UNHOUSED_REST_SHARE);
   return {

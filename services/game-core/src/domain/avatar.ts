@@ -7,7 +7,7 @@ import { type School, inSchool, schooled } from './school.js';
 import type { Leisure } from './leisure.js';
 import { type License, inDrivingSchool } from './vehicle.js';
 import type { Housing } from './housing.js';
-import { type Chores, type Rest, rested, resting } from './routine.js';
+import { type Chores, type Rest, mustRest, rested, resting } from './routine.js';
 import type { Gear } from './shop.js';
 
 /**
@@ -76,6 +76,8 @@ export interface Avatar {
   housing?: Housing | null;
   /** Descanso em curso: a energia entra ao acordar; null acordado. */
   rest?: Rest | null;
+  /** Desde quando está acordado (fim do último descanso); o descanso é obrigatório após 16 h. */
+  awakeSince?: Date | null;
   /** Higiene em casa: última vez de cada atividade. */
   chores?: Chores | null;
   /** Itens da loja do jogo: roupa, ferramenta de trabalho e cama. */
@@ -125,7 +127,9 @@ export function status(avatar: Avatar, now: Date = new Date()) {
   // Na escola trocando de profissão também não trabalha (E3.2).
   // Na autoescola (3 h parado, GDD) também.
   // Dormindo também não (routine.ts).
-  const free = !inHospital(avatar, now) && !bedridden && !inSchool(avatar, now) && !inDrivingSchool(avatar, now) && !resting(avatar, now);
+  // Com 16 h acordado, só depois de dormir (routine.ts).
+  const free =
+    !inHospital(avatar, now) && !bedridden && !inSchool(avatar, now) && !inDrivingSchool(avatar, now) && !resting(avatar, now) && !mustRest(avatar, now);
   return {
     // GDD: 48 h sem comer não gera recompensa.
     earnsReward: a.food > 0,
@@ -134,6 +138,7 @@ export function status(avatar: Avatar, now: Date = new Date()) {
     canLeisure: free && a.energy >= 2 && a.health >= 1,
     inHospital: inHospital(avatar, now),
     resting: resting(avatar, now),
+    mustRest: mustRest(avatar, now),
   };
 }
 
@@ -163,6 +168,7 @@ export function newAvatar(
     license: null,
     housing: null,
     rest: null,
+    awakeSince: now,
     chores: null,
     gear: null,
     createdAt: now,

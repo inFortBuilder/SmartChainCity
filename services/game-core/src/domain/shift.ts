@@ -10,7 +10,7 @@ import { happinessWithPet, petFactors } from './pet.js';
 import { assertNotInSchool } from './school.js';
 import { inDrivingSchool } from './vehicle.js';
 import { eventFactor } from './events.js';
-import { type Commute, applyHomeOffice, assertNotResting } from './routine.js';
+import { type Commute, applyHomeOffice, assertNotMustRest, assertNotResting } from './routine.js';
 
 /**
  * Turno de trabalho (E1.4; doc 02 §3.2, doc 04 §4). O ganho segue a mesma
@@ -174,6 +174,7 @@ export function startShift(
   if (inDrivingSchool(avatar, now)) throw new AppError('in_driving_school', 'Na autoescola: 3 h sem trabalhar.', 409);
   assertCanWorkHealthy(avatar.conditions, now);
   assertNotResting(avatar, now);
+  assertNotMustRest(avatar, now);
   if (input.bed === false && hours === 6 && input.hoursToday >= 6) {
     throw new AppError('bed_required', 'O segundo turno de 6 h no dia exige uma cama (loja do jogo).', 409);
   }

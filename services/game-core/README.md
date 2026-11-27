@@ -63,14 +63,15 @@ Sem moradia regular, o turno rende **50%**: é o `fator_regularizacao_moradia` d
 
 | O quê | Como |
 |---|---|
-| Dormir | `POST /v1/avatars/:id/rest` com `{hours: 4 \| 8}`. Enquanto dorme, não trabalha nem sai para o lazer (`409 resting`). Ao acordar, ganha +4 ou +8 de energia, até 10. Sem moradia regular, metade. Não dorme com turno rodando nem com a energia cheia |
+| Dormir | `POST /v1/avatars/:id/rest` com `{hours: 4 \| 8}`. Enquanto dorme, não trabalha nem sai para o lazer (`409 resting`). Ao acordar, ganha +4 ou +8 de energia, até 10. Sem moradia regular, metade. Não dorme com turno rodando nem com a energia cheia (a não ser no descanso obrigatório) |
+| Descanso obrigatório | Com 16 h acordado (desde o fim do último descanso; o avatar novo conta da criação), não começa turno nem lazer (`409 must_rest`) até dormir. O turno que já começou termina. O avatar traz `must_rest_at`, e o `status` traz `mustRest`. Qualquer descanso, até o de 4 h, zera a conta |
 | Higiene em casa | `POST /v1/avatars/:id/chores` com `{code}`: banho (+3 higiene, +1 saúde), ducha (+3 higiene, +1 felicidade), dentes (+1 higiene, +1 saúde) e mãos (+1 higiene). De graça, cada uma a cada 4 h, só com moradia regular (`409 no_home`) |
 | Ir ao trabalho | `POST /v1/avatars/:id/work` aceita `commute`: `a_pe` (15 min, o padrão), `skate` (10 min), `onibus` (6 min, 3 THALER), `carro` (4 min, 2 THALER de combustível; precisa de habilitação e de um carro em dia) e `home_office` (0 min, 2 THALER de internet, −1 de felicidade e de saúde). O atraso tira a fração do turno e a tarifa sai do pagamento. Vai na foto do turno (`commute`, `commuteMode`, `commuteCostCents`) |
 
 - `GET /v1/catalog/routine` lista os descansos, as atividades de casa e os modos. O avatar traz `rest` (acorda em, energia) e `chores` (quando cada uma libera).
 - **Premissas:** a energia do descanso, o corte sem moradia, os efeitos da higiene (o seed só dá a direção), os atrasos de ônibus e a pé (o GDD propõe), as tarifas, o efeito do home office e liberar o home office para todas as profissões até o catálogo marcar quais podem.
-- Ainda não: o "descanso obrigatório após 16 h" (contar as horas acordado) e o skate como item comprado (hoje todos podem ir de skate).
-- Depois de atualizar o código, rode `pnpm db:migrate`: a migração `0021_rotina` cria as colunas `rest` e `chores` do avatar.
+- Ainda não: o skate como item comprado (hoje todos podem ir de skate).
+- Depois de atualizar o código, rode `pnpm db:migrate`: a migração `0021_rotina` cria as colunas `rest` e `chores` do avatar, e a `0023_descanso_16h` cria a `awake_since` (os avatares que já existem contam a partir da migração).
 
 ## Loja do jogo: roupas, ferramenta e cama (GDD §6 "Lojas", §3.2)
 
