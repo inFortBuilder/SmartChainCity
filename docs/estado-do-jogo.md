@@ -1,6 +1,6 @@
 # Estado do jogo e próximas etapas
 
-Retrato em 2026-11-22, atualizado em 2026-11-26 (moradia, descanso, deslocamento, catálogo de imóveis e loja): o que já dá para jogar, o que falta no jogo e a ordem sugerida para as próximas etapas. O detalhe de cada item fica no [ROADMAP](../ROADMAP.md) e nos READMEs dos serviços. O caminho até a mainnet, que depende de pessoas de fora, está no [checklist de lançamento](lancamento.md).
+Retrato em 2026-11-22, atualizado em 2026-11-26 (moradia, descanso, deslocamento, catálogo de imóveis, loja e unidades dos prédios): o que já dá para jogar, o que falta no jogo e a ordem sugerida para as próximas etapas. O detalhe de cada item fica no [ROADMAP](../ROADMAP.md) e nos READMEs dos serviços. O caminho até a mainnet, que depende de pessoas de fora, está no [checklist de lançamento](lancamento.md).
 
 **Legenda:**
 - ✅ pronto e testado;
@@ -27,6 +27,7 @@ Tudo roda na máquina local, sem serviços pagos. O mapa da cidade real (Pittsbu
 | Moradia do avatar: casa própria regular, aluguel ou hotel com refeições (sem moradia, turno de 50%) | ✅ 🟡 preços provisórios | game-core e world |
 | Descanso (dormir 4 ou 8 h), higiene em casa e o modo de ir ao trabalho (atraso e tarifa no turno) | ✅ 🟡 efeitos provisórios | game-core |
 | Loja do jogo: roupas (+10/15/20%), ferramenta de trabalho (+30% por 3 dias) e cama (2º turno de 6 h) | ✅ 🟡 preços provisórios | game-core |
+| Unidades dos prédios: venda primária, revenda com royalty e aluguel para morar (fora da blockchain) | ✅ 🟡 taxas provisórias | world e game-core |
 | Impostos (IPTU e lote vazio), multa, leilão do lote inadimplente com apreensão do NFT | 🟡 valores provisórios | world |
 | Pets, Pet Shop e Pet Sitter | 🟡 falta a arte | game-core |
 | Escola e troca de profissão | ✅ 🟡 preços provisórios | game-core |
@@ -52,10 +53,10 @@ O GDD amarra o ganho do turno à moradia. Já funcionam a regularização, água
 
 | Falta | Quem | Observação |
 |---|---|---|
-| ⬜ **Aluguel e hotel de jogadores:** o dono do prédio ou do hotel recebe (hoje o aluguel é da Prefeitura e o hotel é do jogo) | 🔧 | Junto das unidades dos prédios (E3.11) |
+| 🟡 **Hotel de jogadores** (bônus por ocupação); o aluguel de unidade de jogador já funciona | 🔧 | O hotel de hoje é do jogo |
 | 🟡 **Tipos de imóvel:** a troca T1 → T2 → T3 e o catálogo do Strapi já funcionam; faltam os valores dos outros tipos do doc 03 §6 (o Strapi os mostra como "aguardando") e o lote duplo (Residencial 2 e 3) | 👤 🔧 | Os valores vêm da "Figura 16" do GDD, que não veio no texto (doc 11, lacuna 3) |
 | ⬜ **Seguro** do imóvel | 🔧 👤 | Faltam regra e preço |
-| ⬜ **Prédios: unidades e venda** (E3.11), taxa de alvará, prazo de obra pela área, IPTU por unidade, `BuildingNFT` lido pelo indexer | 🔧 | doc 13 |
+| 🟡 **Prédios:** as unidades se vendem e se alugam no jogo; faltam o `UnitNFT`/`UnitMarket` (com auditoria), taxa de alvará, prazo de obra pela área, IPTU por unidade, condomínio e o `BuildingNFT` lido pelo indexer | 🔧 👤 | doc 13 |
 
 ### 2.2 Avatar e trabalho
 
@@ -95,6 +96,7 @@ Os valores abaixo funcionam no jogo, mas são **premissas** marcadas no código.
 - **antifraude:** limites de contas por aparelho e de velocidade;
 - **câmbio:** teto e spread;
 - **descanso e deslocamento:** +4/+8 de energia (metade sem moradia), efeitos da higiene, atrasos de ônibus e a pé, tarifas (ônibus 3, combustível 2, internet 2) e o home office;
+- **unidades:** taxa de 5% na venda primária, royalty de 2% e taxa de 10% no aluguel;
 - **loja:** preços das roupas, da ferramenta e da cama, e a ferramenta genérica por profissão;
 - **imóveis:** preço, renda e níveis da T2 e da T3;
 - **moradia:** aluguel de 15 THALER/dia (40% queima, 60% de volta ao pool P2E) e hotel de 25, 40 e 60 THALER/dia, com 1, 2 e 3 refeições;
@@ -121,7 +123,7 @@ A ordem prioriza o que deixa o jogo **completo para o jogador** no lançamento d
 4. ~~**Tipos de imóvel e catálogo no Strapi**~~ ✅ (2026-11-26): o catálogo vem do Strapi e a T1 troca para T2 e T3. Os outros tipos entram sozinhos quando o game designer preencher preço e renda no CMS; o lote duplo ainda falta.
 5. ~~**Bônus de itens e loja**~~ ✅ (2026-11-26): roupas, ferramenta de trabalho e cama na loja do jogo, com o bônus no turno. Móveis, eletrodomésticos e roupas sazonais ficam para depois.
 6. **Arte** 👤: profissões, pets, Lucky Box e trailer. Não bloqueia o código, mas bloqueia o lançamento.
-7. **Prédios com unidades e venda** (E3.11) 🔧: o mercado dos construtores.
+7. ~~**Prédios com unidades e venda**~~ ✅ (2026-11-27), no jogo: unidades, venda, revenda e aluguel para morar. Os contratos `UnitNFT`/`UnitMarket` ficam para uma rodada com auditoria.
 8. **Agendador de eventos ao vivo** 🔧, depois os eventos de data marcada.
 
 **Em paralelo, fora do código**, na ordem do [checklist de lançamento](lancamento.md):
