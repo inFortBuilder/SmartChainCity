@@ -19,7 +19,7 @@ async function showAgenda() {
   const el = document.querySelector('[data-mp-agenda]');
   if (!el) return;
   try {
-    const r = await fetch(`${REALTIME.replace(//$/, '')}/v1/realtime/schedule`, { signal: AbortSignal.timeout(5000) });
+    const r = await fetch(`${REALTIME.replace(/\/$/, '')}/v1/realtime/schedule`, { signal: AbortSignal.timeout(5000) });
     const { next } = await r.json();
     const e = next?.[0];
     el.hidden = !e;
