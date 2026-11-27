@@ -21,7 +21,16 @@ export class WorldHomes implements HomeDirectory {
       throw new AppError('world_unavailable', 'O world não respondeu.', 503);
     }
     if (!r.ok) throw new AppError('world_unavailable', 'O world não respondeu.', 503);
-    const { homes } = (await r.json()) as { homes: { id: string; label: string; regular: boolean; regular_until: string | null }[] };
-    return homes.map((h) => ({ id: h.id, label: h.label, regular: h.regular, regularUntil: h.regular_until ? new Date(h.regular_until) : null }));
+    const { homes } = (await r.json()) as {
+      homes: { id: string; label: string; regular: boolean; regular_until: string | null; avatar_id?: string | null; lease?: boolean }[];
+    };
+    return homes.map((h) => ({
+      id: h.id,
+      label: h.label,
+      regular: h.regular,
+      regularUntil: h.regular_until ? new Date(h.regular_until) : null,
+      // Unidade alugada (world, E3.11): moradia só do avatar inquilino.
+      ...(h.avatar_id ? { avatarId: h.avatar_id, lease: true } : {}),
+    }));
   }
 }

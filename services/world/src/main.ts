@@ -10,6 +10,10 @@ import { HttpBuilderClient } from './infra/builder-client.js';
 import { PostgresAuctionStore } from './infra/db/postgres-auction-store.js';
 import { PostgresBuildingStore } from './infra/db/postgres-building-store.js';
 import { LedgerOutorgaPayments } from './infra/ledger-outorga-payments.js';
+import { LedgerUnitPayments } from './infra/ledger-unit-payments.js';
+import { MemoryUnitStore } from './infra/memory-unit-store.js';
+import { PostgresUnitStore } from './infra/db/postgres-unit-store.js';
+import { settleUnits } from './domain/units.js';
 import { LedgerAuctionPayments } from './infra/ledger-auction-payments.js';
 import { EconomyScityPrice } from './infra/economy-price.js';
 import { MemoryAuctionStore } from './infra/memory-auction-store.js';
@@ -105,6 +109,9 @@ const seizureSigners = {
 
 // Prédios de construtores: validação no SCC Builder e outorga em SCITY no ledger.
 const buildingStore = pool ? new PostgresBuildingStore(pool) : new MemoryBuildingStore();
+// Unidades dos prédios (E3.11): venda e aluguel em THALER pelo ledger.
+const unitStore = pool ? new PostgresUnitStore(pool) : new MemoryUnitStore();
+const unitPayments = config.ECONOMY_URL && config.ECONOMY_TOKEN ? new LedgerUnitPayments(config.ECONOMY_URL, config.ECONOMY_TOKEN) : null;
 const builder = config.BUILDER_URL ? new HttpBuilderClient(config.BUILDER_URL) : null;
 const outorga =
   config.ECONOMY_URL && config.ECONOMY_TOKEN ? new LedgerOutorgaPayments(config.ECONOMY_URL, config.ECONOMY_TOKEN) : null;
@@ -136,6 +143,7 @@ const app = await buildApp(
   { store: taxStore, payments: taxPayments, auctions: auctionStore },
   {
     store: buildingStore,
+    units: { store: unitStore, payments: unitPayments },
     builder,
     payments: outorga,
     // BuildingNFT: mesma chave e mesmo gateway da posse on-chain do lote.
@@ -196,6 +204,10 @@ const timer = setInterval(async () => {
     if (propertyPayments) {
       const m = await settleProperties(propertyStore, propertyPayments, new Date(), store);
       if (m) app.log.info(`properties.settle: ${m} obra(s) ou coleta(s) resolvida(s)`);
+    }
+    if (unitPayments) {
+      const u = await settleUnits(unitStore, unitPayments, new Date());
+      if (u) app.log.info(`units.settle: ${u} venda(s) ou aluguel(is) de unidade resolvido(s)`);
     }
     if (outorga) {
       const k = await settleBuildings(buildingStore, outorga, new Date());

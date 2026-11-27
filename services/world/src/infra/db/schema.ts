@@ -363,3 +363,77 @@ export const saleTicket = world.table(
     index('sale_ticket_rank_idx').on(t.city, t.preOpen, t.lottery),
   ],
 );
+
+/** Unidades dos prédios de construtores (E3.11): uma linha por apartamento ou loja. */
+export const buildingUnit = world.table(
+  'building_unit',
+  {
+    id: uuid('id').primaryKey(),
+    buildingId: uuid('building_id')
+      .notNull()
+      .references(() => building.id),
+    city: text('city').notNull(),
+    lotId: integer('lot_id').notNull(),
+    builderAccountId: uuid('builder_account_id').notNull(),
+    floor: integer('floor').notNull(),
+    number: integer('number').notNull(),
+    areaM2: real('area_m2').notNull(),
+    kind: text('kind').notNull(),
+    ownerAccountId: uuid('owner_account_id'),
+    priceCents: numeric('price_cents', { precision: 20, scale: 0 }),
+    rentCentsPerDay: numeric('rent_cents_per_day', { precision: 20, scale: 0 }),
+    pendingSaleId: uuid('pending_sale_id'),
+    createdAt: timestamptz('created_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('building_unit_position_idx').on(t.buildingId, t.floor, t.number),
+    index('building_unit_owner_idx').on(t.ownerAccountId),
+    index('building_unit_rent_idx').on(t.city, t.rentCentsPerDay),
+    check('building_unit_kind_check', sql`${t.kind} in ('residencial', 'comercial')`),
+  ],
+);
+
+/** Venda de unidade (primária ou revenda), paga pelo ledger com a chave da venda. */
+export const unitSale = world.table(
+  'unit_sale',
+  {
+    id: uuid('id').primaryKey(),
+    unitId: uuid('unit_id')
+      .notNull()
+      .references(() => buildingUnit.id),
+    buyerAccountId: uuid('buyer_account_id').notNull(),
+    sellerAccountId: uuid('seller_account_id').notNull(),
+    builderAccountId: uuid('builder_account_id').notNull(),
+    primary: boolean('primary').notNull(),
+    priceCents: numeric('price_cents', { precision: 20, scale: 0 }).notNull(),
+    status: text('status').notNull(),
+    createdAt: timestamptz('created_at').notNull(),
+  },
+  (t) => [index('unit_sale_pending_idx').on(t.status, t.createdAt), check('unit_sale_status_check', sql`${t.status} in ('pending', 'paid', 'failed')`)],
+);
+
+/** Aluguel de unidade para morar: o avatar inquilino, o período e o pagamento. */
+export const unitLease = world.table(
+  'unit_lease',
+  {
+    id: uuid('id').primaryKey(),
+    unitId: uuid('unit_id')
+      .notNull()
+      .references(() => buildingUnit.id),
+    ownerAccountId: uuid('owner_account_id').notNull(),
+    tenantAccountId: uuid('tenant_account_id').notNull(),
+    avatarId: uuid('avatar_id').notNull(),
+    centsPerDay: numeric('cents_per_day', { precision: 20, scale: 0 }).notNull(),
+    days: integer('days').notNull(),
+    startsAt: timestamptz('starts_at').notNull(),
+    endsAt: timestamptz('ends_at').notNull(),
+    status: text('status').notNull(),
+    createdAt: timestamptz('created_at').notNull(),
+  },
+  (t) => [
+    index('unit_lease_unit_idx').on(t.unitId, t.endsAt),
+    index('unit_lease_tenant_idx').on(t.tenantAccountId, t.endsAt),
+    index('unit_lease_pending_idx').on(t.status, t.createdAt),
+    check('unit_lease_status_check', sql`${t.status} in ('pending', 'paid', 'failed')`),
+  ],
+);

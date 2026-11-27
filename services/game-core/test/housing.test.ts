@@ -275,3 +275,30 @@ describe.skipIf(!pool)('moradia no Postgres', () => {
     expect((await store.get(a.id))!.housing).toMatchObject({ mealsDay: at(30).toISOString().slice(0, 10), mealsUsed: 1 });
   });
 });
+
+describe('unidade alugada de prédio (world, E3.11)', () => {
+  it('vale só para o avatar inquilino; os outros da conta seguem sem moradia', async () => {
+    const store = new MemoryAvatarStore();
+    const owner = randomUUID();
+    const tenant = await store.create({ ...make(), accountId: owner });
+    const other = await store.create({ ...make(), accountId: owner });
+    const homes: HomeDirectory = {
+      homes: async () => [{ id: 'unidade', label: 'Apartamento 0301', regular: true, regularUntil: at(48), avatarId: tenant.id, lease: true }],
+    };
+    const app = await buildApp(config, store, () => t0, null, null, null, () => 0.5, null, null, null, null, null, null, null, homes);
+    const h = {
+      authorization: `Bearer ${await new SignJWT({})
+        .setProtectedHeader({ alg: 'HS256' })
+        .setSubject(owner)
+        .setIssuer('scc-gateway')
+        .setAudience('scc-api')
+        .setIssuedAt()
+        .setExpirationTime('5m')
+        .sign(new TextEncoder().encode(SECRET))}`,
+    };
+    const mine = (await app.inject({ url: `/v1/avatars/${tenant.id}/housing`, headers: h })).json();
+    expect(mine).toMatchObject({ factor: 1, own_homes: [{ id: 'unidade', lease: true }] });
+    const theirs = (await app.inject({ url: `/v1/avatars/${other.id}/housing`, headers: h })).json();
+    expect(theirs).toMatchObject({ factor: 0.5, own_homes: [] });
+  });
+});

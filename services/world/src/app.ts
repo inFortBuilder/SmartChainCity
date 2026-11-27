@@ -47,6 +47,17 @@ import {
 import { type LandPayments, type Lot, type WorldStore, lotCode, priceOf } from './domain/lots.js';
 import { buyLot } from './domain/purchase.js';
 import {
+  type UnitPayments,
+  type UnitStore,
+  buyUnit,
+  controllerOf,
+  generateUnits,
+  leaseUnit,
+  setUnitOffer,
+  unitDto,
+  unitLabel,
+} from './domain/units.js';
+import {
   type QueueTicket,
   type SaleConfig,
   type SaleStore,
@@ -111,6 +122,8 @@ export async function buildApp(
     payments: OutorgaPayments | null;
     /** BuildingNFT (E2.11): voucher para levar o prédio aprovado à blockchain. */
     onchain?: { wallets: WalletDirectory; signer: BuildingVoucherSigner; contract: string; chainId: number } | null;
+    /** Unidades (E3.11): venda primária, revenda e aluguel em THALER. */
+    units?: { store: UnitStore; payments: UnitPayments | null } | null;
   } | null = null,
   /** Preço do SCITY em dólar agora: a cotação do economy (passo 11) ou o SCITY_USD fixo. */
   scityUsd: () => number = () => config.SCITY_USD,
@@ -612,11 +625,33 @@ export async function buildApp(
     requireServiceToken(request.headers['x-service-token'], config.INTERNAL_TOKEN);
     const { accountId } = z.object({ accountId: z.uuid() }).parse(request.params);
     const t = now();
-    const homes = (await propertiesOn().store.propertiesOf(accountId)).filter(
+    // Sem imóveis ligados, só os aluguéis de unidade contam.
+    const homes = (properties ? await properties.store.propertiesOf(accountId) : []).filter(
       (p) => typeOf(p.type)?.use === 'residencial' && phaseOf(p, t) === 'ready',
     );
+    // Unidades alugadas (E3.11): moradia regular do avatar inquilino enquanto o aluguel vale.
+    const leases = buildings?.units ? await buildings.units.store.activeLeasesOf(accountId, t) : [];
+    const leased = await Promise.all(
+      leases.map(async (l) => {
+        const u = await buildings!.units!.store.getUnit(l.unitId);
+        return {
+          id: l.unitId,
+          city: u?.city ?? null,
+          lot_id: u?.lotId ?? null,
+          type: 'unidade',
+          label: u ? unitLabel(u, { lotId: u.lotId }) : 'Apartamento',
+          regular: true,
+          regular_until: l.endsAt.toISOString(),
+          regularized: true,
+          water_until: null,
+          power_until: null,
+          avatar_id: l.avatarId,
+          lease: true,
+        };
+      }),
+    );
     return {
-      homes: await Promise.all(
+      homes: [...leased, ...(await Promise.all(
         homes.map(async (p) => {
           // A casa só vale enquanto o dono também tem o lote (doc 07 §2.2).
           const lot = await store.getLot(p.city, p.lotId);
@@ -635,7 +670,7 @@ export async function buildApp(
             power_until: p.powerUntil?.toISOString() ?? null,
           };
         }),
-      ),
+      ))],
     };
   });
 
@@ -859,6 +894,110 @@ export async function buildApp(
     const b = await buildingsOn().store.buildingOnLot(code, id);
     if (!b || b.status !== 'approved') throw new AppError('not_found', 'Este lote não tem prédio aprovado.', 404);
     return { building: buildingDto(b) };
+  });
+
+  // ---------------------------------------------------------------- unidades (E3.11, doc 13 §4)
+
+  const unitsOn = () => {
+    const u = buildingsOn().units;
+    if (!u) throw new AppError('units_disabled', 'As unidades estão desligadas.', 503);
+    return u;
+  };
+  const unitPaymentsOn = () => {
+    const p = unitsOn().payments;
+    if (!p) throw new AppError('ledger_unavailable', 'A venda de unidades está desligada: o ledger não está ligado.', 503);
+    return p;
+  };
+  const unitOut = async (u: Awaited<ReturnType<UnitStore['getUnit']>>, me: string | null) =>
+    unitDto(u!, me, await unitsOn().store.activeLeaseOfUnit(u!.id, now()), now());
+
+  // O construtor gera as unidades do prédio aprovado: {units_per_floor, ground_commercial, price_cents_per_m2}.
+  app.post('/v1/world/buildings/:id/units', async (request, reply) => {
+    const me = await player(request);
+    const { id } = z.object({ id: z.uuid() }).parse(request.params);
+    const body = z
+      .object({ units_per_floor: z.number().int(), ground_commercial: z.boolean().default(false), price_cents_per_m2: z.number().int() })
+      .parse(request.body);
+    const units = await generateUnits(
+      buildingsOn().store,
+      unitsOn().store,
+      { buildingId: id, accountId: me, unitsPerFloor: body.units_per_floor, groundCommercial: body.ground_commercial, priceCentsPerM2: body.price_cents_per_m2 },
+      now(),
+    );
+    return reply.status(201).send({ units: units.map((u) => unitDto(u, me, null, now())) });
+  });
+
+  // Público: as unidades do prédio, com preço, aluguel e se estão ocupadas.
+  app.get('/v1/world/buildings/:id/units', async (request) => {
+    const me = await maybePlayer(request);
+    const { id } = z.object({ id: z.uuid() }).parse(request.params);
+    const list = await unitsOn().store.unitsOfBuilding(id);
+    return { units: await Promise.all(list.map((u) => unitOut(u, me))) };
+  });
+
+  // Unidades residenciais para alugar na cidade, as mais baratas primeiro.
+  app.get('/v1/world/cities/:code/units/for-rent', async (request) => {
+    const { code } = codeParam.parse(request.params);
+    const me = await maybePlayer(request);
+    const list = await unitsOn().store.unitsForRent(code, 100);
+    const out = await Promise.all(list.map((u) => unitOut(u, me)));
+    return { units: out.filter((u) => !u.rented_until || u.rented_by_me) };
+  });
+
+  // As unidades da conta (como dona ou construtora) e as que ela aluga.
+  app.get('/v1/world/me/units', async (request) => {
+    const me = await player(request);
+    const s = unitsOn().store;
+    const owned = await s.unitsOwnedBy(me);
+    const leases = await s.activeLeasesOf(me, now());
+    const rented = (await Promise.all(leases.map((l) => s.getUnit(l.unitId)))).filter((u) => u !== null);
+    return {
+      owned: await Promise.all(owned.map((u) => unitOut(u, me))),
+      rented: await Promise.all(
+        rented.map(async (u) => ({ ...(await unitOut(u, me)), avatar_id: leases.find((l) => l.unitId === u!.id)?.avatarId ?? null })),
+      ),
+    };
+  });
+
+  // O dono (ou o construtor, antes da 1ª venda) põe ou tira o preço de venda e o de aluguel (null tira).
+  app.put('/v1/world/units/:id/offer', async (request) => {
+    const me = await player(request);
+    const { id } = z.object({ id: z.uuid() }).parse(request.params);
+    const body = z
+      .object({ price_cents: z.number().int().nullable().optional(), rent_cents_per_day: z.number().int().nullable().optional() })
+      .parse(request.body);
+    const u = await setUnitOffer(unitsOn().store, { unitId: id, accountId: me, priceCents: body.price_cents, rentCentsPerDay: body.rent_cents_per_day });
+    return { unit: await unitOut(u, me) };
+  });
+
+  // Compra: venda primária (95% ao construtor, 5% de taxa) ou revenda (2% de royalty ao construtor).
+  app.post('/v1/world/units/:id/buy', async (request, reply) => {
+    const me = await player(request);
+    const { id } = z.object({ id: z.uuid() }).parse(request.params);
+    const { sale, unit } = await buyUnit(unitsOn().store, unitPaymentsOn(), { unitId: id, accountId: me, requestId: request.id }, now());
+    return reply.status(201).send({
+      sale: { id: sale.id, primary: sale.primary, price_cents: sale.priceCents, status: sale.status },
+      unit: await unitOut(unit, me),
+    });
+  });
+
+  // Aluguel para morar: {avatar_id, days}. 90% ao dono, 10% de taxa da Prefeitura.
+  app.post('/v1/world/units/:id/lease', async (request, reply) => {
+    const me = await player(request);
+    const { id } = z.object({ id: z.uuid() }).parse(request.params);
+    const body = z.object({ avatar_id: z.uuid(), days: z.number().int() }).parse(request.body);
+    const lease = await leaseUnit(
+      unitsOn().store,
+      unitPaymentsOn(),
+      { unitId: id, accountId: me, avatarId: body.avatar_id, days: body.days, requestId: request.id },
+      now(),
+    );
+    const u = (await unitsOn().store.getUnit(id))!;
+    return reply.status(201).send({
+      lease: { id: lease.id, avatar_id: lease.avatarId, days: lease.days, amount_cents: lease.centsPerDay * lease.days, starts_at: lease.startsAt.toISOString(), ends_at: lease.endsAt.toISOString() },
+      unit: await unitOut(u, me),
+      owner_is_me: controllerOf(u) === me,
+    });
   });
 
   // Voucher do BuildingNFT (E2.11): o prédio aprovado vai para a blockchain pela carteira do construtor.

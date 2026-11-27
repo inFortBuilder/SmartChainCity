@@ -518,7 +518,7 @@ export async function buildApp(
     const own = await store.get(id);
     const caring = own?.jobCode === 'pet_sitter' ? (await sitters.current(id, now())).length : 0;
     // Moradia (doc 04 §4): casa própria regular, aluguel ou hotel; sem nenhum, o turno rende 50%.
-    const ownRegular = await ownRegularHome(accountId, request);
+    const ownRegular = await ownRegularHome(accountId, request, id);
     // Deslocamento (GDD §3.3): de carro, precisa de habilitação e de um carro em dia na conta.
     const carReady =
       mode === 'carro' && !!own && licensed(own, now()) && !!vehicles
@@ -566,21 +566,24 @@ export async function buildApp(
       return null;
     }
   };
-  const ownRegularHome = async (accountId: string, request: FastifyRequest) => {
+  /** A casa vale para o avatar: a própria vale para todos os da conta; a unidade alugada, só para o inquilino. */
+  const forAvatar = (h: { avatarId?: string | null }, avatarId: string) => !h.avatarId || h.avatarId === avatarId;
+  const ownRegularHome = async (accountId: string, request: FastifyRequest, avatarId: string) => {
     const list = await homesOf(accountId, request);
-    return list === null ? true : list.some((h) => h.regular);
+    return list === null ? true : list.some((h) => h.regular && forAvatar(h, avatarId));
   };
 
   const housingView = async (avatar: Avatar, request: FastifyRequest) => {
     const at = now();
-    const own = await homesOf(avatar.accountId, request);
+    const all = await homesOf(avatar.accountId, request);
+    const own = all?.filter((h) => forAvatar(h, avatar.id)) ?? null;
     const ownRegular = own === null ? true : own.some((h) => h.regular);
     return {
       // Fator do próximo turno: 1 com moradia regular, 0,5 sem.
       factor: housingFactor(avatar, ownRegular, at),
       stay: housingDto(avatar, at),
       own_homes:
-        own?.map((h) => ({ id: h.id, label: h.label, regular: h.regular, regular_until: h.regularUntil?.toISOString() ?? null })) ?? null,
+        own?.map((h) => ({ id: h.id, label: h.label, regular: h.regular, regular_until: h.regularUntil?.toISOString() ?? null, lease: !!h.lease })) ?? null,
       world_on: homes !== null,
       prices: housingPrices(),
     };
@@ -615,7 +618,7 @@ export async function buildApp(
 
   /** Tem moradia regular agora (casa própria regular, aluguel ou hotel)? */
   const housedNow = async (avatar: Avatar, request: FastifyRequest) =>
-    housingFactor(avatar, await ownRegularHome(avatar.accountId, request), now()) === 1;
+    housingFactor(avatar, await ownRegularHome(avatar.accountId, request, avatar.id), now()) === 1;
 
   // Dorme 4 ou 8 h: {hours}. A energia entra ao acordar; sem moradia regular, metade.
   app.post('/v1/avatars/:id/rest', async (request, reply) => {
