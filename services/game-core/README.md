@@ -67,11 +67,10 @@ Sem moradia regular, o turno rende **50%**: é o `fator_regularizacao_moradia` d
 | Dormir | `POST /v1/avatars/:id/rest` com `{hours: 4 \| 8}`. Enquanto dorme, não trabalha nem sai para o lazer (`409 resting`). Ao acordar, ganha +4 ou +8 de energia, até 10. Sem moradia regular, metade. Não dorme com turno rodando nem com a energia cheia (a não ser no descanso obrigatório) |
 | Descanso obrigatório | Com 16 h acordado (desde o fim do último descanso; o avatar novo conta da criação), não começa turno nem lazer (`409 must_rest`) até dormir. O turno que já começou termina. O avatar traz `must_rest_at`, e o `status` traz `mustRest`. Qualquer descanso, até o de 4 h, zera a conta |
 | Higiene em casa | `POST /v1/avatars/:id/chores` com `{code}`: banho (+3 higiene, +1 saúde), ducha (+3 higiene, +1 felicidade), dentes (+1 higiene, +1 saúde) e mãos (+1 higiene). De graça, cada uma a cada 4 h, só com moradia regular (`409 no_home`) |
-| Ir ao trabalho | `POST /v1/avatars/:id/work` aceita `commute`: `a_pe` (15 min, o padrão), `skate` (10 min), `onibus` (6 min, 3 THALER), `carro` (4 min, 2 THALER de combustível; precisa de habilitação e de um carro em dia) e `home_office` (0 min, 2 THALER de internet, −1 de felicidade e de saúde). O atraso tira a fração do turno e a tarifa sai do pagamento. Vai na foto do turno (`commute`, `commuteMode`, `commuteCostCents`) |
+| Ir ao trabalho | `POST /v1/avatars/:id/work` aceita `commute`: `a_pe` (15 min, o padrão), `skate` (10 min; precisa do skate da loja), `onibus` (6 min, 3 THALER), `carro` (4 min, 2 THALER de combustível; precisa de habilitação e de um carro em dia) e `home_office` (0 min, 2 THALER de internet, −1 de felicidade e de saúde). O atraso tira a fração do turno e a tarifa sai do pagamento. Vai na foto do turno (`commute`, `commuteMode`, `commuteCostCents`) |
 
 - `GET /v1/catalog/routine` lista os descansos, as atividades de casa e os modos. O avatar traz `rest` (acorda em, energia) e `chores` (quando cada uma libera).
 - **Premissas:** a energia do descanso, o corte sem moradia, os efeitos da higiene (o seed só dá a direção), os atrasos de ônibus e a pé (o GDD propõe), as tarifas, o efeito do home office e liberar o home office para todas as profissões até o catálogo marcar quais podem.
-- Ainda não: o skate como item comprado (hoje todos podem ir de skate).
 - Depois de atualizar o código, rode `pnpm db:migrate`: a migração `0021_rotina` cria as colunas `rest` e `chores` do avatar, e a `0023_descanso_16h` cria a `awake_since` (os avatares que já existem contam a partir da migração).
 
 ## Loja do jogo: roupas, ferramenta, cama, móveis e eletrodomésticos (GDD §6 "Lojas", §3.2)
@@ -83,6 +82,7 @@ Sem moradia regular, o turno rende **50%**: é o `fator_regularizacao_moradia` d
 | Roupa nível 1, 2 ou 3 | +10%, +15% ou +20% no ganho, para sempre; vale a melhor (`409 already_owned` para igual ou pior) | 300, 800 e 1.500 THALER |
 | Ferramenta de trabalho | +30% por 3 dias, só na profissão da compra (o GDD dá o estetoscópio do médico); comprar de novo estende, até 6 dias | 50 THALER |
 | Cama | Libera o segundo turno de 6 h no dia (`409 bed_required` sem ela) | 250 THALER |
+| Skate ou bicicleta: `skate` | Libera o modo `skate` de ir ao trabalho (10 min). Gasta uma viagem por turno; sem viagens, quebra (`409 no_skate`) e é preciso comprar outro | 120 THALER, 60 viagens |
 | Móveis: `sofa`, `mesa`, `guarda_roupa` | Com a cama, a **casa completa**: ao acordar de um descanso numa moradia regular, +1 de felicidade | 200, 150 e 180 THALER |
 | Eletrodomésticos: `fogao`, `micro_ondas`, `geladeira` | Cozinhar a despensa em casa (`POST /v1/avatars/:id/cook`, `{food}`): +5 de alimentação no fogão, +4 no micro-ondas (comer cru dá +3), sem dor de barriga; a geladeira soma +1 de saúde. Precisa de moradia regular (`409 no_home`) e de fogão ou micro-ondas (`409 no_stove`) | 300, 150 e 400 THALER |
 

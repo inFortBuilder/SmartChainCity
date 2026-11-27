@@ -30,7 +30,8 @@ import { COMPLETE_HOME_HAPPINESS, completeHome } from './shop.js';
  *   de combustível (precisa de habilitação e de um carro em dia); home office sem atraso, 2 THALER de
  *   internet e −1 de felicidade e de saúde (o GDD diz que perde as duas mais rápido), em qualquer profissão
  *   até o catálogo marcar quais podem;
- * - sem escolher, o avatar vai a pé.
+ * - sem escolher, o avatar vai a pé;
+ * - o skate precisa do item da loja (shop.ts) e gasta uma viagem por turno.
  */
 export const REST_HOURS = [4, 8] as const;
 export type RestHours = (typeof REST_HOURS)[number];
@@ -165,11 +166,11 @@ export const choresDto = (a: Pick<Avatar, 'chores'>, now: Date) =>
 // ---------------------------------------------------------------- deslocamento
 
 export const COMMUTES = {
-  a_pe: { label: 'A pé', delayMin: 15, costCents: 0n, needsCar: false, homeOffice: false },
-  skate: { label: 'Skate ou bicicleta', delayMin: 10, costCents: 0n, needsCar: false, homeOffice: false },
-  onibus: { label: 'Ônibus', delayMin: 6, costCents: 3_00n, needsCar: false, homeOffice: false },
-  carro: { label: 'Carro', delayMin: 4, costCents: 2_00n, needsCar: true, homeOffice: false },
-  home_office: { label: 'Home office', delayMin: 0, costCents: 2_00n, needsCar: false, homeOffice: true },
+  a_pe: { label: 'A pé', delayMin: 15, costCents: 0n, needsCar: false, needsSkate: false, homeOffice: false },
+  skate: { label: 'Skate ou bicicleta', delayMin: 10, costCents: 0n, needsCar: false, needsSkate: true, homeOffice: false },
+  onibus: { label: 'Ônibus', delayMin: 6, costCents: 3_00n, needsCar: false, needsSkate: false, homeOffice: false },
+  carro: { label: 'Carro', delayMin: 4, costCents: 2_00n, needsCar: true, needsSkate: false, homeOffice: false },
+  home_office: { label: 'Home office', delayMin: 0, costCents: 2_00n, needsCar: false, needsSkate: false, homeOffice: true },
 } as const;
 export type CommuteMode = keyof typeof COMMUTES;
 export const COMMUTE_MODES = Object.keys(COMMUTES) as CommuteMode[];
@@ -185,13 +186,25 @@ export interface Commute {
   costCents: bigint;
 }
 
-/** Confere o modo e calcula o fator; `carReady`: a conta tem carro em dia e o avatar é habilitado. */
-export function planCommute(mode: string | undefined, hours: number, carReady: boolean): Commute {
+/**
+ * Confere o modo e calcula o fator; `carReady`: a conta tem carro em dia e o avatar é habilitado;
+ * `skateReady`: o avatar tem skate com viagens.
+ */
+export function planCommute(mode: string | undefined, hours: number, carReady: boolean, skateReady = false): Commute {
   const m = (mode ?? DEFAULT_COMMUTE) as CommuteMode;
   if (!(m in COMMUTES)) throw new AppError('invalid_commute', 'Modo de ir ao trabalho desconhecido.', 400);
   const c = COMMUTES[m];
   if (c.needsCar && !carReady) throw new AppError('no_car', 'Para ir de carro, o avatar precisa de habilitação e de um carro em dia.', 409);
+  if (c.needsSkate && !skateReady) throw new AppError('no_skate', 'Para ir de skate, compre um na loja do jogo (o skate gasta com as viagens).', 409);
   return { mode: m, factor: 1 - c.delayMin / (hours * 60), costCents: c.costCents };
+}
+
+/** Efeito do deslocamento no avatar, no começo do turno: o home office cansa; o skate gasta uma viagem. */
+export function applyCommute(avatar: Avatar, commute: Commute): Avatar {
+  if (commute.mode === 'skate' && avatar.gear?.skateTrips) {
+    return { ...avatar, gear: { ...avatar.gear, skateTrips: avatar.gear.skateTrips - 1 } };
+  }
+  return applyHomeOffice(avatar, commute);
 }
 
 /** Efeito do home office no avatar, no começo do turno. */
@@ -211,5 +224,6 @@ export const commuteCatalog = () =>
     delay_min: COMMUTES[m].delayMin,
     cost: COMMUTES[m].costCents.toString(),
     needs_car: COMMUTES[m].needsCar,
+    needs_skate: COMMUTES[m].needsSkate,
     home_office: COMMUTES[m].homeOffice,
   }));

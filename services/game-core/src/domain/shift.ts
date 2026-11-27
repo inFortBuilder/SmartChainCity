@@ -10,7 +10,7 @@ import { happinessWithPet, petFactors } from './pet.js';
 import { assertNotInSchool } from './school.js';
 import { inDrivingSchool } from './vehicle.js';
 import { eventFactor } from './events.js';
-import { type Commute, applyHomeOffice, assertNotMustRest, assertNotResting } from './routine.js';
+import { type Commute, applyCommute, assertNotMustRest, assertNotResting } from './routine.js';
 
 /**
  * Turno de trabalho (E1.4; doc 02 §3.2, doc 04 §4). O ganho segue a mesma
@@ -226,8 +226,8 @@ export function startShift(
   for (const code of ['gripe', 'dor_de_cabeca', 'febre', 'enxaqueca', 'virose'] as const) {
     if (draw(seed, id, code) < CONDITIONS[code].chance) conditions = catchCondition(conditions, code, shift.endsAt);
   }
-  // Home office: perde felicidade e saúde (GDD §3.2), depois da foto do turno.
-  const after = input.commute ? applyHomeOffice({ ...avatar, attributes }, input.commute) : { ...avatar, attributes };
+  // Home office: perde felicidade e saúde (GDD §3.2); skate: gasta uma viagem. Depois da foto do turno.
+  const after = input.commute ? applyCommute({ ...avatar, attributes }, input.commute) : { ...avatar, attributes };
   return { shift, avatar: { ...after, conditions, updatedAt: now } };
 }
 

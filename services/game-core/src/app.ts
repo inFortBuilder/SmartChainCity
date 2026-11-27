@@ -197,7 +197,7 @@ import {
   sittingDto,
 } from './domain/sitter.js';
 import { MemoryPetSitterStore } from './infra/memory-sitter-store.js';
-import { SHOP_ITEMS, type ShopItem, checkShop, gearDto, gearFactor, gearOf, shopCatalog } from './domain/shop.js';
+import { SHOP_ITEMS, type ShopItem, checkShop, skateTrips, gearDto, gearFactor, gearOf, shopCatalog } from './domain/shop.js';
 import {
   CHORES,
   CHORE_CODES,
@@ -534,7 +534,7 @@ export async function buildApp(
       mode === 'carro' && !!own && licensed(own, now()) && !!vehicles
         ? (await vehicles.store.listByAccount(accountId)).some((v) => stateOf(v, now()) === 'ok')
         : false;
-    const commute = planCommute(mode, shift, carReady);
+    const commute = planCommute(mode, shift, carReady, !!own && skateTrips(own) > 0);
     const started = await store.beginShift(id, accountId, now(), (avatar, context) =>
       startShift(
         avatar,
