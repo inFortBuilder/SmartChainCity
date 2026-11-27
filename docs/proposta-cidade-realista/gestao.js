@@ -184,6 +184,8 @@ export function createGestao(api) {
   const topbar = document.querySelector('.topbar');
   new ResizeObserver(() => {
     document.documentElement.style.setProperty('--topbar-h', `${topbar.offsetHeight}px`);
+    // Onde a barra termina (ela tem margem em cima): as cortinas começam 10 px abaixo disso.
+    document.documentElement.style.setProperty('--topbar-fim', `${Math.round(topbar.getBoundingClientRect().bottom)}px`);
   }).observe(topbar);
   hud.querySelector('[data-hud-speed]').value = String(state.speed);
   hud.querySelector('[data-hud-speed]').addEventListener('change', (e) => {
