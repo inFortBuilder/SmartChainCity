@@ -74,7 +74,7 @@ Sem moradia regular, o turno rende **50%**: é o `fator_regularizacao_moradia` d
 - Ainda não: o skate como item comprado (hoje todos podem ir de skate).
 - Depois de atualizar o código, rode `pnpm db:migrate`: a migração `0021_rotina` cria as colunas `rest` e `chores` do avatar, e a `0023_descanso_16h` cria a `awake_since` (os avatares que já existem contam a partir da migração).
 
-## Loja do jogo: roupas, ferramenta e cama (GDD §6 "Lojas", §3.2)
+## Loja do jogo: roupas, ferramenta, cama, móveis e eletrodomésticos (GDD §6 "Lojas", §3.2)
 
 `POST /v1/avatars/:id/shop` com `{item, level?}`, pelo caminho das refeições (`shop_buy`, `burn/shop`):
 
@@ -83,11 +83,13 @@ Sem moradia regular, o turno rende **50%**: é o `fator_regularizacao_moradia` d
 | Roupa nível 1, 2 ou 3 | +10%, +15% ou +20% no ganho, para sempre; vale a melhor (`409 already_owned` para igual ou pior) | 300, 800 e 1.500 THALER |
 | Ferramenta de trabalho | +30% por 3 dias, só na profissão da compra (o GDD dá o estetoscópio do médico); comprar de novo estende, até 6 dias | 50 THALER |
 | Cama | Libera o segundo turno de 6 h no dia (`409 bed_required` sem ela) | 250 THALER |
+| Móveis: `sofa`, `mesa`, `guarda_roupa` | Com a cama, a **casa completa**: ao acordar de um descanso numa moradia regular, +1 de felicidade | 200, 150 e 180 THALER |
+| Eletrodomésticos: `fogao`, `micro_ondas`, `geladeira` | Cozinhar a despensa em casa (`POST /v1/avatars/:id/cook`, `{food}`): +5 de alimentação no fogão, +4 no micro-ondas (comer cru dá +3), sem dor de barriga; a geladeira soma +1 de saúde. Precisa de moradia regular (`409 no_home`) e de fogão ou micro-ondas (`409 no_stove`) | 300, 150 e 400 THALER |
 
 - O bônus da loja (roupa × ferramenta) multiplica o dos itens sazonais do GamePass em `snapshot.items` (o `M_itens` do doc 04 §4).
-- O avatar traz `gear` (roupa, ferramenta, cama e o fator do próximo turno). `GET /v1/catalog/shop` lista os preços.
-- **Premissas:** os preços, a ferramenta genérica por profissão e o limite de 6 dias.
-- **Ficam para depois:** móveis (casa completa +1 de felicidade), eletrodomésticos (cozinhar), calçados e as roupas sazonais.
+- O avatar traz `gear` (roupa, ferramenta, cama, `home` com os móveis e eletrodomésticos, `complete_home`, `cooks_with` e o fator do próximo turno). `GET /v1/catalog/shop` lista os preços, a casa completa e o rendimento da cozinha.
+- **Premissas:** os preços, a ferramenta genérica por profissão, o limite de 6 dias, a felicidade da casa completa só ao acordar (uma vez por descanso) e o rendimento da cozinha.
+- **Ficam para depois:** calçados e as roupas sazonais.
 - Depois de atualizar o código, rode `pnpm db:migrate`: a migração `0022_loja` cria a coluna `gear` do avatar.
 
 ## Minigame do turno (E2.2)
@@ -390,6 +392,7 @@ TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc_test pnpm --filter
 | GET | `/v1/avatars/:id/meals` | jogador (Bearer) | Últimas 20 compras do mercado e da farmácia (`pending`, `eaten`, `failed`) |
 | POST | `/v1/avatars/:id/pantry` | jogador (Bearer) | Compra o pacote `{food}` para a despensa. Aceita `Idempotency-Key`. Devolve a compra e o avatar |
 | POST | `/v1/avatars/:id/consume` | jogador (Bearer) | Come uma unidade `{food}` da despensa, sem cobrar. Devolve o avatar |
+| POST | `/v1/avatars/:id/cook` | jogador (Bearer) | Cozinha em casa uma unidade `{food}` da despensa (fogão ou micro-ondas, moradia regular) |
 | POST | `/v1/avatars/:id/medicine` | jogador (Bearer) | Compra e toma o remédio `{condition}`. Aceita `Idempotency-Key`. Devolve o remédio, `cured` e o avatar |
 | GET | `/v1/catalog/pharmacy` | público | Preço do remédio, chance de cura e a tabela das doenças |
 | GET | `/v1/catalog/vehicles` | público | Modelos da agência (preço, aluguel, velocidade, força) e as regras de vida útil, IPVA, aluguel, recompra e autoescola |
@@ -403,7 +406,7 @@ TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc_test pnpm --filter
 | POST | `/v1/avatars/:id/rest` | jogador (Bearer) | Dorme 4 ou 8 h `{hours}` |
 | POST | `/v1/avatars/:id/chores` | jogador (Bearer) | Higiene em casa `{code}` |
 | GET | `/v1/catalog/routine` | público | Descanso, higiene e modos de ir ao trabalho |
-| POST | `/v1/avatars/:id/shop` | jogador (Bearer) | Loja: roupa, ferramenta ou cama. Aceita `Idempotency-Key` |
+| POST | `/v1/avatars/:id/shop` | jogador (Bearer) | Loja: roupa, ferramenta, cama, móveis e eletrodomésticos. Aceita `Idempotency-Key` |
 | GET | `/v1/catalog/shop` | público | Preços e bônus da loja |
 | GET | `/v1/vehicles` | jogador (Bearer) | Carros da conta com a situação (`ok`, `suspended`, `worn_out`, `expired`), atributos de agora, valor, recompra e IPVA |
 | POST | `/v1/vehicles` | jogador (Bearer) | Compra `{model}` ou aluga `{model, rent: true}` na agência |

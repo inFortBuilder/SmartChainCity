@@ -2,6 +2,7 @@ import { AppError } from '@scc/shared';
 
 import { ATTRIBUTE_MAX, type Avatar } from './avatar.js';
 import { assertNotInHospital } from './hospital.js';
+import { COMPLETE_HOME_HAPPINESS, completeHome } from './shop.js';
 
 /**
  * O dia do avatar fora do trabalho (GDD §1, §2.3, §3.2 e §3.3): descansar, cuidar da higiene e ir ao
@@ -43,6 +44,8 @@ export interface Rest {
   endsAt: Date;
   /** Energia que entra ao acordar (já com o corte sem moradia). */
   energy: number;
+  /** Felicidade que entra ao acordar (casa completa numa moradia regular, shop.ts). */
+  happiness?: number;
 }
 
 export const resting = (a: Pick<Avatar, 'rest'>, now: Date) => !!a.rest && a.rest.endsAt > now;
@@ -72,7 +75,11 @@ export function rested(avatar: Avatar, now: Date): Avatar {
   if (!r || r.endsAt > now) return avatar;
   return {
     ...avatar,
-    attributes: { ...avatar.attributes, energy: Math.min(ATTRIBUTE_MAX, avatar.attributes.energy + r.energy) },
+    attributes: {
+      ...avatar.attributes,
+      energy: Math.min(ATTRIBUTE_MAX, avatar.attributes.energy + r.energy),
+      happiness: Math.min(ATTRIBUTE_MAX, avatar.attributes.happiness + (r.happiness ?? 0)),
+    },
     rest: null,
     awakeSince: r.endsAt,
   };
@@ -80,6 +87,7 @@ export function rested(avatar: Avatar, now: Date): Avatar {
 
 /** Começa o descanso. O avatar vem travado e com a queda até agora; `running`: há turno rodando. */
 export function startRest(avatar: Avatar, input: { hours: number; housed: boolean; running: boolean }, now: Date): Avatar {
+  const happiness = input.housed && completeHome(avatar) ? COMPLETE_HOME_HAPPINESS : 0;
   if (!REST_HOURS.includes(input.hours as RestHours)) throw new AppError('invalid_rest', 'O descanso é de 4 ou de 8 horas.', 400);
   assertNotInHospital(avatar, now);
   assertNotResting(avatar, now);
@@ -89,17 +97,17 @@ export function startRest(avatar: Avatar, input: { hours: number; housed: boolea
   const energy = input.housed ? full : Math.floor(full * UNHOUSED_REST_SHARE);
   return {
     ...avatar,
-    rest: { startsAt: now, endsAt: new Date(now.getTime() + input.hours * HOUR), energy },
+    rest: { startsAt: now, endsAt: new Date(now.getTime() + input.hours * HOUR), energy, ...(happiness ? { happiness } : {}) },
     updatedAt: now,
   };
 }
 
 export const restToJson = (r: Rest | null | undefined) =>
-  r ? { startsAt: r.startsAt.toISOString(), endsAt: r.endsAt.toISOString(), energy: r.energy } : null;
+  r ? { startsAt: r.startsAt.toISOString(), endsAt: r.endsAt.toISOString(), energy: r.energy, ...(r.happiness ? { happiness: r.happiness } : {}) } : null;
 export const restFromJson = (v: unknown): Rest | null => {
   if (!v) return null;
-  const j = v as { startsAt: string; endsAt: string; energy: number };
-  return { startsAt: new Date(j.startsAt), endsAt: new Date(j.endsAt), energy: j.energy };
+  const j = v as { startsAt: string; endsAt: string; energy: number; happiness?: number };
+  return { startsAt: new Date(j.startsAt), endsAt: new Date(j.endsAt), energy: j.energy, ...(j.happiness ? { happiness: j.happiness } : {}) };
 };
 
 // ---------------------------------------------------------------- higiene em casa

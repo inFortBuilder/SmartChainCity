@@ -104,10 +104,10 @@ paths:
     post:
       summary: "Loja"
       tags: ["avatars"]
-      description: "Loja: roupa, ferramenta ou cama. Aceita Idempotency-Key"
+      description: "Loja: roupa, ferramenta, cama, móveis e eletrodomésticos. Aceita Idempotency-Key"
       security: [{"bearer":[]}]
       parameters: [{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]
-      requestBody: {"required":true,"content":{"application/json":{"schema":{"type":"object","properties":{"item":{"type":"string","enum":["roupa","ferramenta","cama"]},"level":{"type":"integer","minimum":1,"maximum":3}},"required":["item"]}}}}
+      requestBody: {"required":true,"content":{"application/json":{"schema":{"type":"object","properties":{"item":{"type":"string"},"level":{"type":"integer","minimum":1,"maximum":3}},"required":["item"]}}}}
       responses: {"201":{"description":"Criado","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
   /v1/catalog/routine:
     get:
@@ -191,6 +191,15 @@ paths:
       parameters: [{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]
       requestBody: {"required":true,"content":{"application/json":{"schema":{"type":"object","properties":{"food":{"type":"string","maxLength":64}},"required":["food"]}}}}
       responses: {"201":{"description":"Criado","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/avatars/{id}/cook:
+    post:
+      summary: "Cozinha em casa uma unidade {food} da despensa"
+      tags: ["avatars"]
+      description: "Cozinha em casa uma unidade {food} da despensa (fogão ou micro-ondas, moradia regular)"
+      security: [{"bearer":[]}]
+      parameters: [{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]
+      requestBody: {"required":true,"content":{"application/json":{"schema":{"type":"object","properties":{"food":{"type":"string","maxLength":64}},"required":["food"]}}}}
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
   /v1/avatars/{id}/consume:
     post:
       summary: "Come uma unidade {food} da despensa, sem cobrar"
