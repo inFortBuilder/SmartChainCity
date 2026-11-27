@@ -135,6 +135,15 @@ function closeFicha() {
 document.querySelector('[data-ficha]')?.addEventListener('click', (e) => {
   if (e.target.closest('[data-ficha-fechar]')) closeFicha();
 });
+// No celular, a ficha ocupa a largura: ao abrir, fecha as cortinas da esquerda.
+{
+  const ficha = document.querySelector('[data-ficha]');
+  if (ficha) {
+    new MutationObserver(() => {
+      if (!ficha.hidden && window.innerWidth <= 640) document.dispatchEvent(new CustomEvent('cortina', { detail: {} }));
+    }).observe(ficha, { attributes: true, attributeFilter: ['hidden'] });
+  }
+}
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && !document.querySelector('[data-ficha]')?.hidden && !e.target.closest('input, textarea, select')) closeFicha();
 });
