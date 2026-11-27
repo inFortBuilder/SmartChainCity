@@ -58,7 +58,10 @@ export const staying = (a: Pick<Avatar, 'housing'>, now: Date) => !!a.housing &&
 
 /** Casas da conta pelo world. `null` quando o world não responde ou não está ligado. */
 export interface HomeDirectory {
-  homes(accountId: string, requestId?: string): Promise<{ id: string; label: string; regular: boolean; regularUntil: Date | null }[]>;
+  homes(
+    accountId: string,
+    requestId?: string,
+  ): Promise<{ id: string; label: string; regular: boolean; regularUntil: Date | null; /** Unidade alugada: só deste avatar. */ avatarId?: string | null; lease?: boolean }[]>;
 }
 
 /** Fator de moradia do turno: 1 com casa própria regular ou estadia em curso; 0,5 sem. */

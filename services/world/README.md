@@ -251,6 +251,23 @@ Para o envio funcionar, a cidade precisa ter sido importada de novo, porque é a
 
 **Na blockchain (E2.11):** com o alvará, o construtor pede o voucher com `POST /v1/world/buildings/:id/onchain-voucher` e `{wallet}`. O world confere que o prédio é dele e foi aprovado, que tem o hash do GLB (`model_sha256`, devolvido pelo Builder na validação) e que a carteira está ligada à conta; e assina com a mesma chave da posse on-chain do lote. Com o voucher, a carteira chama `BuildingNFT.mint`, e o contrato exige que ela seja dona do lote no `LandNFT`. Ligue com `BUILDING_NFT_ADDRESS` no `.env`.
 
+### Unidades: venda, revenda e aluguel (E3.11, doc 13 §4)
+
+Fora da blockchain por enquanto: o `UnitNFT` e o `UnitMarket` são contratos novos e pedem auditoria. Preços em THALER (centavos), pelo ledger:
+
+| Passo | Rota | Dinheiro |
+|---|---|---|
+| Gerar (construtor, prédio com alvará, uma vez) | `POST /v1/world/buildings/:id/units` com `{units_per_floor, ground_commercial, price_cents_per_m2}` | Andares × unidades por andar, com a mesma área (área construída ÷ unidades); térreo comercial opcional |
+| Preço de venda e de aluguel | `PUT /v1/world/units/:id/offer` com `{price_cents?, rent_cents_per_day?}` (null tira) | Do dono, ou do construtor antes da 1ª venda; aluguel só na residencial |
+| Comprar | `POST /v1/world/units/:id/buy` | 1ª venda: 95% ao construtor, 5% de taxa (`burn/platform`). Revenda: 2% de royalty ao construtor, o resto ao vendedor |
+| Alugar para morar | `POST /v1/world/units/:id/lease` com `{avatar_id, days}` (1 a 30) | 90% ao dono, 10% de taxa da Prefeitura (`burn/rent`). Um inquilino por vez; o mesmo avatar estende |
+
+- `GET /v1/world/buildings/:id/units` lista as unidades, e `GET /v1/world/cities/:code/units/for-rent` as livres para alugar. `GET /v1/world/me/units` mostra as da conta (`owned`) e as alugadas (`rented`).
+- **Moradia:** a unidade alugada entra em `/internal/v1/accounts/:id/homes` com o `avatar_id` do inquilino. Para o game-core, é moradia regular só desse avatar até o fim do aluguel. A revenda não corta o aluguel pago.
+- Venda e aluguel cobram em duas fases: a unidade (ou a vaga) fica segura, o ledger cobra pela chave da venda ou do aluguel, e só então muda. Com o ledger fora, o job `units.settle` termina.
+- **Premissas:** as taxas (5%, 2% e 10%); até 20 unidades por andar e 1.000 por prédio; e a unidade conta como moradia sem a Prefeitura, porque o prédio já tem alvará.
+- **Ainda não:** `UnitNFT`/`UnitMarket`, IPTU por unidade, condomínio, unidade sem dono que volta ao construtor, e a taxa de alvará e o prazo de obra pela área.
+
 ## Rodar
 
 ```bash
@@ -293,6 +310,13 @@ TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc_test pnpm --filter
 | POST | `/v1/world/properties/:id/upgrade` | dono (Bearer) | Sobe um nível |
 | POST | `/v1/world/properties/:id/regularize` | dono (Bearer) | Regulariza na Prefeitura (uma vez) |
 | POST | `/v1/world/properties/:id/retype` | dono (Bearer) | Troca de tipo: T1 → T2 → T3, no último nível |
+| POST | `/v1/world/buildings/:id/units` | construtor (Bearer) | Gera as unidades do prédio aprovado |
+| GET | `/v1/world/buildings/:id/units` | público | Unidades do prédio |
+| PUT | `/v1/world/units/:id/offer` | dono (Bearer) | Preço de venda e de aluguel |
+| POST | `/v1/world/units/:id/buy` | jogador (Bearer) | Compra a unidade |
+| POST | `/v1/world/units/:id/lease` | jogador (Bearer) | Aluga para um avatar morar |
+| GET | `/v1/world/me/units` | jogador (Bearer) | Unidades da conta e as alugadas |
+| GET | `/v1/world/cities/:code/units/for-rent` | público | Unidades livres para alugar |
 | POST | `/v1/world/properties/:id/water` | dono (Bearer) | Água por 30 dias |
 | POST | `/v1/world/properties/:id/power` | dono (Bearer) | Energia por 30 dias |
 | GET | `/internal/v1/accounts/:accountId/homes` | `x-service-token` | Casas prontas da conta e até quando são moradia regular |
@@ -315,7 +339,7 @@ TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc_test pnpm --filter
 | GET | `/v1/world/me/invitations` | jogador (Bearer) | Imóveis onde fui convidado e o convite ainda vale |
 | GET | `/healthz` | — | `{status: "ok"}` |
 
-Erros com código estável: `sale_not_open`, `queue_required`, `queue_waiting`, `queue_expired`, `queue_not_open`, `sale_ended`, `sale_limit`, `no_sale`, `wallet_required`, `lot_not_for_sale`, `lot_reserved`, `district_closed`, `other_district`, `area_cap`, `insufficient_scity`, `reservation_lost`, `ledger_unavailable`, `not_found`, `not_lot_owner`, `wallet_not_linked`, `unknown_property_type`, `zone_not_allowed`, `lot_has_property`, `insufficient_thaler`, `property_not_ready`, `nothing_to_claim`, `claim_in_progress`, `nothing_to_repair`, `max_level`, `already_regularized`, `utility_prepaid`, `type_unavailable`, `type_by_upgrade`, `no_next_type`, `max_level_first`, `work_in_progress`, `lot_not_owned`, `nothing_to_upgrade`, `tax_default`, `taxes_disabled`, `auctions_disabled`, `own_auction`, `auction_closed`, `bid_too_low`, `other_district`, `area_cap`, `building_invalid`, `lot_has_building`, `lot_without_polygon`, `building_not_in_review`, `builder_unavailable`, `model_not_found`, `building_not_approved`, `model_hash_missing`, `pool_empty`, `properties_disabled`, `city_not_onchain`, `onchain_disabled`, `gateway_unavailable`, `missing_credentials`, `invalid_token`, `token_expired`.
+Erros com código estável: `sale_not_open`, `queue_required`, `queue_waiting`, `queue_expired`, `queue_not_open`, `sale_ended`, `sale_limit`, `no_sale`, `wallet_required`, `lot_not_for_sale`, `lot_reserved`, `district_closed`, `other_district`, `area_cap`, `insufficient_scity`, `reservation_lost`, `ledger_unavailable`, `not_found`, `not_lot_owner`, `wallet_not_linked`, `unknown_property_type`, `zone_not_allowed`, `lot_has_property`, `insufficient_thaler`, `property_not_ready`, `nothing_to_claim`, `claim_in_progress`, `nothing_to_repair`, `max_level`, `already_regularized`, `utility_prepaid`, `type_unavailable`, `units_disabled`, `units_exist`, `invalid_units`, `unit_not_for_sale`, `unit_not_for_rent`, `own_unit`, `sale_in_progress`, `unit_rented`, `invalid_lease`, `lease_prepaid`, `not_residential`, `type_by_upgrade`, `no_next_type`, `max_level_first`, `work_in_progress`, `lot_not_owned`, `nothing_to_upgrade`, `tax_default`, `taxes_disabled`, `auctions_disabled`, `own_auction`, `auction_closed`, `bid_too_low`, `other_district`, `area_cap`, `building_invalid`, `lot_has_building`, `lot_without_polygon`, `building_not_in_review`, `builder_unavailable`, `model_not_found`, `building_not_approved`, `model_hash_missing`, `pool_empty`, `properties_disabled`, `city_not_onchain`, `onchain_disabled`, `gateway_unavailable`, `missing_credentials`, `invalid_token`, `token_expired`.
 
 ## Visitas: entrar nos imóveis pelo street view
 
@@ -337,6 +361,6 @@ Esquema próprio `world`: `city` (zonas, bairros abertos, limiar), `lot` (situa�
 ## Ainda não
 
 - Imóveis: os valores definitivos dos tipos (Figura 16 do GDD), seguro, aluguel de unidades entre jogadores (com os prédios, E3.11), lote duplo (Residencial 2 e 3); os outros tipos do doc 03 §6.
-- Prédios: o chain-indexer ler o `BuildingNFT`, unidades e venda (E3.11), taxa de alvará, prazo de obra proporcional à área, IPTU por unidade.
+- Prédios: o chain-indexer ler o `BuildingNFT`, `UnitNFT` e `UnitMarket` (as unidades já se vendem e se alugam no jogo), taxa de alvará, prazo de obra proporcional à área, IPTU por unidade e condomínio.
 - Impostos: IPTU por unidade dos prédios de construtores (doc 13). A apreensão do NFT no leilão já existe ([ADR-0016](../../docs/adr/0016-apreensao-nft-leilao.md)).
 - Mercado de utilidades entre jogadores (o mercado on-chain de lotes, imóveis e avatares já existe: [contratos](../../contracts/README.md#marketplace-e36)).

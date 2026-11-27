@@ -148,7 +148,8 @@ export async function buildApp(
   });
   const metrics = observe(app, { service: 'economy', nodeEnv: config.NODE_ENV, metricsToken: config.METRICS_TOKEN });
 
-  await app.register(cors, { origin: config.CORS_ORIGINS });
+  // PUT e DELETE também: o padrão do @fastify/cors é só GET, HEAD e POST, e as telas usam os dois.
+  await app.register(cors, { origin: config.CORS_ORIGINS, methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'] });
 
   app.setErrorHandler((error, request, reply) => {
     if (error instanceof AppError) {

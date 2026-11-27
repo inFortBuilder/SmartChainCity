@@ -286,6 +286,8 @@ export function createServidor(map) {
   let carCatalog = null;
   /** Moradia do avatar (doc 04 §4): casa própria, aluguel ou hotel, e o fator do turno. */
   let moradia = null;
+  /** Apartamentos de jogadores para alugar na cidade. */
+  let aluguelUnidades = [];
   /** Descanso, higiene e deslocamento (GDD §2.3 e §3.3): o catálogo, uma vez. */
   let rotina = null;
   /** Loja do jogo (roupas, ferramenta e cama): o catálogo, uma vez. */
@@ -370,6 +372,10 @@ export function createServidor(map) {
       moradia = data.avatar
         ? await call(API.game, `/v1/avatars/${data.avatar.id}/housing`, { token: session.token }).catch(() => null)
         : null;
+      // Apartamentos de jogadores para alugar (E3.11).
+      aluguelUnidades = await call(API.world, `/v1/world/cities/${CITY}/units/for-rent`, { token: session.token })
+        .then((r) => r.units)
+        .catch(() => []);
       if (!rotina) rotina = await call(API.game, '/v1/catalog/routine').catch(() => null);
       if (!loja) loja = await call(API.game, '/v1/catalog/shop').catch(() => null);
       // Veículos (E3.5): a agência e os carros da conta.
@@ -835,6 +841,13 @@ export function createServidor(map) {
         <button class="btn btn--ghost pequeno" type="button" data-s="moradia" data-k="${s.kind}" data-l="${s.level}" ${off}>Mais dias</button>
         ${s.kind === 'hotel' ? `<button class="btn btn--blue pequeno" type="button" data-s="moradia-refeicao" ${off || (s.meals_left_today ? '' : 'disabled')}>Refeição do hotel</button>` : ''}
         <button class="btn btn--ghost pequeno" type="button" data-s="moradia-sair" ${off}>Sair</button></div>`;
+    }
+    // Apartamentos de jogadores (E3.11): o aluguel vai ao dono, e a unidade vira a moradia deste avatar.
+    const livres = aluguelUnidades.filter((u) => !u.mine && !u.rented_until).slice(0, 4);
+    if (livres.length && !m.stay && m.factor !== 1) {
+      html += `<p class="pequeno">Apartamentos de jogadores:</p><div class="linha moradia-opcoes">${livres
+        .map((u) => `<button class="btn btn--ghost pequeno" type="button" data-s="alugar-unidade" data-u="${u.id}" ${off}>${esc(u.code)} · ${u.area_m2} m² · ${thaler(u.rent_cents_per_day)}/dia</button>`)
+        .join('')}</div>`;
     }
     const p = m.prices;
     const dias = [1, 3, 7, 15, 30].map((d) => `<option value="${d}" ${d === 7 ? 'selected' : ''}>${d} dia${d > 1 ? 's' : ''}</option>`).join('');
@@ -1596,6 +1609,18 @@ export function createServidor(map) {
         messageOk = true;
       });
     }
+    if (what === 'alugar-unidade') {
+      const days = Number(panel.querySelector('[data-dias]')?.value ?? 7);
+      return act(async () => {
+        const r = await call(API.world, `/v1/world/units/${b.dataset.u}/lease`, {
+          method: 'POST',
+          token: session.token,
+          body: { avatar_id: data.avatar.id, days },
+        });
+        message = `Apartamento ${r.unit.code} alugado até ${new Date(r.lease.ends_at).toLocaleDateString('pt-BR')}: −${thaler(r.lease.amount_cents)} THALER.`;
+        messageOk = true;
+      });
+    }
     if (what === 'moradia-sair') {
       return act(async () => {
         const r = await call(API.game, `/v1/avatars/${data.avatar.id}/housing`, { method: 'DELETE', token: session.token });
@@ -1894,6 +1919,7 @@ export function createServidor(map) {
         if (box.querySelector('[data-buy]')) showLaunch(i, box);
         if (lot.mine) showBuild(i, lot, box);
         if (lot.status === 'sold') showVisit(i, box);
+        if (lot.status === 'sold') showUnits(i, box);
       })
       .catch((error) => {
         box.innerHTML = `<p class="aviso-s">${esc(error.code === 'offline' ? 'Serviço world fora do ar.' : error.message)}</p>`;
@@ -1905,6 +1931,52 @@ export function createServidor(map) {
         rm.disabled = true;
         await call(API.world, `/v1/world/places/${rm.dataset.kind}/${rm.dataset.place}/guests/${rm.dataset.remover}`, { method: 'DELETE', token: session.token }).catch(() => null);
         return showVisit(i, box);
+      }
+      // Unidades do prédio (E3.11).
+      const unitAct = e.target.closest('[data-u-gerar], [data-u-buy], [data-u-lease], [data-u-offer]');
+      if (unitAct && !unitAct.disabled) {
+        const sec = unitAct.closest('[data-building]');
+        try {
+          if (unitAct.matches('[data-u-gerar]')) {
+            const perFloor = Number(sec.querySelector('[data-u-por-andar]').value);
+            const m2 = Math.round(Number(sec.querySelector('[data-u-m2]').value) * 100);
+            const r = await call(API.world, `/v1/world/buildings/${sec.dataset.building}/units`, {
+              method: 'POST',
+              token: session.token,
+              body: { units_per_floor: perFloor, ground_commercial: sec.querySelector('[data-u-terreo]').checked, price_cents_per_m2: m2 },
+            });
+            message = `${r.units.length} unidades à venda.`;
+          } else if (unitAct.matches('[data-u-buy]')) {
+            const r = await call(API.world, `/v1/world/units/${unitAct.dataset.uBuy}/buy`, { method: 'POST', token: session.token });
+            message = `Unidade ${r.unit.code} é sua por ${thaler(r.sale.price_cents)} THALER.`;
+          } else if (unitAct.matches('[data-u-lease]')) {
+            const r = await call(API.world, `/v1/world/units/${unitAct.dataset.uLease}/lease`, {
+              method: 'POST',
+              token: session.token,
+              body: { avatar_id: data.avatar.id, days: 7 },
+            });
+            message = `Alugada até ${new Date(r.lease.ends_at).toLocaleDateString('pt-BR')}: −${thaler(r.lease.amount_cents)} THALER. É a moradia do avatar.`;
+          } else {
+            // Preços do dono: em branco tira da venda ou do aluguel.
+            const li = unitAct.closest('li');
+            const toCents = (v) => (v && v.trim() ? Math.round(Number(v.replace(',', '.')) * 100) : null);
+            await call(API.world, `/v1/world/units/${unitAct.dataset.uOffer}/offer`, {
+              method: 'PUT',
+              token: session.token,
+              body: {
+                price_cents: toCents(li.querySelector('[data-u-price]')?.value),
+                ...(unitAct.dataset.kind === 'residencial' ? { rent_cents_per_day: toCents(li.querySelector('[data-u-rent]')?.value) } : {}),
+              },
+            });
+            message = 'Preços da unidade salvos.';
+          }
+          messageOk = true;
+        } catch (error) {
+          message = error.message;
+          messageOk = false;
+        }
+        await refresh();
+        return map.showLot(i);
       }
       // Prefeitura e serviços do imóvel (regularizar, água, energia).
       const obra = e.target.closest('[data-obra]');
@@ -2065,6 +2137,59 @@ export function createServidor(map) {
       <button class="btn btn--blue pequeno" type="button" data-construir>Construir</button></div>
       <p class="muted pequeno">Obra de 1 dia, paga em THALER. Academia e galeria cobram entrada de quem usa.</p>`;
   }
+
+  /**
+   * Unidades do prédio aprovado no lote (E3.11): o construtor gera e põe à venda; quem compra revende ou
+   * aluga para outro avatar morar. Preços em THALER.
+   */
+  async function showUnits(i, box) {
+    const b = await call(API.world, `/v1/world/cities/${CITY}/lots/${i}/building`, { token: session.token })
+      .then((r) => r.building)
+      .catch(() => null);
+    if (!b) return;
+    const sec = document.createElement('div');
+    sec.className = 'srv-obra srv-unidades';
+    sec.dataset.building = b.id;
+    box.append(sec);
+    const units = await call(API.world, `/v1/world/buildings/${b.id}/units`, { token: session.token })
+      .then((r) => r.units)
+      .catch(() => null);
+    if (units === null) return sec.remove();
+    const mineBuilding = b.mine ?? false;
+    if (!units.length) {
+      sec.innerHTML = mineBuilding || lotsMine(i)
+        ? `<h3>🏢 Unidades</h3><p class="muted pequeno">${b.floors} andares. Gere as unidades e elas vão à venda (95% para você, 5% de taxa).</p>
+          <div class="linha moradia-opcoes"><label class="pequeno">Por andar <input class="campo" type="number" min="1" max="20" value="4" data-u-por-andar style="width:64px"></label>
+          <label class="pequeno">THALER/m² <input class="campo" type="number" min="0.01" step="0.01" value="10" data-u-m2 style="width:80px"></label>
+          <label class="pequeno"><input type="checkbox" data-u-terreo> Térreo comercial</label></div>
+          <button class="btn btn--blue pequeno" type="button" data-u-gerar>Gerar unidades</button>`
+        : '<h3>🏢 Unidades</h3><p class="muted pequeno">O construtor ainda não pôs as unidades à venda.</p>';
+      return;
+    }
+    const shown = units.slice(0, 24);
+    const row = (u) => {
+      const tags = [
+        u.kind === 'comercial' ? 'comercial' : '',
+        u.rented_until ? `alugada até ${new Date(u.rented_until).toLocaleDateString('pt-BR')}` : '',
+        u.mine ? 'sua' : '',
+      ].filter(Boolean).join(' · ');
+      const acts = [];
+      if (!u.mine && u.price_cents !== null && !u.selling) acts.push(`<button class="btn btn--blue pequeno" type="button" data-u-buy="${u.id}">Comprar · ${thaler(u.price_cents)}</button>`);
+      if (!u.mine && u.rent_cents_per_day !== null && (!u.rented_until || u.rented_by_me) && data.avatar)
+        acts.push(`<button class="btn btn--ghost pequeno" type="button" data-u-lease="${u.id}">Alugar 7 dias · ${thaler(u.rent_cents_per_day * 7)}</button>`);
+      if (u.mine)
+        acts.push(`<input class="campo" type="number" min="0" step="0.01" placeholder="venda" data-u-price value="${u.price_cents !== null ? u.price_cents / 100 : ''}" style="width:84px" aria-label="Preço de venda em THALER">
+          ${u.kind === 'residencial' ? `<input class="campo" type="number" min="0" step="0.01" placeholder="aluguel/dia" data-u-rent value="${u.rent_cents_per_day !== null ? u.rent_cents_per_day / 100 : ''}" style="width:84px" aria-label="Aluguel por dia em THALER">` : ''}
+          <button class="btn btn--ghost pequeno" type="button" data-u-offer="${u.id}" data-kind="${u.kind}">Salvar</button>`);
+      return `<li><strong>${esc(u.code)}</strong> · ${u.area_m2} m²${tags ? ` · <span class="muted">${tags}</span>` : ''}
+        ${u.price_cents !== null ? ` · venda ${thaler(u.price_cents)}` : ''}${u.rent_cents_per_day !== null ? ` · aluguel ${thaler(u.rent_cents_per_day)}/dia` : ''}
+        <div class="linha moradia-opcoes">${acts.join('')}</div></li>`;
+    };
+    sec.innerHTML = `<h3>🏢 Unidades (${units.length})</h3><ul class="srv-lista pequeno">${shown.map(row).join('')}</ul>
+      ${units.length > shown.length ? `<p class="muted pequeno">E mais ${units.length - shown.length} unidades.</p>` : ''}
+      <p class="muted pequeno">Revenda paga 2% ao construtor; o aluguel, 10% de taxa da Prefeitura. Valores provisórios.</p>`;
+  }
+  const lotsMine = (i) => (data.lots ?? []).some((l) => l.id === i);
 
   /** Seção de visita da ficha: entrar (dono ou convidado) e, para o dono, os convidados. */
   async function showVisit(i, box) {
