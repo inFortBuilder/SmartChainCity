@@ -24,7 +24,8 @@ const at = (hours: number) => new Date(t0.getTime() + hours * HOUR);
 
 const make = (conditions: Condition[] = [], attrs: Partial<Avatar['attributes']> = {}): Avatar => {
   const a = newAvatar({ id: randomUUID(), accountId: randomUUID(), rarity: 'common', jobCode: 'padeiro' }, t0);
-  return { ...a, attributes: { ...a.attributes, ...attrs }, conditions };
+  // Sem a conta das 16 h acordado: os testes atravessam dias; ela fica em routine.test.ts.
+  return { ...a, awakeSince: null, attributes: { ...a.attributes, ...attrs }, conditions };
 };
 const sickWith = (code: Condition['code'], from = t0) => catchCondition([], code, from);
 

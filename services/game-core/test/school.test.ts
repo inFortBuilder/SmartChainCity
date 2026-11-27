@@ -29,7 +29,8 @@ const OTHER = COMMON[0]!;
 
 const make = (attrs: Partial<Avatar['attributes']> = {}): Avatar => {
   const a = newAvatar({ id: randomUUID(), accountId: randomUUID(), rarity: 'common', jobCode: 'padeiro' }, t0);
-  return { ...a, attributes: { ...a.attributes, ...attrs } };
+  // Sem a conta das 16 h acordado: os testes atravessam dias; ela fica em routine.test.ts.
+  return { ...a, awakeSince: null, attributes: { ...a.attributes, ...attrs } };
 };
 const code = (fn: () => unknown) => {
   try {

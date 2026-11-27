@@ -202,6 +202,8 @@ import {
   CHORE_CODES,
   REST_ENERGY,
   REST_HOURS,
+  AWAKE_LIMIT_HOURS,
+  mustRestAt,
   UNHOUSED_REST_SHARE,
   choresDto,
   commuteCatalog,
@@ -264,6 +266,8 @@ const avatarDto = (a: Avatar, at: Date) => ({
   housing: housingDto(a, at),
   // Descanso em curso (energia ao acordar) e quando cada atividade de casa libera.
   rest: a.rest && a.rest.endsAt > at ? { ends_at: a.rest.endsAt.toISOString(), energy: a.rest.energy } : null,
+  // Descanso obrigatório após 16 h acordado: a hora-limite (o status traz `mustRest`).
+  must_rest_at: mustRestAt(a)?.toISOString() ?? null,
   chores: choresDto(a, at),
   // Itens da loja: roupa, ferramenta de trabalho e cama, com o bônus do próximo turno.
   gear: gearDto(a, at),
@@ -611,7 +615,7 @@ export async function buildApp(
   });
 
   app.get('/v1/catalog/routine', async () => ({
-    rest: { hours: REST_HOURS, energy: REST_ENERGY, unhoused_share: UNHOUSED_REST_SHARE },
+    rest: { hours: REST_HOURS, energy: REST_ENERGY, unhoused_share: UNHOUSED_REST_SHARE, awake_limit_hours: AWAKE_LIMIT_HOURS },
     chores: CHORE_CODES.map((c) => ({ code: c, ...CHORES[c] })),
     commutes: commuteCatalog(),
     default_commute: 'a_pe',

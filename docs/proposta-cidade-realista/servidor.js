@@ -802,8 +802,12 @@ export function createServidor(map) {
     if (a.rest) {
       html += `<p class="muted pequeno">Dormindo até ${new Date(a.rest.ends_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}.</p>`;
     } else {
+      // Descanso obrigatório: com 16 h acordado, dorme mesmo com a energia cheia.
+      const must = a.status.mustRest;
+      if (must) html += `<p class="pequeno"><span class="tag tag--srv">Hora de dormir</span> Acordado há ${rotina.rest.awake_limit_hours ?? 16} h ou mais: sem trabalho e sem lazer até descansar.</p>`;
+      else if (a.must_rest_at) html += `<p class="muted pequeno">Precisa dormir em ${left(a.must_rest_at)} (descanso obrigatório após ${rotina.rest.awake_limit_hours ?? 16} h acordado).</p>`;
       html += `<div class="linha">${rotina.rest.hours
-        .map((h) => `<button class="btn btn--ghost pequeno" type="button" data-s="descansar" data-h="${h}" ${off || (a.attributes.energy >= 10 ? 'disabled' : '')}>Dormir ${h} h · +${housed ? rotina.rest.energy[h] : Math.floor(rotina.rest.energy[h] * rotina.rest.unhoused_share)} energia</button>`)
+        .map((h) => `<button class="btn btn--ghost pequeno" type="button" data-s="descansar" data-h="${h}" ${off || (a.attributes.energy >= 10 && !must ? 'disabled' : '')}>Dormir ${h} h · +${housed ? rotina.rest.energy[h] : Math.floor(rotina.rest.energy[h] * rotina.rest.unhoused_share)} energia</button>`)
         .join('')}</div>`;
     }
     html += `<div class="linha moradia-opcoes">${rotina.chores
@@ -1233,6 +1237,7 @@ export function createServidor(map) {
           body += `<label class="pequeno moradia-dias">Ir ao trabalho: <select class="campo" data-deslocamento aria-label="Como ir ao trabalho">${opts}</select></label>`;
         }
         if (a.rest) body += `<p class="muted pequeno">😴 Dormindo: acorda em ${left(a.rest.ends_at)} com +${a.rest.energy} de energia.</p>`;
+        else if (a.status.mustRest) body += `<p class="pequeno">😴 Acordado há 16 h ou mais: durma (Descanso e higiene) para voltar a trabalhar.</p>`;
         body += `<div class="linha">
           <button class="btn btn--blue" type="button" data-s="work" data-h="6" ${busy || !a.status.canWork ? 'disabled' : ''}>Trabalhar 6 h</button>
           <button class="btn btn--blue" type="button" data-s="work" data-h="12" ${busy || !a.status.canWork ? 'disabled' : ''}>Trabalhar 12 h</button></div>`;

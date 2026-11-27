@@ -29,7 +29,8 @@ const t0 = new Date('2026-11-13T08:00:00Z');
 
 const make = (attrs: Partial<Avatar['attributes']> = {}, accountId = randomUUID()): Avatar => {
   const a = newAvatar({ id: randomUUID(), accountId, rarity: 'common', jobCode: 'padeiro' }, t0);
-  return { ...a, attributes: { ...a.attributes, ...attrs } };
+  // Sem a conta das 16 h acordado: os testes atravessam dias; ela fica em routine.test.ts.
+  return { ...a, awakeSince: null, attributes: { ...a.attributes, ...attrs } };
 };
 
 const code = (fn: () => unknown) => {
