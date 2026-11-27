@@ -122,9 +122,11 @@ No mapa de Pittsburg, o painel mostra a lista de alimentos e o botão "Comer" qu
 
 Depois de atualizar o código, rode `pnpm db:migrate`: a tabela `meal` é nova.
 
-**Despensa.** `POST /v1/avatars/:id/pantry` com `{food}` compra o pacote inteiro do catálogo (maçã vem em 5, ovos em 3) e guarda as unidades no avatar (`pantry`). Compra mesmo satisfeito. Comer da despensa (`POST /v1/avatars/:id/consume`, `{food}`) tem as mesmas regras e efeitos da refeição, inclusive a dor de barriga, e não cobra de novo. O pacote custa o preço do catálogo; sem ele, as unidades pelo preço provisório, sem desconto (**premissa**). Passa pelo mesmo caminho da refeição: lançamento `pack_buy` para `burn/food`, chave `meal:<id>`, `Idempotency-Key`. A despensa não tem limite até existirem casas (E2.5). No mapa, o botão "Pacote" fica ao lado de "Comer" e a despensa aparece com um botão por alimento.
+**Despensa.** `POST /v1/avatars/:id/pantry` com `{food}` compra o pacote inteiro do catálogo (maçã vem em 5, ovos em 3) e guarda as unidades no avatar (`pantry`). Compra mesmo satisfeito. Comer da despensa (`POST /v1/avatars/:id/consume`, `{food}`) tem as mesmas regras e efeitos da refeição, inclusive a dor de barriga, e não cobra de novo. O pacote custa o preço do catálogo; sem ele, as unidades pelo preço provisório, sem desconto (**premissa**). Passa pelo mesmo caminho da refeição: lançamento `pack_buy` para `burn/food`, chave `meal:<id>`, `Idempotency-Key`. A despensa tem limite pela casa: 10 unidades sem moradia regular, 30 com moradia e 60 com geladeira. O pacote que passa do limite dá `409 pantry_full`; o que vem da fazenda não passa pelo limite (**premissa**). No mapa, o botão "Pacote" fica ao lado de "Comer" e a despensa aparece com um botão por alimento.
 
-Ainda não: o tempo de compra do mercado (4 min + volume) e a regra da energia que recarrega a cada 8 h.
+**Tempo de compra** (GDD §6 "Mercado": "4 min + volume"): depois de comprar a refeição ou o pacote, o avatar fica no mercado por 4 min mais 30 s por unidade (**premissa**). Enquanto isso, não começa turno, não sai para o lazer e não compra de novo (`409 at_market`); o avatar traz `market_until` e `status.atMarket`. Comer da despensa e cozinhar são em casa e não contam. `GET /v1/catalog/foods` traz `market` e `pantry_limits`. A migração `0024_mercado_despensa` cria a coluna `market_until`.
+
+Ainda não: a regra da energia que recarrega a cada 8 h.
 
 ## Doenças e farmácia (E2.3, passo 12 da trilha)
 

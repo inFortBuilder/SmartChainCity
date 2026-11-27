@@ -62,6 +62,8 @@ export const avatar = game.table(
     housing: jsonb('housing'),
     /** Descanso em curso: {startsAt, endsAt, energy}; null acordado. */
     rest: jsonb('rest'),
+    /** No mercado até (a compra leva 4 min + volume). */
+    marketUntil: timestamptz('market_until'),
     /** Fim do último descanso: o descanso é obrigatório após 16 h acordado. */
     awakeSince: timestamptz('awake_since').notNull().defaultNow(),
     /** Higiene em casa: {codigo: ISO} da última vez. */

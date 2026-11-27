@@ -169,6 +169,13 @@
       "when": 1795802206761,
       "tag": "0023_descanso_16h",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1795811164069,
+      "tag": "0024_mercado_despensa",
+      "breakpoints": true
     }
   ]
 }

@@ -1,0 +1,1 @@
+ALTER TABLE "game"."avatar" ADD COLUMN "market_until" timestamp with time zone;

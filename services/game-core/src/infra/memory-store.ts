@@ -38,6 +38,7 @@ const clone = (a: Avatar): Avatar => ({
   license: licenseFromJson(licenseToJson(a.license)),
   housing: housingFromJson(housingToJson(a.housing)),
   rest: restFromJson(restToJson(a.rest)),
+  marketUntil: a.marketUntil ? new Date(a.marketUntil) : (a.marketUntil ?? null),
   awakeSince: a.awakeSince ? new Date(a.awakeSince) : (a.awakeSince ?? null),
   chores: choresFromJson(choresToJson(a.chores)),
   gear: gearFromJson(gearToJson(a.gear)),

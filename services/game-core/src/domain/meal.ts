@@ -49,6 +49,8 @@ export interface MealEffects {
   housing?: HousingEffect;
   /** Só loja do jogo: roupa, ferramenta ou cama, aplicada depois da cobrança. */
   shop?: ShopEffect;
+  /** Só compra no mercado: quanto tempo o avatar fica comprando (GDD §6 "Mercado": 4 min + volume). */
+  marketMs?: number;
   /** Só Pet Sitter (E3.1): a estadia reservada e quem recebe a diária. O efeito no pet vai em `pet`. */
   sitter?: { sittingId: string; sitterAccountId: string; sitterAvatarId: string };
 }
@@ -245,15 +247,40 @@ export const unitPriceCents = (f: Food) =>
   f.price === null ? DEFAULT_UNIT_PRICE_CENTS : (BigInt(f.price) * 100n + BigInt(f.pack) / 2n) / BigInt(f.pack);
 
 /** Confere e monta a refeição. O avatar já vem travado e com a queda até agora. */
+/**
+ * Mercado (GDD §6 "Mercado": "compra leva 4 min + volume"): depois da compra, o avatar fica no mercado
+ * por 4 min mais 30 s por unidade. Enquanto isso, não começa turno, não sai para o lazer e não compra de
+ * novo (`409 at_market`). Comer da despensa e cozinhar são em casa: não contam.
+ *
+ * Despensa pela casa: sem moradia regular, cabem 10 unidades; com moradia, 30; com geladeira, 60. O
+ * pacote que passa do limite dá `409 pantry_full`. O que vem da fazenda não passa pelo limite.
+ *
+ * PREMISSAS: os 30 s por unidade e os limites 10/30/60 (o GDD só diz "4 min + volume" e "limite da
+ * despensa pela casa").
+ */
+export const MARKET_BASE_MS = 4 * 60_000;
+export const MARKET_PER_UNIT_MS = 30_000;
+export const PANTRY_LIMITS = { unhoused: 10, housed: 30, fridge: 60 } as const;
+export const marketMs = (units: number) => MARKET_BASE_MS + units * MARKET_PER_UNIT_MS;
+export const atMarket = (a: Pick<Avatar, 'marketUntil'>, now: Date) => !!a.marketUntil && a.marketUntil > now;
+export function assertNotAtMarket(a: Pick<Avatar, 'marketUntil'>, now: Date) {
+  if (atMarket(a, now)) throw new AppError('at_market', `O avatar está no mercado até ${a.marketUntil!.toISOString()}.`, 409);
+}
+/** Quantas unidades cabem na despensa: pela moradia e pela geladeira. */
+export const pantryCapacity = (a: Pick<Avatar, 'gear'>, housed: boolean) =>
+  !housed ? PANTRY_LIMITS.unhoused : hasItem(a, 'geladeira') ? PANTRY_LIMITS.fridge : PANTRY_LIMITS.housed;
+export const pantryUnits = (a: Pick<Avatar, 'pantry'>) => Object.values(a.pantry).reduce((n, u) => n + u, 0);
+
 export function planMeal(
   avatar: Avatar,
-  input: { id: string; foodCode: string; clientKey: string | null; roll?: number },
+  input: { id: string; foodCode: string; clientKey: string | null; roll?: number; atHome?: boolean },
   now: Date,
 ): Meal {
   const f = findFood(input.foodCode);
   if (!f) throw new AppError('unknown_food', 'Alimento não existe no mercado.', 404);
   // No hospital o avatar não vai ao mercado.
   assertNotInHospital(avatar, now);
+  if (!input.atHome) assertNotAtMarket(avatar, now);
   if (avatar.attributes.food >= ATTRIBUTE_MAX) {
     throw new AppError('not_hungry', 'O avatar está satisfeito. Coma quando a alimentação baixar.', 409);
   }
@@ -269,6 +296,7 @@ export function planMeal(
       health: f.health,
       // GDD: dor de barriga em 3% das refeições.
       ...((input.roll ?? 1) < CONDITIONS.dor_de_barriga.chance ? { condition: 'dor_de_barriga' as const } : {}),
+      ...(input.atHome ? {} : { marketMs: marketMs(1) }),
     },
     status: 'pending',
     clientKey: input.clientKey,
@@ -278,17 +306,25 @@ export function planMeal(
 }
 
 /** Confere e monta a compra de um pacote para a despensa. Satisfeito também compra. */
-export function planPack(avatar: Avatar, input: { id: string; foodCode: string; clientKey: string | null }, now: Date): Meal {
+export function planPack(
+  avatar: Avatar,
+  input: { id: string; foodCode: string; clientKey: string | null; capacity?: number },
+  now: Date,
+): Meal {
   const f = findFood(input.foodCode);
   if (!f) throw new AppError('unknown_food', 'Alimento não existe no mercado.', 404);
   assertNotInHospital(avatar, now);
+  assertNotAtMarket(avatar, now);
+  if (input.capacity !== undefined && pantryUnits(avatar) + f.pack > input.capacity) {
+    throw new AppError('pantry_full', `A despensa está cheia: cabem ${input.capacity} unidades (moradia e geladeira aumentam).`, 409);
+  }
   return {
     id: input.id,
     avatarId: avatar.id,
     accountId: avatar.accountId,
     foodCode: f.code,
     priceCents: packPriceCents(f),
-    effects: { food: 0, energy: 0, health: 0, pantry: { code: f.code, units: f.pack } },
+    effects: { food: 0, energy: 0, health: 0, pantry: { code: f.code, units: f.pack }, marketMs: marketMs(f.pack) },
     status: 'pending',
     clientKey: input.clientKey,
     createdAt: now,
@@ -305,7 +341,7 @@ export function eatFromPantry(avatar: Avatar, input: { foodCode: string; roll?: 
   if ((avatar.pantry[input.foodCode] ?? 0) < 1) {
     throw new AppError('not_in_pantry', 'Esse alimento não está na despensa.', 409);
   }
-  const meal = planMeal(avatar, { id: 'despensa', foodCode: input.foodCode, clientKey: null, roll: input.roll }, now);
+  const meal = planMeal(avatar, { id: 'despensa', foodCode: input.foodCode, clientKey: null, roll: input.roll, atHome: true }, now);
   const fed = eat(avatar, meal.effects, now);
   const left = (avatar.pantry[input.foodCode] ?? 0) - 1;
   const pantry = { ...fed.pantry };
@@ -326,7 +362,7 @@ export function cookFromPantry(avatar: Avatar, input: { foodCode: string; housed
   if (!input.housed) throw new AppError('no_home', 'Sem moradia regular: alugue, vá para o hotel ou regularize a sua casa.', 409);
   if ((avatar.pantry[input.foodCode] ?? 0) < 1) throw new AppError('not_in_pantry', 'Esse alimento não está na despensa.', 409);
   // Sem dor de barriga (roll 1): a comida é feita em casa.
-  const meal = planMeal(avatar, { id: 'cozinha', foodCode: input.foodCode, clientKey: null, roll: 1 }, now);
+  const meal = planMeal(avatar, { id: 'cozinha', foodCode: input.foodCode, clientKey: null, roll: 1, atHome: true }, now);
   const fed = eat(
     avatar,
     { ...meal.effects, food: COOK_FOOD[how], health: meal.effects.health + (hasItem(avatar, 'geladeira') ? FRIDGE_HEALTH : 0) },
@@ -392,6 +428,7 @@ export function eat(avatar: Avatar, effects: MealEffects, now: Date): Avatar {
     ...avatar,
     conditions,
     pantry,
+    ...(effects.marketMs ? { marketUntil: new Date(now.getTime() + effects.marketMs) } : {}),
     attributes: {
       ...a,
       food: clamp(a.food + effects.food),
