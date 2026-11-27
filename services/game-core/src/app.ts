@@ -162,6 +162,10 @@ import {
   type MealPlanner,
   type MealStore,
   eatFromPantry,
+  pantryCapacity,
+  PANTRY_LIMITS,
+  MARKET_BASE_MS,
+  MARKET_PER_UNIT_MS,
   cookFromPantry,
   isMedicine,
   isPetShop,
@@ -265,6 +269,8 @@ const avatarDto = (a: Avatar, at: Date) => ({
   leisure: leisureDto(a, at),
   // Habilitação (E3.5): null sem; com a autoescola em curso, `licensed` é falso até `ready_at`.
   license: a.license ? { ready_at: a.license.readyAt.toISOString(), licensed: licensed(a, at) } : null,
+  // No mercado até (a compra leva 4 min + volume); null fora.
+  market_until: a.marketUntil && a.marketUntil > at ? a.marketUntil.toISOString() : null,
   // Moradia paga em curso (aluguel ou hotel); a casa própria fica em /housing.
   housing: housingDto(a, at),
   // Descanso em curso (energia ao acordar) e quando cada atividade de casa libera.
@@ -747,6 +753,9 @@ export async function buildApp(
   // Mercado do jogo (E2.3): a lista com o preço de uma unidade, em centavos de THALER.
   app.get('/v1/catalog/foods', async () => ({
     origin: foodsOrigin(),
+    // Mercado: a compra leva 4 min + volume; a despensa cabe 10, 30 ou 60 unidades (sem casa, com casa, com geladeira).
+    market: { base_ms: MARKET_BASE_MS, per_unit_ms: MARKET_PER_UNIT_MS },
+    pantry_limits: PANTRY_LIMITS,
     foods: foods().map((f) => ({
       code: f.code,
       label: f.label,
@@ -824,8 +833,10 @@ export async function buildApp(
   // Despensa: compra o pacote inteiro do alimento e guarda as unidades.
   app.post('/v1/avatars/:id/pantry', async (request, reply) => {
     const { food: foodCode } = mealBody.parse(request.body);
+    // O limite da despensa depende da moradia (e da geladeira): confere antes da compra.
+    const housed = await housedNow(decayed(await ownAvatar(request), now()), request);
     const { avatar, done } = await purchase(request, (clientKey) => (current) =>
-      planPack(current, { id: randomUUID(), foodCode, clientKey }, now()),
+      planPack(current, { id: randomUUID(), foodCode, clientKey, capacity: pantryCapacity(current, housed) }, now()),
     );
     const fresh = (await store.get(avatar.id))!;
     const at = now();

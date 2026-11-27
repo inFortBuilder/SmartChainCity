@@ -76,6 +76,8 @@ export interface Avatar {
   housing?: Housing | null;
   /** Descanso em curso: a energia entra ao acordar; null acordado. */
   rest?: Rest | null;
+  /** No mercado até (GDD §6: a compra leva 4 min + volume); null fora. */
+  marketUntil?: Date | null;
   /** Desde quando está acordado (fim do último descanso); o descanso é obrigatório após 16 h. */
   awakeSince?: Date | null;
   /** Higiene em casa: última vez de cada atividade. */
@@ -129,7 +131,14 @@ export function status(avatar: Avatar, now: Date = new Date()) {
   // Dormindo também não (routine.ts).
   // Com 16 h acordado, só depois de dormir (routine.ts).
   const free =
-    !inHospital(avatar, now) && !bedridden && !inSchool(avatar, now) && !inDrivingSchool(avatar, now) && !resting(avatar, now) && !mustRest(avatar, now);
+    !inHospital(avatar, now) &&
+    !bedridden &&
+    !inSchool(avatar, now) &&
+    !inDrivingSchool(avatar, now) &&
+    !resting(avatar, now) &&
+    !mustRest(avatar, now) &&
+    // No mercado, comprando (meal.ts).
+    !(avatar.marketUntil && avatar.marketUntil > now);
   return {
     // GDD: 48 h sem comer não gera recompensa.
     earnsReward: a.food > 0,
@@ -139,6 +148,7 @@ export function status(avatar: Avatar, now: Date = new Date()) {
     inHospital: inHospital(avatar, now),
     resting: resting(avatar, now),
     mustRest: mustRest(avatar, now),
+    atMarket: !!avatar.marketUntil && avatar.marketUntil > now,
   };
 }
 

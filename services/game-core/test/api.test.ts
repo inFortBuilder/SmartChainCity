@@ -58,7 +58,7 @@ describe('API do game-core', () => {
     expect(avatar.attributes.food).toBe(5);
     expect(avatar.attributes.happiness).toBe(8);
     // 24 h depois, acordado desde a criação: precisa dormir antes de trabalhar (descanso obrigatório).
-    expect(avatar.status).toEqual({ earnsReward: true, canWork: false, canLeisure: false, inHospital: false, resting: false, mustRest: true });
+    expect(avatar.status).toEqual({ earnsReward: true, canWork: false, canLeisure: false, inHospital: false, resting: false, mustRest: true, atMarket: false });
     expect(avatar.hospital_until).toBeNull();
   });
 

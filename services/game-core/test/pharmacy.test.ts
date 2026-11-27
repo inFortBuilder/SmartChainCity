@@ -191,6 +191,8 @@ describe('API da farmácia', () => {
     expect(med.json().avatar.conditions).toEqual([]);
     expect(ledger.balances.get(a.accountId)).toBe(5000n - 400n - 2000n);
 
+    // A compra no mercado leva 4 min + volume (meal.ts): o turno espera o avatar sair do mercado.
+    clock = new Date(t0.getTime() + 5 * 60_000);
     const again = await app.inject({ method: 'POST', url: `/v1/avatars/${a.id}/work`, headers, payload: { shift: 6 } });
     expect(again.statusCode).toBe(201);
   });

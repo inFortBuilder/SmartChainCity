@@ -75,7 +75,9 @@ describe('descanso obrigatório após 16 h acordado', () => {
   it('o turno que já começou termina; o próximo espera o descanso', () => {
     const working = startShift(make(), { id: randomUUID(), hours: 12, hoursToday: 0, running: false }, at(10));
     expect(working.avatar.attributes.energy).toBeLessThan(10);
-    expect(code(() => startShift(working.avatar, { id: randomUUID(), hours: 6, hoursToday: 0, running: false }, at(22)))).toBe('must_rest');
+    // Sem as doenças sorteadas no turno (a semente é aleatória aqui): o que conta é o descanso.
+    const healthy = { ...working.avatar, conditions: [] };
+    expect(code(() => startShift(healthy, { id: randomUUID(), hours: 6, hoursToday: 0, running: false }, at(22)))).toBe('must_rest');
   });
 });
 

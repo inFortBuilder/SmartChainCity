@@ -175,6 +175,9 @@ export function startShift(
   assertCanWorkHealthy(avatar.conditions, now);
   assertNotResting(avatar, now);
   assertNotMustRest(avatar, now);
+  if (avatar.marketUntil && avatar.marketUntil > now) {
+    throw new AppError('at_market', `O avatar está no mercado até ${avatar.marketUntil.toISOString()}.`, 409);
+  }
   if (input.bed === false && hours === 6 && input.hoursToday >= 6) {
     throw new AppError('bed_required', 'O segundo turno de 6 h no dia exige uma cama (loja do jogo).', 409);
   }

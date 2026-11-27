@@ -64,7 +64,6 @@ O GDD amarra o ganho do turno à moradia. Já funcionam a regularização, água
 |---|---|---|
 | 🟡 **Calçados e roupas sazonais** | 🔧 👤 | GDD §6 "Lojas". Roupas, ferramenta, cama, móveis (casa completa +1 de felicidade) e eletrodomésticos (cozinhar) já estão na loja do jogo |
 | 🟡 **Energia e felicidade reais por tarefa** do minigame | 👤 | Hoje o turno gasta a energia pelo total; os números por tarefa são do game designer |
-| ⬜ **Limite da despensa pela casa** e tempo de compra no mercado | 🔧 | game-core, "Ainda não" |
 
 ### 2.3 Cidade, multiplayer e eventos
 
@@ -97,6 +96,7 @@ Os valores abaixo funcionam no jogo, mas são **premissas** marcadas no código.
 - **descanso e deslocamento:** +4/+8 de energia (metade sem moradia), efeitos da higiene, atrasos de ônibus e a pé, tarifas (ônibus 3, combustível 2, internet 2) e o home office; o cochilo de 4 h também zerar as 16 h acordado;
 - **unidades:** taxa de 5% na venda primária, royalty de 2% e taxa de 10% no aluguel;
 - **hotel de jogador:** obra de 9.000 THALER, níveis por 5.000 e 9.000, 10/20/40 quartos e 90% da diária ao dono;
+- **mercado e despensa:** compra de 4 min + 30 s por unidade; despensa de 10, 30 e 60 unidades (sem casa, com casa, com geladeira);
 - **skate:** 120 THALER e 60 viagens (a "depreciação" do GDD);
 - **móveis e cozinha:** sofá 200, mesa 150, guarda-roupa 180, fogão 300, geladeira 400 e micro-ondas 150 THALER; +1 de felicidade ao acordar com a casa completa; cozinhar +5/+4 e +1 de saúde com geladeira;
 - **loja:** preços das roupas, da ferramenta e da cama, e a ferramenta genérica por profissão;

@@ -273,6 +273,8 @@ export function createServidor(map) {
   let data = { avatar: null, balance: '0', scity: '0', lots: [], shifts: [], fx: null, withdrawals: null, deposits: null, kyc: null, invitations: [] };
   /** Alimentos do mercado do jogo, com o preço de uma unidade em centavos de THALER. */
   let foods = [];
+  /** Limites da despensa pela casa (10, 30 e 60) e o tempo de compra, do catálogo do mercado. */
+  let pantryLimits = null;
   let petshop = null;
   // Pet Sitter (E3.1): os sitters atendendo e, para o avatar Pet Sitter, o painel dele.
   let sitters = null;
@@ -392,7 +394,10 @@ export function createServidor(map) {
       if (!jobs.length) jobs = await call(API.game, '/v1/catalog/professions').then((r) => r.professions).catch(() => []);
       if (!foods.length) {
         foods = await call(API.game, '/v1/catalog/foods')
-          .then((r) => r.foods)
+          .then((r) => {
+            pantryLimits = r.pantry_limits ?? null;
+            return r.foods;
+          })
           .catch(() => []);
       }
       data.balance = balances.balances.find((b) => b.currency === 'THALER')?.amount ?? '0';
@@ -1227,8 +1232,17 @@ export function createServidor(map) {
       // Mercado do jogo (E2.3): comer custa THALER e sobe a alimentação.
       // Despensa: pacotes comprados antes; comer daqui não cobra de novo.
       const guardados = a.pantry ?? [];
+      // Limite da despensa pela casa: sem moradia 10, com moradia 30, com geladeira 60.
+      const limite = pantryLimits
+        ? moradia?.factor !== 1
+          ? pantryLimits.unhoused
+          : (a.gear?.home ?? []).includes('geladeira')
+            ? pantryLimits.fridge
+            : pantryLimits.housed
+        : null;
+      const unidades = guardados.reduce((n, p) => n + p.units, 0);
       if (!internado && guardados.length) {
-        body += `<h3>🧺 Despensa</h3><div class="linha">${guardados
+        body += `<h3>🧺 Despensa${limite ? ` <span class="muted pequeno">· ${unidades}/${limite} unidades</span>` : ''}</h3><div class="linha">${guardados
           .map((p) => {
             const f = foods.find((x) => x.code === p.food);
             return `<button class="btn btn--ghost pequeno" type="button" data-s="consumir" data-f="${esc(p.food)}" ${busy || at.food >= 10 ? 'disabled' : ''}>${esc(f?.label ?? p.food)} × ${p.units}</button>`;
@@ -1293,6 +1307,8 @@ export function createServidor(map) {
           body += `<label class="pequeno moradia-dias">Ir ao trabalho: <select class="campo" data-deslocamento aria-label="Como ir ao trabalho">${opts}</select></label>`;
         }
         if (a.rest) body += `<p class="muted pequeno">😴 Dormindo: acorda em ${left(a.rest.ends_at)} com +${a.rest.energy} de energia.</p>`;
+        // A compra no mercado leva 4 min + volume: até lá, sem turno.
+        if (a.market_until) body += `<p class="muted pequeno">🛒 No mercado: volta em ${left(a.market_until)}.</p>`;
         else if (a.status.mustRest) body += `<p class="pequeno">😴 Acordado há 16 h ou mais: durma (Descanso e higiene) para voltar a trabalhar.</p>`;
         body += `<div class="linha">
           <button class="btn btn--blue" type="button" data-s="work" data-h="6" ${busy || !a.status.canWork ? 'disabled' : ''}>Trabalhar 6 h</button>
