@@ -162,6 +162,7 @@ import {
   type MealPlanner,
   type MealStore,
   eatFromPantry,
+  cookFromPantry,
   isMedicine,
   isPetShop,
   isLeisure,
@@ -196,7 +197,7 @@ import {
   sittingDto,
 } from './domain/sitter.js';
 import { MemoryPetSitterStore } from './infra/memory-sitter-store.js';
-import { type ShopItem, checkShop, gearDto, gearFactor, gearOf, shopCatalog } from './domain/shop.js';
+import { SHOP_ITEMS, type ShopItem, checkShop, gearDto, gearFactor, gearOf, shopCatalog } from './domain/shop.js';
 import {
   CHORES,
   CHORE_CODES,
@@ -637,7 +638,7 @@ export async function buildApp(
 
   // Compra na loja: {item: roupa|ferramenta|cama, level?}. Pelo caminho das refeições (duas fases).
   app.post('/v1/avatars/:id/shop', async (request, reply) => {
-    const body = z.object({ item: z.enum(['roupa', 'ferramenta', 'cama']), level: z.number().int().min(1).max(3).optional() }).parse(request.body);
+    const body = z.object({ item: z.enum(SHOP_ITEMS as [ShopItem, ...ShopItem[]]), level: z.number().int().min(1).max(3).optional() }).parse(request.body);
     const { avatar, done } = await purchase(request, (clientKey) => (current) => {
       const { cents, effect } = checkShop(current, { item: body.item as ShopItem, level: body.level }, now());
       return planShop(current, { id: randomUUID(), clientKey, effect, cents }, now());
@@ -829,6 +830,16 @@ export async function buildApp(
     const fresh = (await store.get(avatar.id))!;
     const at = now();
     return reply.status(201).send({ purchase: mealDto(done), avatar: avatarDto(decayed(fresh, at), at) });
+  });
+
+  // Cozinha em casa uma unidade da despensa: fogão ou micro-ondas e moradia regular (GDD §6 "Lojas").
+  app.post('/v1/avatars/:id/cook', async (request) => {
+    const { food: foodCode } = mealBody.parse(request.body);
+    const avatar = await ownAvatar(request);
+    const housed = await housedNow(decayed(avatar, now()), request);
+    const fed = await store.updateAvatar(avatar.id, avatar.accountId, now(), (current) => cookFromPantry(current, { foodCode, housed }, now()));
+    const at = now();
+    return { avatar: avatarDto(decayed(fed, at), at) };
   });
 
   // Come uma unidade guardada na despensa (doc 06: consume), sem cobrar de novo.

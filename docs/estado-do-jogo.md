@@ -63,7 +63,7 @@ O GDD amarra o ganho do turno à moradia. Já funcionam a regularização, água
 | Falta | Quem | Observação |
 |---|---|---|
 | 🟡 **Skate como item comprado** (hoje todos podem ir de skate) | 🔧 | O descanso obrigatório após 16 h acordado já funciona (game-core) |
-| ⬜ **Móveis e eletrodomésticos** (casa completa +1 de felicidade, cozinhar), calçados e roupas sazonais | 🔧 👤 | GDD §6 "Lojas"; roupas, ferramenta e cama já estão na loja do jogo |
+| 🟡 **Calçados e roupas sazonais** | 🔧 👤 | GDD §6 "Lojas". Roupas, ferramenta, cama, móveis (casa completa +1 de felicidade) e eletrodomésticos (cozinhar) já estão na loja do jogo |
 | 🟡 **Energia e felicidade reais por tarefa** do minigame | 👤 | Hoje o turno gasta a energia pelo total; os números por tarefa são do game designer |
 | ⬜ **Limite da despensa pela casa** e tempo de compra no mercado | 🔧 | game-core, "Ainda não" |
 
@@ -98,6 +98,7 @@ Os valores abaixo funcionam no jogo, mas são **premissas** marcadas no código.
 - **descanso e deslocamento:** +4/+8 de energia (metade sem moradia), efeitos da higiene, atrasos de ônibus e a pé, tarifas (ônibus 3, combustível 2, internet 2) e o home office; o cochilo de 4 h também zerar as 16 h acordado;
 - **unidades:** taxa de 5% na venda primária, royalty de 2% e taxa de 10% no aluguel;
 - **hotel de jogador:** obra de 9.000 THALER, níveis por 5.000 e 9.000, 10/20/40 quartos e 90% da diária ao dono;
+- **móveis e cozinha:** sofá 200, mesa 150, guarda-roupa 180, fogão 300, geladeira 400 e micro-ondas 150 THALER; +1 de felicidade ao acordar com a casa completa; cozinhar +5/+4 e +1 de saúde com geladeira;
 - **loja:** preços das roupas, da ferramenta e da cama, e a ferramenta genérica por profissão;
 - **imóveis:** preço, renda e níveis da T2 e da T3;
 - **moradia:** aluguel de 15 THALER/dia (40% queima, 60% de volta ao pool P2E) e hotel de 25, 40 e 60 THALER/dia, com 1, 2 e 3 refeições;
@@ -122,7 +123,7 @@ A ordem prioriza o que deixa o jogo **completo para o jogador** no lançamento d
 2. ~~**Moradia completa**~~ ✅ (2026-11-26): regularização, água e energia, aluguel, hotel e o fator no turno. O aluguel e o hotel de jogadores vêm com o item 7.
 3. ~~**Descansar, atividades e deslocamento**~~ ✅ (2026-11-26): dormir, higiene em casa e o modo de ir ao trabalho. O descanso obrigatório após 16 h acordado ficou pronto em 2026-11-27. Faltam os números do game designer.
 4. ~~**Tipos de imóvel e catálogo no Strapi**~~ ✅ (2026-11-26): o catálogo vem do Strapi e a T1 troca para T2 e T3. Os outros tipos entram sozinhos quando o game designer preencher preço e renda no CMS; o lote duplo ainda falta.
-5. ~~**Bônus de itens e loja**~~ ✅ (2026-11-26): roupas, ferramenta de trabalho e cama na loja do jogo, com o bônus no turno. Móveis, eletrodomésticos e roupas sazonais ficam para depois.
+5. ~~**Bônus de itens e loja**~~ ✅ (2026-11-26): roupas, ferramenta de trabalho e cama na loja do jogo, com o bônus no turno. Móveis e eletrodomésticos (casa completa e cozinhar) entraram em 2026-11-27. Calçados e roupas sazonais ficam para depois.
 6. **Arte** 👤: profissões, pets, Lucky Box e trailer. Não bloqueia o código, mas bloqueia o lançamento.
 7. ~~**Prédios com unidades e venda**~~ ✅ (2026-11-27), no jogo: unidades, venda, revenda e aluguel para morar. Os contratos `UnitNFT`/`UnitMarket` ficam para uma rodada com auditoria.
 8. ~~**Agendador de eventos ao vivo**~~ ✅ (2026-11-27): dirigível 3 vezes ao dia e anúncios das datas marcadas. Os efeitos de jogo das datas (itens e bônus de Natal e Carnaval) esperam o game designer.

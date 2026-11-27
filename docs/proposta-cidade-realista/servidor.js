@@ -797,6 +797,18 @@ export function createServidor(map) {
       <button class="btn btn--ghost pequeno" type="button" data-s="loja" data-i="ferramenta" ${off}>Ferramenta (+${Math.round(loja.tool.bonus * 100)}%, ${loja.tool.days} dias) · ${thaler(loja.tool.price)}</button>
       ${g.bed ? '' : `<button class="btn btn--ghost pequeno" type="button" data-s="loja" data-i="cama" ${off}>Cama · ${thaler(loja.bed.price)}</button>`}</div>
       <p class="muted pequeno">A roupa vale para sempre; a ferramenta, para a profissão de agora. A cama libera o 2º turno de 6 h no dia. Preços provisórios.</p>`;
+    // Móveis e eletrodomésticos (GDD §6 "Lojas"): casa completa +1 de felicidade ao acordar; fogão e micro-ondas cozinham.
+    if (loja.home) {
+      const tem = new Set(g.home ?? []);
+      const botao = (i) =>
+        tem.has(i.code) ? '' : `<button class="btn btn--ghost pequeno" type="button" data-s="loja" data-i="${esc(i.code)}" ${off}>${esc(i.label)} · ${thaler(i.price)}</button>`;
+      const faltam = loja.complete_home.items.filter((i) => (i === 'cama' ? !g.bed : !tem.has(i))).length;
+      html += `<p class="pequeno">🛋️ Móveis${g.complete_home ? ' · <span class="tag tag--srv">Casa completa</span>' : faltam ? ` · faltam ${faltam} para a casa completa` : ''}</p>
+        <div class="linha moradia-opcoes">${loja.home.filter((i) => i.kind === 'movel').map(botao).join('')}</div>
+        <p class="pequeno">🍳 Eletrodomésticos${g.cooks_with ? ` · cozinha no ${g.cooks_with === 'fogao' ? 'fogão' : 'micro-ondas'}` : ''}</p>
+        <div class="linha moradia-opcoes">${loja.home.filter((i) => i.kind === 'eletro').map(botao).join('')}</div>
+        <p class="muted pequeno">Casa completa (cama, sofá, mesa e guarda-roupa): +${loja.complete_home.happiness_on_wake} de felicidade ao acordar em casa. Cozinhar a despensa: +${loja.cooking.food.fogao} no fogão, +${loja.cooking.food.micro_ondas} no micro-ondas, sem dor de barriga; a geladeira dá +${loja.cooking.fridge_health} de saúde. Preços provisórios.</p>`;
+    }
     return html;
   };
 
@@ -1220,7 +1232,17 @@ export function createServidor(map) {
             const f = foods.find((x) => x.code === p.food);
             return `<button class="btn btn--ghost pequeno" type="button" data-s="consumir" data-f="${esc(p.food)}" ${busy || at.food >= 10 ? 'disabled' : ''}>${esc(f?.label ?? p.food)} × ${p.units}</button>`;
           })
-          .join('')}</div>${at.food >= 10 ? '<p class="muted pequeno">Satisfeito: come da despensa quando a alimentação baixar.</p>' : ''}`;
+          .join('')}</div>${
+          // Com fogão ou micro-ondas, cozinha em casa: rende mais e sem dor de barriga.
+          a.gear?.cooks_with
+            ? `<div class="linha moradia-opcoes">${guardados
+                .map((p) => {
+                  const f = foods.find((x) => x.code === p.food);
+                  return `<button class="btn btn--blue pequeno" type="button" data-s="cozinhar" data-f="${esc(p.food)}" ${busy || at.food >= 10 ? 'disabled' : ''}>🍳 Cozinhar ${esc(f?.label ?? p.food)}</button>`;
+                })
+                .join('')}</div>`
+            : ''
+        }${at.food >= 10 ? '<p class="muted pequeno">Satisfeito: come da despensa quando a alimentação baixar.</p>' : ''}`;
       }
       if (!internado && foods.length) {
         const options = foods
@@ -1604,8 +1626,11 @@ export function createServidor(map) {
           body: { item, ...(b.dataset.l ? { level: Number(b.dataset.l) } : {}) },
           headers: { 'idempotency-key': crypto.randomUUID() },
         });
-        const label = { roupa: `Roupa nível ${b.dataset.l}`, ferramenta: 'Ferramenta de trabalho', cama: 'Cama' }[item];
-        message = `${label}: −${thaler(r.purchase.price)} THALER. Itens no turno: +${Math.round((r.avatar.gear.factor - 1) * 100)}%.`;
+        const casa = loja.home?.find((i) => i.code === item);
+        const label = casa?.label ?? { roupa: `Roupa nível ${b.dataset.l}`, ferramenta: 'Ferramenta de trabalho', cama: 'Cama' }[item];
+        message = casa
+          ? `${label}: −${thaler(r.purchase.price)} THALER.${r.avatar.gear.complete_home ? ' Casa completa: +1 de felicidade ao acordar em casa.' : ''}`
+          : `${label}: −${thaler(r.purchase.price)} THALER. Itens no turno: +${Math.round((r.avatar.gear.factor - 1) * 100)}%.`;
         messageOk = true;
       });
     }
@@ -1852,6 +1877,14 @@ export function createServidor(map) {
             : action === 'agua'
               ? `${name} bebeu água.`
               : `Passeio com ${name}: energia ${r.avatar.attributes.energy}/10, felicidade ${r.avatar.attributes.happiness}/10.`;
+        messageOk = true;
+      });
+    }
+    if (what === 'cozinhar') {
+      return act(async () => {
+        const r = await call(API.game, `/v1/avatars/${data.avatar.id}/cook`, { method: 'POST', token: session.token, body: { food: b.dataset.f } });
+        const label = foods.find((f) => f.code === b.dataset.f)?.label ?? b.dataset.f;
+        message = `${label} feito em casa: alimentação ${r.avatar.attributes.food}/10, saúde ${r.avatar.attributes.health}/10.`;
         messageOk = true;
       });
     }

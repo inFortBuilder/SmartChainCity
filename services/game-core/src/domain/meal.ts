@@ -9,7 +9,7 @@ import { type SchoolEffect, applySchoolEffect } from './school.js';
 import { type LeisureEffect, applyLeisure } from './leisure.js';
 import { applyLicense } from './vehicle.js';
 import { type HousingEffect, applyStay } from './housing.js';
-import { type ShopEffect, applyShop } from './shop.js';
+import { COOK_FOOD, FRIDGE_HEALTH, type ShopEffect, applyShop, cooker, hasItem } from './shop.js';
 
 /**
  * Refeição no mercado do jogo (E2.3, GDD §2.3 e §4): o avatar compra uma
@@ -307,6 +307,31 @@ export function eatFromPantry(avatar: Avatar, input: { foodCode: string; roll?: 
   }
   const meal = planMeal(avatar, { id: 'despensa', foodCode: input.foodCode, clientKey: null, roll: input.roll }, now);
   const fed = eat(avatar, meal.effects, now);
+  const left = (avatar.pantry[input.foodCode] ?? 0) - 1;
+  const pantry = { ...fed.pantry };
+  if (left > 0) pantry[input.foodCode] = left;
+  else delete pantry[input.foodCode];
+  return { ...fed, pantry };
+}
+
+/**
+ * Cozinha em casa uma unidade da despensa (GDD §6 "Lojas": fogão e micro-ondas permitem cozinhar). Rende
+ * mais que comer cru (fogão +5, micro-ondas +4), sem a chance de dor de barriga; com geladeira, +1 de
+ * saúde. Precisa de moradia regular (a cozinha é a de casa).
+ */
+export function cookFromPantry(avatar: Avatar, input: { foodCode: string; housed: boolean }, now: Date): Avatar {
+  assertNotInHospital(avatar, now);
+  const how = cooker(avatar);
+  if (!how) throw new AppError('no_stove', 'Para cozinhar, o avatar precisa de fogão ou micro-ondas (loja do jogo).', 409);
+  if (!input.housed) throw new AppError('no_home', 'Sem moradia regular: alugue, vá para o hotel ou regularize a sua casa.', 409);
+  if ((avatar.pantry[input.foodCode] ?? 0) < 1) throw new AppError('not_in_pantry', 'Esse alimento não está na despensa.', 409);
+  // Sem dor de barriga (roll 1): a comida é feita em casa.
+  const meal = planMeal(avatar, { id: 'cozinha', foodCode: input.foodCode, clientKey: null, roll: 1 }, now);
+  const fed = eat(
+    avatar,
+    { ...meal.effects, food: COOK_FOOD[how], health: meal.effects.health + (hasItem(avatar, 'geladeira') ? FRIDGE_HEALTH : 0) },
+    now,
+  );
   const left = (avatar.pantry[input.foodCode] ?? 0) - 1;
   const pantry = { ...fed.pantry };
   if (left > 0) pantry[input.foodCode] = left;
