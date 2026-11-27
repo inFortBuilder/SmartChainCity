@@ -384,7 +384,8 @@ export async function buildApp(
     await risk?.assert({ accountId, deviceHeader: request.headers['x-device-id'], ip: request.ip, action }, now());
   };
 
-  await app.register(cors, { origin: config.CORS_ORIGINS });
+  // PUT e DELETE também: o padrão do @fastify/cors é só GET, HEAD e POST, e as telas usam os dois.
+  await app.register(cors, { origin: config.CORS_ORIGINS, methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'] });
 
   app.setErrorHandler((error, request, reply) => {
     if (error instanceof AppError) {

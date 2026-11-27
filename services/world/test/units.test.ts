@@ -274,3 +274,16 @@ describe.skipIf(!pool)('unidades no Postgres', () => {
     expect((await store.unitsForRent(code, 10)).map((x) => x.id)).toEqual([u!.id]);
   });
 });
+
+it('CORS: a tela pode usar PUT (preços da unidade) e DELETE', async () => {
+  const store = new MemoryWorldStore();
+  const app = await buildApp(loadConfig({ NODE_ENV: 'test', JWT_SECRET: SECRET, CORS_ORIGINS: 'http://localhost:8081' }), store);
+  for (const method of ['PUT', 'DELETE']) {
+    const r = await app.inject({
+      method: 'OPTIONS',
+      url: `/v1/world/units/${randomUUID()}/offer`,
+      headers: { origin: 'http://localhost:8081', 'access-control-request-method': method },
+    });
+    expect(r.headers['access-control-allow-methods']).toContain(method);
+  }
+});

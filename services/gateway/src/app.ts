@@ -93,7 +93,8 @@ export async function buildApp(config: Config, store: AuthStore & KycStore, now?
         )
       : null;
 
-  await app.register(cors, { origin: config.CORS_ORIGINS });
+  // PUT e DELETE também: o padrão do @fastify/cors é só GET, HEAD e POST, e as telas usam os dois.
+  await app.register(cors, { origin: config.CORS_ORIGINS, methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'] });
   await app.register(rateLimit, {
     global: true,
     max: config.RATE_LIMIT_PER_MINUTE,
