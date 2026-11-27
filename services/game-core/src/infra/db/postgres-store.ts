@@ -246,6 +246,13 @@ export class PostgresAvatarStore implements AvatarStore, ShiftStore, MealStore, 
     return row ? toAvatar(row) : null;
   }
 
+  async hotelGuests(hotelId: string, now: Date) {
+    const r = await this.db.execute(
+      sql`select count(*)::int as n from game.avatar where housing->>'hotelId' = ${hotelId} and (housing->>'until')::timestamptz > ${now.toISOString()}::timestamptz`,
+    );
+    return Number((r.rows[0] as { n: number }).n);
+  }
+
   async listByAccount(accountId: string) {
     const rows = await this.db.select().from(avatar).where(eq(avatar.accountId, accountId)).orderBy(asc(avatar.createdAt));
     return rows.map(toAvatar);

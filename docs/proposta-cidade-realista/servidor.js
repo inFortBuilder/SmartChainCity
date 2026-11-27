@@ -286,6 +286,8 @@ export function createServidor(map) {
   let carCatalog = null;
   /** Moradia do avatar (doc 04 §4): casa própria, aluguel ou hotel, e o fator do turno. */
   let moradia = null;
+  /** Hotéis de jogador da cidade (GDD §6 "Hotel"), com a lotação. */
+  let hoteisJogador = [];
   /** Apartamentos de jogadores para alugar na cidade. */
   let aluguelUnidades = [];
   /** Descanso, higiene e deslocamento (GDD §2.3 e §3.3): o catálogo, uma vez. */
@@ -372,6 +374,10 @@ export function createServidor(map) {
       moradia = data.avatar
         ? await call(API.game, `/v1/avatars/${data.avatar.id}/housing`, { token: session.token }).catch(() => null)
         : null;
+      // Hotéis de jogador da cidade, com hóspedes e quartos.
+      hoteisJogador = await call(API.game, `/v1/housing/hotels?city=${CITY}`, { token: session.token })
+        .then((r) => r.hotels)
+        .catch(() => []);
       // Apartamentos de jogadores para alugar (E3.11).
       aluguelUnidades = await call(API.world, `/v1/world/cities/${CITY}/units/for-rent`, { token: session.token })
         .then((r) => r.units)
@@ -839,10 +845,12 @@ export function createServidor(map) {
     }
     if (m.stay) {
       const s = m.stay;
-      html += `<p class="muted pequeno">${s.kind === 'hotel' ? `🏨 Hotel nível ${s.level}` : '🔑 Aluguel'} até ${day(s.until)}${
+      const deJogador = s.hotel_id ? hoteisJogador.find((h) => h.id === s.hotel_id) : null;
+      const nome = s.hotel_id ? `🏨 Hotel de jogador${deJogador ? ` ${esc(deJogador.lot_code)}` : ''} nível ${s.level}` : `🏨 Hotel nível ${s.level}`;
+      html += `<p class="muted pequeno">${s.kind === 'hotel' ? nome : '🔑 Aluguel'} até ${day(s.until)}${
         s.kind === 'hotel' ? ` · ${s.meals_left_today} refeição(ões) incluída(s) hoje` : ''
       }.</p><div class="linha moradia-opcoes">
-        <button class="btn btn--ghost pequeno" type="button" data-s="moradia" data-k="${s.kind}" data-l="${s.level}" ${off}>Mais dias</button>
+        <button class="btn btn--ghost pequeno" type="button" data-s="moradia" data-k="${s.kind}" data-l="${s.level}" ${s.hotel_id ? `data-hotel="${s.hotel_id}"` : ''} ${off}>Mais dias</button>
         ${s.kind === 'hotel' ? `<button class="btn btn--blue pequeno" type="button" data-s="moradia-refeicao" ${off || (s.meals_left_today ? '' : 'disabled')}>Refeição do hotel</button>` : ''}
         <button class="btn btn--ghost pequeno" type="button" data-s="moradia-sair" ${off}>Sair</button></div>`;
     }
@@ -862,8 +870,25 @@ export function createServidor(map) {
           .map((h) => `<button class="btn btn--ghost pequeno" type="button" data-s="moradia" data-k="hotel" data-l="${h.level}" ${off}>Hotel ${h.level} · ${thaler(h.cents_per_day)}/dia</button>`)
           .join('')}</div>
         <p class="muted pequeno">O hotel inclui 1, 2 ou 3 refeições por dia, pelo nível. Valores provisórios.</p>`;
+      // Hotéis de jogador: a diária do nível vai para o dono. Os cheios e fechados ficam de fora.
+      const livres = hoteisJogador.filter((h) => !h.mine && h.open && h.guests < h.rooms).slice(0, 6);
+      if (livres.length) {
+        html += `<p class="pequeno">Hotéis de jogadores:</p><div class="linha moradia-opcoes">${livres
+          .map(
+            (h) =>
+              `<button class="btn btn--ghost pequeno" type="button" data-s="moradia" data-k="hotel" data-l="${h.level}" data-hotel="${h.id}" ${off} title="${h.meals_per_day} refeição(ões) por dia">${esc(h.lot_code)} · nível ${h.level} · ${thaler(h.cents_per_day)}/dia · ${h.guests}/${h.rooms} quartos</button>`,
+          )
+          .join('')}</div>`;
+      }
     } else {
       html += `<label class="pequeno moradia-dias">Mais dias: <select class="campo" data-dias aria-label="Dias">${dias}</select></label>`;
+    }
+    // Os hotéis da conta: a lotação (a diária dos hóspedes é a renda, 90% para o dono).
+    const meus = hoteisJogador.filter((h) => h.mine);
+    if (meus.length) {
+      html += `<p class="muted pequeno">Seus hotéis: ${meus
+        .map((h) => `${esc(h.lot_code)} · nível ${h.level} · ${h.guests}/${h.rooms} hóspedes${h.open ? '' : ' · fechado'}`)
+        .join(' · ')}. Você recebe 90% das diárias.</p>`;
     }
     return html;
   };
@@ -1602,15 +1627,17 @@ export function createServidor(map) {
       const days = Number(panel.querySelector('[data-dias]')?.value ?? 7);
       const kind = b.dataset.k;
       const level = Number(b.dataset.l ?? 1);
+      const hotelId = b.dataset.hotel;
       return act(async () => {
         const r = await call(API.game, `/v1/avatars/${data.avatar.id}/housing`, {
           method: 'POST',
           token: session.token,
-          body: { kind, level, days },
+          body: { kind, level, days, ...(hotelId ? { hotel_id: hotelId } : {}) },
           headers: { 'idempotency-key': crypto.randomUUID() },
         });
         moradia = r.housing;
-        message = `${kind === 'hotel' ? `Hotel nível ${level}` : 'Aluguel'}: −${thaler(r.purchase.price)} THALER, até ${new Date(r.housing.stay.until).toLocaleDateString('pt-BR')}.`;
+        if (hotelId) hoteisJogador = await call(API.game, `/v1/housing/hotels?city=${CITY}`, { token: session.token }).then((x) => x.hotels).catch(() => hoteisJogador);
+        message = `${kind === 'hotel' ? `${hotelId ? 'Hotel de jogador' : 'Hotel'} nível ${level}` : 'Aluguel'}: −${thaler(r.purchase.price)} THALER, até ${new Date(r.housing.stay.until).toLocaleDateString('pt-BR')}.`;
         messageOk = true;
       });
     }

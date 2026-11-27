@@ -42,6 +42,8 @@ import {
   typeOf,
   wearAt,
   VENUE_TYPES,
+  HOTEL_TYPES,
+  hotelRooms,
   venueOpen,
 } from './domain/properties.js';
 import { type LandPayments, type Lot, type WorldStore, lotCode, priceOf } from './domain/lots.js';
@@ -547,6 +549,45 @@ export async function buildApp(
         };
       }),
     };
+  });
+
+  // Hotéis de jogador (GDD §6 "Hotel"): os da cidade, com nível e quartos. O dono não é exposto, só "seu".
+  const hotelDto = (p: Property, t: Date) => {
+    const type = typeOf(p.type)!;
+    return {
+      id: p.id,
+      label: type.label,
+      level: p.level,
+      rooms: hotelRooms(type, p.level),
+      lot_id: p.lotId,
+      lot_code: lotCode(p.city, p.lotId),
+      open: venueOpen(p, t),
+    };
+  };
+  app.get('/v1/world/cities/:code/hotels', async (request) => {
+    const { code } = codeParam.parse(request.params);
+    await cityOr404(code);
+    const me = await maybePlayer(request);
+    const t = now();
+    const list = await propertiesOn().store.propertiesOfTypes(code, HOTEL_TYPES(), 200);
+    return { hotels: list.map((p) => ({ ...hotelDto(p, t), mine: me !== null && p.ownerAccountId === me })) };
+  });
+
+  // O game-core lista os hotéis (com o dono, para marcar os da conta e barrar o próprio) e confere um
+  // antes de cobrar a diária.
+  app.get('/internal/v1/cities/:code/hotels', async (request) => {
+    internalOnly(request);
+    const { code } = codeParam.parse(request.params);
+    const t = now();
+    const list = await propertiesOn().store.propertiesOfTypes(code, HOTEL_TYPES(), 200);
+    return { hotels: list.map((p) => ({ ...hotelDto(p, t), city: p.city, owner_account_id: p.ownerAccountId })) };
+  });
+  app.get('/internal/v1/hotels/:id', async (request) => {
+    internalOnly(request);
+    const { id } = z.object({ id: z.uuid() }).parse(request.params);
+    const p = await propertiesOn().store.getProperty(id);
+    if (!p || !typeOf(p.type)?.lodging) throw new AppError('not_found', 'Hotel não encontrado.', 404);
+    return { hotel: { ...hotelDto(p, now()), city: p.city, owner_account_id: p.ownerAccountId } };
   });
 
   // O game-core pergunta o negócio antes de cobrar a entrada: tipo, dono e se está aberto.

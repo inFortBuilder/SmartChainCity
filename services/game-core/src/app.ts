@@ -219,6 +219,8 @@ import {
   housingDto,
   housingFactor,
   housingPrices,
+  checkPlayerHotel,
+  type HotelDirectory,
   leaveStay,
 } from './domain/housing.js';
 import { fetchCmsEventGroups, fetchCmsFoods, fetchCmsProfessions, fetchCmsSeasons } from './infra/cms-catalog.js';
@@ -367,6 +369,8 @@ export async function buildApp(
   sitterStore: PetSitterStore | null = null,
   /** Casas próprias da conta no world (moradia, doc 04 §4). Sem ele, só aluguel e hotel contam. */
   homes: HomeDirectory | null = null,
+  /** Hotéis de jogador no world (GDD §6 "Hotel"). Sem ele, só o hotel do jogo. */
+  hotels: HotelDirectory | null = null,
 ) {
   const sitters = sitterStore ?? new MemoryPetSitterStore();
   const app = Fastify({
@@ -596,6 +600,35 @@ export async function buildApp(
 
   app.get('/v1/housing/prices', async () => housingPrices());
 
+  // Hotéis de jogador da cidade (GDD §6 "Hotel"), com a lotação e a diária do nível. Com Bearer, marca
+  // os da conta (que não pode se hospedar no próprio).
+  app.get('/v1/housing/hotels', async (request) => {
+    const { city } = z.object({ city: z.string().min(1).max(40) }).parse(request.query);
+    if (!hotels) return { hotels: [], world_on: false };
+    let me: string | null = null;
+    if (request.headers.authorization) me = await player(request);
+    const at = now();
+    const list = await hotels.hotels(city, request.id);
+    const prices = housingPrices().hotel;
+    return {
+      world_on: true,
+      hotels: await Promise.all(
+        list.map(async (h) => ({
+          id: h.id,
+          label: h.label,
+          level: h.level,
+          lot_code: h.lotCode,
+          open: h.open,
+          rooms: h.rooms,
+          guests: await store.hotelGuests(h.id, at),
+          cents_per_day: prices.find((p) => p.level === h.level)?.cents_per_day ?? null,
+          meals_per_day: prices.find((p) => p.level === h.level)?.meals_per_day ?? 0,
+          mine: me !== null && h.ownerAccountId === me,
+        })),
+      ),
+    };
+  });
+
   // ---------------------------------------------------------------- descanso, higiene e deslocamento (GDD §2.3, §3.3)
 
   // ---------------------------------------------------------------- loja do jogo (GDD §6 "Lojas", fase 1)
@@ -653,13 +686,35 @@ export async function buildApp(
     return housingView(decayed(avatar, now()), request);
   });
 
-  // Aluguel ou hotel por N dias: {kind, level?, days}. A mesma estadia estende; outra exige sair antes.
+  // Aluguel ou hotel por N dias: {kind, level?, days, hotel_id?}. Com `hotel_id`, o hotel de jogador:
+  // o nível é o do hotel e a diária vai para o dono. A mesma estadia estende; outra exige sair antes.
   app.post('/v1/avatars/:id/housing', async (request, reply) => {
     const body = z
-      .object({ kind: z.enum(['aluguel', 'hotel']), level: z.number().int().min(1).max(3).default(1), days: z.number().int().min(1).max(30) })
+      .object({
+        kind: z.enum(['aluguel', 'hotel']),
+        level: z.number().int().min(1).max(3).default(1),
+        days: z.number().int().min(1).max(30),
+        hotel_id: z.uuid().optional(),
+      })
       .parse(request.body);
-    const effect = { kind: body.kind as StayKind, level: body.kind === 'hotel' ? body.level : 1, days: body.days };
+    let hotel = null;
+    if (body.hotel_id) {
+      if (body.kind !== 'hotel') throw new AppError('invalid_stay', 'O hotel de jogador é uma estadia de hotel.', 400);
+      if (!hotels) throw new AppError('hotels_unavailable', 'Hotéis de jogador desligados: o world não está ligado.', 503);
+      hotel = await hotels.hotel(body.hotel_id, request.id);
+    }
+    const guests = hotel ? await store.hotelGuests(hotel.id, now()) : 0;
+    const effect = {
+      kind: body.kind as StayKind,
+      level: hotel ? hotel.level : body.kind === 'hotel' ? body.level : 1,
+      days: body.days,
+      ...(hotel ? { hotel: { id: hotel.id, ownerAccountId: hotel.ownerAccountId } } : {}),
+    };
     const { avatar, done } = await purchase(request, (clientKey) => (current) => {
+      if (body.hotel_id) {
+        const here = !!current.housing && current.housing.until > now() && current.housing.hotelId === body.hotel_id;
+        checkPlayerHotel(hotel, current.accountId, guests, here);
+      }
       const { cents } = checkStay(current, effect, now());
       return planHousing(current, { id: randomUUID(), clientKey, effect, cents }, now());
     });

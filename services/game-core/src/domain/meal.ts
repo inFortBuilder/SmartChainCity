@@ -150,7 +150,10 @@ export function planHousing(avatar: Avatar, input: { id: string; clientKey: stri
     id: input.id,
     avatarId: avatar.id,
     accountId: avatar.accountId,
-    foodCode: input.effect.kind === 'hotel' ? `moradia:hotel:${input.effect.level}` : 'moradia:aluguel',
+    foodCode:
+      input.effect.kind === 'hotel'
+        ? `moradia:hotel:${input.effect.level}${input.effect.hotel ? `:${input.effect.hotel.id}` : ''}`
+        : 'moradia:aluguel',
     priceCents: input.cents,
     effects: { food: 0, energy: 0, health: 0, housing: input.effect },
     status: 'pending',

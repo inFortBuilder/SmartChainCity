@@ -53,7 +53,7 @@ O GDD amarra o ganho do turno à moradia. Já funcionam a regularização, água
 
 | Falta | Quem | Observação |
 |---|---|---|
-| 🟡 **Hotel de jogadores** (bônus por ocupação); o aluguel de unidade de jogador já funciona | 🔧 | O hotel de hoje é do jogo |
+| ✅ **Hotel de jogadores:** a diária vai para o dono (90%), com quartos por nível. O aluguel de unidade de jogador também já funciona | 🔧 | Preço da obra e quartos provisórios |
 | 🟡 **Tipos de imóvel:** a troca T1 → T2 → T3 e o catálogo do Strapi já funcionam; faltam os valores dos outros tipos do doc 03 §6 (o Strapi os mostra como "aguardando") e o lote duplo (Residencial 2 e 3) | 👤 🔧 | Os valores vêm da "Figura 16" do GDD, que não veio no texto (doc 11, lacuna 3) |
 | ⬜ **Seguro** do imóvel | 🔧 👤 | Faltam regra e preço |
 | 🟡 **Prédios:** as unidades se vendem e se alugam no jogo; faltam o `UnitNFT`/`UnitMarket` (com auditoria), taxa de alvará, prazo de obra pela área, IPTU por unidade, condomínio e o `BuildingNFT` lido pelo indexer | 🔧 👤 | doc 13 |
@@ -97,6 +97,7 @@ Os valores abaixo funcionam no jogo, mas são **premissas** marcadas no código.
 - **câmbio:** teto e spread;
 - **descanso e deslocamento:** +4/+8 de energia (metade sem moradia), efeitos da higiene, atrasos de ônibus e a pé, tarifas (ônibus 3, combustível 2, internet 2) e o home office; o cochilo de 4 h também zerar as 16 h acordado;
 - **unidades:** taxa de 5% na venda primária, royalty de 2% e taxa de 10% no aluguel;
+- **hotel de jogador:** obra de 9.000 THALER, níveis por 5.000 e 9.000, 10/20/40 quartos e 90% da diária ao dono;
 - **loja:** preços das roupas, da ferramenta e da cama, e a ferramenta genérica por profissão;
 - **imóveis:** preço, renda e níveis da T2 e da T3;
 - **moradia:** aluguel de 15 THALER/dia (40% queima, 60% de volta ao pool P2E) e hotel de 25, 40 e 60 THALER/dia, com 1, 2 e 3 refeições;

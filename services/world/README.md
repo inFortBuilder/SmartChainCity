@@ -182,6 +182,18 @@ Academia e galeria de arte são tipos de imóvel de jogador (GDD §6 "Lazer": "n
 
 **Premissas:** academia por 6.000 THALER com entrada de 5; galeria por 5.000 com entrada de 4; obra de 24 h.
 
+### Hotel de jogador (GDD §6 "Hotel")
+
+O hotel é um tipo de imóvel de jogador, construído pela mesma rota em zona comercial ou mista, com 3 níveis (o "Nível" sobe como o da casa).
+
+- **Renda:** não vem do pool P2E. É a diária dos hóspedes, cobrada no game-core: 90% vão para o dono e 10% viram taxa da Prefeitura. Esse é o "bônus por ocupação".
+- **Quartos:** 10, 20 e 40 por nível. O game-core conta os hóspedes e barra a entrada com o hotel cheio.
+- **Aberto:** com a obra pronta e o desgaste acima de 30, como os negócios de lazer.
+- `GET /v1/world/cities/:code/hotels` lista os hotéis da cidade, sem expor o dono (só `mine`).
+- `GET /internal/v1/cities/:code/hotels` e `GET /internal/v1/hotels/:id` (`X-Service-Token`) dão ao game-core o dono, o nível, os quartos e se está aberto.
+
+**Premissas:** hotel por 9.000 THALER, nível 2 por 5.000 e nível 3 por 9.000; os quartos por nível.
+
 ## Impostos (E2.6)
 
 O job `tax.charge` (a cada `TAX_EVERY_SECONDS`, 1 h) faz duas coisas: gera as contas vencidas de todos os lotes vendidos e tenta o débito automático, em THALER, do jogador para a queima (`burn/tax`).
@@ -303,6 +315,9 @@ TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc_test pnpm --filter
 | GET | `/v1/world/property-types` | público | Tipos de imóvel, preço, obra, renda por nível e regras de desgaste e acúmulo; nos negócios de lazer, `venue` com a atividade e a entrada |
 | GET | `/v1/world/cities/:code/venues` | público (com Bearer, marca `mine`) | Academias e galerias da cidade: tipo, lote, entrada, `open` e fase |
 | GET | `/internal/v1/venues/:id` | serviços (`X-Service-Token`) | O negócio para o game-core cobrar a entrada: dono, atividade, entrada e se está aberto |
+| GET | `/v1/world/cities/:code/hotels` | público (com Bearer, marca `mine`) | Hotéis de jogador da cidade: nível, quartos, lote e `open` |
+| GET | `/internal/v1/cities/:code/hotels` | serviços (`X-Service-Token`) | Hotéis da cidade com o dono, para o game-core |
+| GET | `/internal/v1/hotels/:id` | serviços (`X-Service-Token`) | Um hotel para o game-core cobrar a diária: dono, nível, quartos e se está aberto |
 | POST | `/v1/world/cities/:code/lots/:id/property` | dono do lote (Bearer) | Constrói (corpo: `{type}`) pagando THALER |
 | GET | `/v1/world/me/properties` | jogador (Bearer) | Imóveis do jogador: fase (`pending_payment`, `building`, `ready`), progresso da obra, desgaste, renda por dia e acumulada |
 | POST | `/v1/world/properties/:id/claim` | dono (Bearer) | Coleta a renda acumulada |

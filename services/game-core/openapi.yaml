@@ -87,6 +87,14 @@ paths:
       summary: "Preços do aluguel e do hotel"
       tags: ["housing"]
       responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/housing/hotels:
+    get:
+      summary: "Hotéis de jogador da cidade"
+      tags: ["housing"]
+      description: "Hotéis de jogador da cidade (?city=): nível, quartos, hóspedes, diária e refeições"
+      security: [{},{"bearer":[]}]
+      parameters: [{"name":"city","in":"query","required":true,"schema":{"type":"string","maxLength":40}}]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
   /v1/catalog/shop:
     get:
       summary: "Preços e bônus da loja"
@@ -136,8 +144,8 @@ paths:
       description: "Aluguel ou hotel {kind, level?, days}. Aceita Idempotency-Key"
       security: [{"bearer":[]}]
       parameters: [{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]
-      requestBody: {"required":true,"content":{"application/json":{"schema":{"type":"object","properties":{"kind":{"type":"string","enum":["aluguel","hotel"]},"level":{"type":"integer","minimum":1,"maximum":3},"days":{"type":"integer","minimum":1,"maximum":30}},"required":["kind","days"]}}}}
-      responses: {"201":{"description":"Criado","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+      requestBody: {"required":true,"content":{"application/json":{"schema":{"type":"object","properties":{"kind":{"type":"string","enum":["aluguel","hotel"]},"level":{"type":"integer","minimum":1,"maximum":3},"days":{"type":"integer","minimum":1,"maximum":30},"hotel_id":{"type":"string","format":"uuid"}},"required":["kind","days"]}}}}
+      responses: {"201":{"description":"Criado","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro (códigos: invalid_stay, hotels_unavailable)","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
     delete:
       summary: "Sai do aluguel ou do hotel, sem reembolso"
       tags: ["avatars"]
