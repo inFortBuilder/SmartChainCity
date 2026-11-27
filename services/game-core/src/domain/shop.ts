@@ -11,6 +11,8 @@ import { assertNotInHospital } from './hospital.js';
  * - **Ferramenta de trabalho** da profissão: +30% por 3 dias (o GDD dá o estetoscópio do médico). Vale só
  *   para a profissão de quando foi comprada; comprar de novo estende.
  * - **Cama**: libera o segundo turno de 6 h no dia (GDD §3.2: "2 turnos de 6 h, requer item cama").
+ * - **Skate ou bicicleta** (GDD §3.3: "10 min, depreciação"): libera o modo skate de ir ao trabalho. Gasta uma
+ *   viagem por turno; sem viagens, quebra e precisa comprar outro (routine.ts).
  * - **Móveis** (GDD §6 "Lojas": "casa completa = +1 felicidade"): sofá, mesa e guarda-roupa. Com a cama,
  *   são a casa completa: ao acordar de um descanso numa moradia regular, +1 de felicidade (routine.ts).
  * - **Eletrodomésticos** ("fogão, geladeira, micro-ondas permitem cozinhar"): com fogão ou micro-ondas, o
@@ -26,6 +28,7 @@ import { assertNotInHospital } from './hospital.js';
  *   micro-ondas 150 THALER; a felicidade da casa completa só ao acordar, uma vez por descanso;
  * - cozinhar: +5 de alimentação no fogão, +4 no micro-ondas (comer cru da despensa dá +3); +1 de saúde
  *   com a geladeira;
+ * - skate: 120 THALER, 60 viagens (um mês de 2 turnos por dia);
  * - tudo vira queima (`burn/shop`): a loja é do jogo na fase 1.
  * Ficam para depois: calçados e as edições sazonais de roupa.
  */
@@ -36,6 +39,8 @@ export const CLOTHES = [
 ] as const;
 export const TOOL = { bonus: 0.3, days: 3, maxDays: 6, cents: 50_00n } as const;
 export const BED_CENTS = 250_00n;
+/** Skate ou bicicleta: a depreciação do GDD vira viagens. */
+export const SKATE = { cents: 120_00n, trips: 60 } as const;
 
 /** Móveis e eletrodomésticos: comprados uma vez, ficam no avatar. */
 export const HOME_ITEMS = {
@@ -63,12 +68,14 @@ export interface Gear {
   /** Ferramenta de trabalho: a profissão e até quando vale. */
   tool: { job: string; until: Date } | null;
   bed: boolean;
+  /** Viagens que o skate ainda aguenta (0 ou ausente: sem skate). */
+  skateTrips?: number;
   /** Móveis e eletrodomésticos comprados. */
   home?: HomeItem[];
 }
 
-export type ShopItem = 'roupa' | 'ferramenta' | 'cama' | HomeItem;
-export const SHOP_ITEMS: ShopItem[] = ['roupa', 'ferramenta', 'cama', ...HOME_ITEM_CODES];
+export type ShopItem = 'roupa' | 'ferramenta' | 'cama' | 'skate' | HomeItem;
+export const SHOP_ITEMS: ShopItem[] = ['roupa', 'ferramenta', 'cama', 'skate', ...HOME_ITEM_CODES];
 
 export interface ShopEffect {
   item: ShopItem;
@@ -79,6 +86,7 @@ export interface ShopEffect {
 }
 
 export const gearOf = (a: Pick<Avatar, 'gear'>): Gear => a.gear ?? { clothes: 0, tool: null, bed: false };
+export const skateTrips = (a: Pick<Avatar, 'gear'>) => gearOf(a).skateTrips ?? 0;
 export const hasItem = (a: Pick<Avatar, 'gear'>, item: HomeItem) => (gearOf(a).home ?? []).includes(item);
 /** Cama, sofá, mesa e guarda-roupa. */
 export const completeHome = (a: Pick<Avatar, 'gear'>) => gearOf(a).bed && COMPLETE_HOME.every((i) => hasItem(a, i));
@@ -107,6 +115,10 @@ export function checkShop(avatar: Avatar, input: { item: string; level?: number 
     if (g.bed) throw new AppError('already_owned', 'O avatar já tem cama.', 409);
     return { cents: BED_CENTS, effect: { item: 'cama' } };
   }
+  if (input.item === 'skate') {
+    if (skateTrips(avatar) > 0) throw new AppError('already_owned', `O skate ainda aguenta ${skateTrips(avatar)} viagem(ns).`, 409);
+    return { cents: SKATE.cents, effect: { item: 'skate' } };
+  }
   if (isHomeItem(input.item)) {
     if (hasItem(avatar, input.item)) throw new AppError('already_owned', `O avatar já tem ${HOME_ITEMS[input.item].label.toLowerCase()}.`, 409);
     return { cents: HOME_ITEMS[input.item].cents, effect: { item: input.item } };
@@ -120,6 +132,7 @@ export function applyShop(avatar: Avatar, e: ShopEffect, now: Date): Avatar {
   let gear: Gear = g;
   if (e.item === 'roupa') gear = { ...g, clothes: Math.max(g.clothes, e.level ?? 0) };
   if (e.item === 'cama') gear = { ...g, bed: true };
+  if (e.item === 'skate') gear = { ...g, skateTrips: SKATE.trips };
   if (isHomeItem(e.item)) gear = { ...g, home: [...new Set([...(g.home ?? []), e.item])] };
   if (e.item === 'ferramenta') {
     const job = e.job ?? avatar.jobCode;
@@ -143,17 +156,19 @@ export const gearToJson = (g: Gear | null | undefined) =>
         clothes: g.clothes,
         tool: g.tool ? { job: g.tool.job, until: g.tool.until.toISOString() } : null,
         bed: g.bed,
+        ...(g.skateTrips ? { skateTrips: g.skateTrips } : {}),
         ...(g.home?.length ? { home: g.home } : {}),
       }
     : null;
 export const gearFromJson = (v: unknown): Gear | null => {
   if (!v) return null;
-  const j = v as { clothes?: number; tool?: { job: string; until: string } | null; bed?: boolean; home?: string[] };
+  const j = v as { clothes?: number; tool?: { job: string; until: string } | null; bed?: boolean; skateTrips?: number; home?: string[] };
   const home = (j.home ?? []).filter(isHomeItem);
   return {
     clothes: j.clothes ?? 0,
     tool: j.tool ? { job: j.tool.job, until: new Date(j.tool.until) } : null,
     bed: !!j.bed,
+    ...(j.skateTrips ? { skateTrips: j.skateTrips } : {}),
     ...(home.length ? { home } : {}),
   };
 };
@@ -165,6 +180,7 @@ export function gearDto(a: Pick<Avatar, 'gear' | 'jobCode'>, now: Date) {
     clothes: g.clothes,
     tool: g.tool && g.tool.until > now ? { job: g.tool.job, until: g.tool.until.toISOString(), active: toolOn } : null,
     bed: g.bed,
+    skate_trips: g.skateTrips ?? 0,
     home: g.home ?? [],
     complete_home: completeHome(a),
     cooks_with: cooker(a),
@@ -176,6 +192,7 @@ export const shopCatalog = () => ({
   clothes: CLOTHES.map((c) => ({ level: c.level, bonus: c.bonus, price: c.cents.toString() })),
   tool: { bonus: TOOL.bonus, days: TOOL.days, max_days: TOOL.maxDays, price: TOOL.cents.toString() },
   bed: { price: BED_CENTS.toString() },
+  skate: { price: SKATE.cents.toString(), trips: SKATE.trips },
   home: HOME_ITEM_CODES.map((code) => ({ code, label: HOME_ITEMS[code].label, kind: HOME_ITEMS[code].kind, price: HOME_ITEMS[code].cents.toString() })),
   complete_home: { items: ['cama', ...COMPLETE_HOME], happiness_on_wake: COMPLETE_HOME_HAPPINESS },
   cooking: { food: COOK_FOOD, fridge_health: FRIDGE_HEALTH },

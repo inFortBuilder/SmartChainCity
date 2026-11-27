@@ -795,7 +795,8 @@ export function createServidor(map) {
       .map((c) => `<button class="btn btn--ghost pequeno" type="button" data-s="loja" data-i="roupa" data-l="${c.level}" ${off || (g.clothes >= c.level ? 'disabled' : '')}>Roupa ${c.level} (+${Math.round(c.bonus * 100)}%) · ${thaler(c.price)}</button>`)
       .join('')}
       <button class="btn btn--ghost pequeno" type="button" data-s="loja" data-i="ferramenta" ${off}>Ferramenta (+${Math.round(loja.tool.bonus * 100)}%, ${loja.tool.days} dias) · ${thaler(loja.tool.price)}</button>
-      ${g.bed ? '' : `<button class="btn btn--ghost pequeno" type="button" data-s="loja" data-i="cama" ${off}>Cama · ${thaler(loja.bed.price)}</button>`}</div>
+      ${g.bed ? '' : `<button class="btn btn--ghost pequeno" type="button" data-s="loja" data-i="cama" ${off}>Cama · ${thaler(loja.bed.price)}</button>`}
+      ${loja.skate ? (g.skate_trips ? `<span class="muted pequeno">🛹 Skate: ${g.skate_trips} viagens</span>` : `<button class="btn btn--ghost pequeno" type="button" data-s="loja" data-i="skate" ${off}>Skate · ${thaler(loja.skate.price)} (${loja.skate.trips} viagens)</button>`) : ''}</div>
       <p class="muted pequeno">A roupa vale para sempre; a ferramenta, para a profissão de agora. A cama libera o 2º turno de 6 h no dia. Preços provisórios.</p>`;
     // Móveis e eletrodomésticos (GDD §6 "Lojas"): casa completa +1 de felicidade ao acordar; fogão e micro-ondas cozinham.
     if (loja.home) {
@@ -1278,8 +1279,16 @@ export function createServidor(map) {
       } else if (!internado) {
         // Deslocamento (GDD §3.3): o modo atrasa o começo do ganho e pode custar (sai do pagamento).
         if (rotina) {
+          // Skate só com o item da loja (com viagens); sem ele, volta para a pé.
+          const semSkate = (a.gear?.skate_trips ?? 0) === 0;
+          if (semSkate && commuteMode === 'skate') commuteMode = 'a_pe';
           const opts = rotina.commutes
-            .map((c) => `<option value="${esc(c.mode)}" ${c.mode === commuteMode ? 'selected' : ''}>${esc(c.label)} · ${c.delay_min} min${c.cost !== '0' ? ` · ${thaler(c.cost)}` : ''}</option>`)
+            .map(
+              (c) =>
+                `<option value="${esc(c.mode)}" ${c.mode === commuteMode ? 'selected' : ''} ${c.needs_skate && semSkate ? 'disabled' : ''}>${esc(c.label)} · ${c.delay_min} min${c.cost !== '0' ? ` · ${thaler(c.cost)}` : ''}${
+                  c.needs_skate ? (semSkate ? ' · compre na loja' : ` · ${a.gear.skate_trips} viagens`) : ''
+                }</option>`,
+            )
             .join('');
           body += `<label class="pequeno moradia-dias">Ir ao trabalho: <select class="campo" data-deslocamento aria-label="Como ir ao trabalho">${opts}</select></label>`;
         }
@@ -1627,8 +1636,10 @@ export function createServidor(map) {
           headers: { 'idempotency-key': crypto.randomUUID() },
         });
         const casa = loja.home?.find((i) => i.code === item);
-        const label = casa?.label ?? { roupa: `Roupa nível ${b.dataset.l}`, ferramenta: 'Ferramenta de trabalho', cama: 'Cama' }[item];
-        message = casa
+        const label = casa?.label ?? { roupa: `Roupa nível ${b.dataset.l}`, ferramenta: 'Ferramenta de trabalho', cama: 'Cama', skate: 'Skate' }[item];
+        message = item === 'skate'
+          ? `Skate: −${thaler(r.purchase.price)} THALER. Aguenta ${r.avatar.gear.skate_trips} viagens: escolha Skate em Ir ao trabalho.`
+          : casa
           ? `${label}: −${thaler(r.purchase.price)} THALER.${r.avatar.gear.complete_home ? ' Casa completa: +1 de felicidade ao acordar em casa.' : ''}`
           : `${label}: −${thaler(r.purchase.price)} THALER. Itens no turno: +${Math.round((r.avatar.gear.factor - 1) * 100)}%.`;
         messageOk = true;
