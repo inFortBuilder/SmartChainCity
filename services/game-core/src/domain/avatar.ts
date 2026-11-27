@@ -218,6 +218,8 @@ export interface AvatarStore {
    * gravou. O job chama em laço até devolver 0.
    */
   applyDecay(now: Date, batch: number): Promise<number>;
+  /** Hóspedes com estadia em curso num hotel de jogador (a lotação). */
+  hotelGuests(hotelId: string, now: Date): Promise<number>;
   /** Números públicos da cidade (site): avatares e acidentes de trabalho (turnos com dano). */
   publicStats(): Promise<{ avatars: number; workAccidents: number }>;
 }

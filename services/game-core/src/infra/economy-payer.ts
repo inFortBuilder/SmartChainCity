@@ -2,7 +2,7 @@ import { AppError, forwardRequestId } from '@scc/shared';
 
 import type { HospitalPayer, HospitalStay } from '../domain/hospital.js';
 import { type Meal, type MealPayer, isHousing, isLeisure, isShop, isLicense, isMedicine, isPack, isPetShop, isSchool, isSitter } from '../domain/meal.js';
-import { rentSplit } from '../domain/housing.js';
+import { hotelSplit, rentSplit } from '../domain/housing.js';
 import { feeSplit } from '../domain/leisure.js';
 import { sitterSplit } from '../domain/sitter.js';
 import type { Championship, ChampionshipPayer, ChampionshipResult, Member } from '../domain/championship.js';
@@ -129,6 +129,20 @@ export class EconomyPayer implements Payer, MealPayer, HospitalPayer, Championsh
    */
   private async chargeHousing(meal: Meal, requestId?: string) {
     const rent = meal.effects.housing?.kind === 'aluguel';
+    // Hotel de jogador: 90% ao dono, 10% de taxa da Prefeitura (queima).
+    const hotel = meal.effects.housing?.hotel;
+    if (hotel) {
+      const split = hotelSplit(meal.priceCents);
+      const legs = [
+        { owner_type: 'player', owner_id: meal.accountId, currency: 'THALER', amount: `-${meal.priceCents}` },
+        { owner_type: 'player', owner_id: hotel.ownerAccountId, currency: 'THALER', amount: `${split.owner}` },
+        ...(split.burn > 0n ? [{ owner_type: 'burn', owner_id: 'hotel', currency: 'THALER', amount: `${split.burn}` }] : []),
+      ];
+      const error = await this.post(`meal:${meal.id}`, { kind: 'hotel_fee', ref_type: 'meal', ref_id: meal.id, legs }, requestId);
+      if (error === null) return;
+      if (error === 'insufficient_funds') throw new AppError('insufficient_thaler', 'THALER insuficiente para o hotel.', 409);
+      throw new AppError('ledger_unavailable', 'O ledger recusou a cobrança.', 502);
+    }
     const split = rent ? rentSplit(meal.priceCents) : { burn: meal.priceCents, pool: 0n };
     const legs = [
       { owner_type: 'player', owner_id: meal.accountId, currency: 'THALER', amount: `-${meal.priceCents}` },

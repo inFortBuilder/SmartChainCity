@@ -65,6 +65,11 @@ export interface PropertyType {
    * para o dono (sem renda do pool P2E). A atividade e o efeito moram no game-core.
    */
   venue?: { activity: string; feeCents: number };
+  /**
+   * Hotel de jogador (GDD §6 "Hotel"): avatares de outras contas se hospedam e a diária vai para o
+   * dono (o "bônus por ocupação"). Quartos por nível; diária e refeições moram no game-core.
+   */
+  lodging?: { roomsByLevel: Record<number, number> };
 }
 
 /**
@@ -147,6 +152,23 @@ export const DEFAULT_PROPERTY_TYPES: PropertyType[] = [
     provisional: ['preço da obra', 'entrada de 4 THALER', 'zonas comercial e mista'],
     venue: { activity: 'galeria', feeCents: 4_00 },
   },
+  // Hotel de jogador (GDD §6 "Hotel": 3 níveis, inclui alimentação, bônus por ocupação). A renda é a
+  // diária dos hóspedes (90% ao dono), não o pool. PREMISSAS: preço da obra, custo dos níveis e quartos.
+  {
+    code: 'hotel',
+    label: 'Hotel',
+    zones: ['commercial', 'mixed'],
+    use: 'comercial',
+    priceCents: 9000_00,
+    buildMinutes: 24 * 60,
+    levels: [
+      { level: 1, incomeCentsPerDay: 0 },
+      { level: 2, incomeCentsPerDay: 0, upgradeCostCents: 5000_00 },
+      { level: 3, incomeCentsPerDay: 0, upgradeCostCents: 9000_00 },
+    ],
+    provisional: ['preço da obra e dos níveis', 'quartos: 10, 20 e 40 por nível', 'zonas comercial e mista'],
+    lodging: { roomsByLevel: { 1: 10, 2: 20, 3: 40 } },
+  },
 ];
 
 let catalog: PropertyType[] = DEFAULT_PROPERTY_TYPES;
@@ -156,6 +178,11 @@ export const propertyTypes = () => catalog;
 export function setPropertyCatalog(types: PropertyType[]) {
   catalog = types.length ? types : DEFAULT_PROPERTY_TYPES;
 }
+
+/** Tipos que são hotéis de jogador. */
+export const HOTEL_TYPES = () => catalog.filter((t) => t.lodging).map((t) => t.code);
+/** Quartos do hotel no nível atual (0 se o tipo não é hotel). */
+export const hotelRooms = (type: PropertyType | undefined, level: number) => type?.lodging?.roomsByLevel[level] ?? 0;
 
 /** Tipos que são negócios de lazer de jogador. */
 export const VENUE_TYPES = () => catalog.filter((t) => t.venue).map((t) => t.code);

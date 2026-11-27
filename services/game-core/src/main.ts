@@ -15,6 +15,7 @@ import { MemoryRiskStore, PostgresRiskStore } from './infra/risk-store.js';
 import { EconomyPayer } from './infra/economy-payer.js';
 import { WorldVenues } from './infra/world-venues.js';
 import { WorldHomes } from './infra/world-homes.js';
+import { WorldHotels } from './infra/world-hotels.js';
 import { decayed } from './domain/avatar.js';
 import { settleDue, settleEntry } from './domain/championship.js';
 import { PostgresChampionshipStore } from './infra/db/postgres-championship-store.js';
@@ -67,7 +68,9 @@ const farms = payer ? { store: farmStore, payer } : null;
 const sitterStore = pool ? new PostgresPetSitterStore(pool) : new MemoryPetSitterStore();
 // Moradia própria (doc 04 §4): as casas regulares da conta pela rota interna do world.
 const homes = config.WORLD_URL && config.WORLD_TOKEN ? new WorldHomes(config.WORLD_URL, config.WORLD_TOKEN) : null;
-const app = await buildApp(config, store, undefined, payer, payer, payer, undefined, riskStore, venues, championships, vehicles, passes, farms, sitterStore, homes);
+// Hotéis de jogador (GDD §6 "Hotel"): a diária vai para o dono.
+const hotels = config.WORLD_URL && config.WORLD_TOKEN ? new WorldHotels(config.WORLD_URL, config.WORLD_TOKEN) : null;
+const app = await buildApp(config, store, undefined, payer, payer, payer, undefined, riskStore, venues, championships, vehicles, passes, farms, sitterStore, homes, hotels);
 
 // Jobs do game-core (trilha do backend): com mais de uma instância, só uma roda cada passada (JobRunner).
 const jobs = new JobRunner({

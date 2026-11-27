@@ -14,6 +14,10 @@ import { assertNotInHospital } from './hospital.js';
  *   alugam unidades (E3.11), o aluguel segue o simulador: 40% vira queima (a parte do NPC) e 60% voltam
  *   ao pool P2E, de onde sai a renda dos imóveis.
  * - **Hotel do jogo:** 3 níveis, por dia, com refeições incluídas (GDD §6 "Hotel"). Tudo vira queima.
+ * - **Hotel de jogador:** o hotel construído num lote (world). Mesma diária e refeições do nível do
+ *   hotel; 90% da diária vão para o dono e 10% viram queima (taxa da Prefeitura, como no aluguel de
+ *   unidade). É o "bônus por ocupação" do GDD: quanto mais hóspedes, mais o dono recebe. Quartos por
+ *   nível (o world diz quantos); cheio, `409 hotel_full`. Não se hospeda no próprio hotel.
  *
  * Uma estadia por vez: a do mesmo tipo e nível estende; outra exige sair antes (sem reembolso).
  *
@@ -21,7 +25,9 @@ import { assertNotInHospital } from './hospital.js';
  * - aluguel de 15 THALER/dia (simulador: sinks.rentRenter) e a divisão 40/60 (sinks.rentNpcShare);
  * - hotel de 25, 40 e 60 THALER/dia, com 1, 2 e 3 refeições grátis por dia;
  * - de 1 a 30 dias por vez, até 30 dias pagos adiantado;
- * - com o world fora do ar, o turno não perde o fator (vale 1) e o aviso fica no log.
+ * - com o world fora do ar, o turno não perde o fator (vale 1) e o aviso fica no log;
+ * - hotel de jogador: 90% ao dono e 10% de taxa; a lotação é conferida na hora da entrada (dois pedidos
+ *   no mesmo instante podem passar de um quarto).
  */
 export type StayKind = 'aluguel' | 'hotel';
 export const STAY_KINDS: StayKind[] = ['aluguel', 'hotel'];
@@ -35,6 +41,8 @@ export interface Housing {
   /** Refeições do hotel já usadas no dia (UTC) `mealsDay`. */
   mealsDay?: string;
   mealsUsed?: number;
+  /** Hotel de jogador (id do imóvel no world); sem ele, o hotel do jogo. */
+  hotelId?: string;
 }
 
 export const DAY_MS = 24 * 3_600_000;
@@ -72,6 +80,43 @@ export interface HousingEffect {
   kind: StayKind;
   level: number;
   days: number;
+  /** Hotel de jogador: a diária vai para o dono. */
+  hotel?: { id: string; ownerAccountId: string };
+}
+
+/** Hotel de jogador, como o world informa. */
+export interface PlayerHotel {
+  id: string;
+  city: string;
+  label: string;
+  level: number;
+  rooms: number;
+  lotCode: string;
+  open: boolean;
+  ownerAccountId: string;
+}
+
+/** Hotéis de jogador pelo world. */
+export interface HotelDirectory {
+  hotel(id: string, requestId?: string): Promise<PlayerHotel | null>;
+  hotels(city: string, requestId?: string): Promise<PlayerHotel[]>;
+}
+
+/** Parte do dono no hotel de jogador; o resto é a taxa da Prefeitura (queima). */
+export const HOTEL_OWNER_BPS = 9000n;
+export const hotelSplit = (cents: bigint) => {
+  const owner = (cents * HOTEL_OWNER_BPS) / 10_000n;
+  return { owner, burn: cents - owner };
+};
+
+/** Confere o hotel de jogador antes da estadia: aberto, não é do próprio e com quarto livre. */
+export function checkPlayerHotel(hotel: PlayerHotel | null, accountId: string, guests: number, staysHere: boolean): PlayerHotel {
+  if (!hotel) throw new AppError('hotel_not_found', 'Hotel não encontrado.', 404);
+  if (!hotel.open) throw new AppError('hotel_closed', 'O hotel está fechado (em obra ou precisando de reparo).', 409);
+  if (hotel.ownerAccountId === accountId) throw new AppError('own_hotel', 'Não dá para se hospedar no próprio hotel.', 409);
+  // Quem já está hospedado aqui estende sem ocupar outro quarto.
+  if (!staysHere && guests >= hotel.rooms) throw new AppError('hotel_full', `O hotel está cheio: ${hotel.rooms} quarto(s).`, 409);
+  return hotel;
 }
 
 /** Confere a estadia e devolve o preço. O avatar já vem travado e com a queda até agora. */
@@ -85,7 +130,7 @@ export function checkStay(avatar: Avatar, input: HousingEffect, now: Date): { ce
   const level = input.kind === 'hotel' ? input.level : 1;
   const h = avatar.housing;
   if (h && h.until > now) {
-    if (h.kind !== input.kind || h.level !== level) {
+    if (h.kind !== input.kind || h.level !== level || (h.hotelId ?? null) !== (input.hotel?.id ?? null)) {
       throw new AppError('housing_active', 'O avatar já tem outra moradia em curso: saia dela antes.', 409);
     }
     const ahead = h.until.getTime() + input.days * DAY_MS - now.getTime();
@@ -100,7 +145,7 @@ export function checkStay(avatar: Avatar, input: HousingEffect, now: Date): { ce
 export function applyStay(avatar: Avatar, effect: HousingEffect, now: Date): Avatar {
   const level = effect.kind === 'hotel' ? effect.level : 1;
   const h = avatar.housing;
-  const extend = h && h.until > now && h.kind === effect.kind && h.level === level;
+  const extend = h && h.until > now && h.kind === effect.kind && h.level === level && (h.hotelId ?? null) === (effect.hotel?.id ?? null);
   const since = extend ? h.since : now;
   const base = extend ? h.until : now;
   const housing: Housing = {
@@ -110,6 +155,8 @@ export function applyStay(avatar: Avatar, effect: HousingEffect, now: Date): Ava
     since,
     until: new Date(base.getTime() + effect.days * DAY_MS),
   };
+  if (effect.hotel) housing.hotelId = effect.hotel.id;
+  else delete housing.hotelId;
   return { ...avatar, housing, updatedAt: now };
 }
 
@@ -156,18 +203,20 @@ export const housingToJson = (h: Housing | null | undefined) =>
         since: h.since.toISOString(),
         until: h.until.toISOString(),
         ...(h.mealsDay ? { mealsDay: h.mealsDay, mealsUsed: h.mealsUsed ?? 0 } : {}),
+        ...(h.hotelId ? { hotelId: h.hotelId } : {}),
       }
     : null;
 
 export const housingFromJson = (v: unknown): Housing | null => {
   if (!v) return null;
-  const j = v as { kind: StayKind; level: number; since: string; until: string; mealsDay?: string; mealsUsed?: number };
+  const j = v as { kind: StayKind; level: number; since: string; until: string; mealsDay?: string; mealsUsed?: number; hotelId?: string };
   return {
     kind: j.kind,
     level: j.level,
     since: new Date(j.since),
     until: new Date(j.until),
     ...(j.mealsDay ? { mealsDay: j.mealsDay, mealsUsed: j.mealsUsed ?? 0 } : {}),
+    ...(j.hotelId ? { hotelId: j.hotelId } : {}),
   };
 };
 
@@ -182,6 +231,7 @@ export function housingDto(a: Pick<Avatar, 'housing'>, now: Date) {
     since: h.since.toISOString(),
     until: h.until.toISOString(),
     meals_left_today: h.kind === 'hotel' ? Math.max(0, HOTEL_LEVELS[h.level]!.meals - used) : 0,
+    hotel_id: h.hotelId ?? null,
   };
 }
 
@@ -189,5 +239,6 @@ export const housingPrices = () => ({
   aluguel: { cents_per_day: RENT_CENTS_PER_DAY.toString(), burn_share: Number(RENT_BURN_BPS) / 10_000 },
   hotel: Object.entries(HOTEL_LEVELS).map(([level, v]) => ({ level: Number(level), cents_per_day: v.centsPerDay.toString(), meals_per_day: v.meals })),
   max_days: MAX_STAY_DAYS,
+  player_hotel_owner_share: Number(HOTEL_OWNER_BPS) / 10_000,
   unhoused_factor: UNHOUSED_FACTOR,
 });

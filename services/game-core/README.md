@@ -51,6 +51,7 @@ Sem moradia regular, o turno rende **50%**: é o `fator_regularizacao_moradia` d
 | Casa própria | Uma casa pronta da conta, regularizada e com água e energia em dia. O game-core pergunta ao world (`GET /internal/v1/accounts/:id/homes`, com `WORLD_URL` e `WORLD_TOKEN`). A regularização se faz no world, pela ficha do lote. Com o world fora do ar, o turno não perde o fator (vale 1) e o aviso fica no log. Sem `WORLD_URL`, a casa própria não conta |
 | Aluguel | `POST /v1/avatars/:id/housing` com `{kind: "aluguel", days}`: quarto num residencial da Prefeitura, 15 THALER/dia. 40% viram queima (`burn/rent`) e 60% voltam ao pool P2E, de onde sai a renda dos imóveis, até os prédios de jogadores alugarem unidades (E3.11) |
 | Hotel do jogo | `{kind: "hotel", level, days}`: níveis 1, 2 e 3 a 25, 40 e 60 THALER/dia, com 1, 2 e 3 refeições incluídas por dia (`POST /v1/avatars/:id/housing/meal`, +3 de alimentação, sem cobrança). Tudo vira queima (`burn/hotel`) |
+| Hotel de jogador | `{kind: "hotel", days, hotel_id}`: o hotel construído por um jogador (world). O nível, a diária e as refeições são os do hotel; 90% da diária vão para o dono e 10% para `burn/hotel`. Cheio (10, 20 ou 40 quartos pelo nível): `409 hotel_full`; quem já está estende. Também `own_hotel`, `hotel_closed` e `hotel_not_found`. `GET /v1/housing/hotels?city=` lista os da cidade com hóspedes, quartos e diária |
 
 - De 1 a 30 dias por vez, até 30 dias pagos adiantado (`409 housing_prepaid`). A mesma estadia estende; outra dá `409 housing_active`.
 - `DELETE /v1/avatars/:id/housing` sai agora, sem reembolso, para trocar de moradia.
@@ -398,6 +399,7 @@ TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc_test pnpm --filter
 | DELETE | `/v1/avatars/:id/housing` | jogador (Bearer) | Sai do aluguel ou do hotel, sem reembolso |
 | POST | `/v1/avatars/:id/housing/meal` | jogador (Bearer) | Refeição incluída no hotel |
 | GET | `/v1/housing/prices` | público | Preços do aluguel e do hotel |
+| GET | `/v1/housing/hotels` | público (com Bearer, marca os seus) | Hotéis de jogador da cidade (`?city=`): nível, quartos, hóspedes, diária e refeições |
 | POST | `/v1/avatars/:id/rest` | jogador (Bearer) | Dorme 4 ou 8 h `{hours}` |
 | POST | `/v1/avatars/:id/chores` | jogador (Bearer) | Higiene em casa `{code}` |
 | GET | `/v1/catalog/routine` | público | Descanso, higiene e modos de ir ao trabalho |

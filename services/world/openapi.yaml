@@ -121,6 +121,29 @@ paths:
       security: [{},{"bearer":[]}]
       parameters: [{"name":"code","in":"path","required":true,"schema":{"type":"string"}}]
       responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/world/cities/{code}/hotels:
+    get:
+      summary: "Hotéis de jogador da cidade"
+      tags: ["cities"]
+      description: "Hotéis de jogador da cidade: nível, quartos, lote e open"
+      security: [{},{"bearer":[]}]
+      parameters: [{"name":"code","in":"path","required":true,"schema":{"type":"string"}}]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /internal/v1/cities/{code}/hotels:
+    get:
+      summary: "Hotéis da cidade com o dono, para o game-core"
+      tags: ["interno"]
+      security: [{"service":[]}]
+      parameters: [{"name":"code","in":"path","required":true,"schema":{"type":"string"}}]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /internal/v1/hotels/{id}:
+    get:
+      summary: "Um hotel para o game-core cobrar a diária"
+      tags: ["interno"]
+      description: "Um hotel para o game-core cobrar a diária: dono, nível, quartos e se está aberto"
+      security: [{"service":[]}]
+      parameters: [{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro (códigos: not_found)","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
   /internal/v1/venues/{id}:
     get:
       summary: "O negócio para o game-core cobrar a entrada"

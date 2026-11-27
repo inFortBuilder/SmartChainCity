@@ -217,6 +217,10 @@ export class MemoryAvatarStore implements AvatarStore, ShiftStore, MealStore, Ho
     return a ? clone(a) : null;
   }
 
+  async hotelGuests(hotelId: string, now: Date) {
+    return [...this.avatars.values()].filter((a) => a.housing?.hotelId === hotelId && a.housing.until > now).length;
+  }
+
   async listByAccount(accountId: string) {
     return [...this.avatars.values()]
       .filter((a) => a.accountId === accountId)

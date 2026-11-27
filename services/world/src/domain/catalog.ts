@@ -68,6 +68,7 @@ export function mergeCatalog(cms: CmsPropertyType[], defaults: PropertyType[] = 
       levels: levels.length ? levels : [{ level: 1, incomeCentsPerDay: 0 }],
       provisional: [...(base?.provisional ?? []), ...(c.conferir ?? [])],
       ...(base?.venue ? { venue: base.venue } : {}),
+      ...(base?.lodging ? { lodging: base.lodging } : {}),
       ...(reason ? { available: false, unavailableReason: reason } : {}),
     };
   });
