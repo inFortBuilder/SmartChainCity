@@ -1,6 +1,6 @@
 # Estado do jogo e próximas etapas
 
-Retrato em 2026-11-22, atualizado em 2026-11-26 (moradia, descanso, deslocamento, catálogo de imóveis, loja e unidades dos prédios): o que já dá para jogar, o que falta no jogo e a ordem sugerida para as próximas etapas. O detalhe de cada item fica no [ROADMAP](../ROADMAP.md) e nos READMEs dos serviços. O caminho até a mainnet, que depende de pessoas de fora, está no [checklist de lançamento](lancamento.md).
+Retrato em 2026-11-22, atualizado em 2026-11-26 (moradia, descanso, deslocamento, catálogo de imóveis, loja, unidades dos prédios e agenda de eventos): o que já dá para jogar, o que falta no jogo e a ordem sugerida para as próximas etapas. O detalhe de cada item fica no [ROADMAP](../ROADMAP.md) e nos READMEs dos serviços. O caminho até a mainnet, que depende de pessoas de fora, está no [checklist de lançamento](lancamento.md).
 
 **Legenda:**
 - ✅ pronto e testado;
@@ -71,9 +71,9 @@ O GDD amarra o ganho do turno à moradia. Já funcionam a regularização, água
 
 | Falta | Quem | Observação |
 |---|---|---|
-| ⬜ **Agendador de eventos ao vivo** (o dirigível 3 vezes ao dia já chama o broadcast, mas não tem agenda) | 🔧 | realtime |
+| ✅ **Agenda de eventos ao vivo:** dirigível 3 vezes ao dia com o evento da semana e o anúncio do Ano Novo, Carnaval e Natal | 🔧 | realtime; faltam os anúncios pagos de jogadores (fase 2) |
 | ⬜ **Presença no Redis** para vários processos (hoje cada processo tem o seu matchmaker; o shard por bairro já divide a carga) e **silenciamentos guardados em banco** | 🔧 | Redis seria um serviço a mais na máquina local |
-| ⬜ **Eventos de data marcada** (Natal, Carnaval) | 🔧 👤 | E3.10 |
+| 🟡 **Eventos de data marcada** (Natal, Carnaval): o anúncio já sai pela agenda; faltam os efeitos de jogo (itens e bônus da data) | 👤 🔧 | E3.10 |
 | ⬜ **Espaços Spatial**: stand de vendas, Prefeitura Virtual e showroom | 👤 | E4.4; plataforma externa |
 | ⬜ **Live Ops** em ondas: anel A2, franquias e food trucks, mineração e combustível, energia, staking, transporte, marcas, mobile e idiomas | 🔧 👤 | Etapa 5 do ROADMAP; cada onda só abre com o painel econômico saudável |
 
@@ -124,7 +124,7 @@ A ordem prioriza o que deixa o jogo **completo para o jogador** no lançamento d
 5. ~~**Bônus de itens e loja**~~ ✅ (2026-11-26): roupas, ferramenta de trabalho e cama na loja do jogo, com o bônus no turno. Móveis, eletrodomésticos e roupas sazonais ficam para depois.
 6. **Arte** 👤: profissões, pets, Lucky Box e trailer. Não bloqueia o código, mas bloqueia o lançamento.
 7. ~~**Prédios com unidades e venda**~~ ✅ (2026-11-27), no jogo: unidades, venda, revenda e aluguel para morar. Os contratos `UnitNFT`/`UnitMarket` ficam para uma rodada com auditoria.
-8. **Agendador de eventos ao vivo** 🔧, depois os eventos de data marcada.
+8. ~~**Agendador de eventos ao vivo**~~ ✅ (2026-11-27): dirigível 3 vezes ao dia e anúncios das datas marcadas. Os efeitos de jogo das datas (itens e bônus de Natal e Carnaval) esperam o game designer.
 
 **Em paralelo, fora do código**, na ordem do [checklist de lançamento](lancamento.md):
 - parecer jurídico;

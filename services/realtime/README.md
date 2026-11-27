@@ -20,6 +20,16 @@ O jogo é assíncrono. Esta sala só mostra quem está por perto e o que dizem; 
 | Eventos | `POST /internal/v1/broadcast` (`x-service-token` = `INTERNAL_TOKEN`) manda `{kind, text}` para todas as salas, ou só as de uma cidade. É o dirigível de promoções (doc 08) e os avisos da Prefeitura |
 | Movimento da cidade | `GET /v1/realtime/rooms`: jogadores e salas por bairro |
 
+### Agenda de eventos ao vivo (doc 08, E3.10)
+
+O realtime manda sozinho os eventos da agenda (`src/schedule.ts`) para todas as salas de bairro do processo:
+- **Dirigível da Prefeitura:** 3 vezes por dia, às 10, 15 e 20 h no fuso da cidade (`EVENTS_UTC_OFFSET_MIN`, padrão −180, Brasília). O texto é o evento da semana do game-core (`GAME_CORE_URL`; na máquina local, a porta padrão). Sem o game-core, sai um aviso da Prefeitura.
+- **Datas marcadas:** Ano Novo, Carnaval (a terça, pela Páscoa) e Natal, com um anúncio ao meio-dia. Os efeitos de jogo dessas datas ficam para o game designer.
+- Cada evento tem uma chave e sai uma vez. O processo confere a cada `EVENTS_TICK_SECONDS` (30). O que passou há mais de 5 minutos (o processo estava fora) não sai atrasado.
+- `GET /v1/realtime/schedule` lista as próximas 48 h. O chat do bairro no mapa mostra o próximo evento. Desligue com `EVENTS_ENABLED=false`.
+- Com vários processos, cada um manda para as próprias salas, como o broadcast.
+- **Premissas:** os horários, o fuso fixo (sem horário de verão) e os textos.
+
 ### Chat moderado (doc 10)
 
 - **Links recusados:** links e convites (http, www, domínios, `t.me`, `discord.gg`) não passam. É o golpe mais comum num jogo com token.
@@ -85,4 +95,4 @@ pnpm --filter @scc/realtime test
 
 - Redis presence para mais de um processo (doc 05 §4); hoje o matchmaker é local.
 - Silenciamentos guardados em banco: hoje ficam na memória do processo.
-- Corridas e eventos com agenda (o dirigível 3×/dia chama o broadcast, mas ainda não tem agendador).
+- Corridas ao vivo; anúncios pagos de jogadores no dirigível (Telecomunicação, fase 2); efeitos de jogo das datas marcadas.
