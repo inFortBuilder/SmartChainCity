@@ -13,6 +13,26 @@ import { REALTIME_URLS, districtKey, realtimeFor } from './realtime-shard.js';
 
 // Um ou mais processos do realtime (?realtime=a,b,c): cada bairro vai sempre para o mesmo (E3.9).
 const REALTIME = REALTIME_URLS[0];
+
+/** O próximo evento da agenda do realtime (dirigível, datas marcadas), no topo do chat. */
+async function showAgenda() {
+  const el = document.querySelector('[data-mp-agenda]');
+  if (!el) return;
+  try {
+    const r = await fetch(`${REALTIME.replace(//$/, '')}/v1/realtime/schedule`, { signal: AbortSignal.timeout(5000) });
+    const { next } = await r.json();
+    const e = next?.[0];
+    el.hidden = !e;
+    if (e) {
+      const at = new Date(e.at);
+      const today = at.toDateString() === new Date().toDateString();
+      el.textContent = `Próximo: ${e.title} ${today ? 'às' : 'em ' + at.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' às'} ${at.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+    }
+  } catch {
+    el.hidden = true;
+  }
+}
+setInterval(() => void showAgenda(), 10 * 60_000);
 const SDK = 'https://cdn.jsdelivr.net/npm/@colyseus/sdk@0.18.9/+esm';
 const CITY = 'pittsburg';
 const MOVE_EVERY_MS = 200;
@@ -44,6 +64,7 @@ export function createMultiplayer(map) {
   panel.hidden = true;
   panel.innerHTML = `
     <div class="linha cab"><h2>💬 Bairro <span data-mp-bairro>—</span></h2><span class="muted pequeno" data-mp-count></span></div>
+    <p class="muted pequeno mp-agenda" data-mp-agenda hidden></p>
     <ol class="mp-chat" data-mp-chat aria-live="polite"></ol>
     <form class="linha" data-mp-form>
       <input class="campo" name="text" maxlength="200" autocomplete="off" placeholder="Fale com o bairro…" aria-label="Mensagem para o bairro" />
@@ -270,13 +291,18 @@ export function createMultiplayer(map) {
       panel.querySelector('[data-mp-bairro]').textContent = String(district + 1);
       chatEl.innerHTML = '';
       line(`<span class="muted">Você entrou no bairro ${district + 1}.</span>`);
+      void showAgenda();
       status('');
       r.onStateChange((s) => syncPins(s));
       r.onMessage('chat', (m) =>
         line(`<span class="muted">${hhmm(m.at)}</span> <b>${esc(m.name)}</b> ${esc(m.text)}`, m.from === r.sessionId ? 'meu' : ''),
       );
       r.onMessage('chat_error', (e) => status(ERRORS[e.reason] ?? 'Mensagem recusada.'));
-      r.onMessage('event', (e) => line(`📣 <b>${esc(e.text)}</b>`, 'evento'));
+      // Evento da agenda (dirigível, datas marcadas) ou aviso da Prefeitura.
+      r.onMessage('event', (e) => {
+        line(`📣 ${e.title ? `<b>${esc(e.title)}</b> · ` : ''}<b>${esc(e.text)}</b>`, 'evento');
+        void showAgenda();
+      });
       r.onMessage('report_ok', () => status('Denúncia registrada. Obrigado.'));
       r.onLeave(() => {
         if (room === r) {

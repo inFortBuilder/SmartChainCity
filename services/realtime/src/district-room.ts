@@ -150,7 +150,7 @@ export class DistrictRoom extends Room {
   }
 
   /** Evento da Prefeitura (dirigível de promoções, corrida, aviso) para quem está na sala. */
-  announce(event: { kind: string; text: string; at: string }) {
+  announce(event: { kind: string; text: string; at: string; title?: string }) {
     this.broadcast('event', event);
   }
 }
