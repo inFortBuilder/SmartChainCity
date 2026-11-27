@@ -9,6 +9,7 @@ import { DistrictRoom } from './district-room.js';
 import { HttpVisitChecker, InteriorRoom, type VisitChecker } from './interior-room.js';
 import { MuteBook, moderateText } from './moderation.js';
 import { parseShard } from './shard.js';
+import { DEFAULT_UTC_OFFSET_MIN, type WeeklyEvent, airshipText, dueEvents, eventsBetween } from './schedule.js';
 
 export const configSchema = z.object({
   NODE_ENV: z.string().default('development'),
@@ -25,6 +26,16 @@ export const configSchema = z.object({
   WORLD_URL: z.preprocess((v) => (v === '' ? undefined : v), z.url().optional()),
   /** Divisão por bairro (E3.9): `i/n`, este processo é o i de n e recusa os bairros dos outros. */
   SHARD: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
+  /** Agenda de eventos ao vivo (schedule.ts): liga e desliga o dirigível e as datas marcadas. */
+  EVENTS_ENABLED: z
+    .preprocess((v) => (v === undefined || v === '' ? 'true' : v), z.enum(['true', 'false']))
+    .transform((v) => v === 'true'),
+  /** Fuso da cidade, em minutos (Brasília: −180). */
+  EVENTS_UTC_OFFSET_MIN: z.coerce.number().int().min(-720).max(840).default(DEFAULT_UTC_OFFSET_MIN),
+  /** De quanto em quanto tempo a agenda confere o que venceu. */
+  EVENTS_TICK_SECONDS: z.coerce.number().int().positive().default(30),
+  /** game-core: o evento da semana para o texto do dirigível. Sem ele, avisos da Prefeitura. */
+  GAME_CORE_URL: z.preprocess((v) => (v === '' ? undefined : v), z.url().optional()),
 });
 export type Config = z.infer<typeof configSchema>;
 
@@ -48,7 +59,12 @@ const broadcastBody = z.object({ kind: z.string().regex(/^[a-z_]{1,32}$/), text:
  * `/internal/v1/broadcast`) entram no roteador do próprio Colyseus, junto das de
  * matchmaking: um servidor HTTP só, e uma resposta por requisição.
  */
-export async function startRealtime(config: Config, log: Log = () => {}, overrides: { visits?: VisitChecker } = {}) {
+export async function startRealtime(
+  config: Config,
+  log: Log = () => {},
+  overrides: { visits?: VisitChecker; now?: () => Date; weekly?: () => Promise<WeeklyEvent | null> } = {},
+) {
+  const now = overrides.now ?? (() => new Date());
   const registry = new Set<DistrictRoom>();
   const worldUrl = config.WORLD_URL ?? (config.NODE_ENV === 'production' ? undefined : 'http://127.0.0.1:8030');
   // Um silêncio vale em todas as salas: bairro e interior.
@@ -111,9 +127,59 @@ export async function startRealtime(config: Config, log: Log = () => {}, overrid
     return json(200, { rooms: reached });
   });
 
+  // ---------------------------------------------------------------- agenda de eventos ao vivo
+  const offset = config.EVENTS_UTC_OFFSET_MIN;
+  const gameCoreUrl = config.GAME_CORE_URL ?? (config.NODE_ENV === 'production' ? undefined : 'http://127.0.0.1:8020');
+  const weekly =
+    overrides.weekly ??
+    (async (): Promise<WeeklyEvent | null> => {
+      if (!gameCoreUrl) return null;
+      try {
+        const r = await fetch(`${gameCoreUrl.replace(/\/$/, '')}/v1/events`, { signal: AbortSignal.timeout(5_000) });
+        if (!r.ok) return null;
+        const body = (await r.json()) as { current?: { name: string; factor: number; ends_at: string } | null };
+        return body.current ? { label: body.current.name, factor: body.current.factor, ends_at: body.current.ends_at } : null;
+      } catch {
+        return null;
+      }
+    });
+  const sent = new Set<string>();
+  let lastRun = now();
+  /** Manda o que venceu desde a última passada. Devolve os eventos mandados (os testes conferem). */
+  const tick = async () => {
+    const t = now();
+    const due = dueEvents(lastRun, t, sent, offset);
+    lastRun = t;
+    const out: { key: string; kind: string; title: string; text: string; rooms: number }[] = [];
+    for (const e of due) {
+      sent.add(e.key);
+      const text = e.text ?? airshipText(await weekly(), e.at);
+      const event = { kind: e.kind, title: e.title, text, at: e.at.toISOString() };
+      for (const room of registry) room.announce(event);
+      log('event.scheduled', { key: e.key, rooms: registry.size });
+      out.push({ key: e.key, kind: e.kind, title: e.title, text, rooms: registry.size });
+    }
+    // A lista de chaves não cresce sem fim: as antigas já não vencem de novo.
+    if (sent.size > 500) for (const k of [...sent].slice(0, sent.size - 200)) sent.delete(k);
+    return out;
+  };
+  const timer = config.EVENTS_ENABLED ? setInterval(() => void tick(), config.EVENTS_TICK_SECONDS * 1000) : null;
+  timer?.unref();
+
+  // A agenda das próximas 48 h (o mapa mostra o próximo evento).
+  const schedule = createEndpoint('/v1/realtime/schedule', { method: 'GET' }, async () => {
+    const t = now();
+    const next = config.EVENTS_ENABLED ? eventsBetween(t, new Date(t.getTime() + 48 * 3_600_000), offset) : [];
+    return json(200, {
+      enabled: config.EVENTS_ENABLED,
+      utc_offset_min: offset,
+      next: next.slice(0, 8).map((e) => ({ kind: e.kind, title: e.title, at: e.at.toISOString() })),
+    });
+  });
+
   const http = createServer();
   const gameServer = new Server({ transport: new WebSocketTransport({ server: http }), greet: false });
-  gameServer.router = createRouter({ healthz, rooms, broadcast });
+  gameServer.router = createRouter({ healthz, rooms, broadcast, schedule });
   gameServer.define('district', DistrictRoom).filterBy(['city', 'district']);
   gameServer.define('interior', InteriorRoom).filterBy(['city', 'lot']);
   await gameServer.listen(config.PORT, config.HOST);
@@ -122,7 +188,9 @@ export async function startRealtime(config: Config, log: Log = () => {}, overrid
   return {
     port,
     registry,
+    tick,
     stop: async () => {
+      if (timer) clearInterval(timer);
       await gameServer.gracefullyShutdown(false);
     },
   };
