@@ -72,6 +72,22 @@ Sem moradia regular, o turno rende **50%**: é o `fator_regularizacao_moradia` d
 - Ainda não: o "descanso obrigatório após 16 h" (contar as horas acordado) e o skate como item comprado (hoje todos podem ir de skate).
 - Depois de atualizar o código, rode `pnpm db:migrate`: a migração `0021_rotina` cria as colunas `rest` e `chores` do avatar.
 
+## Loja do jogo: roupas, ferramenta e cama (GDD §6 "Lojas", §3.2)
+
+`POST /v1/avatars/:id/shop` com `{item, level?}`, pelo caminho das refeições (`shop_buy`, `burn/shop`):
+
+| Item | Efeito | Preço (premissa) |
+|---|---|---|
+| Roupa nível 1, 2 ou 3 | +10%, +15% ou +20% no ganho, para sempre; vale a melhor (`409 already_owned` para igual ou pior) | 300, 800 e 1.500 THALER |
+| Ferramenta de trabalho | +30% por 3 dias, só na profissão da compra (o GDD dá o estetoscópio do médico); comprar de novo estende, até 6 dias | 50 THALER |
+| Cama | Libera o segundo turno de 6 h no dia (`409 bed_required` sem ela) | 250 THALER |
+
+- O bônus da loja (roupa × ferramenta) multiplica o dos itens sazonais do GamePass em `snapshot.items` (o `M_itens` do doc 04 §4).
+- O avatar traz `gear` (roupa, ferramenta, cama e o fator do próximo turno). `GET /v1/catalog/shop` lista os preços.
+- **Premissas:** os preços, a ferramenta genérica por profissão e o limite de 6 dias.
+- **Ficam para depois:** móveis (casa completa +1 de felicidade), eletrodomésticos (cozinhar), calçados e as roupas sazonais.
+- Depois de atualizar o código, rode `pnpm db:migrate`: a migração `0022_loja` cria a coluna `gear` do avatar.
+
 ## Minigame do turno (E2.2)
 
 O turno percorre as tarefas da profissão, no servidor e sem o jogo aberto (doc 02 §3.2). Cada tarefa ocupa uma parte do turno proporcional à duração dela no GDD. No Pedreiro, por exemplo, "Construir a casa" leva 160 de 265 min, então 60% do turno. Cada turno em `GET /v1/avatars/:id/shifts` e `POST /work` traz `minigame`:
@@ -384,6 +400,8 @@ TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc_test pnpm --filter
 | POST | `/v1/avatars/:id/rest` | jogador (Bearer) | Dorme 4 ou 8 h `{hours}` |
 | POST | `/v1/avatars/:id/chores` | jogador (Bearer) | Higiene em casa `{code}` |
 | GET | `/v1/catalog/routine` | público | Descanso, higiene e modos de ir ao trabalho |
+| POST | `/v1/avatars/:id/shop` | jogador (Bearer) | Loja: roupa, ferramenta ou cama. Aceita `Idempotency-Key` |
+| GET | `/v1/catalog/shop` | público | Preços e bônus da loja |
 | GET | `/v1/vehicles` | jogador (Bearer) | Carros da conta com a situação (`ok`, `suspended`, `worn_out`, `expired`), atributos de agora, valor, recompra e IPVA |
 | POST | `/v1/vehicles` | jogador (Bearer) | Compra `{model}` ou aluga `{model, rent: true}` na agência |
 | POST | `/v1/vehicles/:id/ipva` | jogador (Bearer) | Paga o IPVA do semestre |
@@ -438,7 +456,7 @@ TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc_test pnpm --filter
 | GET | `/v1/catalog/professions` | público | As 44 profissões com ganho do dia, duração e tarefas; das tarefas, só a direção (+/−) de energia e felicidade (GDD §2.4) |
 | GET | `/healthz` | — | `{status: "ok"}` |
 
-Erros com código estável: `invalid_rarity`, `invalid_job`, `avatar_limit`, `invalid_shift`, `shift_running`, `daily_limit`, `too_tired`, `pool_empty`, `unknown_food`, `not_hungry`, `not_in_pantry`, `invalid_stay`, `housing_active`, `housing_prepaid`, `not_staying`, `not_in_hotel`, `hotel_meals_used`, `resting`, `invalid_rest`, `not_tired`, `unknown_chore`, `no_home`, `chore_cooldown`, `invalid_commute`, `no_car`, `in_hospital`, `sick`, `not_sick`, `invalid_condition`, `hospital_only`, `nothing_to_treat`, `insufficient_thaler`, `ledger_unavailable`, `not_found`, `forbidden`, `missing_credentials`, `invalid_token`, `token_expired`.
+Erros com código estável: `invalid_rarity`, `invalid_job`, `avatar_limit`, `invalid_shift`, `shift_running`, `daily_limit`, `too_tired`, `pool_empty`, `unknown_food`, `not_hungry`, `not_in_pantry`, `invalid_stay`, `housing_active`, `housing_prepaid`, `not_staying`, `not_in_hotel`, `hotel_meals_used`, `resting`, `invalid_rest`, `not_tired`, `unknown_chore`, `no_home`, `chore_cooldown`, `invalid_commute`, `no_car`, `invalid_item`, `already_owned`, `bed_required`, `in_hospital`, `sick`, `not_sick`, `invalid_condition`, `hospital_only`, `nothing_to_treat`, `insufficient_thaler`, `ledger_unavailable`, `not_found`, `forbidden`, `missing_credentials`, `invalid_token`, `token_expired`.
 
 ## Banco
 
@@ -447,7 +465,7 @@ Esquema próprio `game`: tabela `avatar` do doc 06, com os instantes de referên
 ## Ainda não
 
 - Efeito real de energia e felicidade por tarefa, que depende do game designer acertar os números do catálogo. Cards de arte das 12 profissões do MVP.
-- Bônus de roupas e ferramentas no ganho (o pet, os eventos semanais, os itens da temporada e a moradia já entram).
+- Móveis, eletrodomésticos (cozinhar), calçados e roupas sazonais na loja; lojas de jogadores (fase 2).
 - Aluguel de unidades de prédios de jogadores (com o E3.11); bônus por ocupação do hotel de jogador.
 - As outras atividades extras do seed (parque, ginásio e lojas já têm o lazer; as de transporte, pets e escola são parte de outros sistemas); as doenças do hospital (febre, enxaqueca, virose: −1 de saúde a cada 15 min).
 - O tempo de compra do mercado e o limite da despensa pela casa.

@@ -64,6 +64,8 @@ export const avatar = game.table(
     rest: jsonb('rest'),
     /** Higiene em casa: {codigo: ISO} da última vez. */
     chores: jsonb('chores'),
+    /** Itens da loja: {clothes, tool: {job, until}, bed}. */
+    gear: jsonb('gear'),
     createdAt: timestamptz('created_at').notNull(),
     updatedAt: timestamptz('updated_at').notNull(),
   },

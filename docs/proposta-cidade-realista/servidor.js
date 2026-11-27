@@ -288,6 +288,8 @@ export function createServidor(map) {
   let moradia = null;
   /** Descanso, higiene e deslocamento (GDD §2.3 e §3.3): o catálogo, uma vez. */
   let rotina = null;
+  /** Loja do jogo (roupas, ferramenta e cama): o catálogo, uma vez. */
+  let loja = null;
   /** O modo de ir ao trabalho escolhido aqui (fica no navegador). */
   let commuteMode = (() => {
     try {
@@ -369,6 +371,7 @@ export function createServidor(map) {
         ? await call(API.game, `/v1/avatars/${data.avatar.id}/housing`, { token: session.token }).catch(() => null)
         : null;
       if (!rotina) rotina = await call(API.game, '/v1/catalog/routine').catch(() => null);
+      if (!loja) loja = await call(API.game, '/v1/catalog/shop').catch(() => null);
       // Veículos (E3.5): a agência e os carros da conta.
       if (!carCatalog) carCatalog = await call(API.game, '/v1/catalog/vehicles').catch(() => null);
       cars = await call(API.game, '/v1/vehicles', { token: session.token })
@@ -765,6 +768,23 @@ export function createServidor(map) {
           .join('')}</div>`;
       }
     }
+    return html;
+  };
+
+  /** Loja do jogo (GDD §6 "Lojas"): roupas +10/15/20%, ferramenta +30% por 3 dias e a cama do 2º turno de 6 h. */
+  const shopSection = (a) => {
+    const off = busy ? 'disabled' : '';
+    const g = a.gear;
+    const pct = (f) => `+${Math.round((f - 1) * 100)}%`;
+    let html = `<h3>🛍️ Loja</h3><p class="muted pequeno">Itens no ganho do turno: <strong>${g.factor > 1 ? pct(g.factor) : 'nenhum'}</strong>${
+      g.tool ? ` · ferramenta até ${new Date(g.tool.until).toLocaleDateString('pt-BR')}${g.tool.active ? '' : ' (de outra profissão)'}` : ''
+    }${g.bed ? ' · 🛏️ cama' : ''}.</p>`;
+    html += `<div class="linha moradia-opcoes">${loja.clothes
+      .map((c) => `<button class="btn btn--ghost pequeno" type="button" data-s="loja" data-i="roupa" data-l="${c.level}" ${off || (g.clothes >= c.level ? 'disabled' : '')}>Roupa ${c.level} (+${Math.round(c.bonus * 100)}%) · ${thaler(c.price)}</button>`)
+      .join('')}
+      <button class="btn btn--ghost pequeno" type="button" data-s="loja" data-i="ferramenta" ${off}>Ferramenta (+${Math.round(loja.tool.bonus * 100)}%, ${loja.tool.days} dias) · ${thaler(loja.tool.price)}</button>
+      ${g.bed ? '' : `<button class="btn btn--ghost pequeno" type="button" data-s="loja" data-i="cama" ${off}>Cama · ${thaler(loja.bed.price)}</button>`}</div>
+      <p class="muted pequeno">A roupa vale para sempre; a ferramenta, para a profissão de agora. A cama libera o 2º turno de 6 h no dia. Preços provisórios.</p>`;
     return html;
   };
 
@@ -1173,6 +1193,7 @@ export function createServidor(map) {
       }
       if (moradia) body += housingSection(a);
       if (rotina && !internado) body += routineSection(a);
+      if (loja && !internado && a.gear) body += shopSection(a);
       if (events) body += eventSection(a);
       if (!internado && leisure && a.leisure) body += leisureSection(a);
       if (cup) body += cupSection(a);
@@ -1530,6 +1551,20 @@ export function createServidor(map) {
           body: { shift: Number(b.dataset.h), commute: panel.querySelector('[data-deslocamento]')?.value ?? commuteMode },
         }),
       );
+    }
+    if (what === 'loja') {
+      const item = b.dataset.i;
+      return act(async () => {
+        const r = await call(API.game, `/v1/avatars/${data.avatar.id}/shop`, {
+          method: 'POST',
+          token: session.token,
+          body: { item, ...(b.dataset.l ? { level: Number(b.dataset.l) } : {}) },
+          headers: { 'idempotency-key': crypto.randomUUID() },
+        });
+        const label = { roupa: `Roupa nível ${b.dataset.l}`, ferramenta: 'Ferramenta de trabalho', cama: 'Cama' }[item];
+        message = `${label}: −${thaler(r.purchase.price)} THALER. Itens no turno: +${Math.round((r.avatar.gear.factor - 1) * 100)}%.`;
+        messageOk = true;
+      });
     }
     if (what === 'descansar') {
       return act(async () => {

@@ -8,6 +8,7 @@ import type { Leisure } from './leisure.js';
 import { type License, inDrivingSchool } from './vehicle.js';
 import type { Housing } from './housing.js';
 import { type Chores, type Rest, rested, resting } from './routine.js';
+import type { Gear } from './shop.js';
 
 /**
  * Avatar e atributos (doc 02 §2.3, doc 06 §2). Atributos de 0 a 10, educação
@@ -77,6 +78,8 @@ export interface Avatar {
   rest?: Rest | null;
   /** Higiene em casa: última vez de cada atividade. */
   chores?: Chores | null;
+  /** Itens da loja do jogo: roupa, ferramenta de trabalho e cama. */
+  gear?: Gear | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -161,6 +164,7 @@ export function newAvatar(
     housing: null,
     rest: null,
     chores: null,
+    gear: null,
     createdAt: now,
     updatedAt: now,
   };
