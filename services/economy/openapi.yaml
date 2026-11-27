@@ -1,0 +1,121 @@
+openapi: 3.1.0
+info:
+  title: Smart Chain City — Economy
+  version: 0.1.0
+  description: "Ledger THALER (dupla entrada, idempotência, extrato), impostos, câmbio e saques. Gerado das rotas do código e da tabela do README; o teste services/shared/test/openapi.test.ts confere que as rotas batem."
+components:
+  securitySchemes:
+    bearer: { type: http, scheme: bearer, bearerFormat: JWT, description: Token de acesso do gateway }
+    service: { type: apiKey, in: header, name: X-Service-Token, description: Chave entre serviços (rotas /internal) }
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string }
+            message: { type: string }
+paths:
+  /healthz:
+    get:
+      summary: "{status"
+      tags: ["operação"]
+      description: "{status: \"ok\"}"
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/economy/balances:
+    get:
+      summary: "Saldos"
+      tags: ["balances"]
+      description: "Saldos: {balances: [{currency, amount, decimals}]}"
+      security: [{"bearer":[]}]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/economy/ledger:
+    get:
+      summary: "Extrato do mais recente para o mais antigo"
+      tags: ["ledger"]
+      description: "Extrato do mais recente para o mais antigo; next_cursor para a próxima página"
+      security: [{"bearer":[]}]
+      parameters: [{"name":"currency","in":"query","required":false,"schema":{"type":"string"}},{"name":"cursor","in":"query","required":false,"schema":{"type":"string"}},{"name":"limit","in":"query","required":false,"schema":{"type":"integer","minimum":1,"maximum":100}}]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/dev/faucet:
+    post:
+      summary: "**Só desenvolvimento**"
+      tags: ["dev"]
+      description: "**Só desenvolvimento** (DEV_FAUCET=true, recusado em produção): +1.000 SCITY de teste, como um depósito simulado da ponte"
+      security: [{"bearer":[]}]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro (códigos: not_found)","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /internal/v1/ledger/transactions:
+    post:
+      summary: "Lança {kind, ref_type, ref_id, legs"
+      tags: ["interno"]
+      description: "Lança {kind, ref_type, ref_id, legs: [{owner_type, owner_id, currency, amount}]}: 201 novo, 200 repetido"
+      security: [{"service":[]}]
+      parameters: [{"name":"Idempotency-Key","in":"header","required":true,"schema":{"type":"string","maxLength":200}}]
+      requestBody: {"required":true,"content":{"application/json":{"schema":{"type":["object","null"],"properties":{"kind":{"type":"string"},"ref_type":{"type":["string","null"]},"ref_id":{"type":["string","null"]},"legs":{}},"required":["kind","ref_type","ref_id","legs"]}}}}
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro (códigos: missing_idempotency_key, fx_disabled)","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/economy/fx:
+    get:
+      summary: "Cotação, spread de saída, freio, mínimo e teto de agora"
+      tags: ["fx"]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/economy/exchange:
+    post:
+      summary: "Converte {direction"
+      tags: ["exchange"]
+      description: "Converte {direction: scity_to_thaler \\| thaler_to_scity, amount} (wei ou centavos)"
+      security: [{"bearer":[]}]
+      parameters: [{"name":"Idempotency-Key","in":"header","required":true,"schema":{"type":"string","maxLength":200}}]
+      requestBody: {"required":true,"content":{"application/json":{"schema":{"type":"object","properties":{"direction":{"type":"string","enum":["scity_to_thaler","thaler_to_scity"]},"amount":{"type":"string"}},"required":["direction","amount"]}}}}
+      responses: {"201":{"description":"Criado","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro (códigos: missing_idempotency_key)","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+    get:
+      summary: "Últimas 50 conversões"
+      tags: ["exchange"]
+      security: [{"bearer":[]}]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /internal/v1/economy/fx:
+    post:
+      summary: "Cotação nova {scity_usd, source}, valendo a partir de agora"
+      tags: ["interno"]
+      security: [{"service":[]}]
+      requestBody: {"required":true,"content":{"application/json":{"schema":{"type":"object","properties":{"scity_usd":{"type":"number","minimum":1,"maximum":1000000},"source":{"type":"string","maxLength":40}},"required":["scity_usd"]}}}}
+      responses: {"201":{"description":"Criado","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/economy/status:
+    get:
+      summary: "Travas de incidente"
+      tags: ["status"]
+      description: "Travas de incidente (saque e câmbio): o mapa mostra o aviso"
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /internal/v1/economy/switches/{name}:
+    put:
+      summary: "Liga ou desliga uma trava de incidente"
+      tags: ["interno"]
+      description: "Liga ou desliga uma trava de incidente (runbooks em docs/incidentes)"
+      security: [{"service":[]}]
+      parameters: [{"name":"name","in":"path","required":true,"schema":{"type":"string"}}]
+      requestBody: {"required":true,"content":{"application/json":{"schema":{"type":"object","properties":{"frozen":{"type":"boolean"},"reason":{"type":"string","maxLength":200},"by":{"type":"string","maxLength":80}},"required":["frozen","by"]}}}}
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro (códigos: unknown_switch, withdrawals_disabled)","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/economy/withdrawals:
+    post:
+      summary: "Pede o saque {wallet, amount_wei} e recebe o voucher do GameVault"
+      tags: ["withdrawals"]
+      security: [{"bearer":[]}]
+      requestBody: {"required":true,"content":{"application/json":{"schema":{"type":"object","properties":{"wallet":{"type":"string"},"amount_wei":{"type":"string"}},"required":["wallet","amount_wei"]}}}}
+      responses: {"201":{"description":"Criado","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+    get:
+      summary: "Últimos 50 saques, com o voucher dos pendentes"
+      tags: ["withdrawals"]
+      description: "Últimos 50 saques, com o voucher dos pendentes. Com wallet, vault diz se o cofre está pausado, os tetos e quanto ainda sai hoje (wallet_left_wei, total_left_wei)"
+      security: [{"bearer":[]}]
+      parameters: [{"name":"wallet","in":"query","required":false,"schema":{"type":"string"}}]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /internal/v1/economy/panel:
+    get:
+      summary: "Painel econômico"
+      tags: ["interno"]
+      description: "Painel econômico (?currency=THALER ou SCITY): emissão, dreno, razão, por tipo, pools, duração do P2E e alertas"
+      security: [{"service":[]}]
+      parameters: [{"name":"currency","in":"query","required":false,"schema":{"type":"string","enum":["THALER","SCITY"]}}]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro (códigos: panel_disabled)","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}

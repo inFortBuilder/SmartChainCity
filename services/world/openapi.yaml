@@ -1,0 +1,395 @@
+openapi: 3.1.0
+info:
+  title: Smart Chain City — World
+  version: 0.1.0
+  description: "Cidades, bairros e lotes, venda de lançamento, imóveis, prédios e unidades, cotações assinadas. Gerado das rotas do código e da tabela do README; o teste services/shared/test/openapi.test.ts confere que as rotas batem."
+components:
+  securitySchemes:
+    bearer: { type: http, scheme: bearer, bearerFormat: JWT, description: Token de acesso do gateway }
+    service: { type: apiKey, in: header, name: X-Service-Token, description: Chave entre serviços (rotas /internal) }
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string }
+            message: { type: string }
+paths:
+  /v1/public/stats:
+    get:
+      summary: "Números públicos do serviço para o site"
+      tags: ["public"]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /healthz:
+    get:
+      summary: "{status"
+      tags: ["operação"]
+      description: "{status: \"ok\"}"
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/world/cities/{code}:
+    get:
+      summary: "Cidade, bairros abertos e contagem de vendidos por bairro"
+      tags: ["cities"]
+      parameters: [{"name":"code","in":"path","required":true,"schema":{"type":"string"}}]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/world/cities/{code}/districts/{order}/lots:
+    get:
+      summary: "Situação e preço dos lotes do bairro"
+      tags: ["cities"]
+      description: "Situação e preço dos lotes do bairro; o dono não é exposto"
+      security: [{},{"bearer":[]}]
+      parameters: [{"name":"code","in":"path","required":true,"schema":{"type":"string"}},{"name":"order","in":"path","required":true,"schema":{"type":"string"}}]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/world/cities/{code}/lots/{id}:
+    get:
+      summary: "Um lote"
+      tags: ["cities"]
+      description: "Um lote: zona, área, situação, preço em US$ e em SCITY"
+      security: [{},{"bearer":[]}]
+      parameters: [{"name":"code","in":"path","required":true,"schema":{"type":"string"}},{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro (códigos: not_found)","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/world/me/lots:
+    get:
+      summary: "Lotes do jogador"
+      tags: ["me"]
+      security: [{"bearer":[]}]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/world/cities/{code}/lots/{id}/buy:
+    post:
+      summary: "Compra pagando SCITY no ledger"
+      tags: ["cities"]
+      description: "Compra pagando SCITY no ledger. No lançamento, só na vez da fila e até o limite por carteira"
+      security: [{"bearer":[]}]
+      parameters: [{"name":"code","in":"path","required":true,"schema":{"type":"string"}},{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]
+      responses: {"201":{"description":"Criado","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro (códigos: ledger_unavailable)","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/world/cities/{code}/sale:
+    get:
+      summary: "Lançamento agendado"
+      tags: ["cities"]
+      description: "Lançamento agendado: fase (soon, queue, launch, ended), horários, lote de entrada e limite. Com Bearer, me.ticket (waiting, admitted, expired, posição, provisional, vez e prazo) e me.bought"
+      security: [{},{"bearer":[]}]
+      parameters: [{"name":"code","in":"path","required":true,"schema":{"type":"string"}}]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/world/cities/{code}/sale/queue:
+    post:
+      summary: "Entra na fila"
+      tags: ["cities"]
+      description: "Entra na fila (ou devolve a ficha que ainda vale)"
+      security: [{"bearer":[]}]
+      parameters: [{"name":"code","in":"path","required":true,"schema":{"type":"string"}}]
+      responses: {"201":{"description":"Criado","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro (códigos: no_sale, wallet_required, internal_disabled)","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /internal/v1/cities/{code}/sale:
+    put:
+      summary: "Agenda ou muda o lançamento"
+      tags: ["interno"]
+      description: "Agenda ou muda o lançamento: opens_at, ends_at, pre_queue_seconds, batch_size, batch_seconds, window_seconds, max_lots, require_wallet"
+      security: [{"service":[]}]
+      parameters: [{"name":"code","in":"path","required":true,"schema":{"type":"string"}}]
+      requestBody: {"required":true,"content":{"application/json":{"schema":{"type":"object","properties":{"opens_at":{"type":"string","format":"date-time"},"ends_at":{"type":"string","format":"date-time"},"pre_queue_seconds":{"type":"integer","minimum":0,"maximum":86400},"batch_size":{"type":"integer","minimum":1,"maximum":100000},"batch_seconds":{"type":"integer","minimum":1,"maximum":3600},"window_seconds":{"type":"integer","minimum":60,"maximum":3600},"max_lots":{"type":"integer","minimum":1,"maximum":324},"require_wallet":{"type":"boolean"}},"required":["opens_at","ends_at"]}}}}
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+    delete:
+      summary: "Cancela o lançamento"
+      tags: ["interno"]
+      description: "Cancela o lançamento: a venda fica livre"
+      security: [{"service":[]}]
+      parameters: [{"name":"code","in":"path","required":true,"schema":{"type":"string"}}]
+      responses: {"204":{"description":"Sem conteúdo"},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/world/cities/{code}/lots/{id}/onchain-quote:
+    post:
+      summary: "Cotação assinada para o LandNFT"
+      tags: ["cities"]
+      description: "Cotação assinada para o LandNFT (corpo: {wallet})"
+      security: [{"bearer":[]}]
+      parameters: [{"name":"code","in":"path","required":true,"schema":{"type":"string"}},{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]
+      requestBody: {"required":true,"content":{"application/json":{"schema":{"type":"object","properties":{"wallet":{"type":"string"}},"required":["wallet"]}}}}
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro (códigos: onchain_disabled, properties_disabled, ledger_unavailable)","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/world/property-types:
+    get:
+      summary: "Tipos de imóvel, preço, obra, renda por nível e regras de desgaste e acúmulo"
+      tags: ["property-types"]
+      description: "Tipos de imóvel, preço, obra, renda por nível e regras de desgaste e acúmulo; nos negócios de lazer, venue com a atividade e a entrada"
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/world/cities/{code}/venues:
+    get:
+      summary: "Academias e galerias da cidade"
+      tags: ["cities"]
+      description: "Academias e galerias da cidade: tipo, lote, entrada, open e fase"
+      security: [{},{"bearer":[]}]
+      parameters: [{"name":"code","in":"path","required":true,"schema":{"type":"string"}}]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /internal/v1/venues/{id}:
+    get:
+      summary: "O negócio para o game-core cobrar a entrada"
+      tags: ["interno"]
+      description: "O negócio para o game-core cobrar a entrada: dono, atividade, entrada e se está aberto"
+      security: [{"service":[]}]
+      parameters: [{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro (códigos: internal_disabled, not_found)","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/world/cities/{code}/lots/{id}/property:
+    post:
+      summary: "Constrói"
+      tags: ["cities"]
+      description: "Constrói (corpo: {type}) pagando THALER"
+      security: [{"bearer":[]}]
+      parameters: [{"name":"code","in":"path","required":true,"schema":{"type":"string"}},{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]
+      requestBody: {"required":true,"content":{"application/json":{"schema":{"type":"object","properties":{"type":{"type":"string","maxLength":40}},"required":["type"]}}}}
+      responses: {"201":{"description":"Criado","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro (códigos: ledger_unavailable, lot_has_building)","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/world/me/properties:
+    get:
+      summary: "Imóveis do jogador"
+      tags: ["me"]
+      description: "Imóveis do jogador: fase (pending_payment, building, ready), progresso da obra, desgaste, renda por dia e acumulada"
+      security: [{"bearer":[]}]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/world/properties/{id}/claim:
+    post:
+      summary: "Coleta a renda acumulada"
+      tags: ["properties"]
+      security: [{"bearer":[]}]
+      parameters: [{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro (códigos: ledger_unavailable, lot_not_owned)","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/world/properties/{id}/repair:
+    post:
+      summary: "Reparo"
+      tags: ["properties"]
+      description: "Reparo: desgaste volta a 100"
+      security: [{"bearer":[]}]
+      parameters: [{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/world/properties/{id}/upgrade:
+    post:
+      summary: "Sobe um nível"
+      tags: ["properties"]
+      security: [{"bearer":[]}]
+      parameters: [{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/world/properties/{id}/regularize:
+    post:
+      summary: "Regulariza na Prefeitura"
+      tags: ["properties"]
+      description: "Regulariza na Prefeitura (uma vez)"
+      security: [{"bearer":[]}]
+      parameters: [{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/world/properties/{id}/retype:
+    post:
+      summary: "Troca de tipo"
+      tags: ["properties"]
+      description: "Troca de tipo: T1 → T2 → T3, no último nível"
+      security: [{"bearer":[]}]
+      parameters: [{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/world/properties/{id}/water:
+    post:
+      summary: "Água por 30 dias"
+      tags: ["properties"]
+      security: [{"bearer":[]}]
+      parameters: [{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/world/properties/{id}/power:
+    post:
+      summary: "Energia por 30 dias"
+      tags: ["properties"]
+      security: [{"bearer":[]}]
+      parameters: [{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /internal/v1/accounts/{accountId}/homes:
+    get:
+      summary: "Casas prontas da conta e até quando são moradia regular"
+      tags: ["interno"]
+      security: [{"service":[]}]
+      parameters: [{"name":"accountId","in":"path","required":true,"schema":{"type":"string"}}]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro (códigos: internal_disabled, onchain_disabled)","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/world/properties/{id}/onchain-voucher:
+    post:
+      summary: "Voucher EIP-712 do PropertyNFT para o imóvel pronto"
+      tags: ["properties"]
+      description: "Voucher EIP-712 do PropertyNFT para o imóvel pronto (corpo: {wallet})"
+      security: [{"bearer":[]}]
+      parameters: [{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]
+      requestBody: {"required":true,"content":{"application/json":{"schema":{"type":"object","properties":{"wallet":{"type":"string"}},"required":["wallet"]}}}}
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/world/properties/{id}/level-voucher:
+    post:
+      summary: "Voucher do nível atual para PropertyNFT.upgrade"
+      tags: ["properties"]
+      security: [{"bearer":[]}]
+      parameters: [{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro (códigos: taxes_disabled)","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/world/me/taxes:
+    get:
+      summary: "Contas de imposto"
+      tags: ["me"]
+      description: "Contas de imposto: valor, multa, vencimento, situação e dias de atraso; total devido"
+      security: [{"bearer":[]}]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro (códigos: auctions_disabled)","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/world/auctions:
+    get:
+      summary: "Leilões abertos"
+      tags: ["auctions"]
+      description: "Leilões abertos: dívida, maior lance, lance mínimo e fim"
+      security: [{},{"bearer":[]}]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/world/auctions/{id}:
+    get:
+      summary: "Um leilão, aberto ou fechado"
+      tags: ["auctions"]
+      parameters: [{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro (códigos: not_found)","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/world/auctions/{id}/bids:
+    post:
+      summary: "Lance"
+      tags: ["auctions"]
+      description: "Lance (corpo: {amount_cents})"
+      security: [{"bearer":[]}]
+      parameters: [{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]
+      requestBody: {"required":true,"content":{"application/json":{"schema":{"type":"object","properties":{"amount_cents":{"type":"integer","minimum":1,"maximum":1000000000000}},"required":["amount_cents"]}}}}
+      responses: {"201":{"description":"Criado","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/world/me/taxes/pay:
+    post:
+      summary: "Paga agora as contas pendentes"
+      tags: ["me"]
+      security: [{"bearer":[]}]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro (códigos: ledger_unavailable, buildings_disabled)","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/world/cities/{code}/lots/{id}/building:
+    post:
+      summary: "Envia o job do SCC Builder"
+      tags: ["cities"]
+      description: "Envia o job do SCC Builder; o world valida contra o próprio lote"
+      security: [{"bearer":[]}]
+      parameters: [{"name":"code","in":"path","required":true,"schema":{"type":"string"}},{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]
+      requestBody: {"required":true,"content":{"application/json":{"schema":{"type":"object","properties":{"job_id":{"type":"string","maxLength":64},"rotation_deg":{"type":"number","minimum":-360,"maximum":360},"units":{"type":"string","enum":["m","cm","mm","in","ft"]},"position":{}},"required":["job_id"]}}}}
+      responses: {"201":{"description":"Criado","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro (códigos: builder_unavailable)","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+    get:
+      summary: "Prédio aprovado do lote, com os artefatos"
+      tags: ["cities"]
+      parameters: [{"name":"code","in":"path","required":true,"schema":{"type":"string"}},{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro (códigos: not_found, units_disabled, ledger_unavailable)","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/world/me/buildings:
+    get:
+      summary: "Prédios do jogador e a situação de cada um"
+      tags: ["me"]
+      security: [{"bearer":[]}]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/world/buildings/{id}/units:
+    post:
+      summary: "Gera as unidades do prédio aprovado"
+      tags: ["buildings"]
+      security: [{"bearer":[]}]
+      parameters: [{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]
+      requestBody: {"required":true,"content":{"application/json":{"schema":{"type":"object","properties":{"units_per_floor":{"type":"integer"},"ground_commercial":{"type":"boolean"},"price_cents_per_m2":{"type":"integer"}},"required":["units_per_floor","price_cents_per_m2"]}}}}
+      responses: {"201":{"description":"Criado","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+    get:
+      summary: "Unidades do prédio"
+      tags: ["buildings"]
+      parameters: [{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/world/cities/{code}/units/for-rent:
+    get:
+      summary: "Unidades livres para alugar"
+      tags: ["cities"]
+      parameters: [{"name":"code","in":"path","required":true,"schema":{"type":"string"}}]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/world/me/units:
+    get:
+      summary: "Unidades da conta e as alugadas"
+      tags: ["me"]
+      security: [{"bearer":[]}]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/world/units/{id}/offer:
+    put:
+      summary: "Preço de venda e de aluguel"
+      tags: ["units"]
+      security: [{"bearer":[]}]
+      parameters: [{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]
+      requestBody: {"required":true,"content":{"application/json":{"schema":{"type":["object","null"],"properties":{"price_cents":{"type":["integer","null"]},"rent_cents_per_day":{"type":["integer","null"]}}}}}}
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/world/units/{id}/buy:
+    post:
+      summary: "Compra a unidade"
+      tags: ["units"]
+      security: [{"bearer":[]}]
+      parameters: [{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]
+      responses: {"201":{"description":"Criado","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/world/units/{id}/lease:
+    post:
+      summary: "Aluga para um avatar morar"
+      tags: ["units"]
+      security: [{"bearer":[]}]
+      parameters: [{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]
+      requestBody: {"required":true,"content":{"application/json":{"schema":{"type":"object","properties":{"avatar_id":{"type":"string","format":"uuid"},"days":{"type":"integer"}},"required":["avatar_id","days"]}}}}
+      responses: {"201":{"description":"Criado","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/world/buildings/{id}/onchain-voucher:
+    post:
+      summary: "Voucher EIP-712 do BuildingNFT para o prédio aprovado"
+      tags: ["buildings"]
+      description: "Voucher EIP-712 do BuildingNFT para o prédio aprovado (corpo: {wallet})"
+      security: [{"bearer":[]}]
+      parameters: [{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]
+      requestBody: {"required":true,"content":{"application/json":{"schema":{"type":"object","properties":{"wallet":{"type":"string"}},"required":["wallet"]}}}}
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro (códigos: onchain_disabled)","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /internal/v1/buildings/{id}/review:
+    post:
+      summary: "Alvará"
+      tags: ["interno"]
+      description: "Alvará: aprova ou recusa"
+      security: [{"service":[]}]
+      parameters: [{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]
+      requestBody: {"required":true,"content":{"application/json":{"schema":{"type":"object","properties":{"approve":{"type":"boolean"},"note":{"type":"string","maxLength":500}},"required":["approve"]}}}}
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro (códigos: internal_disabled, seizures_disabled)","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/world/me/seizures:
+    get:
+      summary: "Imóveis e lotes da conta em processo de penhora"
+      tags: ["me"]
+      security: [{"bearer":[]}]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/world/seizures/{id}/voucher:
+    post:
+      summary: "Voucher para o vencedor do leilão trazer o token"
+      tags: ["seizures"]
+      description: "Voucher para o vencedor do leilão trazer o token (LandNFT ou PropertyNFT seize)"
+      security: [{"bearer":[]}]
+      parameters: [{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]
+      requestBody: {"required":true,"content":{"application/json":{"schema":{"type":"object","properties":{"wallet":{"type":"string"}},"required":["wallet"]}}}}
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro (códigos: onchain_disabled, visits_disabled)","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/world/cities/{code}/lots/{id}/visit:
+    get:
+      summary: "Posso entrar no imóvel do lote? {place"
+      tags: ["cities"]
+      description: "Posso entrar no imóvel do lote? {place: {kind, id, interior, label}, role} para o dono ou um convidado"
+      security: [{"bearer":[]}]
+      parameters: [{"name":"code","in":"path","required":true,"schema":{"type":"string"}},{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/world/places/{kind}/{id}/guests:
+    get:
+      summary: "Convidados do imóvel"
+      tags: ["places"]
+      description: "Convidados do imóvel (property) ou do prédio (building)"
+      security: [{"bearer":[]}]
+      parameters: [{"name":"kind","in":"path","required":true,"schema":{"type":"string"}},{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+    post:
+      summary: "Convida pela conta ou pela carteira ligada a ela"
+      tags: ["places"]
+      description: "Convida pela conta ou pela carteira ligada a ela (corpo: {account_id} ou {wallet})"
+      security: [{"bearer":[]}]
+      parameters: [{"name":"kind","in":"path","required":true,"schema":{"type":"string"}},{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]
+      requestBody: {"required":true,"content":{"application/json":{"schema":{"type":"object","properties":{"account_id":{"type":"string","format":"uuid"},"wallet":{"type":"string","pattern":"^0x[0-9a-fA-F]+$"}}}}}}
+      responses: {"201":{"description":"Criado","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro (códigos: gateway_unavailable, wallet_unknown)","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/world/places/{kind}/{id}/guests/{account}:
+    delete:
+      summary: "Tira o convite"
+      tags: ["places"]
+      security: [{"bearer":[]}]
+      parameters: [{"name":"kind","in":"path","required":true,"schema":{"type":"string"}},{"name":"id","in":"path","required":true,"schema":{"type":"string"}},{"name":"account","in":"path","required":true,"schema":{"type":"string"}}]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/world/me/invitations:
+    get:
+      summary: "Imóveis onde fui convidado e o convite ainda vale"
+      tags: ["me"]
+      security: [{"bearer":[]}]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro (códigos: not_found)","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}

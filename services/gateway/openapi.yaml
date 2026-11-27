@@ -6,6 +6,7 @@ info:
 components:
   securitySchemes:
     bearer: { type: http, scheme: bearer, bearerFormat: JWT }
+    service: { type: apiKey, in: header, name: X-Service-Token, description: Chave entre serviços (rotas /internal) }
   schemas:
     Error:
       type: object
@@ -320,3 +321,55 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
+  /v1/public/stats:
+    get:
+      summary: "Números públicos do serviço para o site"
+      tags: ["public"]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/auth/captcha:
+    get:
+      summary: "Desafio do captcha"
+      tags: ["auth"]
+      description: "Desafio do captcha (desligado: enabled false)"
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/me/kyc:
+    get:
+      summary: "Nível de KYC da conta e o último pedido"
+      tags: ["me"]
+      security: [{"bearer":[]}]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+    post:
+      summary: "Pede a verificação de KYC"
+      tags: ["me"]
+      security: [{"bearer":[]}]
+      responses: {"202":{"description":"Aceito (em andamento)","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro (códigos: internal_disabled)","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /internal/v1/kyc:
+    get:
+      summary: "Fila da revisão de KYC, do pedido mais antigo ao mais novo"
+      tags: ["interno"]
+      security: [{"service":[]}]
+      parameters: [{"name":"status","in":"query","required":false,"schema":{"type":"string","enum":["pending","approved","rejected"]}},{"name":"limit","in":"query","required":false,"schema":{"type":"integer","minimum":1,"maximum":500}}]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /internal/v1/kyc/{id}:
+    post:
+      summary: "Decide um pedido de KYC"
+      tags: ["interno"]
+      description: "Decide um pedido de KYC (revisão ou webhook do provedor)"
+      security: [{"service":[]}]
+      parameters: [{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]
+      requestBody: {"required":true,"content":{"application/json":{"schema":{"type":"object","properties":{"decision":{"type":"string","enum":["approve","reject"]},"note":{"type":"string","maxLength":500}},"required":["decision"]}}}}
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /internal/v1/accounts/{id}/wallets:
+    get:
+      summary: "Carteiras ligadas a uma conta"
+      tags: ["interno"]
+      security: [{"service":[]}]
+      parameters: [{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro (códigos: internal_disabled)","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /internal/v1/wallets/{address}/account:
+    get:
+      summary: "Conta dona de uma carteira"
+      tags: ["interno"]
+      security: [{"service":[]}]
+      parameters: [{"name":"address","in":"path","required":true,"schema":{"type":"string"}}]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro (códigos: internal_disabled, not_found)","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
