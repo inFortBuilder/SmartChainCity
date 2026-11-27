@@ -1637,7 +1637,9 @@ export function createServidor(map) {
         });
         const casa = loja.home?.find((i) => i.code === item);
         const label = casa?.label ?? { roupa: `Roupa nível ${b.dataset.l}`, ferramenta: 'Ferramenta de trabalho', cama: 'Cama', skate: 'Skate' }[item];
-        message = casa
+        message = item === 'skate'
+          ? `Skate: −${thaler(r.purchase.price)} THALER. Aguenta ${r.avatar.gear.skate_trips} viagens: escolha Skate em Ir ao trabalho.`
+          : casa
           ? `${label}: −${thaler(r.purchase.price)} THALER.${r.avatar.gear.complete_home ? ' Casa completa: +1 de felicidade ao acordar em casa.' : ''}`
           : `${label}: −${thaler(r.purchase.price)} THALER. Itens no turno: +${Math.round((r.avatar.gear.factor - 1) * 100)}%.`;
         messageOk = true;
