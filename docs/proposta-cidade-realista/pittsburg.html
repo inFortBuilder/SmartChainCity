@@ -118,7 +118,7 @@
   @media (max-width: 640px) { .layers { top: auto; bottom: 16px; left: 8px; width: 150px; } .ficha { right: 8px; width: 190px; } }
   /* Cortinas laterais (cortinas.js): Jogo e Camadas ocupam da barra do topo até a base da tela, à esquerda,
      com a rolagem do lado esquerdo. Fechadas, saem da tela; as abas na borda abrem e fecham. */
-  :root { --trilho: 46px; --cortina-topo: calc(var(--topbar-h, 64px) + 8px); }
+  :root { --trilho: 46px; --cortina-topo: calc(var(--topbar-h, 64px) + 10px); }
   .cortina-trilho { position: fixed; left: 0; top: calc(var(--topbar-h, 64px) + 40px); z-index: 6; display: flex; flex-direction: column; gap: 8px; padding-left: 4px; }
   .cortina-aba { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 38px; padding: 10px 0; border-radius: 0 12px 12px 0; border-left: 0; color: var(--text); cursor: pointer; font: 600 12px/1 Inter, system-ui, sans-serif; }
   .cortina-aba__txt { writing-mode: vertical-rl; transform: rotate(180deg); letter-spacing: .04em; }
@@ -142,9 +142,21 @@
   /* "Meu patrimônio" abre ao lado das abas, sem cobrir o trilho. */
   .patrimonio { left: calc(var(--trilho) + 8px); }
   body.sv-on .cortina-trilho { display: none !important; }
+  /* Ficha do lote: cortina lateral à direita, no mesmo formato das da esquerda (do menu do topo à base da tela). */
+  .ficha.glass {
+    position: fixed; right: 0; left: auto; top: var(--cortina-topo); bottom: 0;
+    width: 320px; max-width: calc(100vw - 8px); max-height: none; margin: 0;
+    border-right: 0; border-radius: var(--radius) 0 0 0; overflow-y: auto; overscroll-behavior: contain; z-index: 8;
+    padding: 14px 16px 18px; animation: ficha-entra .2s ease;
+  }
+  .ficha .cortina-cab h2 { margin: 0; }
+  .ficha::-webkit-scrollbar { width: 8px; }
+  .ficha::-webkit-scrollbar-thumb { background: rgba(255,255,255,.22); border-radius: 999px; }
+  @keyframes ficha-entra { from { transform: translateX(100%); } to { transform: none; } }
+  @media (prefers-reduced-motion: reduce) { .ficha.glass { animation: none; } }
   @media (prefers-reduced-motion: reduce) { .layers.cortina, .servidor.cortina { transition: none; } }
   @media (max-width: 640px) {
-    .layers.cortina, .servidor.cortina { width: calc(100vw - 8px); }
+    .layers.cortina, .servidor.cortina, .ficha.glass { width: calc(100vw - 8px); }
   }
 </style>
 <script type="importmap">

@@ -123,6 +123,22 @@ function pick(event) {
   return null;
 }
 
+/** Cabeçalho da ficha (cortina à direita): o título e o botão de fechar. */
+const fichaCab = (title) =>
+  `<div class="cortina-cab"><h2>${title}</h2><button class="btn btn--ghost" type="button" data-ficha-fechar aria-label="Fechar a ficha">✕</button></div>`;
+
+/** Fecha a ficha: pelo ✕ ou pelo Esc (fora de um campo). */
+function closeFicha() {
+  showLot(null);
+  showBuilding(null);
+}
+document.querySelector('[data-ficha]')?.addEventListener('click', (e) => {
+  if (e.target.closest('[data-ficha-fechar]')) closeFicha();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !document.querySelector('[data-ficha]')?.hidden && !e.target.closest('input, textarea, select')) closeFicha();
+});
+
 function showBuilding(b) {
   const ficha = $('[data-ficha]');
   if (!b) {
@@ -134,7 +150,7 @@ function showBuilding(b) {
   highlight.box.max.set(b.x + b.w / 2, b.h, b.z + b.d / 2);
   highlight.visible = true;
   ficha.hidden = false;
-  ficha.innerHTML = `<h2>Prédio</h2><dl>
+  ficha.innerHTML = `${fichaCab('Prédio')}<dl>
     <dt>Altura</dt><dd>${fmt.format(b.h)} m</dd>
     <dt>Andares sugeridos</dt><dd>${b.floors}</dd>
     <dt>Base</dt><dd>${fmt.format(b.w)} × ${fmt.format(b.d)} m</dd>
@@ -463,7 +479,7 @@ function showLot(i) {
     const c = lots.civic;
     const [w, h, d] = c.modelo.tamanho_m;
     ficha.hidden = false;
-    ficha.innerHTML = `<h2>🏛️ ${c.nome}</h2><dl>
+    ficha.innerHTML = `${fichaCab(`🏛️ ${c.nome}`)}<dl>
       <dt>Situação</dt><dd>Prefeitura · não está à venda</dd>
       <dt>Lote</dt><dd>PIT-${String(i + 1).padStart(6, '0')}</dd>
       <dt>Terreno</dt><dd>${c.lotes.length} lotes unidos</dd>
@@ -486,7 +502,7 @@ function showLot(i) {
       : `<dt>Bairro</dt><dd>${order + 1} de ${total}</dd>` +
         (open ? '' : `<dt>Abre em</dt><dd>${order + 1 - lots.openCount}ª fase</dd>`);
   ficha.hidden = false;
-  ficha.innerHTML = `<h2>Lote PIT-${String(i + 1).padStart(6, '0')}</h2><dl>
+  ficha.innerHTML = `${fichaCab(`Lote PIT-${String(i + 1).padStart(6, '0')}`)}<dl>
     <dt>Situação</dt><dd>${status}</dd>${bairro}
     <dt>Zona</dt><dd>${zone.label}</dd>
     <dt>Área</dt><dd>${fmt.format(Math.round(area))} m²</dd>
