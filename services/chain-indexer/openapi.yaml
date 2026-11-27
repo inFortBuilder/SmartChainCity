@@ -1,0 +1,104 @@
+openapi: 3.1.0
+info:
+  title: Smart Chain City — Chain indexer
+  version: 0.1.0
+  description: "Leitura dos eventos on-chain: posse de lotes, avatares, imóveis e caixas. Gerado das rotas do código e da tabela do README; o teste services/shared/test/openapi.test.ts confere que as rotas batem."
+components:
+  securitySchemes:
+    bearer: { type: http, scheme: bearer, bearerFormat: JWT, description: Token de acesso do gateway }
+    service: { type: apiKey, in: header, name: X-Service-Token, description: Chave entre serviços (rotas /internal) }
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string }
+            message: { type: string }
+paths:
+  /healthz:
+    get:
+      summary: "Saúde do serviço"
+      tags: ["operação"]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/chain/status:
+    get:
+      summary: "Rede, confirmações, último bloco da rede e o lido, atraso, último erro, contratos"
+      tags: ["status"]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/chain/lots/{tokenId}:
+    get:
+      summary: "Dono on-chain do lote, com cidade e número"
+      tags: ["lots"]
+      parameters: [{"name":"tokenId","in":"path","required":true,"schema":{"type":"string"}}]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/chain/avatars/{tokenId}:
+    get:
+      summary: "Dono, raridade e profissão do avatar"
+      tags: ["avatars"]
+      parameters: [{"name":"tokenId","in":"path","required":true,"schema":{"type":"string"}}]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/chain/properties/{tokenId}:
+    get:
+      summary: "Dono, lote âncora, tipo e nível do imóvel"
+      tags: ["properties"]
+      parameters: [{"name":"tokenId","in":"path","required":true,"schema":{"type":"string"}}]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/chain/boxes/{tokenId}:
+    get:
+      summary: "Dono e conteúdo de uma caixa on-chain"
+      tags: ["boxes"]
+      parameters: [{"name":"tokenId","in":"path","required":true,"schema":{"type":"string"}}]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/chain/owners/{address}:
+    get:
+      summary: "Lotes, avatares e imóveis de uma carteira"
+      tags: ["owners"]
+      parameters: [{"name":"address","in":"path","required":true,"schema":{"type":"string"}}]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/chain/deposits/{address}:
+    get:
+      summary: "Depósitos de uma carteira no GameVault e se já viraram saldo"
+      tags: ["deposits"]
+      description: "Depósitos de uma carteira no GameVault e se já viraram saldo (pending, credited)"
+      parameters: [{"name":"address","in":"path","required":true,"schema":{"type":"string"}}]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/market/listings:
+    get:
+      summary: "Listagens abertas do Marketplace, as mais novas primeiro"
+      tags: ["market"]
+      description: "Listagens abertas do Marketplace, as mais novas primeiro: vendedor, preço, prazo e itens com a coleção e o dono atual. Sem all=true, saem as vencidas e as velhas (stale: o vendedor já não tem algum NFT)"
+      parameters: [{"name":"limit","in":"query","required":false,"schema":{"type":"integer","minimum":1,"maximum":200}},{"name":"all","in":"query","required":false,"schema":{"type":"boolean"}}]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/market/listings/{id}:
+    get:
+      summary: "Uma listagem, aberta ou fechada"
+      tags: ["market"]
+      description: "Uma listagem, aberta ou fechada (sold, cancelled ou replaced quando o NFT foi listado de novo pelo dono atual)"
+      parameters: [{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro (códigos: not_found)","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/market/auctions:
+    get:
+      summary: "Leilões abertos, os mais novos primeiro"
+      tags: ["market"]
+      description: "Leilões abertos, os mais novos primeiro: vendedor, preço inicial, maior lance e quem o deu, número de lances, lance mínimo agora, fim (ended quando passou e falta encerrar) e itens"
+      parameters: [{"name":"limit","in":"query","required":false,"schema":{"type":"integer","minimum":1,"maximum":200}}]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/market/auctions/{id}:
+    get:
+      summary: "Um leilão, aberto ou fechado"
+      tags: ["market"]
+      description: "Um leilão, aberto ou fechado (settled, com winner nulo se terminou sem lance, ou cancelled)"
+      parameters: [{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro (códigos: not_found)","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /internal/v1/chain/events:
+    get:
+      summary: "Feed de eventos confirmados, em ordem"
+      tags: ["interno"]
+      description: "Feed de eventos confirmados, em ordem; next_after para a próxima página"
+      security: [{"service":[]}]
+      parameters: [{"name":"after","in":"query","required":false,"schema":{"type":"integer","minimum":0}},{"name":"limit","in":"query","required":false,"schema":{"type":"integer","minimum":1,"maximum":1000}}]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro (códigos: internal_disabled)","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
