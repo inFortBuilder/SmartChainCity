@@ -33,7 +33,7 @@ services/<nome>/
 │  ├─ api/        ← rotas, DTOs, validação
 │  ├─ domain/     ← regras puras (testes unitários aqui)
 │  ├─ infra/      ← repositórios, fila, chain, cache
-│  ├─ jobs/       ← processadores BullMQ
+│  ├─ jobs/       ← jobs periódicos (JobRunner do @scc/shared)
 │  └─ main.ts
 ├─ test/
 ├─ .env.example
@@ -42,6 +42,8 @@ services/<nome>/
 ```
 
 ## Filas e jobs
+
+Os jobs rodam no processo de cada serviço pelo `JobRunner` do `@scc/shared`. Com mais de uma instância, um advisory lock do Postgres por job deixa só uma rodar cada passada. As métricas `job_runs_total` e `job_last_success_timestamp_seconds` saem no /metrics. Os nomes abaixo são os dos jobs, e a coluna "Fila" agrupa por assunto.
 
 | Fila | Job | Agendamento |
 |------|-----|-------------|

@@ -469,5 +469,4 @@ Esquema próprio `game`: tabela `avatar` do doc 06, com os instantes de referên
 - Aluguel de unidades de prédios de jogadores (com o E3.11); bônus por ocupação do hotel de jogador.
 - As outras atividades extras do seed (parque, ginásio e lojas já têm o lazer; as de transporte, pets e escola são parte de outros sistemas); as doenças do hospital (febre, enxaqueca, virose: −1 de saúde a cada 15 min).
 - O tempo de compra do mercado e o limite da despensa pela casa.
-- Fila do BullMQ: o job roda no próprio processo até haver Redis no ambiente.
 - Calibrar as premissas de felicidade e higiene no simulador.

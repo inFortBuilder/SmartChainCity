@@ -48,29 +48,3 @@ export async function runHospital(store: HospitalStore, payer: HospitalPayer | n
   }
   return { admitted, charged };
 }
-
-/** Roda no próprio processo, como os outros jobs (fila do BullMQ quando houver Redis). */
-export function scheduleHospital(
-  store: HospitalStore,
-  payer: HospitalPayer | null,
-  everyMs: number,
-  log: (msg: string) => void,
-  now: () => Date = () => new Date(),
-) {
-  let running = false;
-  const tick = async () => {
-    if (running) return;
-    running = true;
-    try {
-      const { admitted, charged } = await runHospital(store, payer, now());
-      if (admitted || charged) log(`hospital.admit: ${admitted} internação(ões), ${charged} taxa(s) acertada(s)`);
-    } catch (error) {
-      log(`hospital.admit falhou: ${(error as Error).message}`);
-    } finally {
-      running = false;
-    }
-  };
-  const timer = setInterval(tick, everyMs);
-  timer.unref();
-  return { tick, stop: () => clearInterval(timer) };
-}
