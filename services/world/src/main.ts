@@ -1,3 +1,4 @@
+import { JobRunner, metricsOf } from '@scc/shared';
 import { Pool } from 'pg';
 import type { Address, Hex } from 'viem';
 
@@ -183,68 +184,56 @@ const loadCatalog = async () => {
   }
 };
 await loadCatalog();
-const catalogTimer = config.CMS_URL ? setInterval(() => void loadCatalog(), config.CATALOG_REFRESH_SECONDS * 1000) : null;
-catalogTimer?.unref();
-const priceTimer = price ? setInterval(() => void price.refresh(), 60_000) : null;
-priceTimer?.unref();
 const onchain = land ? `${land.contract} (chain ${land.chainId}, signer ${land.signer.address})` : 'desligada';
 app.log.info(
   `armazenamento: ${pool ? 'postgres' : 'memória'}; venda de lotes: ${payments ? config.ECONOMY_URL : 'desligada'}; posse on-chain: ${onchain}`,
 );
 
-// Jobs purchases.settle e properties.settle: compras, obras e coletas que ficaram
-// pendentes (resposta do ledger perdida, por exemplo).
-let settling = false;
-const timer = setInterval(async () => {
-  if (!payments || settling) return;
-  settling = true;
-  try {
+// Jobs do world (trilha do backend): com mais de uma instância, só uma roda cada passada (JobRunner).
+const jobs = new JobRunner({
+  service: 'world',
+  pool,
+  log: { info: (m) => app.log.info(m), error: (m) => app.log.error(m) },
+  metrics: metricsOf(app),
+});
+// Catálogo e cotação ficam na memória de cada instância: rodam em todas.
+if (config.CMS_URL) jobs.add('catalog.refresh', config.CATALOG_REFRESH_SECONDS * 1000, async () => void (await loadCatalog()), { local: true });
+if (price) jobs.add('price.refresh', 60_000, async () => void (await price.refresh()), { local: true });
+
+// Jobs purchases.settle, properties.settle, units.settle e buildings.settle: compras, obras, coletas,
+// vendas e outorgas que ficaram pendentes (resposta do ledger perdida, por exemplo).
+if (payments) {
+  jobs.add('purchases.settle', config.SETTLE_EVERY_SECONDS * 1000, async () => {
+    const out: string[] = [];
     const n = await settleStale(store, payments, new Date());
-    if (n) app.log.info(`purchases.settle: ${n} compra(s) resolvida(s)`);
+    if (n) out.push(`${n} compra(s)`);
     if (propertyPayments) {
       const m = await settleProperties(propertyStore, propertyPayments, new Date(), store);
-      if (m) app.log.info(`properties.settle: ${m} obra(s) ou coleta(s) resolvida(s)`);
+      if (m) out.push(`${m} obra(s) ou coleta(s)`);
     }
     if (unitPayments) {
       const u = await settleUnits(unitStore, unitPayments, new Date());
-      if (u) app.log.info(`units.settle: ${u} venda(s) ou aluguel(is) de unidade resolvido(s)`);
+      if (u) out.push(`${u} venda(s) ou aluguel(is) de unidade`);
     }
     if (outorga) {
       const k = await settleBuildings(buildingStore, outorga, new Date());
-      if (k) app.log.info(`buildings.settle: ${k} outorga(s) resolvida(s)`);
+      if (k) out.push(`${k} outorga(s)`);
     }
-  } catch (error) {
-    app.log.error(error);
-  } finally {
-    settling = false;
-  }
-}, config.SETTLE_EVERY_SECONDS * 1000);
-timer.unref();
+    return out.length ? `resolvido(s): ${out.join(', ')}` : undefined;
+  });
+}
 
 // Job tax.charge: contas de IPTU e PT vencidas e débito automático (doc 03 §4).
-let taxing = false;
-const taxTimer = setInterval(async () => {
-  if (!taxPayments || taxing) return;
-  taxing = true;
-  try {
+if (taxPayments) {
+  jobs.add('tax.charge', config.TAX_EVERY_SECONDS * 1000, async () => {
     const r = await chargeTaxes(store, propertyStore, taxStore, taxPayments, new Date(), buildingStore);
-    if (r.created || r.paid || r.unpaid) {
-      app.log.info(`tax.charge: ${r.created} conta(s) nova(s), ${r.paid} paga(s), ${r.unpaid} sem saldo`);
-    }
-  } catch (error) {
-    app.log.error(error);
-  } finally {
-    taxing = false;
-  }
-}, config.TAX_EVERY_SECONDS * 1000);
-taxTimer.unref();
+    if (r.created || r.paid || r.unpaid) return `${r.created} conta(s) nova(s), ${r.paid} paga(s), ${r.unpaid} sem saldo`;
+  });
+}
 
 // Job auctions.tick: abre o leilão do lote inadimplente e fecha os vencidos (doc 03 §4).
-let auctioning = false;
-const auctionTimer = setInterval(async () => {
-  if (!auctionPayments || auctioning) return;
-  auctioning = true;
-  try {
+if (auctionPayments) {
+  jobs.add('auctions.tick', config.AUCTION_EVERY_SECONDS * 1000, async () => {
     const r = await tickAuctions(
       {
         auctions: auctionStore,
@@ -258,15 +247,10 @@ const auctionTimer = setInterval(async () => {
       new Date(),
     );
     if (r.opened || r.settled || r.cancelled || r.unsold) {
-      app.log.info(`auctions.tick: ${r.opened} aberto(s), ${r.settled} vendido(s), ${r.cancelled} cancelado(s), ${r.unsold} sem comprador`);
+      return `${r.opened} aberto(s), ${r.settled} vendido(s), ${r.cancelled} cancelado(s), ${r.unsold} sem comprador`;
     }
-  } catch (error) {
-    app.log.error(error);
-  } finally {
-    auctioning = false;
-  }
-}, config.AUCTION_EVERY_SECONDS * 1000);
-auctionTimer.unref();
+  });
+}
 
 // Job chain.sync: lote e imóvel vendidos na blockchain mudam de dono no jogo (doc 07 §2.1 e §2.2).
 const chainSync =
@@ -281,28 +265,15 @@ const chainSync =
         seizures: seizureStore,
       }
     : null;
-let syncing = false;
-const syncTimer = chainSync
-  ? setInterval(async () => {
-      if (syncing) return;
-      syncing = true;
-      try {
-        const r = await syncChain(chainSync);
-        if (r.applied || r.pending) app.log.info(`chain.sync: ${r.applied} passagem(ns) de dono, ${r.pending} esperando a carteira ser ligada`);
-      } catch (error) {
-        app.log.error(error);
-      } finally {
-        syncing = false;
-      }
-    }, config.CHAIN_SYNC_SECONDS * 1000)
-  : null;
-syncTimer?.unref();
+if (chainSync) {
+  jobs.add('chain.sync', config.CHAIN_SYNC_SECONDS * 1000, async () => {
+    const r = await syncChain(chainSync);
+    if (r.applied || r.pending) return `${r.applied} passagem(ns) de dono, ${r.pending} esperando a carteira ser ligada`;
+  });
+}
 
 const shutdown = async () => {
-  if (syncTimer) clearInterval(syncTimer);
-  clearInterval(auctionTimer);
-  clearInterval(timer);
-  clearInterval(taxTimer);
+  await jobs.stop();
   await app.close();
   await pool?.end();
   process.exit(0);

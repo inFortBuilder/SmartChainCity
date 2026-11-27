@@ -171,8 +171,14 @@ export interface ObserveOptions {
 }
 
 /** Liga métricas e o `x-request-id` na resposta. Chamar logo depois de criar o app. */
+const metricsByApp = new WeakMap<FastifyInstance, HttpMetrics>();
+
+/** As métricas que `observe` ligou neste app (os jobs do main.ts publicam nelas). */
+export const metricsOf = (app: FastifyInstance): HttpMetrics | undefined => metricsByApp.get(app);
+
 export function observe(app: FastifyInstance, { service, nodeEnv, metricsToken }: ObserveOptions): HttpMetrics {
   const metrics = new HttpMetrics(service);
+  metricsByApp.set(app, metrics);
   const started = new WeakMap<object, bigint>();
 
   app.addHook('onRequest', async (request, reply) => {

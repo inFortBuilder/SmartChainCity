@@ -93,7 +93,7 @@ Orçamentos de desempenho: [08 — Metaverso e WebGL](08-metaverso-webgl.md).
 | **Realtime** | Presença por célula, chat, eventos ao vivo, corridas | **Colyseus** (Node) — salas por célula |
 | **Chain Indexer / Relayer** | Lê eventos dos contratos, confirma depósitos, assina *vouchers* de mint/saque | TypeScript + ethers/viem; chave em KMS |
 | **Catálogo / Backoffice** | Edição de profissões, tarefas, preços, eventos, textos; upload de arte | **Strapi 5** (evolução do Strapi 4.4.3 atual) |
-| **Scheduler** | Estações (7 dias), impostos, decaimento de atributos, eventos semanais | BullMQ + Redis |
+| **Scheduler** | Estações (7 dias), impostos, decaimento de atributos, eventos semanais | `JobRunner` do `@scc/shared`: jobs no processo de cada serviço, com advisory lock do Postgres (uma instância por passada). BullMQ + Redis só se surgir trabalho por mensagem, não por varredura |
 
 ### 4.1 Por que manter o Strapi só como backoffice
 O Strapi atual já tem os modelos de catálogo, i18n, upload S3 e e-mail. Ele é ótimo para conteúdo, mas não para regras transacionais (concorrência, ledger, antifraude). Assim:

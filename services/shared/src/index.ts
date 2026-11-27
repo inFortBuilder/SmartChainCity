@@ -17,9 +17,21 @@ export { bearerToken, requireServiceToken, verifyAccessToken, type VerifyOptions
 export {
   forwardRequestId,
   HttpMetrics,
+  metricsOf,
   observe,
   requestIdFrom,
   serverOptions,
   type ObserveOptions,
   type ServerOptionsInput,
 } from './observability.js';
+export {
+  JobRunner,
+  jobLockKey,
+  type JobFn,
+  type JobMetrics,
+  type JobOptions,
+  type JobResult,
+  type JobRunnerOptions,
+  type JobStatus,
+  type LockPool,
+} from './jobs.js';

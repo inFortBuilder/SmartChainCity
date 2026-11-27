@@ -13,28 +13,3 @@ export async function completeShifts(store: ShiftStore, now: Date, batch = 200):
     if (done < batch) return total;
   }
 }
-
-/** Roda no próprio processo, como o job de queda (fila do BullMQ quando houver Redis). */
-export function scheduleShifts(
-  store: ShiftStore,
-  everyMs: number,
-  log: (msg: string) => void,
-  now: () => Date = () => new Date(),
-) {
-  let running = false;
-  const tick = async () => {
-    if (running) return;
-    running = true;
-    try {
-      const n = await completeShifts(store, now());
-      if (n) log(`shift.complete: ${n} turno(s) concluído(s)`);
-    } catch (error) {
-      log(`shift.complete falhou: ${(error as Error).message}`);
-    } finally {
-      running = false;
-    }
-  };
-  const timer = setInterval(tick, everyMs);
-  timer.unref();
-  return { tick, stop: () => clearInterval(timer) };
-}

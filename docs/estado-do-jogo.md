@@ -107,7 +107,7 @@ Os valores abaixo funcionam no jogo, mas são **premissas** marcadas no código.
 
 | Falta | Quem | Observação |
 |---|---|---|
-| ⬜ Fila de jobs (BullMQ) | 🔧 | Hoje os jobs rodam no próprio processo de cada serviço. Basta enquanto houver uma instância |
+| ✅ Jobs com várias instâncias | 🔧 | `JobRunner` do `@scc/shared`: com advisory lock do Postgres, uma só instância roda cada passada. Tem métricas por job e desligamento limpo. Sem Redis: os jobs são varreduras idempotentes. BullMQ só se surgir trabalho por mensagem |
 | ✅ `openapi.yaml` dos serviços | 🔧 | Um por serviço, com autenticação, parâmetros, corpos e códigos de erro. O teste `services/shared/test/openapi.test.ts` quebra se uma rota ficar sem documentação. As respostas ainda são `object` genérico |
 | ⬜ Staging e produção na nuvem (IaC, CDN, Sentry) | 👤 🔧 | Fora do MVP local sem custo; entra no [checklist](lancamento.md#fase-2-ensaio-completo-na-testnet-bsc-97) |
 | ⬜ Teste de carga com o gerador em outra máquina | 👤 | E3.9 |
