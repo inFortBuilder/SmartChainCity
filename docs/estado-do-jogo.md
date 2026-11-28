@@ -56,7 +56,7 @@ O GDD amarra o ganho do turno à moradia. Já funcionam a regularização, água
 | ✅ **Hotel de jogadores:** a diária vai para o dono (90%), com quartos por nível. O aluguel de unidade de jogador também já funciona | 🔧 | Preço da obra e quartos provisórios |
 | 🟡 **Tipos de imóvel:** a troca T1 → T2 → T3 e o catálogo do Strapi já funcionam; faltam os valores dos outros tipos do doc 03 §6 (o Strapi os mostra como "aguardando") e o lote duplo (Residencial 2 e 3) | 👤 🔧 | Os valores vêm da "Figura 16" do GDD, que não veio no texto (doc 11, lacuna 3) |
 | ⬜ **Seguro** do imóvel | 🔧 👤 | Faltam regra e preço |
-| 🟡 **Prédios:** as unidades se vendem e se alugam no jogo; faltam o `UnitNFT`/`UnitMarket` (com auditoria), taxa de alvará, prazo de obra pela área, IPTU por unidade, condomínio e o `BuildingNFT` lido pelo indexer | 🔧 👤 | doc 13 |
+| 🟡 **Prédios:** as unidades se vendem e se alugam no jogo; o `UnitNFT` e o `UnitMarket` estão escritos e testados (falta a auditoria e o world assinar o voucher); faltam taxa de alvará, prazo de obra pela área, IPTU por unidade, condomínio e o `BuildingNFT` lido pelo indexer | 🔧 👤 | doc 13 |
 
 ### 2.2 Avatar e trabalho
 
@@ -125,7 +125,7 @@ A ordem prioriza o que deixa o jogo **completo para o jogador** no lançamento d
 4. ~~**Tipos de imóvel e catálogo no Strapi**~~ ✅ (2026-11-26): o catálogo vem do Strapi e a T1 troca para T2 e T3. Os outros tipos entram sozinhos quando o game designer preencher preço e renda no CMS; o lote duplo ainda falta.
 5. ~~**Bônus de itens e loja**~~ ✅ (2026-11-26): roupas, ferramenta de trabalho e cama na loja do jogo, com o bônus no turno. Móveis e eletrodomésticos (casa completa e cozinhar) entraram em 2026-11-27. Calçados e roupas sazonais ficam para depois.
 6. **Arte** 👤: profissões, pets, Lucky Box e trailer. Não bloqueia o código, mas bloqueia o lançamento.
-7. ~~**Prédios com unidades e venda**~~ ✅ (2026-11-27), no jogo: unidades, venda, revenda e aluguel para morar. Os contratos `UnitNFT`/`UnitMarket` ficam para uma rodada com auditoria.
+7. ~~**Prédios com unidades e venda**~~ ✅ (2026-11-27), no jogo: unidades, venda, revenda e aluguel para morar. Os contratos `UnitNFT`/`UnitMarket` ficaram prontos em 2026-11-27 (venda primária por voucher, royalty de 2% na revenda pelo `Marketplace` e aluguel por período), à espera de uma rodada com auditoria.
 8. ~~**Agendador de eventos ao vivo**~~ ✅ (2026-11-27): dirigível 3 vezes ao dia e anúncios das datas marcadas. Os efeitos de jogo das datas (itens e bônus de Natal e Carnaval) esperam o game designer.
 
 **Em paralelo, fora do código**, na ordem do [checklist de lançamento](lancamento.md):

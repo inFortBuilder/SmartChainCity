@@ -15,6 +15,8 @@ Mudanças aqui exigem 2 aprovações. Os endereços implantados ficam em `deploy
 | [`AvatarNFT`](src/AvatarNFT.sol) | Smartcityano (ERC-721 com royalties EIP-2981, 2,5% para a tesouraria). Raridade (0 a 3) e profissão ficam gravadas no mint. A profissão é o código do catálogo em `bytes32` (ex.: `padeiro`), o mesmo do Strapi. Só quem tem o papel `MINTER` cria avatares |
 | [`LuckyBox`](src/LuckyBox.sol) | Caixas por tier: moeda, preço e tabela de probabilidades por raridade, pública on-chain. `open` cobra e pede um número ao Chainlink VRF v2.5; o callback sorteia a raridade e a profissão e cria o avatar. A tabela vale como estava no momento da compra |
 | [`BuildingNFT`](src/BuildingNFT.sol) | Prédio de construtor (doc 13 §7). Guarda o lote, o hash do GLB aprovado (`modelHash`), os andares e o construtor. O mint usa o voucher EIP-712 do world, dado só a prédio com alvará. O construtor precisa ser dono do lote no `LandNFT`, e cada lote tem no máximo um prédio vigente. `demolish` (dono do prédio e do lote) libera o lote |
+| [`UnitNFT`](src/UnitNFT.sol) | Unidade de prédio (doc 13 §7, E3.11): um token por apartamento, sala ou loja, com o prédio, o andar, a área (m² × 100) e o código. Só o `UnitMarket` minta (`MINTER_ROLE`), na 1ª venda, e cada unidade do prédio vira token uma vez (`tokenOfUnit`). Royalty EIP-2981 de 2% para o construtor, que o `Marketplace` paga na revenda. Pausa também as transferências. **Pede auditoria antes da mainnet** |
+| [`UnitMarket`](src/UnitMarket.sol) | Venda primária e aluguel das unidades, em SCITY. Primária: voucher EIP-712 do world para um comprador, com o construtor ainda dono do prédio no `BuildingNFT`; 5% para a tesouraria e o resto para o construtor. Aluguel: o dono põe o preço por dia, um inquilino por vez, até 30 dias adiantados; 10% para a tesouraria e o resto para o dono. Vendida a unidade, a oferta some e o aluguel pago segue. O dinheiro não para no contrato. **Pede auditoria antes da mainnet** |
 | [`PropertyNFT`](src/PropertyNFT.sol) | Imóvel do catálogo (Casa T1 e os próximos) sobre um lote âncora (doc 07 §2.2). Guarda o lote, o tipo (`bytes32`, ex.: `t1`) e o nível; desgaste e renda ficam no world. O id do token é o id do imóvel no world (os 128 bits do UUID), então o mesmo imóvel não vira dois tokens. O mint usa o voucher do world, dado só a imóvel pronto, e exige que a carteira seja dona do lote no `LandNFT`; um imóvel por lote. `upgrade` leva o nível novo com outro voucher e só aceita nível maior. Depois do mint, a transferência é livre, salvo a apreensão do leilão (`seize`, [ADR-0016](../docs/adr/0016-apreensao-nft-leilao.md)) |
 | [`GameVault`](src/GameVault.sol) | Cofre do SCITY entre a carteira e o jogo (doc 07 §2.4). `deposit` (ou `depositWithPermit`, com a assinatura EIP-2612 do SCITY, numa transação só) guarda o SCITY e emite `Deposited`; o chain-indexer credita no ledger depois das confirmações. `claim` paga o saque assinado pelo servidor (EIP-712, um nonce por voucher), só para o destinatário; `cancelVoucher` deixa o destinatário desistir, e o servidor devolve o SCITY ao jogo. Circuit breaker: teto de saque por dia, no total e por endereço, com `available` para ver quanto ainda sai hoje; pausa. Proxy UUPS atrás do timelock ([upgrade](#upgrade-uups-atrás-do-timelock)) |
 | [`SCityToken`](src/SCityToken.sol) | SCITY: ERC-20 com Permit e oferta fixa de 1 bilhão, criada uma única vez no deploy. Não tem função de mint |
@@ -75,7 +77,8 @@ Só o `GameVault` e o `Marketplace` são atualizáveis (doc 07 §5); token e NFT
 | `DEFAULT_ADMIN_ROLE` de todos os contratos | `TimelockController` (atraso ≥ 48 h na mainnet; o multisig 3-de-5 propõe e executa; sem admin) |
 | `UPGRADER_ROLE` do `GameVault` e do `Marketplace` | O mesmo timelock |
 | `PAUSER_ROLE` | Multisig 2-de-3 (pausa na hora, sem esperar o atraso) |
-| `SIGNER_ROLE` do `LandNFT`, `PropertyNFT`, `BuildingNFT` e `GameVault` | A chave do backend no KMS |
+| `SIGNER_ROLE` do `LandNFT`, `PropertyNFT`, `BuildingNFT`, `UnitMarket` e `GameVault` | A chave do backend no KMS |
+| `MINTER_ROLE` do `UnitNFT` | O `UnitMarket` |
 | `MINTER_ROLE` do `AvatarNFT` | A `LuckyBox` |
 
 **O deployer sai sem papel nenhum.** Ele é admin só durante o script, para configurar a caixa (tier 1 e profissões do seed do CMS), as coleções do mercado e os signers. No fim, o script confere cada papel na cadeia e reverte se o deployer ficou com algum, se o multisig tem admin direto ou se falta algo.
@@ -237,7 +240,8 @@ forge script script/DeployLocal.s.sol --rpc-url http://127.0.0.1:8545 --broadcas
 ```
 
 O script:
-- sobe os nove contratos e o par de teste da DEX (o `BuildingNFT`, o `PropertyNFT`, o `GameVault`, o par da DEX e o `Marketplace` por último, para os outros endereços não mudarem);
+- sobe os onze contratos e o par de teste da DEX (o `BuildingNFT`, o `PropertyNFT`, o `GameVault`, o par da DEX, o `Marketplace` e as unidades por último, para os outros endereços não mudarem);
+- liga o `UnitNFT` ao `UnitMarket` (taxas de 5% e 10% para o deployer) e o permite no `Marketplace` para a revenda;
 - põe 1 milhão de SCITY no `GameVault` como reserva de saque, com tetos de 1 milhão por dia e 10 mil por endereço (**premissa**);
 - dá ao `LuckyBox` o papel de criar avatares;
 - carrega as 44 profissões do seed do CMS (`cms-strapi/seed/profissoes.json`), separadas por raridade;
@@ -306,6 +310,28 @@ Os campos:
 - `nonce`: único por prédio.
 
 Testado no anvil em 2026-11-20: o world assinou a cotação do lote e o voucher; a carteira do jogador comprou o lote e mintou o prédio, e o mesmo voucher foi recusado na segunda vez.
+
+## Voucher de unidade (para o serviço world)
+
+Domínio EIP-712:
+- `name`: `SCC UnitMarket`
+- `version`: `1`
+- `chainId` da rede
+- `verifyingContract`: endereço do `UnitMarket`
+
+```
+UnitSale(uint256 buildingId,uint256 unitKey,uint16 floor,uint32 areaM2x100,bytes16 code,address buyer,address developer,uint256 price,uint256 nonce,uint256 deadline)
+```
+
+Os campos:
+- `buildingId`: o `tokenId` do prédio no `BuildingNFT`.
+- `unitKey`: id da unidade no world (por exemplo, o uuid como número); uma unidade, um token.
+- `areaM2x100`: área em m² × 100 (72,35 m² = 7235); `code`: o código da unidade (`0302`), em bytes16.
+- `buyer`: a carteira que chama `buyPrimary` e aprova o `price` em SCITY antes.
+- `developer`: o construtor; precisa ser o dono do prédio na hora da compra.
+- `nonce`: único por venda.
+
+A revenda vai pelo `Marketplace` (preço fixo ou leilão), que paga os 2% de royalty do token. O world ainda não assina esse voucher: as unidades seguem vendidas no jogo, pelo ledger, até a auditoria.
 
 ## Voucher de saque (GameVault)
 

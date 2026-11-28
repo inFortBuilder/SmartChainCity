@@ -265,7 +265,7 @@ Para o envio funcionar, a cidade precisa ter sido importada de novo, porque é a
 
 ### Unidades: venda, revenda e aluguel (E3.11, doc 13 §4)
 
-Fora da blockchain por enquanto: o `UnitNFT` e o `UnitMarket` são contratos novos e pedem auditoria. Preços em THALER (centavos), pelo ledger:
+Fora da blockchain por enquanto: o `UnitNFT` e o `UnitMarket` já existem em [contracts](../../contracts/README.md#voucher-de-unidade-para-o-serviço-world), mas pedem auditoria antes de o world assinar o voucher. Preços em THALER (centavos), pelo ledger:
 
 | Passo | Rota | Dinheiro |
 |---|---|---|
@@ -278,7 +278,7 @@ Fora da blockchain por enquanto: o `UnitNFT` e o `UnitMarket` são contratos nov
 - **Moradia:** a unidade alugada entra em `/internal/v1/accounts/:id/homes` com o `avatar_id` do inquilino. Para o game-core, é moradia regular só desse avatar até o fim do aluguel. A revenda não corta o aluguel pago.
 - Venda e aluguel cobram em duas fases: a unidade (ou a vaga) fica segura, o ledger cobra pela chave da venda ou do aluguel, e só então muda. Com o ledger fora, o job `units.settle` termina.
 - **Premissas:** as taxas (5%, 2% e 10%); até 20 unidades por andar e 1.000 por prédio; e a unidade conta como moradia sem a Prefeitura, porque o prédio já tem alvará.
-- **Ainda não:** `UnitNFT`/`UnitMarket`, IPTU por unidade, condomínio, unidade sem dono que volta ao construtor, e a taxa de alvará e o prazo de obra pela área.
+- **Ainda não:** o voucher do `UnitMarket` (os contratos estão prontos, à espera da auditoria), IPTU por unidade, condomínio, unidade sem dono que volta ao construtor, e a taxa de alvará e o prazo de obra pela área.
 
 ## Rodar
 

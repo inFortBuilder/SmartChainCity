@@ -176,7 +176,7 @@ jobs:
           FOUNDRY_INVARIANT_RUNS: '16'
         run: |
           forge coverage --report summary --no-match-coverage "(script|test|lib|dev)" | tee coverage.txt
-          node scripts/coverage-gate.mjs coverage.txt 95 src/GameVault.sol src/Marketplace.sol src/LuckyBox.sol src/tge/TgeDistributor.sol src/tge/RewardsPool.sol src/tge/TokenLock.sol
+          node scripts/coverage-gate.mjs coverage.txt 95 src/GameVault.sol src/Marketplace.sol src/LuckyBox.sol src/tge/TgeDistributor.sol src/tge/RewardsPool.sol src/tge/TokenLock.sol src/UnitNFT.sol src/UnitMarket.sol
 
   # Análise estática (doc 07 §5: "Slither no CI"). Falha com achado de severidade alta.
   slither:

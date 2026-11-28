@@ -13,6 +13,8 @@ import {LuckyBox} from "../src/LuckyBox.sol";
 import {Marketplace} from "../src/Marketplace.sol";
 import {PropertyNFT} from "../src/PropertyNFT.sol";
 import {SCityToken} from "../src/SCityToken.sol";
+import {UnitMarket} from "../src/UnitMarket.sol";
+import {UnitNFT} from "../src/UnitNFT.sol";
 import {LocalDexPool, LocalUSD} from "../src/dev/LocalDexPool.sol";
 import {LocalVRFCoordinator} from "../src/dev/LocalVRFCoordinator.sol";
 import {IVRFCoordinatorV2Plus} from "../src/vrf/VRFV2Plus.sol";
@@ -30,6 +32,8 @@ contract DeployLocal is CatalogReader {
     address localUsd;
     address localDexPool;
     address marketplace;
+    address unitNft;
+    address unitMarket;
     address timelock;
 
     /// Mercado secundário (E3.6): SCITY, taxa de 2,5% para a tesouraria (aqui, o deployer), lote, imóvel e avatar.
@@ -50,6 +54,20 @@ contract DeployLocal is CatalogReader {
         m.setCollection(property, true);
         m.setCollection(avatar, true);
         marketplace = address(m);
+    }
+
+    /// Unidades dos prédios (doc 13 §7): o token, o mercado primário e de aluguel, e a revenda no Marketplace.
+    /// Fora do `run` para não estourar a pilha.
+    function _deployUnits(address scity, address deployer, address building, address worldSigner) internal {
+        UnitNFT u = new UnitNFT(deployer, "http://localhost:8030/v1/world/nft/units/");
+        // Taxas do jogo (PREMISSAS): 5% na venda primária e 10% no aluguel, para a tesouraria (o deployer).
+        UnitMarket m =
+            new UnitMarket(deployer, u, BuildingNFT(building), SCityToken(scity), deployer, 500, 1000);
+        u.grantRole(u.MINTER_ROLE(), address(m));
+        m.grantRole(m.SIGNER_ROLE(), worldSigner);
+        Marketplace(marketplace).setCollection(address(u), true);
+        unitNft = address(u);
+        unitMarket = address(m);
     }
 
     function _deployTimelock(address deployer) internal returns (address) {
@@ -130,6 +148,8 @@ contract DeployLocal is CatalogReader {
         _deployDex(address(scity), deployer);
         // Por último, para os endereços de antes não mudarem.
         _deployMarket(address(scity), deployer, address(land), address(propertyNft), address(avatar));
+        // Depois do Marketplace (a revenda das unidades passa por ele), pelo mesmo motivo.
+        _deployUnits(address(scity), deployer, address(buildingNft), worldSigner);
 
         vm.stopBroadcast();
 
@@ -147,6 +167,8 @@ contract DeployLocal is CatalogReader {
         vm.serializeAddress(key, "LocalDexPool", localDexPool);
         vm.serializeAddress(key, "Marketplace", marketplace);
         vm.serializeAddress(key, "Timelock", timelock);
+        vm.serializeAddress(key, "UnitNFT", unitNft);
+        vm.serializeAddress(key, "UnitMarket", unitMarket);
         string memory json = vm.serializeAddress(key, "worldSigner", worldSigner);
         vm.writeJson(json, "deployments/anvil.json");
 
