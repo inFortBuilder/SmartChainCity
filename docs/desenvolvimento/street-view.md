@@ -217,7 +217,35 @@ A UAL não tem clipe de deitar: o corpo gira 90° no colchão (0,52 m) e o clipe
 - com o quadro atrasado de propósito (cerca de 30 FPS), caiu de 24 para 12 em 6 s e voltou a subir quando o FPS voltou a 60;
 - no Node: o rumo livre segue reto, vira no fim e na borda da faixa, e devolve null quando está cercado; os 200 sorteios caíram na calçada.
 
-**Limites desta versão:** os pedestres não atravessam a rua (ficam na calçada do quarteirão) e não entram nas lojas. Trânsito e ônibus ficam para os próximos passos da fase 3.
+**Limites desta versão:** os pedestres não atravessam a rua (ficam na calçada do quarteirão) e não entram nas lojas.
+
+## Trânsito nas ruas (fase 3)
+
+`carros.js` põe carros nas ruas em volta do avatar, na mão direita. Como os pedestres, são do cliente: não passam pelo `realtime`.
+
+O OSM da cidade só traz o polígono das ruas, sem a linha do meio. O carro se guia pelo chão, como quem dirige olhando o meio-fio:
+
+| Situação | O que o carro faz |
+|---|---|
+| Rua comum | Um "bigode" à direita mede a distância até o fim da rua, e o carro corrige o rumo para ficar a 1,8 m do meio-fio. A correção é amortecida pela velocidade do erro, para não ziguezaguear |
+| A direita abre mais de 2,5 m além da faixa (cruzamento, rua que sai) | Sorteia uma vez: segue reto até a direita fechar, ou entra à direita |
+| A frente fecha a menos de 6 m (fim da rua, T) | Vira para o lado com mais rua |
+| Outro carro à frente (até 9 m, numa faixa de 1,4 m) | Freia forte e volta a acelerar devagar |
+| O avatar na rua à frente (até 9 m, numa faixa de 2,6 m, ou a menos de 5 m) | Para |
+
+- Nascem numa rua de 5 m de largura ou mais, entre 30 m e 70 m do avatar, já na faixa da direita, e somem a 90 m.
+- O carro é uma peça procedural (carroceria, cabine, rodas, faróis brancos na frente e vermelhos atrás) em 8 cores, até haver o modelo CC0 do SCC Kit.
+- A quantidade segue o FPS, como os pedestres: abaixo de 45, tira 2 (mínimo 2); acima de 55, põe 1 (máximo 10). Começa com 6.
+- `?transito=0` desliga. O mapa expõe `__pittsburg.traffic()` com `debug()` e `setTarget(n)`.
+
+**PREMISSAS:** até 10 carros, de 7 a 10 m/s (25 a 36 km/h), faixa a 1,8 m do meio-fio da direita, mão direita.
+
+**Testado** em 2026-11-28:
+- no navegador, 10 carros por 10 s: nenhum fora da rua em 155 amostras, e a distância mediana ao meio-fio da direita ficou em 1,8 m;
+- com o avatar parado na rua, 14 m à frente de um carro a 6 a 8 m/s: o carro parou a 4,5 m, 5 m e 7 m nas três tentativas;
+- no Node, em duas ruas de 10 m que se cruzam: seguindo reto, atravessou o cruzamento; entrando, virou à direita e ficou na faixa; numa rua sem saída, deu a volta. Nenhum passo fora da rua, e no máximo 0,3 m fora da faixa.
+
+**Limites desta versão:** não há semáforo nem preferência no cruzamento, o carro não vira à esquerda, e não para para o pedestre na faixa. O ônibus no ponto e os sons ficam para os próximos passos.
 
 ## Avatar e animações: Universal Animation Library (Quaternius)
 
