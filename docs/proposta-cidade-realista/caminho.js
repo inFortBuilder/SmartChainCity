@@ -2,8 +2,8 @@
 //
 // O clique ia em linha reta e parava na primeira gôndola, ilha ou parede. Agora:
 // 1. A* numa grade de 0,4 m em volta da origem e do destino, com 8 vizinhos, sobre o chão andável
-//    (\`walkable(x, z)\`: rua, calçada, salão das lojas). Cada nó precisa de folga: o centro e 4 pontos a
-//    \`clearance\` dele também são andáveis, para o avatar não raspar nas quinas.
+//    (`walkable(x, z)`: rua, calçada, salão das lojas). Cada nó precisa de folga: o centro e 4 pontos a
+//    `clearance` dele também são andáveis, para o avatar não raspar nas quinas.
 // 2. O caminho é alisado por linha de visada: de cada ponto, pula para o mais longe que se vê em linha
 //    reta (amostrada a cada 0,2 m, com a mesma folga).
 //
@@ -13,7 +13,7 @@
 
 export const PATH = { cell: 0.4, clearance: 0.25, margin: 12, maxNodes: 60000, sightStep: 0.2 };
 
-/** Ponto com folga: o centro e os 4 lados a \`r\` metros são andáveis. */
+/** Ponto com folga: o centro e os 4 lados a `r` metros são andáveis. */
 export const roomy = (walkable, x, z, r) =>
   walkable(x, z) && walkable(x + r, z) && walkable(x - r, z) && walkable(x, z + r) && walkable(x, z - r);
 
@@ -28,7 +28,7 @@ export function lineClear(walkable, ax, az, bx, bz, opt = PATH) {
   return true;
 }
 
-/** Caminho de \`from\` até \`to\` ({x, z}): a lista de pontos (sem a origem) ou null. */
+/** Caminho de `from` até `to` ({x, z}): a lista de pontos (sem a origem) ou null. */
 export function findPath(walkable, from, to, opt = PATH) {
   if (lineClear(walkable, from.x, from.z, to.x, to.z, opt)) return [{ x: to.x, z: to.z }];
   const { cell, margin } = opt;
