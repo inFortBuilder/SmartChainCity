@@ -178,7 +178,7 @@ assets/kit/
 
 | Fase | Entrega | Arquivos | Código |
 |---|---|---|---|
-| **1. Andar pela cidade** | Câmera em terceira pessoa com colisão, pulo e virada, calçadas e faixas caminháveis, postes e árvores, céu por hora | Texturas da rua, mobiliário P1, HDRI, clipes P1 | Rapier (câmera e avatar), navmesh das calçadas a partir do OSM, streaming por bairro |
+| **1. Andar pela cidade** | 🟡 Feito (2026-11-28, [street view](street-view.md#calçada-câmera-e-pulo-fase-1-do-mundo-aberto)): calçada caminhável com meio-fio, câmera que para antes do prédio e pulo. Falta: virada no lugar, faixas, postes e árvores, céu por hora | Texturas da rua, mobiliário P1, HDRI, clipes P1 | Rapier (câmera e avatar), navmesh das calçadas a partir do OSM, streaming por bairro |
 | **2. Comprar e consumir** | Entrar no mercado sem carregamento; pegar, pôr no carrinho, pagar; em casa: geladeira, fogão, cama, banho | Interior do mercado, produtos, móveis e eletrodomésticos, clipes P2 | Pontos de interação ("E para pegar"), carrinho local → `pantry`/`meals`; casa → `consume`/`cook`/`rest`/`chores` |
 | **3. Cidade viva** | Pedestres nas calçadas, trânsito nas ruas, ônibus no ponto | Pedestres, carros, sons | Yuka para os caminhos; densidade pelo FPS |
 | **4. Carro e minimapa** | Entrar no próprio carro e dirigir; minimapa com GPS até a loja ou o trabalho | Carros com rodas, clipes P3 | Rapier (veículo); o deslocamento "carro" do turno passa a ter o trajeto |
