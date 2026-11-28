@@ -47,6 +47,20 @@ paths:
       tags: ["properties"]
       parameters: [{"name":"tokenId","in":"path","required":true,"schema":{"type":"string"}}]
       responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/chain/buildings/{tokenId}:
+    get:
+      summary: "Prédio do BuildingNFT"
+      tags: ["buildings"]
+      description: "Prédio do BuildingNFT (dono, lote, construtor, hash do modelo, andares, demolished) e as unidades já vendidas on-chain"
+      parameters: [{"name":"tokenId","in":"path","required":true,"schema":{"type":"string"}}]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/chain/units/{tokenId}:
+    get:
+      summary: "Unidade do UnitNFT"
+      tags: ["units"]
+      description: "Unidade do UnitNFT: dono, prédio, andar, área, código, preço de aluguel em vigor e o inquilino até o fim do aluguel (pelo relógio da cadeia)"
+      parameters: [{"name":"tokenId","in":"path","required":true,"schema":{"type":"string"}}]
+      responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
   /v1/chain/boxes/{tokenId}:
     get:
       summary: "Dono e conteúdo de uma caixa on-chain"
@@ -55,7 +69,7 @@ paths:
       responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
   /v1/chain/owners/{address}:
     get:
-      summary: "Lotes, avatares e imóveis de uma carteira"
+      summary: "Lotes, avatares, imóveis, prédios e unidades de uma carteira"
       tags: ["owners"]
       parameters: [{"name":"address","in":"path","required":true,"schema":{"type":"string"}}]
       responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}

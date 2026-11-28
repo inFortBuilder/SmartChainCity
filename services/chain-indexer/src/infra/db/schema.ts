@@ -1,4 +1,4 @@
-import { bigint, bigserial, index, integer, jsonb, pgSchema, primaryKey, smallint, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
+import { bigint, bigserial, boolean, index, integer, jsonb, pgSchema, primaryKey, smallint, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
 
 /**
  * Esquema próprio `indexer`: os eventos lidos da rede (cada um uma vez, por
@@ -73,6 +73,49 @@ export const propertyToken = indexer.table(
     block: block('block').notNull(),
   },
   (t) => [primaryKey({ columns: [t.chainId, t.tokenId] }), index('property_token_owner_idx').on(t.chainId, t.owner)],
+);
+
+/** Prédios de construtor (BuildingNFT): dono, lote, construtor, modelo e andares; a demolição marca. */
+export const buildingToken = indexer.table(
+  'building_token',
+  {
+    chainId: integer('chain_id').notNull(),
+    tokenId: text('token_id').notNull(),
+    owner: text('owner').notNull(),
+    lotId: text('lot_id'),
+    developer: text('developer'),
+    modelHash: text('model_hash'),
+    floors: smallint('floors'),
+    demolished: boolean('demolished').notNull().default(false),
+    block: block('block').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.chainId, t.tokenId] }), index('building_token_owner_idx').on(t.chainId, t.owner)],
+);
+
+/** Unidades dos prédios (UnitNFT + UnitMarket): dono, dados da unidade, oferta de aluguel e o aluguel em curso. */
+export const unitToken = indexer.table(
+  'unit_token',
+  {
+    chainId: integer('chain_id').notNull(),
+    tokenId: text('token_id').notNull(),
+    owner: text('owner').notNull(),
+    buildingId: text('building_id'),
+    unitKey: text('unit_key'),
+    developer: text('developer'),
+    floor: smallint('floor'),
+    areaM2x100: integer('area_m2x100'),
+    code: text('code'),
+    rentPerDayWei: text('rent_per_day_wei'),
+    rentOwner: text('rent_owner'),
+    tenant: text('tenant'),
+    leaseEndsAt: bigint('lease_ends_at', { mode: 'number' }),
+    block: block('block').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.chainId, t.tokenId] }),
+    index('unit_token_owner_idx').on(t.chainId, t.owner),
+    index('unit_token_building_idx').on(t.chainId, t.buildingId),
+  ],
 );
 
 /** Depósitos do GameVault: `pending` até o crédito no ledger (chave `chain:<rede>:<tx>:<log>`). */

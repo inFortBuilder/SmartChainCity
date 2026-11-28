@@ -32,6 +32,20 @@ export const CONTRACT_ABIS = {
     'event AuctionSettled(uint256 indexed auctionId, address indexed seller, address indexed winner, uint256 price, uint256 fee, uint256 royalty)',
     'event AuctionCancelled(uint256 indexed auctionId)',
   ]),
+  BuildingNFT: parseAbi([
+    'event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)',
+    'event BuildingMinted(uint256 indexed tokenId, uint256 indexed lotId, address indexed developer, bytes32 modelHash, uint16 floors)',
+    'event BuildingDemolished(uint256 indexed tokenId, uint256 indexed lotId)',
+  ]),
+  UnitNFT: parseAbi([
+    'event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)',
+    'event UnitMinted(uint256 indexed tokenId, uint256 indexed buildingId, uint256 indexed unitKey, address to, address developer, uint16 floor, uint32 areaM2x100, bytes16 code)',
+  ]),
+  UnitMarket: parseAbi([
+    'event PrimarySold(uint256 indexed tokenId, uint256 indexed buildingId, address indexed buyer, address developer, uint256 price, uint256 fee)',
+    'event RentOffered(uint256 indexed tokenId, address indexed owner, uint256 pricePerDay)',
+    'event Rented(uint256 indexed tokenId, address indexed tenant, address indexed owner, uint64 endsAt, uint256 paid, uint256 fee)',
+  ]),
   LuckyBox: parseAbi([
     'event BoxOpened(uint256 indexed requestId, address indexed buyer, uint32 indexed tierId)',
     'event AvatarRevealed(uint256 indexed requestId, address indexed buyer, uint256 tokenId, uint8 rarity, bytes32 profession)',
@@ -112,6 +126,41 @@ export interface PropertyToken {
   block: bigint;
 }
 
+/** Prédio de construtor (BuildingNFT): o dono vem do Transfer; lote, modelo e andares, do mint. */
+export interface BuildingToken {
+  tokenId: string;
+  owner: string;
+  /** `tokenId` do lote no LandNFT. */
+  lotId: string | null;
+  developer: string | null;
+  modelHash: string | null;
+  floors: number | null;
+  demolished: boolean;
+  block: bigint;
+}
+
+/** Unidade de prédio (UnitNFT + UnitMarket): dono, dados da unidade, oferta de aluguel e o aluguel em curso. */
+export interface UnitToken {
+  tokenId: string;
+  owner: string;
+  buildingId: string | null;
+  unitKey: string | null;
+  developer: string | null;
+  floor: number | null;
+  areaM2x100: number | null;
+  code: string | null;
+  /** Oferta de aluguel: vale só enquanto `rentOwner` for o dono (o contrato faz o mesmo). */
+  rentPerDayWei: string | null;
+  rentOwner: string | null;
+  tenant: string | null;
+  /** Unix, em segundos. */
+  leaseEndsAt: number | null;
+  block: bigint;
+}
+
+/** `bytes16` do código da unidade ("0302") → texto. */
+export const unitCodeText = (b: string) => hexToString(b as Hex, { size: 16 }).replace(/\0+$/, '');
+
 export interface BoxRequest {
   requestId: string;
   buyer: string;
@@ -164,6 +213,24 @@ export type ProjectionOp =
   | { kind: 'property_owner'; tokenId: string; owner: string; block: bigint }
   | { kind: 'property_traits'; tokenId: string; owner: string; lotId: string; typeCode: string; level: number; block: bigint }
   | { kind: 'property_level'; tokenId: string; level: number; block: bigint }
+  | { kind: 'building_owner'; tokenId: string; owner: string; block: bigint }
+  | { kind: 'building_traits'; tokenId: string; owner: string; lotId: string; developer: string; modelHash: string; floors: number; block: bigint }
+  | { kind: 'building_demolished'; tokenId: string; block: bigint }
+  | { kind: 'unit_owner'; tokenId: string; owner: string; block: bigint }
+  | {
+      kind: 'unit_traits';
+      tokenId: string;
+      owner: string;
+      buildingId: string;
+      unitKey: string;
+      developer: string;
+      floor: number;
+      areaM2x100: number;
+      code: string;
+      block: bigint;
+    }
+  | { kind: 'unit_rent_offer'; tokenId: string; owner: string; pricePerDayWei: string; block: bigint }
+  | { kind: 'unit_lease'; tokenId: string; tenant: string; endsAt: number; block: bigint }
   | { kind: 'deposit'; txHash: string; logIndex: number; account: string; amountWei: string; block: bigint }
   | { kind: 'box_opened'; value: BoxRequest }
   | { kind: 'box_revealed'; requestId: string; buyer: string; tokenId: string; block: bigint }
@@ -212,6 +279,53 @@ export function projectionOps(e: ChainEvent): ProjectionOp[] {
   }
   if (e.contract === 'PropertyNFT' && e.event === 'PropertyUpgraded') {
     return [{ kind: 'property_level', tokenId: a.tokenId as string, level: Number(a.level), block: e.blockNumber }];
+  }
+  if (e.contract === 'BuildingNFT' && e.event === 'Transfer') {
+    // A demolição queima (Transfer para o endereço zero): o BuildingDemolished marca.
+    if (a.to === ZERO_ADDRESS) return [];
+    return [{ kind: 'building_owner', tokenId: a.tokenId as string, owner: a.to as string, block: e.blockNumber }];
+  }
+  if (e.contract === 'BuildingNFT' && e.event === 'BuildingMinted') {
+    return [
+      {
+        kind: 'building_traits',
+        tokenId: a.tokenId as string,
+        owner: a.developer as string,
+        lotId: a.lotId as string,
+        developer: a.developer as string,
+        modelHash: a.modelHash as string,
+        floors: Number(a.floors),
+        block: e.blockNumber,
+      },
+    ];
+  }
+  if (e.contract === 'BuildingNFT' && e.event === 'BuildingDemolished') {
+    return [{ kind: 'building_demolished', tokenId: a.tokenId as string, block: e.blockNumber }];
+  }
+  if (e.contract === 'UnitNFT' && e.event === 'Transfer') {
+    return [{ kind: 'unit_owner', tokenId: a.tokenId as string, owner: a.to as string, block: e.blockNumber }];
+  }
+  if (e.contract === 'UnitNFT' && e.event === 'UnitMinted') {
+    return [
+      {
+        kind: 'unit_traits',
+        tokenId: a.tokenId as string,
+        owner: a.to as string,
+        buildingId: a.buildingId as string,
+        unitKey: a.unitKey as string,
+        developer: a.developer as string,
+        floor: Number(a.floor),
+        areaM2x100: Number(a.areaM2x100),
+        code: unitCodeText(a.code as string),
+        block: e.blockNumber,
+      },
+    ];
+  }
+  if (e.contract === 'UnitMarket' && e.event === 'RentOffered') {
+    return [{ kind: 'unit_rent_offer', tokenId: a.tokenId as string, owner: a.owner as string, pricePerDayWei: a.pricePerDay as string, block: e.blockNumber }];
+  }
+  if (e.contract === 'UnitMarket' && e.event === 'Rented') {
+    return [{ kind: 'unit_lease', tokenId: a.tokenId as string, tenant: a.tenant as string, endsAt: Number(a.endsAt), block: e.blockNumber }];
   }
   if (e.contract === 'GameVault' && e.event === 'Deposited') {
     return [{ kind: 'deposit', txHash: e.txHash, logIndex: e.logIndex, account: a.account as string, amountWei: a.amount as string, block: e.blockNumber }];
@@ -293,6 +407,7 @@ export function projectionOps(e: ChainEvent): ProjectionOp[] {
   if (e.contract === 'Marketplace' && e.event === 'AuctionCancelled') {
     return [{ kind: 'auction_closed', auctionId: a.auctionId as string, status: 'cancelled', winner: null, block: e.blockNumber }];
   }
+  // PrimarySold fica só no registro de eventos: a posse da unidade vem do Transfer do UnitNFT.
   // LotSold fica só no registro de eventos: a posse vem do Transfer. Withdrawn e VoucherCancelled vão pelo feed para o economy.
   return [];
 }

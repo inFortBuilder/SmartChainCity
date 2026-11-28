@@ -1,6 +1,8 @@
 import {
   type AvatarToken,
   type BoxRequest,
+  type BuildingToken,
+  type UnitToken,
   type ChainEvent,
   type Cursor,
   type LotToken,
@@ -25,7 +27,25 @@ interface ChainState {
   deposits: Map<string, Deposit>;
   listings: Map<string, MarketListing>;
   auctions: Map<string, MarketAuction>;
+  buildings: Map<string, BuildingToken>;
+  units: Map<string, UnitToken>;
 }
+
+const emptyUnit = (tokenId: string, owner: string, block: bigint): UnitToken => ({
+  tokenId,
+  owner,
+  buildingId: null,
+  unitKey: null,
+  developer: null,
+  floor: null,
+  areaM2x100: null,
+  code: null,
+  rentPerDayWei: null,
+  rentOwner: null,
+  tenant: null,
+  leaseEndsAt: null,
+  block,
+});
 
 /** Para testes e desenvolvimento. Uma thread só: cada operação é atômica. */
 export class MemoryIndexerStore implements IndexerStore {
@@ -35,7 +55,7 @@ export class MemoryIndexerStore implements IndexerStore {
   private state(chainId: number): ChainState {
     let s = this.chains.get(chainId);
     if (!s) {
-      s = { cursor: null, events: [], keys: new Set(), lots: new Map(), avatars: new Map(), boxes: new Map(), properties: new Map(), deposits: new Map(), listings: new Map(), auctions: new Map() };
+      s = { cursor: null, events: [], keys: new Set(), lots: new Map(), avatars: new Map(), boxes: new Map(), properties: new Map(), deposits: new Map(), listings: new Map(), auctions: new Map(), buildings: new Map(), units: new Map() };
       this.chains.set(chainId, s);
     }
     return s;
@@ -103,6 +123,68 @@ export class MemoryIndexerStore implements IndexerStore {
       case 'box_opened':
         s.boxes.set(op.value.requestId, { ...op.value });
         break;
+      case 'building_owner': {
+        const cur = s.buildings.get(op.tokenId);
+        s.buildings.set(op.tokenId, {
+          tokenId: op.tokenId,
+          owner: op.owner,
+          lotId: cur?.lotId ?? null,
+          developer: cur?.developer ?? null,
+          modelHash: cur?.modelHash ?? null,
+          floors: cur?.floors ?? null,
+          demolished: cur?.demolished ?? false,
+          block: op.block,
+        });
+        break;
+      }
+      case 'building_traits': {
+        const cur = s.buildings.get(op.tokenId);
+        s.buildings.set(op.tokenId, {
+          tokenId: op.tokenId,
+          owner: cur?.owner ?? op.owner,
+          lotId: op.lotId,
+          developer: op.developer,
+          modelHash: op.modelHash,
+          floors: op.floors,
+          demolished: false,
+          block: op.block,
+        });
+        break;
+      }
+      case 'building_demolished': {
+        const cur = s.buildings.get(op.tokenId);
+        if (cur) s.buildings.set(op.tokenId, { ...cur, demolished: true, block: op.block });
+        break;
+      }
+      case 'unit_owner': {
+        const cur = s.units.get(op.tokenId) ?? emptyUnit(op.tokenId, op.owner, op.block);
+        s.units.set(op.tokenId, { ...cur, owner: op.owner, block: op.block });
+        break;
+      }
+      case 'unit_traits': {
+        const cur = s.units.get(op.tokenId) ?? emptyUnit(op.tokenId, op.owner, op.block);
+        s.units.set(op.tokenId, {
+          ...cur,
+          buildingId: op.buildingId,
+          unitKey: op.unitKey,
+          developer: op.developer,
+          floor: op.floor,
+          areaM2x100: op.areaM2x100,
+          code: op.code,
+          block: op.block,
+        });
+        break;
+      }
+      case 'unit_rent_offer': {
+        const cur = s.units.get(op.tokenId) ?? emptyUnit(op.tokenId, op.owner, op.block);
+        s.units.set(op.tokenId, { ...cur, rentPerDayWei: op.pricePerDayWei, rentOwner: op.owner, block: op.block });
+        break;
+      }
+      case 'unit_lease': {
+        const cur = s.units.get(op.tokenId);
+        if (cur) s.units.set(op.tokenId, { ...cur, tenant: op.tenant, leaseEndsAt: op.endsAt, block: op.block });
+        break;
+      }
       case 'listing_created': {
         // A listagem velha de um NFT listado de novo fecha (o contrato faz o mesmo, sem evento).
         for (const l of s.listings.values()) {
@@ -178,6 +260,8 @@ export class MemoryIndexerStore implements IndexerStore {
     s.deposits.clear();
     s.listings.clear();
     s.auctions.clear();
+    s.buildings.clear();
+    s.units.clear();
     for (const e of [...keep].sort(byChainOrder)) for (const op of projectionOps(e)) this.apply(s, op);
     s.cursor = cursor ? { ...cursor } : null;
     return dropped;
@@ -230,6 +314,31 @@ export class MemoryIndexerStore implements IndexerStore {
   async box(chainId: number, requestId: string) {
     const b = this.state(chainId).boxes.get(requestId);
     return b ? { ...b } : null;
+  }
+
+  async building(chainId: number, tokenId: string) {
+    const b = this.state(chainId).buildings.get(tokenId);
+    return b ? { ...b } : null;
+  }
+
+  async buildingsOf(chainId: number, owner: string) {
+    return [...this.state(chainId).buildings.values()].filter((b) => !b.demolished && b.owner === owner.toLowerCase()).map((b) => ({ ...b }));
+  }
+
+  async unit(chainId: number, tokenId: string) {
+    const u = this.state(chainId).units.get(tokenId);
+    return u ? { ...u } : null;
+  }
+
+  async unitsOf(chainId: number, owner: string) {
+    return [...this.state(chainId).units.values()].filter((u) => u.owner === owner.toLowerCase()).map((u) => ({ ...u }));
+  }
+
+  async unitsOfBuilding(chainId: number, buildingId: string) {
+    return [...this.state(chainId).units.values()]
+      .filter((u) => u.buildingId === buildingId)
+      .sort((x, y) => Number(BigInt(x.tokenId) - BigInt(y.tokenId)))
+      .map((u) => ({ ...u }));
   }
 
   async eventsAfter(chainId: number, afterId: number, limit: number) {

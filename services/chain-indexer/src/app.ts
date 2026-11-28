@@ -4,7 +4,7 @@ import Fastify from 'fastify';
 import { z } from 'zod';
 
 import type { Config } from './config.js';
-import type { AvatarToken, BoxRequest, LotToken, PropertyToken, MarketListing, MarketAuction } from './domain/events.js';
+import type { AvatarToken, BoxRequest, BuildingToken, LotToken, PropertyToken, MarketListing, MarketAuction, UnitToken } from './domain/events.js';
 import type { IndexerStore } from './domain/indexer.js';
 
 /** Estado do laço de leitura, para `/v1/chain/status`. */
@@ -45,6 +45,37 @@ const propertyDto = (p: PropertyToken) => ({
   level: p.level,
   block: p.block.toString(),
 });
+const buildingDto = (b: BuildingToken) => ({
+  token_id: b.tokenId,
+  owner: b.owner,
+  lot_token_id: b.lotId,
+  developer: b.developer,
+  model_hash: b.modelHash,
+  floors: b.floors,
+  demolished: b.demolished,
+  block: b.block.toString(),
+});
+/**
+ * A oferta de aluguel vale só enquanto quem a fez for o dono (o contrato faz o mesmo); o inquilino, só até o
+ * fim do aluguel, pelo relógio da cadeia.
+ */
+const unitDto = (u: UnitToken, nowSec: number) => {
+  const leased = u.leaseEndsAt !== null && u.leaseEndsAt > nowSec;
+  return {
+    token_id: u.tokenId,
+    owner: u.owner,
+    building_token_id: u.buildingId,
+    unit_key: u.unitKey,
+    developer: u.developer,
+    floor: u.floor,
+    area_m2: u.areaM2x100 === null ? null : u.areaM2x100 / 100,
+    code: u.code,
+    rent_per_day_wei: u.rentOwner !== null && u.rentOwner === u.owner && u.rentPerDayWei !== '0' ? u.rentPerDayWei : null,
+    tenant: leased ? u.tenant : null,
+    lease_ends_at: leased ? new Date(u.leaseEndsAt! * 1000).toISOString() : null,
+    block: u.block.toString(),
+  };
+};
 const boxDto = (b: BoxRequest) => ({
   request_id: b.requestId,
   buyer: b.buyer,
@@ -111,6 +142,23 @@ export async function buildApp(config: Config, store: IndexerStore, status: Inde
     return { property: propertyDto(property) };
   });
 
+  // Prédios de construtor (BuildingNFT) e as unidades já vendidas on-chain (UnitNFT + UnitMarket).
+  app.get('/v1/chain/buildings/:tokenId', async (request) => {
+    const { tokenId } = tokenParam.parse(request.params);
+    const building = await store.building(chainId, tokenId);
+    if (!building) throw notFound('Prédio');
+    const nowSec = chainNowSec(status);
+    const units = await store.unitsOfBuilding(chainId, tokenId);
+    return { building: buildingDto(building), units: units.map((u) => unitDto(u, nowSec)) };
+  });
+
+  app.get('/v1/chain/units/:tokenId', async (request) => {
+    const { tokenId } = tokenParam.parse(request.params);
+    const unit = await store.unit(chainId, tokenId);
+    if (!unit) throw notFound('Unidade');
+    return { unit: unitDto(unit, chainNowSec(status)) };
+  });
+
   app.get('/v1/chain/boxes/:tokenId', async (request) => {
     const { tokenId } = tokenParam.parse(request.params);
     const box = await store.box(chainId, tokenId);
@@ -120,12 +168,21 @@ export async function buildApp(config: Config, store: IndexerStore, status: Inde
 
   app.get('/v1/chain/owners/:address', async (request) => {
     const { address } = addressParam.parse(request.params);
-    const [lots, avatars, properties] = await Promise.all([
+    const [lots, avatars, properties, buildings, units] = await Promise.all([
       store.lotsOf(chainId, address),
       store.avatarsOf(chainId, address),
       store.propertiesOf(chainId, address),
+      store.buildingsOf(chainId, address),
+      store.unitsOf(chainId, address),
     ]);
-    return { lots: lots.map(lotDto), avatars: avatars.map(avatarDto), properties: properties.map(propertyDto) };
+    const nowSec = chainNowSec(status);
+    return {
+      lots: lots.map(lotDto),
+      avatars: avatars.map(avatarDto),
+      properties: properties.map(propertyDto),
+      buildings: buildings.map(buildingDto),
+      units: units.map((u) => unitDto(u, nowSec)),
+    };
   });
 
   // Depósitos do GameVault de uma carteira e se já viraram saldo no jogo.
@@ -155,6 +212,7 @@ export async function buildApp(config: Config, store: IndexerStore, status: Inde
     if (name === 'LandNFT') return (await store.lot(chainId, tokenId))?.owner;
     if (name === 'PropertyNFT') return (await store.property(chainId, tokenId))?.owner;
     if (name === 'AvatarNFT') return (await store.avatar(chainId, tokenId))?.owner;
+    if (name === 'UnitNFT') return (await store.unit(chainId, tokenId))?.owner;
     return undefined;
   };
   /**

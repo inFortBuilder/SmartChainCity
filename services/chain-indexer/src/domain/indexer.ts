@@ -1,6 +1,6 @@
 import type { Hex } from 'viem';
 
-import {
+import { type BuildingToken, type UnitToken,
   type AvatarToken,
   type BoxRequest,
   type ChainEvent,
@@ -43,6 +43,12 @@ export interface IndexerStore {
   property(chainId: number, tokenId: string): Promise<PropertyToken | null>;
   propertiesOf(chainId: number, owner: string): Promise<PropertyToken[]>;
   box(chainId: number, requestId: string): Promise<BoxRequest | null>;
+  building(chainId: number, tokenId: string): Promise<BuildingToken | null>;
+  buildingsOf(chainId: number, owner: string): Promise<BuildingToken[]>;
+  unit(chainId: number, tokenId: string): Promise<UnitToken | null>;
+  unitsOf(chainId: number, owner: string): Promise<UnitToken[]>;
+  /** Unidades do prédio já vendidas on-chain, pelo token. */
+  unitsOfBuilding(chainId: number, buildingId: string): Promise<UnitToken[]>;
   /** Listagens do Marketplace ainda abertas no contrato, as mais novas primeiro. */
   activeListings(chainId: number, limit: number): Promise<MarketListing[]>;
   listing(chainId: number, listingId: string): Promise<MarketListing | null>;

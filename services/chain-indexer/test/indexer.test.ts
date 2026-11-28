@@ -433,3 +433,92 @@ describe('Marketplace no indexer', () => {
     expect(await ended()).toBe(true);
   });
 });
+
+describe.each([
+  ['memória', () => new MemoryIndexerStore() as IndexerStore, true],
+  ['postgres', () => new PostgresIndexerStore(pool!) as IndexerStore, pool !== null],
+] as const)('prédios e unidades (%s)', (_name, make, enabled) => {
+  const code0302 = stringToHex('0302', { size: 16 });
+  const modelHash = keccak256(stringToHex('edificio.glb'));
+
+  it.skipIf(!enabled)('espelha o prédio, as unidades, a oferta de aluguel e o aluguel; a API usa o relógio da cadeia', async () => {
+    const id = newChainId();
+    const chain = new FakeChain(id);
+    const store = make();
+    chain.mine(1);
+    chain.emit('BuildingNFT', 'Transfer', { from: ZERO, to: ALICE, tokenId: '1' });
+    chain.emit('BuildingNFT', 'BuildingMinted', { tokenId: '1', lotId: '4294967338', developer: ALICE, modelHash, floors: 10 });
+    chain.emit('UnitNFT', 'Transfer', { from: ZERO, to: BOB, tokenId: '1' });
+    chain.emit('UnitNFT', 'UnitMinted', {
+      tokenId: '1',
+      buildingId: '1',
+      unitKey: '77',
+      to: BOB,
+      developer: ALICE,
+      floor: 3,
+      areaM2x100: 7235,
+      code: code0302,
+    });
+    chain.emit('UnitMarket', 'PrimarySold', { tokenId: '1', buildingId: '1', buyer: BOB, developer: ALICE, price: '1000', fee: '50' });
+    chain.emit('UnitMarket', 'RentOffered', { tokenId: '1', owner: BOB, pricePerDay: '10' });
+    chain.emit('UnitMarket', 'Rented', { tokenId: '1', tenant: ALICE, owner: BOB, endsAt: 2_000_000_000, paid: '70', fee: '7' });
+    chain.mine(1);
+    await drain(chain, store, options(id, { confirmations: 0 }));
+
+    expect(await store.building(id, '1')).toMatchObject({ owner: ALICE, lotId: '4294967338', developer: ALICE, modelHash, floors: 10, demolished: false });
+    expect(await store.unit(id, '1')).toMatchObject({
+      owner: BOB,
+      buildingId: '1',
+      unitKey: '77',
+      floor: 3,
+      areaM2x100: 7235,
+      code: '0302',
+      rentPerDayWei: '10',
+      rentOwner: BOB,
+      tenant: ALICE,
+      leaseEndsAt: 2_000_000_000,
+    });
+    expect((await store.unitsOfBuilding(id, '1')).map((u) => u.tokenId)).toEqual(['1']);
+    expect((await store.buildingsOf(id, ALICE)).map((b) => b.tokenId)).toEqual(['1']);
+
+    // Revenda: a oferta era do dono antigo e some; o aluguel pago segue. Demolição tira o prédio da carteira.
+    chain.mine(1);
+    chain.emit('UnitNFT', 'Transfer', { from: BOB, to: ALICE, tokenId: '1' });
+    chain.emit('BuildingNFT', 'Transfer', { from: ALICE, to: ZERO, tokenId: '1' });
+    chain.emit('BuildingNFT', 'BuildingDemolished', { tokenId: '1', lotId: '4294967338' });
+    chain.mine(1);
+    await drain(chain, store, options(id, { confirmations: 0 }));
+    expect(await store.building(id, '1')).toMatchObject({ owner: ALICE, demolished: true });
+    expect(await store.buildingsOf(id, ALICE)).toEqual([]);
+    expect((await store.unitsOf(id, ALICE)).map((u) => u.tokenId)).toEqual(['1']);
+
+    const app = await buildApp(loadConfig({ NODE_ENV: 'test', CHAIN_ID: String(id) }), store, {
+      head: null,
+      lastTickAt: null,
+      lastError: null,
+      chainTime: { seconds: 1_900_000_000, seenAt: Date.now() },
+    });
+    const unit = (await app.inject({ url: '/v1/chain/units/1' })).json().unit;
+    expect(unit).toMatchObject({ owner: ALICE, building_token_id: '1', area_m2: 72.35, code: '0302', rent_per_day_wei: null, tenant: ALICE });
+    expect(unit.lease_ends_at).toBe(new Date(2_000_000_000 * 1000).toISOString());
+    const building = (await app.inject({ url: '/v1/chain/buildings/1' })).json();
+    expect(building).toMatchObject({ building: { floors: 10, demolished: true }, units: [{ token_id: '1' }] });
+    const owner = (await app.inject({ url: `/v1/chain/owners/${ALICE}` })).json();
+    expect(owner).toMatchObject({ buildings: [], units: [{ token_id: '1', tenant: ALICE }] });
+    expect((await app.inject({ url: '/v1/chain/units/9' })).statusCode).toBe(404);
+    expect((await app.inject({ url: '/v1/chain/buildings/9' })).statusCode).toBe(404);
+
+    // Depois do fim do aluguel, pelo relógio da cadeia, sem inquilino.
+    const later = await buildApp(loadConfig({ NODE_ENV: 'test', CHAIN_ID: String(id) }), store, {
+      head: null,
+      lastTickAt: null,
+      lastError: null,
+      chainTime: { seconds: 2_000_000_001, seenAt: Date.now() },
+    });
+    expect((await later.inject({ url: '/v1/chain/units/1' })).json().unit).toMatchObject({ tenant: null, lease_ends_at: null });
+
+    // Reorganização refaz as projeções a partir dos eventos.
+    expect(await store.rewind(id, null)).toBeGreaterThan(0);
+    expect(await store.unit(id, '1')).toBeNull();
+  });
+});

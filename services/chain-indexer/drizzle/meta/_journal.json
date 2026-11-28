@@ -36,6 +36,13 @@
       "when": 1795283111177,
       "tag": "0004_leilao",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1795827783329,
+      "tag": "0005_unidades",
+      "breakpoints": true
     }
   ]
 }

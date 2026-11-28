@@ -66,6 +66,10 @@ A cada rodada, depois de ler os blocos confirmados, o indexer credita os depósi
 
 O crédito acontece uma vez só: numa reorganização as projeções são refeitas e o depósito volta a `pending`, mas o ledger devolve o lançamento antigo para a mesma chave. Ligue com `GATEWAY_URL`, `GATEWAY_TOKEN`, `ECONOMY_URL` e `ECONOMY_TOKEN`; sem os quatro, os depósitos só ficam registrados.
 
+## Prédios e unidades
+
+O indexer lê o `BuildingNFT` (`Transfer`, `BuildingMinted`, `BuildingDemolished`), o `UnitNFT` (`Transfer`, `UnitMinted`) e o `UnitMarket` (`RentOffered`, `Rented`; `PrimarySold` fica só no registro de eventos). A oferta de aluguel vale só enquanto quem a fez for o dono, como no contrato: vendida a unidade, a API mostra `rent_per_day_wei: null`. O aluguel pago segue até o fim, e o inquilino some da API pelo relógio da cadeia. A demolição tira o prédio das carteiras e o marca `demolished`. Endereços: `BUILDING_NFT_ADDRESS`, `UNIT_NFT_ADDRESS` e `UNIT_MARKET_ADDRESS`, ou o arquivo de deploy. A migração `0005_unidades` cria as tabelas.
+
 ## API
 
 | Método | Rota | Quem chama | O que faz |
@@ -76,7 +80,9 @@ O crédito acontece uma vez só: numa reorganização as projeções são refeit
 | GET | `/v1/chain/properties/:tokenId` | público | Dono, lote âncora, tipo e nível do imóvel |
 | GET | `/v1/chain/deposits/:address` | público | Depósitos de uma carteira no `GameVault` e se já viraram saldo (`pending`, `credited`) |
 | GET | `/v1/chain/boxes/:requestId` | público | Caixa aberta: comprador, tier, situação e avatar sorteado |
-| GET | `/v1/chain/owners/:address` | público | Lotes, avatares e imóveis de uma carteira |
+| GET | `/v1/chain/buildings/:tokenId` | público | Prédio do `BuildingNFT` (dono, lote, construtor, hash do modelo, andares, `demolished`) e as unidades já vendidas on-chain |
+| GET | `/v1/chain/units/:tokenId` | público | Unidade do `UnitNFT`: dono, prédio, andar, área, código, preço de aluguel em vigor e o inquilino até o fim do aluguel (pelo relógio da cadeia) |
+| GET | `/v1/chain/owners/:address` | público | Lotes, avatares, imóveis, prédios e unidades de uma carteira |
 | GET | `/v1/market/listings?limit=&all=` | público | Listagens abertas do `Marketplace`, as mais novas primeiro: vendedor, preço, prazo e itens com a coleção e o dono atual. Sem `all=true`, saem as vencidas e as velhas (`stale`: o vendedor já não tem algum NFT) |
 | GET | `/v1/market/listings/:id` | público | Uma listagem, aberta ou fechada (`sold`, `cancelled` ou `replaced` quando o NFT foi listado de novo pelo dono atual) |
 | GET | `/v1/market/auctions?limit=` | público | Leilões abertos, os mais novos primeiro: vendedor, preço inicial, maior lance e quem o deu, número de lances, lance mínimo agora, fim (`ended` quando passou e falta encerrar) e itens |

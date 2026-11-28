@@ -6,6 +6,8 @@ import type { Hex } from 'viem';
 import {
   type AvatarToken,
   type BoxRequest,
+  type BuildingToken,
+  type UnitToken,
   type ChainEvent,
   type ContractName,
   type Cursor,
@@ -23,6 +25,8 @@ import type { IndexerStore } from '../../domain/indexer.js';
 import {
   avatarToken as avatarT,
   boxRequest as boxT,
+  buildingToken as buildingT,
+  unitToken as unitT,
   chainEvent as eventT,
   cursor as cursorT,
   deposit as depositT,
@@ -146,6 +150,65 @@ async function apply(tx: Tx, chainId: number, op: ProjectionOp) {
         .set({ status: op.status, buyer: op.buyer, block: op.block })
         .where(and(eq(listingT.chainId, chainId), eq(listingT.listingId, op.listingId)));
       return;
+    case 'building_owner':
+      await tx
+        .insert(buildingT)
+        .values({ chainId, tokenId: op.tokenId, owner: op.owner, block: op.block })
+        .onConflictDoUpdate({ target: [buildingT.chainId, buildingT.tokenId], set: { owner: op.owner, block: op.block } });
+      return;
+    case 'building_traits':
+      await tx
+        .insert(buildingT)
+        .values({ chainId, tokenId: op.tokenId, owner: op.owner, lotId: op.lotId, developer: op.developer, modelHash: op.modelHash, floors: op.floors, block: op.block })
+        .onConflictDoUpdate({
+          target: [buildingT.chainId, buildingT.tokenId],
+          set: { lotId: op.lotId, developer: op.developer, modelHash: op.modelHash, floors: op.floors, demolished: false, block: op.block },
+        });
+      return;
+    case 'building_demolished':
+      await tx
+        .update(buildingT)
+        .set({ demolished: true, block: op.block })
+        .where(and(eq(buildingT.chainId, chainId), eq(buildingT.tokenId, op.tokenId)));
+      return;
+    case 'unit_owner':
+      await tx
+        .insert(unitT)
+        .values({ chainId, tokenId: op.tokenId, owner: op.owner, block: op.block })
+        .onConflictDoUpdate({ target: [unitT.chainId, unitT.tokenId], set: { owner: op.owner, block: op.block } });
+      return;
+    case 'unit_traits':
+      await tx
+        .insert(unitT)
+        .values({
+          chainId,
+          tokenId: op.tokenId,
+          owner: op.owner,
+          buildingId: op.buildingId,
+          unitKey: op.unitKey,
+          developer: op.developer,
+          floor: op.floor,
+          areaM2x100: op.areaM2x100,
+          code: op.code,
+          block: op.block,
+        })
+        .onConflictDoUpdate({
+          target: [unitT.chainId, unitT.tokenId],
+          set: { buildingId: op.buildingId, unitKey: op.unitKey, developer: op.developer, floor: op.floor, areaM2x100: op.areaM2x100, code: op.code, block: op.block },
+        });
+      return;
+    case 'unit_rent_offer':
+      await tx
+        .insert(unitT)
+        .values({ chainId, tokenId: op.tokenId, owner: op.owner, rentPerDayWei: op.pricePerDayWei, rentOwner: op.owner, block: op.block })
+        .onConflictDoUpdate({ target: [unitT.chainId, unitT.tokenId], set: { rentPerDayWei: op.pricePerDayWei, rentOwner: op.owner, block: op.block } });
+      return;
+    case 'unit_lease':
+      await tx
+        .update(unitT)
+        .set({ tenant: op.tenant, leaseEndsAt: op.endsAt, block: op.block })
+        .where(and(eq(unitT.chainId, chainId), eq(unitT.tokenId, op.tokenId)));
+      return;
     case 'box_opened':
       await tx
         .insert(boxT)
@@ -227,6 +290,8 @@ export class PostgresIndexerStore implements IndexerStore {
       await tx.delete(depositT).where(eq(depositT.chainId, chainId));
       await tx.delete(listingT).where(eq(listingT.chainId, chainId));
       await tx.delete(auctionT).where(eq(auctionT.chainId, chainId));
+      await tx.delete(buildingT).where(eq(buildingT.chainId, chainId));
+      await tx.delete(unitT).where(eq(unitT.chainId, chainId));
       const keep = await tx
         .select()
         .from(eventT)
@@ -278,6 +343,43 @@ export class PostgresIndexerStore implements IndexerStore {
       .where(and(eq(propT.chainId, chainId), eq(propT.owner, owner.toLowerCase())))
       .orderBy(asc(sql`${propT.tokenId}::numeric`));
     return rows.map(({ chainId: _c, ...rest }) => rest as PropertyToken);
+  }
+
+  async building(chainId: number, tokenId: string) {
+    const [r] = await this.db.select().from(buildingT).where(and(eq(buildingT.chainId, chainId), eq(buildingT.tokenId, tokenId)));
+    return r ? (({ chainId: _c, ...rest }) => rest as BuildingToken)(r) : null;
+  }
+
+  async buildingsOf(chainId: number, owner: string) {
+    const rows = await this.db
+      .select()
+      .from(buildingT)
+      .where(and(eq(buildingT.chainId, chainId), eq(buildingT.owner, owner.toLowerCase()), eq(buildingT.demolished, false)))
+      .orderBy(asc(sql`${buildingT.tokenId}::numeric`));
+    return rows.map(({ chainId: _c, ...rest }) => rest as BuildingToken);
+  }
+
+  async unit(chainId: number, tokenId: string) {
+    const [r] = await this.db.select().from(unitT).where(and(eq(unitT.chainId, chainId), eq(unitT.tokenId, tokenId)));
+    return r ? (({ chainId: _c, ...rest }) => rest as UnitToken)(r) : null;
+  }
+
+  async unitsOf(chainId: number, owner: string) {
+    const rows = await this.db
+      .select()
+      .from(unitT)
+      .where(and(eq(unitT.chainId, chainId), eq(unitT.owner, owner.toLowerCase())))
+      .orderBy(asc(sql`${unitT.tokenId}::numeric`));
+    return rows.map(({ chainId: _c, ...rest }) => rest as UnitToken);
+  }
+
+  async unitsOfBuilding(chainId: number, buildingId: string) {
+    const rows = await this.db
+      .select()
+      .from(unitT)
+      .where(and(eq(unitT.chainId, chainId), eq(unitT.buildingId, buildingId)))
+      .orderBy(asc(sql`${unitT.tokenId}::numeric`));
+    return rows.map(({ chainId: _c, ...rest }) => rest as UnitToken);
   }
 
   async pendingDeposits(chainId: number, limit: number) {
