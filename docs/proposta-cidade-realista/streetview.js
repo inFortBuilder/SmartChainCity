@@ -121,8 +121,9 @@ export function sidewalkMesh(grid, top, bottom) {
       px[0] = xa; pz[0] = za; px[1] = xb; pz[1] = za; px[2] = xb; pz[2] = zb; px[3] = xa; pz[3] = zb;
       px[4] = (xa + xb) / 2; pz[4] = za; px[5] = xb; pz[5] = (za + zb) / 2; px[6] = (xa + xb) / 2; pz[6] = zb; px[7] = xa; pz[7] = (za + zb) / 2;
       const poly = MS_FILL[code];
+      // Ordem invertida: a face de cima fica virada para +Y (vista de cima, no sentido anti-horário).
       for (let i = 1; i < poly.length - 1; i++) {
-        for (const v of [poly[0], poly[i], poly[i + 1]]) {
+        for (const v of [poly[0], poly[i + 1], poly[i]]) {
           pos.push(px[v], top, pz[v]);
           nor.push(0, 1, 0);
         }
