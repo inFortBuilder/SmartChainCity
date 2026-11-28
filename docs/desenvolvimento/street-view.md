@@ -262,7 +262,34 @@ O OSM da cidade só traz o polígono das ruas, sem a linha do meio. O carro se g
 - com o avatar parado na rua, 14 m à frente de um carro a 6 a 8 m/s: o carro parou a 4,5 m, 5 m e 7 m nas três tentativas;
 - no Node, em duas ruas de 10 m que se cruzam: seguindo reto, atravessou o cruzamento; entrando, virou à direita e ficou na faixa; numa rua sem saída, deu a volta. Nenhum passo fora da rua, e no máximo 0,3 m fora da faixa.
 
-**Limites desta versão:** não há semáforo nem preferência no cruzamento, e o carro não vira à esquerda. O carro já para para o pedestre que atravessa na faixa ([travessia](#travessia-na-faixa)). O ônibus no ponto e os sons ficam para os próximos passos.
+**Limites desta versão:** não há semáforo nem preferência no cruzamento, e o carro não vira à esquerda. O carro já para para o pedestre que atravessa na faixa ([travessia](#travessia-na-faixa)). Os sons ficam para os próximos passos.
+
+## Ônibus e pontos de ônibus (fase 3)
+
+O OSM de Pittsburg não traz os pontos. `onibus.js` os tira da grade da calçada:
+
+- cada célula de meio-fio tem um sorteio fixo pela posição no mundo, e cerca de 1 em 350 vira ponto, numa rua de 7 m ou mais e a pelo menos 60 m do ponto vizinho;
+- o abrigo é procedural (cobertura, fundo de vidro, banco, colunas e a placa amarela), virado para a rua, a 1,2 m do meio-fio; o fundo e o banco não são andáveis;
+- cada ponto tem a espera do pedestre (na frente do banco) e a parada do ônibus (na rua, a 1,6 m do meio-fio).
+
+O sorteio é da célula, não da grade, e a grade da calçada agora fica alinhada a múltiplos de 0,5 m no mundo. Por isso, refazer a grade em outro centro dá os mesmos pontos (e os mesmos postes e árvores). Na primeira versão, com um sorteio por quadrado de 120 m, a melhor célula do quadrado mudava com o recorte da grade, e o ponto pulava de lugar.
+
+| Quem | O que faz |
+|---|---|
+| Ônibus | Com 3 carros ou mais, um é ônibus: 11 m, verde, 8 m/s. Anda como os carros e, com um ponto à frente na faixa dele (até 35 m, a menos de 2,5 m de lado), freia a 1,5 m/s² até a parada e fica 7 s parado. Depois segue e não para de novo no mesmo ponto |
+| Pedestre | Passando a 2,5 m de um ponto, 40% vão esperar nele, na frente do banco e de frente para a rua (até 45 s). Com o ônibus parado e a porta a menos de 10 m, andam até a porta e saem da cena (embarcaram) |
+| Os outros carros | Freiam atrás do ônibus contando o comprimento dele |
+
+Os pontos só existem na grade em volta do avatar (40 m): o ônibus só para nos pontos perto do jogador, que são os que aparecem na tela. O mapa expõe `streetView.busStops()` e, para os testes, `traffic().placeBus(x, z, rumo)`.
+
+**PREMISSAS:** 1 em 350 células de meio-fio, 60 m entre pontos, rua de 7 m; ônibus de 11 m a 8 m/s, 7 s no ponto; 40% dos pedestres esperam, até 45 s.
+
+**Testado** em 2026-11-28, perto do cruzamento de (-1397, 4857):
+- o ponto de (-1392,2; 4863,2) apareceu igual nas grades de 4 centros diferentes;
+- o ônibus posto 30 m antes dele freou (6 → 2,4 m/s), parou a 1 m da parada, ficou 7 s e seguiu; 4 pedestres embarcaram;
+- as 3 faixas do cruzamento seguem lá depois do alinhamento da grade.
+
+**Limites desta versão:** o avatar ainda não embarca (o deslocamento de ônibus do jogo, 6 min e 3 THALER, é só a regra do turno), e o ônibus não segue uma linha fixa.
 
 ## Avatar e animações: Universal Animation Library (Quaternius)
 
