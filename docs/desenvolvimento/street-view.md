@@ -511,7 +511,7 @@ Cada nó diz o tipo: `cruz` (4 braços), `T` (3), `fim` (1), `borda` (1, na bord
 
 - As peças ficam 3 cm acima do asfalto do OSM.
 - Com o kit, o asfalto do OSM ganha a textura do asfalto liso do kit (recortada do atlas, repetida a cada 7,71 m pelo mundo), para não destoar das peças. Isso vale também para o mapa visto de cima.
-- As listras de `faixas.js` saem, porque as peças de cruzamento trazem as delas. A lista das faixas continua, para os pedestres e os semáforos.
+- As listras de `faixas.js` saem só dentro das peças de cruzamento (até a borda delas, mais 2 m), que trazem as suas. No cruzamento torto, sem peça, elas continuam, 5 cm acima do asfalto, por cima da fita. A lista das faixas fica inteira, para os pedestres e os semáforos.
 - Sem o arquivo em `.local/rouds/`, ou com `?kit=0`, nada muda.
 
 **PREMISSAS:** ângulo reto até 20° fora; 4 faixas acima de 12 m; escala da largura entre 0,6 e 1,6; peças 3 cm acima do OSM.
@@ -531,7 +531,7 @@ Cada nó diz o tipo: `cruz` (4 braços), `T` (3), `fim` (1), `borda` (1, na bord
 **Limites desta versão:**
 - (resolvido) o grafo levava cerca de 140 ms na cidade e era refeito a cada 60 m, com um engasgo. Quase tudo era o afinamento, que montava um vetor de vizinhos por célula. Reescrito sem alocar e só revisitando as células vivas, o esqueleto caiu de cerca de 60 ms para 1 ms, e o grafo inteiro, no jogo, para 10 a 26 ms em 4 lugares da cidade. O esqueleto e o grafo saem iguais aos de antes nas 4 formas de rua de teste. Um worker não foi preciso;
 - (resolvido) a linha amarela quebrava nas dobras do trecho, com as retas em fileira. Com a fita contínua, ela segue inteira e só vira no canto que o grafo tem (simplificado a 1 m). A fita também encosta na peça de cruzamento sem a junta escura que a fileira deixava. Em (-1397, 4857), as ruas passaram de 136 retas e 9 asfaltos para 30 triângulos de fita; no cruzamento de (-2044,6; 4290,9), 2 `cruz2`, 1 T e 54 triângulos. No Node, o chanfro de uma fita de 8 m no canto em L põe as bordas a 5,66 m do canto (4·√2), todos os triângulos ficam virados para cima, e o v cresce com a distância;
-- o cruzamento que não é em ângulo reto fica com o asfalto do OSM, sem faixa de pedestre do kit. As listras de hoje também saem, então ali não há faixa desenhada;
+- o cruzamento que não é em ângulo reto fica com o asfalto do OSM, sem faixa de pedestre do kit. (Resolvido em parte: ali voltaram as listras de `faixas.js`. No T torto de (-1397, 4857), as 3 faixas desenham 27 listras por cima da fita. No cruzamento reto de (-2044,6; 4290,9), as 4 faixas ficam dentro das peças do kit, e nenhuma listra a mais aparece);
 - as curvas do kit ainda não entram.
 
 **Testado (as peças)** em 2026-11-28: as 8 peças lado a lado, de cima, com a textura do kit no lugar certo (a faixa amarela, as faixas de pedestre, o "STOP", o piso da calçada). O cruzamento de 2 faixas saiu inteiro depois de juntar os braços. O teste da ferramenta (`tests/roadKit.test.js`) cobre a normalização, o UV e as peças.
