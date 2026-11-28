@@ -88,6 +88,61 @@ export function buildSidewalkGrid(isRoad, cx, cz, blocked = () => false, opt = S
   return { n, x0, z0, cell: opt.cell, kind, dist, sidewalk, cx, cz, at };
 }
 
+// Marching squares, versão preenchida: para cada caso (bits dos 4 cantos: 1 = c0, 2 = c1, 4 = c2, 8 = c3),
+// o polígono cheio (cantos 0–3 e meios das arestas 4–7: 4 = c0–c1, 5 = c1–c2, 6 = c2–c3, 7 = c3–c0) e os
+// trechos da borda (pares de meios), onde entra a face do meio-fio. Nas selas (5 e 10), os cantos cheios
+// ficam ligados.
+const MS_FILL = [
+  [], [0, 4, 7], [4, 1, 5], [0, 1, 5, 7], [5, 2, 6], [0, 4, 5, 2, 6, 7], [4, 1, 2, 6], [0, 1, 2, 6, 7],
+  [6, 3, 7], [0, 4, 6, 3], [4, 1, 5, 6, 3, 7], [0, 1, 5, 6, 3], [5, 2, 3, 7], [0, 4, 5, 2, 3], [4, 1, 2, 3, 7], [0, 1, 2, 3],
+];
+const MS_EDGE = [
+  [], [4, 7], [4, 5], [5, 7], [5, 6], [4, 5, 6, 7], [4, 6], [6, 7],
+  [6, 7], [4, 6], [5, 6, 7, 4], [5, 6], [5, 7], [4, 5], [4, 7], [],
+];
+
+/**
+ * Malha da calçada a partir da grade: o topo (a \`top\`) com a borda em diagonal, em vez de degraus de
+ * 0,5 m, e a face do meio-fio (de \`top\` até \`bottom\`) ao longo da borda. Posições e normais prontas para
+ * um BufferGeometry, sem índice.
+ */
+export function sidewalkMesh(grid, top, bottom) {
+  const { n, x0, z0, cell, kind } = grid;
+  const pos = [];
+  const nor = [];
+  const filled = (r, c) => kind[r * n + c] >= 2;
+  const px = new Float64Array(8), pz = new Float64Array(8);
+  for (let r = 0; r < n - 1; r++) {
+    for (let c = 0; c < n - 1; c++) {
+      const code = (filled(r, c) ? 1 : 0) | (filled(r, c + 1) ? 2 : 0) | (filled(r + 1, c + 1) ? 4 : 0) | (filled(r + 1, c) ? 8 : 0);
+      if (!code) continue;
+      const xa = x0 + (c + 0.5) * cell, xb = xa + cell, za = z0 + (r + 0.5) * cell, zb = za + cell;
+      // Cantos c0 (r, c), c1 (r, c+1), c2 (r+1, c+1), c3 (r+1, c) e os meios das arestas.
+      px[0] = xa; pz[0] = za; px[1] = xb; pz[1] = za; px[2] = xb; pz[2] = zb; px[3] = xa; pz[3] = zb;
+      px[4] = (xa + xb) / 2; pz[4] = za; px[5] = xb; pz[5] = (za + zb) / 2; px[6] = (xa + xb) / 2; pz[6] = zb; px[7] = xa; pz[7] = (za + zb) / 2;
+      const poly = MS_FILL[code];
+      for (let i = 1; i < poly.length - 1; i++) {
+        for (const v of [poly[0], poly[i], poly[i + 1]]) {
+          pos.push(px[v], top, pz[v]);
+          nor.push(0, 1, 0);
+        }
+      }
+      const edge = MS_EDGE[code];
+      for (let i = 0; i < edge.length; i += 2) {
+        const a = edge[i], b = edge[i + 1];
+        const dx = px[b] - px[a], dz = pz[b] - pz[a];
+        const len = Math.hypot(dx, dz) || 1;
+        const nx = dz / len, nz = -dx / len;
+        for (const [v, y] of [[a, top], [b, top], [b, bottom], [a, top], [b, bottom], [a, bottom]]) {
+          pos.push(px[v], y, pz[v]);
+          nor.push(nx, 0, nz);
+        }
+      }
+    }
+  }
+  return { position: new Float32Array(pos), normal: new Float32Array(nor), triangles: pos.length / 9 };
+}
+
 /** Índice dos triângulos das ruas no plano XZ, em grade (formato CSR). */
 export function buildRoadIndex(mesh) {
   mesh.updateWorldMatrix(true, false);
@@ -234,12 +289,16 @@ export function createStreetView({ THREE, scene, camera, controls, canvas, roads
   ring.visible = false;
   scene.add(ring);
 
-  // ---------- Calçada: grade em volta do avatar, desenhada com instâncias de 0,5 m ----------
-  const MAX_TILES = Math.ceil((SIDEWALK.radius * 2) / SIDEWALK.cell) ** 2;
-  const tileGeo = new THREE.PlaneGeometry(SIDEWALK.cell, SIDEWALK.cell).rotateX(-Math.PI / 2);
-  const tileMat = new THREE.MeshStandardMaterial({ color: 0xeeeae2, roughness: 0.9, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
-  const tiles = new THREE.InstancedMesh(tileGeo, tileMat, MAX_TILES);
-  tiles.count = 0;
+  // ---------- Calçada: grade em volta do avatar, desenhada como contorno (marching squares) ----------
+  const tileMat = new THREE.MeshStandardMaterial({
+    color: 0xeeeae2,
+    roughness: 0.9,
+    side: THREE.DoubleSide,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -1,
+  });
+  const tiles = new THREE.Mesh(new THREE.BufferGeometry(), tileMat);
   tiles.receiveShadow = true;
   tiles.frustumCulled = false;
   tiles.visible = false;
@@ -247,7 +306,6 @@ export function createStreetView({ THREE, scene, camera, controls, canvas, roads
   // Postes e árvores ao longo da calçada (mobiliario.js); ocupam a célula, e o avatar contorna.
   const furniture = createFurniture(THREE, scene);
   let furnitureCounts = null;
-  const tileMatrix = new THREE.Matrix4();
   const boxHit = new THREE.Vector3();
   /**
    * Caixas dos prédios a até 120 m: os objetos de `blockers()` com mais de 2 m de altura. A caixa é a do
@@ -287,17 +345,14 @@ export function createStreetView({ THREE, scene, camera, controls, canvas, roads
     const t0 = performance.now();
     refreshBoxes(x, z);
     walk = buildSidewalkGrid(index.isRoad, x, z, insideBox);
-    let k = 0;
-    for (let r = 0; r < walk.n; r++) {
-      for (let c = 0; c < walk.n; c++) {
-        if (walk.kind[r * walk.n + c] !== 2) continue;
-        tileMatrix.makeTranslation(walk.x0 + (c + 0.5) * walk.cell, index.y + SIDEWALK.curb, walk.z0 + (r + 0.5) * walk.cell);
-        tiles.setMatrixAt(k++, tileMatrix);
-      }
-    }
-    tiles.count = k;
-    tiles.instanceMatrix.needsUpdate = true;
+    const m = sidewalkMesh(walk, index.y + SIDEWALK.curb, index.y);
+    tiles.geometry.dispose();
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(m.position, 3));
+    g.setAttribute('normal', new THREE.BufferAttribute(m.normal, 3));
+    tiles.geometry = g;
     tiles.visible = true;
+    walk.triangles = m.triangles;
     furnitureCounts = furniture.rebuild(walk, index.y + SIDEWALK.curb);
     walk.ms = Math.round(performance.now() - t0);
   };
@@ -625,7 +680,7 @@ export function createStreetView({ THREE, scene, camera, controls, canvas, roads
     /** Rua ou calçada perto do avatar. */
     isWalkable: (x, z) => !!index && isWalkable(x, z),
     /** A grade da calçada em uso (testes e medição): células de calçada e o tempo da última montagem. */
-    sidewalk: () => (walk ? { tiles: tiles.count, ms: walk.ms, cx: walk.cx, cz: walk.cz } : null),
+    sidewalk: () => (walk ? { cells: walk.sidewalk, triangles: walk.triangles, ms: walk.ms, cx: walk.cx, cz: walk.cz } : null),
     /** Prédios que a câmera e a calçada levam em conta agora. */
     blockerCount: () => boxes.length,
     jumping: () => jump.air,
