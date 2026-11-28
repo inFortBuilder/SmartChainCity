@@ -26,7 +26,7 @@
 // PREMISSAS: até 10 carros, 7 a 10 m/s (25 a 36 km/h), faixa e IDM como em vias.js; um ônibus
 // de 11 m a 8 m/s, 7 s parado no ponto, frenagem de 1,5 m/s² até ele.
 
-import { along, buildLanes, chooseNext, connector, idm } from './vias.js';
+import { ROUTE, along, buildLanes, chooseNext, connector, idm } from './vias.js';
 
 export const CARS = {
   max: 10,
@@ -427,13 +427,15 @@ export function createTraffic({ THREE, scene, streetView, graph = () => null, wa
       const dx = s.bay.x - c.x, dz = s.bay.z - c.z;
       const ahead = dx * fx + dz * fz;
       if (ahead < -0.5 || ahead > 40 || Math.abs(dx * fz - dz * fx) > 2.5) continue;
-      if (ahead < 0.8 && c.speed < 1) {
+      if (ahead < 1.2 && c.speed < 1) {
         c.dwell = opt.bus.dwell;
         c.stopKey = s.key;
         stats.busStops++;
         return 0;
       }
-      best = best === null ? Math.max(0, ahead - 0.3) : Math.min(best, ahead - 0.3);
+      // O IDM para a s0 (2,5 m) do obstáculo: o obstáculo fica s0 além da parada, para o ônibus parar nela.
+      const g = Math.max(0, ahead - 0.3) + ROUTE.s0;
+      best = best === null ? g : Math.min(best, g);
     }
     return best;
   }
