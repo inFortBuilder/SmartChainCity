@@ -181,15 +181,15 @@ function pavingTexture(THREE) {
   const cv = document.createElement('canvas');
   cv.width = cv.height = 256;
   const g = cv.getContext('2d');
-  g.fillStyle = '#9d968a';
+  g.fillStyle = '#7d7b78';
   g.fillRect(0, 0, 256, 256);
   // Pedras de 64 px (1 m) em fiadas desencontradas.
   for (let row = 0; row < 4; row++) {
     for (let col = -1; col < 4; col++) {
       const x = col * 64 + (row % 2) * 32, y = row * 64;
       const t = cellHash(row * 7 + 3, col + 11);
-      const v = 188 + Math.round(t * 26);
-      g.fillStyle = `rgb(${v},${v - 6},${v - 16})`;
+      const v = 150 + Math.round(t * 24);
+      g.fillStyle = `rgb(${v},${v - 2},${v - 6})`;
       g.fillRect(x + 2, y + 2, 60, 60);
     }
   }
@@ -278,8 +278,8 @@ export function createPlazas({ THREE, scene, streetView, list = () => [], opt = 
     floor.receiveShadow = true;
     g.add(floor);
     const treeScale = (t) => 0.9 + (t.h * 37 % 1) * 0.5;
-    g.add(instanced(new THREE.CylinderGeometry(0.14, 0.22, 2.8, 7).translate(0, 1.4, 0), mat.bark, items.trees, (t) => ({ y, yaw: t.h * 6.28, scale: treeScale(t) })));
-    g.add(instanced(new THREE.IcosahedronGeometry(2.1, 1).translate(0, 4, 0), mat.leaves, items.trees, (t) => ({ y, yaw: t.h * 6.28, scale: treeScale(t) })));
+    g.add(instanced(new THREE.CylinderGeometry(0.14, 0.22, 3.6, 7).translate(0, 1.8, 0), mat.bark, items.trees, (t) => ({ y, yaw: t.h * 6.28, scale: treeScale(t) })));
+    g.add(instanced(new THREE.IcosahedronGeometry(2.1, 1).translate(0, 5.4, 0), mat.leaves, items.trees, (t) => ({ y, yaw: t.h * 6.28, scale: treeScale(t) })));
     // Banco: assento e encosto de madeira sobre dois pés de ferro.
     g.add(instanced(new THREE.BoxGeometry(1.6, 0.06, 0.42).translate(0, 0.45, 0), mat.wood, items.benches, (b) => ({ y, yaw: b.yaw, scale: 1 })));
     g.add(instanced(new THREE.BoxGeometry(1.6, 0.36, 0.05).translate(0, 0.72, -0.2), mat.wood, items.benches, (b) => ({ y, yaw: b.yaw, scale: 1 })));
