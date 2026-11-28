@@ -542,16 +542,23 @@ O turno do game-core não tem lugar: o avatar trabalha pelo painel (`POST /v1/av
 
 ## Celular do personagem
 
-Os painéis do mapa ficam escondidos no street view. `celular.js` traz o essencial deles para a rua. Ele abre no botão **Celular** da barra ou na tecla **C**, e fecha com o C, o Esc ou o botão de voltar.
+Os painéis do mapa ficam escondidos no street view. `celular.js` traz o essencial deles para a rua. Ele abre no botão **Celular** da barra ou na tecla **C**. O C fecha; o Esc e a barra de início voltam ao início e, no início, fecham. Com o celular aberto, o Esc não tira o avatar da rua.
 
 | App | O que faz |
 |---|---|
 | Carteira | THALER e SCITY (o SCITY com 18 casas, mostrado com 2). Depósitos, saques e câmbio continuam no painel do mapa |
 | Status | Os atributos do avatar (0 a 10, em barras vermelhas até 3, amarelas até 6), a profissão, a moradia (regular ou não) e o que ele pode fazer agora (trabalhar, dormindo, internado, no mercado) |
-| GPS | Os destinos do minimapa (loja, farmácia, mercado e o trabalho). Escolher liga o GPS e fecha o celular |
+| GPS | Os destinos do minimapa (loja, farmácia, mercado, trabalho e a praça). Escolher liga o GPS e fecha o celular |
 | Carro | Chama o próprio carro, se a conta tem um em dia |
 | Chat | Fecha o celular e põe o cursor na caixa de mensagem do bairro |
 | Mapa | Volta para o mapa |
+
+**Visual**: smartphone grande e moderno, em 19,5:9 (300 × 650 px), com moldura de metal e cantos arredondados.
+
+- **Topo**: a ilha preta e a barra de status (hora, sinal, Wi-Fi e bateria).
+- **Início**: papel de parede em gradiente e um widget com a data, a hora e o tempo (clima.js). Os ícones são quadrados de cantos arredondados, com gradiente e símbolo branco em SVG feitos aqui, sem marca de ninguém. Carteira, Status, GPS e Carro ficam na grade; Chat e Mapa, no dock de vidro fosco.
+- **Base**: a barra de início.
+- **Apps**: fundo preto, "‹ Início" em azul, título grande e listas agrupadas em cartões, com setas nas linhas que levam a algum lugar.
 
 Ao abrir, o celular pede um refresh do servidor e se redesenha. Ele só mostra e atalha: nada nele cobra ou muda o jogo. O mapa expõe `__pittsburg.phone()` com `open(tela)` e `debug()`.
 
