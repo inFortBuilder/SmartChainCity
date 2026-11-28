@@ -2350,6 +2350,28 @@ export function createServidor(map) {
     data.avatar = r.avatar;
     return r;
   }
+  /**
+   * Ação de compra do avatar vinda da cena (lojas-rua.js): `shop` (loja do jogo) ou `medicine` (farmácia).
+   * Devolve a resposta do game-core e guarda o avatar novo.
+   */
+  async function avatarPost(path, body) {
+    if (!session || !data.avatar) throw Object.assign(new Error('Entre no jogo e pegue um avatar para comprar.'), { code: 'no_session' });
+    const r = await call(API.game, `/v1/avatars/${data.avatar.id}/${path}`, {
+      method: 'POST',
+      token: session.token,
+      body,
+      headers: { 'idempotency-key': crypto.randomUUID() },
+    });
+    if (r.avatar) data.avatar = r.avatar;
+    return r;
+  }
+  let shopCat = null;
+  let medicineCents = null;
+  /** O catálogo da loja do jogo (uma vez). */
+  const shopCatalog = async () => (shopCat ??= await call(API.game, '/v1/catalog/shop'));
+  call(API.game, '/v1/catalog/pharmacy')
+    .then((r) => { medicineCents = Number(r.price); })
+    .catch(() => {});
   /** O catálogo do mercado (carrega se ainda não veio). */
   async function foodCatalog() {
     if (!foods.length) foods = await call(API.game, '/v1/catalog/foods').then((r) => r.foods).catch(() => []);
@@ -2362,6 +2384,9 @@ export function createServidor(map) {
     visit,
     buyFood,
     foodCatalog,
+    avatarPost,
+    shopCatalog,
+    medicinePrice: () => medicineCents,
     active: () => session !== null,
     getSession: () => session,
     getData: () => data,

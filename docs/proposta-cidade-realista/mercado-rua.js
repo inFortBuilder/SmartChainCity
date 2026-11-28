@@ -54,27 +54,28 @@ export function marketLayout(m) {
   return { hw, depth: m.depth, gondolas, counters, slots, door: 1.2 };
 }
 
-export function createStreetMarket({ THREE, scene, city, groundY, servidor, streetView }) {
-  const spec = MARKETS[city]?.[0];
-  if (!spec) return null;
-  const L = marketLayout(spec);
-  const floorY = groundY + CURB;
+/**
+ * Casca de uma loja na rua (mercado, loja do jogo, farmácia): chão, paredes com a porta no meio da frente,
+ * telhado (segura a câmera dentro), letreiro e uma luz. Coordenadas locais: x para a direita, z para dentro,
+ * a partir do meio da porta (\`spec.front\`, \`spec.yaw\`). Devolve o grupo, \`box\` (peças com colisão da câmera
+ * pelas caixas do street view) e as conversões entre o mundo e o local.
+ */
+export function storeShell(THREE, scene, spec, floorY, { name, sign: signText, color, door = 1.2 }) {
   const [fx, fz] = spec.front;
   const cos = Math.cos(spec.yaw), sin = Math.sin(spec.yaw);
   const toLocal = (x, z) => {
     const dx = x - fx, dz = z - fz;
     return [dx * cos - dz * sin, dx * sin + dz * cos];
   };
-
-  // ---------- Prédio: chão, paredes com a porta, telhado, letreiro ----------
+  const toWorld = (lx, lz) => [fx + lx * cos + lz * sin, fz - lx * sin + lz * cos];
   const group = new THREE.Group();
-  group.name = 'mercado-rua';
+  group.name = name;
   group.position.set(fx, floorY, fz);
   group.rotation.y = spec.yaw;
   scene.add(group);
   const H = 4.5, T = 0.2;
   const wallMat = new THREE.MeshStandardMaterial({ color: 0xe9e2d4, roughness: 0.85 });
-  const trimMat = new THREE.MeshStandardMaterial({ color: 0x2f6f4f, roughness: 0.7 });
+  const trimMat = new THREE.MeshStandardMaterial({ color, roughness: 0.7 });
   const box = (w, h, d, x, y, z, mat, blocker = false) => {
     const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
     m.position.set(x, y, z);
@@ -88,23 +89,23 @@ export function createStreetMarket({ THREE, scene, city, groundY, servidor, stre
   box(W, H, T, 0, H / 2, D, wallMat); // fundo
   box(T, H, D, -W / 2, H / 2, D / 2, wallMat);
   box(T, H, D, W / 2, H / 2, D / 2, wallMat);
-  const side = (W - 2 * L.door) / 2;
-  box(side, H, T, -(L.door + side / 2), H / 2, 0, wallMat); // frente, à esquerda da porta
-  box(side, H, T, L.door + side / 2, H / 2, 0, wallMat); // frente, à direita
-  box(2 * L.door, H - 2.4, T, 0, 2.4 + (H - 2.4) / 2, 0, wallMat); // em cima da porta
+  const side = (W - 2 * door) / 2;
+  box(side, H, T, -(door + side / 2), H / 2, 0, wallMat); // frente, à esquerda da porta
+  box(side, H, T, door + side / 2, H / 2, 0, wallMat); // frente, à direita
+  box(2 * door, H - 2.4, T, 0, 2.4 + (H - 2.4) / 2, 0, wallMat); // em cima da porta
   box(W + 0.4, 0.25, D + 0.4, 0, H + 0.12, D / 2, trimMat, true); // telhado: segura a câmera dentro
   // Letreiro em cima da porta, do lado de fora.
   const canvas = document.createElement('canvas');
   canvas.width = 512;
   canvas.height = 96;
   const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#2f6f4f';
+  ctx.fillStyle = `#${color.toString(16).padStart(6, '0')}`;
   ctx.fillRect(0, 0, 512, 96);
   ctx.fillStyle = '#fff';
   ctx.font = 'bold 44px system-ui, sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('MERCADO', 256, 50);
+  ctx.fillText(signText, 256, 50);
   const sign = new THREE.Mesh(new THREE.PlaneGeometry(4.2, 0.8), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(canvas) }));
   sign.position.set(0, 3.3, -0.12);
   sign.rotation.y = Math.PI;
@@ -113,6 +114,29 @@ export function createStreetMarket({ THREE, scene, city, groundY, servidor, stre
   const lamp = new THREE.PointLight(0xfff4e0, 18, 16, 1.6);
   lamp.position.set(0, H - 0.6, D / 2);
   group.add(lamp);
+  /** Dentro do prédio (para os pontos de interação). */
+  const inside = (x, z) => {
+    const [lx, lz] = toLocal(x, z);
+    return Math.abs(lx) <= W / 2 && lz >= -0.2 && lz <= D;
+  };
+  /** Onde dá para andar: a porta liga a calçada ao salão; as caixas \`solid\` (locais) ficam de fora. */
+  const walkableWith = (solid) => (x, z) => {
+    const [lx, lz] = toLocal(x, z);
+    if (Math.abs(lx) <= door - 0.15 && lz >= -1.6 && lz <= 0.5) return true;
+    if (Math.abs(lx) > W / 2 - 0.35 || lz < 0.35 || lz > D - 0.35) return false;
+    return !solid.some((b) => lx >= b.x0 && lx <= b.x1 && lz >= b.z0 && lz <= b.z1);
+  };
+  return { group, box, toLocal, toWorld, floorY, inside, walkableWith };
+}
+
+export function createStreetMarket({ THREE, scene, city, groundY, servidor, streetView }) {
+  const spec = MARKETS[city]?.[0];
+  if (!spec) return null;
+  const L = marketLayout(spec);
+  const shell = storeShell(THREE, scene, spec, groundY + CURB, { name: 'mercado-rua', sign: 'MERCADO', color: 0x2f6f4f, door: L.door });
+  const { group, box, toLocal, floorY } = shell;
+  const [fx, fz] = spec.front;
+  const cos = Math.cos(spec.yaw), sin = Math.sin(spec.yaw);
 
   // ---------- Gôndolas, balcões e produtos ----------
   const shelfMat = new THREE.MeshStandardMaterial({ color: 0xb9bec4, roughness: 0.5, metalness: 0.3 });
