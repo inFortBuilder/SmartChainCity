@@ -144,6 +144,8 @@ A gripe e a dor de cabeça saem da semente do próprio turno (`draw(semente, tur
 
 **Passagem de ônibus na rua** (fase 3 do mundo aberto). `POST /v1/avatars/:id/bus-ride` paga a passagem quando o avatar embarca no ônibus do street view. Custa o mesmo que o deslocamento de ônibus do turno (`COMMUTES.onibus`, 3 THALER), que vai para a queima (`burn/transit`, lançamento `bus_fare`), pelo mesmo caminho da refeição (código `onibus`, cobrança em duas fases, `Idempotency-Key`). Não muda nada no avatar; a viagem é da cena. Não embarca internado, dormindo nem de cama. O catálogo da rotina mostra o preço em `bus_fare`.
 
+**Dirigir o próprio carro na rua** (fase 4 do mundo aberto). `POST /v1/avatars/:id/drive` com `{vehicle}` confere a habilitação do avatar (`no_license`, `in_driving_school`) e o carro em dia (`vehicle_unavailable`) e cobra o combustível da saída: o mesmo do deslocamento de carro do turno (`COMMUTES.carro`, 2 THALER), para a queima (`burn/fuel`, lançamento `drive_fuel`), pelo caminho do IPVA (`chargeVehicle`, chave `drive-fuel:<carro>:<Idempotency-Key>`). A cobrança é na entrada: o navegador não informa distância. O catálogo da rotina mostra `drive_fuel`.
+
 No mapa de Pittsburg, o painel mostra "🤒 Doente" com cada doença, o tempo até passar e o botão do remédio.
 
 Depois de atualizar o código, rode `pnpm db:migrate`: a coluna `avatar.conditions` é nova.
@@ -398,6 +400,7 @@ TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc_test pnpm --filter
 | POST | `/v1/avatars/:id/consume` | jogador (Bearer) | Come uma unidade `{food}` da despensa, sem cobrar. Devolve o avatar |
 | POST | `/v1/avatars/:id/cook` | jogador (Bearer) | Cozinha em casa uma unidade `{food}` da despensa (fogão ou micro-ondas, moradia regular) |
 | POST | `/v1/avatars/:id/medicine` | jogador (Bearer) | Compra e toma o remédio `{condition}`. Aceita `Idempotency-Key`. Devolve o remédio, `cured` e o avatar |
+| POST | `/v1/avatars/:id/drive` | jogador (Bearer) | Dirige o próprio carro na rua `{vehicle}`: confere a habilitação e o carro em dia e cobra o combustível da saída (2 THALER, para `burn/fuel`). Aceita `Idempotency-Key`. Devolve `fuel_cents`, o carro e o avatar |
 | POST | `/v1/avatars/:id/bus-ride` | jogador (Bearer) | Paga a passagem do ônibus na rua (3 THALER, para `burn/transit`). Aceita `Idempotency-Key`. Devolve a passagem (`ride`) e o avatar |
 | GET | `/v1/catalog/pharmacy` | público | Preço do remédio, chance de cura e a tabela das doenças |
 | GET | `/v1/catalog/vehicles` | público | Modelos da agência (preço, aluguel, velocidade, força) e as regras de vida útil, IPVA, aluguel, recompra e autoescola |

@@ -358,9 +358,9 @@ paths:
       responses: {"201":{"description":"Criado","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro (códigos: not_found)","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
   /v1/avatars/{id}/drive:
     post:
-      summary: "Dirige o próprio carro na rua {vehicle}: confere a habilitação e o carro e paga o combustível (2 THALER)"
+      summary: "Dirige o próprio carro na rua {vehicle}"
       tags: ["avatars"]
-      description: "Confere a habilitação do avatar e o carro em dia e cobra o combustível da saída, o mesmo do deslocamento de carro do turno, para a queima (fuel). Aceita Idempotency-Key (cobra uma vez). Devolve fuel_cents, o carro e o avatar"
+      description: "Dirige o próprio carro na rua {vehicle}: confere a habilitação e o carro em dia e cobra o combustível da saída (2 THALER, para burn/fuel). Aceita Idempotency-Key. Devolve fuel_cents, o carro e o avatar"
       security: [{"bearer":[]}]
       parameters: [{"name":"id","in":"path","required":true,"schema":{"type":"string"}},{"name":"Idempotency-Key","in":"header","required":false,"schema":{"type":"string","maxLength":200}}]
       requestBody: {"required":true,"content":{"application/json":{"schema":{"type":"object","properties":{"vehicle":{"type":"string","format":"uuid"}},"required":["vehicle"]}}}}

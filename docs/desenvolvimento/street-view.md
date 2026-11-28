@@ -399,6 +399,39 @@ O minimapa redesenha a 15 quadros por segundo.
 - a primeira versão refazia a rota a cada quadro (7 vezes em 0,4 s), porque media a distância até o próximo ponto, que fica longe numa rua reta. O segundo commit mede até o trecho atual: na mesma viagem, a rota só foi refeita pelo relógio de 3 s (4 vezes);
 - na captura, o minimapa está no canto, com a rota amarela e "Farmácia · 276 m".
 
+## O próprio carro (fase 4)
+
+`carro-jogo.js` deixa o jogador dirigir o carro da conta (comprado ou alugado na agência, E3.5).
+
+1. **Meu carro**, na barra, aparece quando a conta tem um carro em dia. Ele chama o carro, que estaciona na faixa da direita da rua mais perto, do lado do avatar.
+2. Perto do carro (3 m), aparece **E Hatch: combustível · 2,00 THALER**. Como é dinheiro, o 1º E confirma e o 2º, em 4 s, paga.
+3. O game-core confere e cobra: `POST /v1/avatars/:id/drive` com `{vehicle}` exige a habilitação (`no_license`, ou `in_driving_school` antes das 3 h) e o carro em dia (`vehicle_unavailable` com IPVA atrasado, quebra, vida útil ou aluguel vencido). Cobra o combustível da saída, o mesmo do deslocamento de carro do turno (`COMMUTES.carro`, 2 THALER), para a queima `fuel` (kind `drive_fuel`), uma vez por Idempotency-Key. A cobrança é na entrada, então o navegador não informa distância. O catálogo da rotina mostra `drive_fuel`.
+4. **Dirigindo** (arcade):
+   - W acelera (4 m/s²) até a velocidade do modelo (Hatch 50 km/h, Sedã 70, Superesportivo 90);
+   - S freia (8 m/s²) e dá ré até 4 m/s; A e D viram, com menos esterço com mais velocidade;
+   - o carro só anda na rua: a frente fora dela para o carro;
+   - ele para atrás de outro carro (3,5 m) e na frente de quem atravessa;
+   - a câmera vai atrás do carro, a 7 m, e o som do motor dele entra nas vozes.
+5. **E** de novo: o avatar sai na calçada do lado direito, e o carro fica estacionado ali. O trânsito freia atrás dele.
+
+**PREMISSAS:** aceleração de 4 m/s², freio de 8 m/s², ré até 4 m/s; esterço de até 0,5 rad (35% dele a 20 m/s), entre-eixos de 2,6 m; parada a 3,5 m de outro carro; embarque a 3 m.
+
+**Testado** em 2026-11-28:
+- game-core: 3 testes novos.
+  - Sem habilitação não dirige, e na autoescola também não. Habilitado, paga 200 centavos por saída, uma vez por chave, para `fuel`.
+  - IPVA atrasado é `vehicle_unavailable`; o carro de outra conta é 404; sem THALER, 409; o catálogo mostra `drive_fuel`.
+  - A suíte do game-core passa (307 testes; um teste do Postgres que oscilou passou sozinho), e o OpenAPI bate.
+- No Node: em linha reta, chegou aos 50 km/h do Hatch e parou no fim da rua sem sair dela. Bloqueado, para. A ré vai até 4 m/s. A 36 km/h, 1 s de esterço vira 73°: a primeira versão virava 111° e ficava arisca.
+- No navegador, com a conta de teste local (autorizado):
+  - o preparo foi alugar um Hatch por 3 dias (150 THALER) e fazer a autoescola (50 THALER), as duas pelas rotas do jogo, e adiantar no banco local o fim das 3 h da habilitação;
+  - **Meu carro** estacionou o Hatch na rua, e o 2º E deu "Combustível: −2,00 THALER";
+  - com W, a velocidade subiu de 2 em 2 m/s até 13,9 m/s (50 km/h), 59 m na rua, sem bater;
+  - o saldo caiu exatamente 2 THALER (9.492,00 → 9.490,00);
+  - o E tirou o avatar para a calçada, a 4 m do carro, que ficou estacionado;
+  - na captura, o Hatch vermelho visto de trás, com o minimapa no canto.
+
+**Limites desta versão:** o carro não aparece para os outros jogadores, e o GPS ainda não tem o trabalho como destino.
+
 ## Avatar e animações: Universal Animation Library (Quaternius)
 
 Análise do pacote [Universal Animation Library](https://quaternius.com/packs/universalanimationlibrary.html), página lida em 2026-11-21:
