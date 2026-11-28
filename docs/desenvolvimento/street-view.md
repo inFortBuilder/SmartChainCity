@@ -431,7 +431,8 @@ node bin/road-kit.js <kit.fbx> <pasta-das-texturas> ../../.local/rouds
 
 **Plano do redesenho:**
 1. A ferramenta, com o teste (feito).
-2. O grafo das ruas em volta do avatar (feito, abaixo). A partir das ruas do OSM, sai a linha do meio de cada rua, com a largura e os cruzamentos (o esqueleto da grade das ruas). A grade é alinhada ao mundo, então o grafo dá o mesmo em toda a cidade.
+2. O grafo das ruas em volta do avatar (feito, abaixo).
+3. O encaixe das peças (feito, abaixo). A partir das ruas do OSM, sai a linha do meio de cada rua, com a largura e os cruzamentos (o esqueleto da grade das ruas). A grade é alinhada ao mundo, então o grafo dá o mesmo em toda a cidade.
 3. O encaixe:
    - nos cruzamentos de 4 braços perto de 90°, a peça de cruzamento (de 2 ou 4 faixas, pela largura);
    - nos T, o + com o braço fechado;
@@ -464,6 +465,43 @@ Cada nó diz o tipo: `cruz` (4 braços), `T` (3), `fim` (1), `borda` (1, na bord
   - dois T desencontrados a 30 m continuam dois;
   - as pontas cortadas pela borda da grade saem como `borda`, não como `fim`;
 - no navegador, em (-1397, 4857), o grafo saiu em 62 ms, com 6 trechos (larguras de 4,3 a 9,7 m) e o T onde estão as faixas de pedestre (a 3,4 m delas). Desenhado de cima sobre a grade das ruas, as linhas do meio seguem as ruas.
+
+### As peças nas ruas
+
+`kit-ruas.js` lê `.local/rouds/kit-ruas.glb` e, a cada grafo novo (a cada 60 m em volta do avatar), põe as peças:
+
+| No grafo | Peça |
+|---|---|
+| Cruzamento de 4 braços em ângulo reto (até 20° fora) | `cruz2`, ou `cruz4` se a rua mais larga passar de 12 m. A peça é girada pelo 1º braço, com a escala pela largura (entre 0,6 e 1,6) |
+| T em ângulo reto | A mesma peça, com o braço que falta coberto pelo piso da calçada |
+| Trecho | `reta2` (ou `reta4` acima de 12 m) em fileira ao longo de cada segmento, girada pelo rumo dele e esticada na largura da rua. A fileira começa e acaba fora da peça de cruzamento, e a última encolhe para caber |
+| Dobra do trecho | Um quadrado de `asfalto` cobre a junta |
+| O resto (X agudo, 5 braços, rua torta) | O asfalto do OSM, que continua por baixo |
+
+- As peças ficam 3 cm acima do asfalto do OSM.
+- Com o kit, o asfalto do OSM ganha a textura do asfalto liso do kit (recortada do atlas, repetida a cada 7,71 m pelo mundo), para não destoar das peças. Isso vale também para o mapa visto de cima.
+- As listras de `faixas.js` saem, porque as peças de cruzamento trazem as delas. A lista das faixas continua, para os pedestres e os semáforos.
+- Sem o arquivo em `.local/rouds/`, ou com `?kit=0`, nada muda.
+
+**PREMISSAS:** ângulo reto até 20° fora; 4 faixas acima de 12 m; escala da largura entre 0,6 e 1,6; peças 3 cm acima do OSM.
+
+**Testado** em 2026-11-28:
+- no Node, com o grafo das ruas de teste:
+  - + de 8 m: `cruz2` (escala 1,04) e 76 retas; + de 16 m: `cruz4` e retas de 4 faixas;
+  - T de 8 m: o cruzamento com a calçada no braço que falta; L e X a 45°: retas e asfalto nas dobras, sem cruzamento;
+  - em todos, nenhuma reta dentro da peça de cruzamento, e todas na rua;
+- no navegador:
+  - em (-1397, 4857), 136 retas e 9 asfaltos; o T dali não é ângulo reto (braços a 44°, 192° e 292°) e ficou com o asfalto do OSM;
+  - com a textura do kit no asfalto do OSM, a junta entre as peças e o OSM sumiu (antes, o OSM era cinza claro);
+  - procurando em volta, o grafo achou cruzamentos em ângulo reto, como o de (-2044,6; 4290,9). Ali entraram 2 `cruz2`, 1 T com calçada, 140 retas e 19 asfaltos. Na captura, o cruzamento do kit, com faixas de pedestre e cantos de calçada, recebe a reta com a linha amarela;
+  - com `?kit=0`, e com o arquivo tirado de `.local/` (o kit fica `missing`), as ruas voltaram às de hoje, com as listras das faixas;
+  - o mapa visto de cima mostra o asfalto do kit nas ruas.
+
+**Limites desta versão:**
+- o grafo leva cerca de 140 ms na cidade de verdade e é refeito a cada 60 m: há um engasgo nessa hora (a ir para um worker);
+- a linha amarela quebra nas dobras do trecho;
+- o cruzamento que não é em ângulo reto fica com o asfalto do OSM, sem faixa de pedestre do kit. As listras de hoje também saem, então ali não há faixa desenhada;
+- as curvas do kit ainda não entram.
 
 **Testado (as peças)** em 2026-11-28: as 8 peças lado a lado, de cima, com a textura do kit no lugar certo (a faixa amarela, as faixas de pedestre, o "STOP", o piso da calçada). O cruzamento de 2 faixas saiu inteiro depois de juntar os braços. O teste da ferramenta (`tests/roadKit.test.js`) cobre a normalização, o UV e as peças.
 
