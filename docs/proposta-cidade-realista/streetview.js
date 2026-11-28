@@ -236,7 +236,7 @@ export function createStreetView({ THREE, scene, camera, controls, canvas, roads
   // ---------- Calçada: grade em volta do avatar, desenhada com instâncias de 0,5 m ----------
   const MAX_TILES = Math.ceil((SIDEWALK.radius * 2) / SIDEWALK.cell) ** 2;
   const tileGeo = new THREE.PlaneGeometry(SIDEWALK.cell, SIDEWALK.cell).rotateX(-Math.PI / 2);
-  const tileMat = new THREE.MeshStandardMaterial({ color: 0xb9b6ad, roughness: 0.9, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
+  const tileMat = new THREE.MeshStandardMaterial({ color: 0xeeeae2, roughness: 0.9, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
   const tiles = new THREE.InstancedMesh(tileGeo, tileMat, MAX_TILES);
   tiles.count = 0;
   tiles.receiveShadow = true;
@@ -245,22 +245,40 @@ export function createStreetView({ THREE, scene, camera, controls, canvas, roads
   scene.add(tiles);
   const tileMatrix = new THREE.Matrix4();
   const boxHit = new THREE.Vector3();
-  /** Caixas (Box3) dos prédios a até 120 m: os objetos de `blockers()` com mais de 2 m de altura. */
+  /**
+   * Caixas dos prédios a até 120 m: os objetos de `blockers()` com mais de 2 m de altura. A caixa é a do
+   * próprio prédio (orientada): um prédio girado não cobre as ruas em volta, como a caixa alinhada aos eixos.
+   */
   const refreshBoxes = (x, z) => {
     const out = [];
     const size = new THREE.Vector3();
+    const rel = new THREE.Matrix4();
     for (const root of blockers()) {
       if (!root) continue;
       for (const o of root.isLOD || root.isMesh ? [root] : root.children) {
-        const b = new THREE.Box3().setFromObject(o);
-        if (b.isEmpty() || b.getSize(size).y < 2) continue;
-        const dx = Math.max(b.min.x - x, 0, x - b.max.x), dz = Math.max(b.min.z - z, 0, z - b.max.z);
-        if (Math.hypot(dx, dz) < 120) out.push(b);
+        const world = new THREE.Box3().setFromObject(o);
+        if (world.isEmpty() || world.getSize(size).y < 2) continue;
+        const dx = Math.max(world.min.x - x, 0, x - world.max.x), dz = Math.max(world.min.z - z, 0, z - world.max.z);
+        if (Math.hypot(dx, dz) >= 120) continue;
+        o.updateWorldMatrix(true, true);
+        const inv = o.matrixWorld.clone().invert();
+        const box = new THREE.Box3();
+        o.traverse((m) => {
+          if (!m.isMesh) return;
+          if (!m.geometry.boundingBox) m.geometry.computeBoundingBox();
+          box.union(m.geometry.boundingBox.clone().applyMatrix4(rel.multiplyMatrices(inv, m.matrixWorld)));
+        });
+        if (!box.isEmpty()) out.push({ box, inv, world: o.matrixWorld.clone() });
       }
     }
     boxes = out;
   };
-  const insideBox = (x, z) => boxes.some((b) => x >= b.min.x && x <= b.max.x && z >= b.min.z && z <= b.max.z);
+  const probe = new THREE.Vector3();
+  const insideBox = (x, z) =>
+    boxes.some(({ box, inv }) => {
+      probe.set(x, (box.min.y + box.max.y) / 2, z).applyMatrix4(inv);
+      return probe.x >= box.min.x && probe.x <= box.max.x && probe.z >= box.min.z && probe.z <= box.max.z;
+    });
   const rebuildWalk = (x, z) => {
     const t0 = performance.now();
     refreshBoxes(x, z);
@@ -479,6 +497,7 @@ export function createStreetView({ THREE, scene, camera, controls, canvas, roads
   const tmp2 = new THREE.Vector3();
   const jump = { vy: 0, air: false, landing: false };
   const camRay = new THREE.Ray();
+  const localRay = new THREE.Ray();
   function tick(dt) {
     if (!active) return false;
     dt = Math.min(dt, 0.1);
@@ -547,10 +566,12 @@ export function createStreetView({ THREE, scene, camera, controls, canvas, roads
       const want = dir.length();
       camRay.set(head, dir.normalize());
       let near = want;
-      for (const b of boxes) {
-        if (b.containsPoint(head)) continue;
-        const hit = camRay.intersectBox(b, boxHit);
-        if (hit) near = Math.min(near, hit.distanceTo(head));
+      for (const { box, inv, world } of boxes) {
+        // No espaço do prédio: a caixa dele, girada junto.
+        localRay.copy(camRay).applyMatrix4(inv);
+        if (box.containsPoint(localRay.origin)) continue;
+        const hit = localRay.intersectBox(box, boxHit);
+        if (hit) near = Math.min(near, hit.applyMatrix4(world).distanceTo(head));
       }
       if (near < want) camera.position.copy(head).addScaledVector(dir, Math.max(0.6, near - 0.3));
     }
