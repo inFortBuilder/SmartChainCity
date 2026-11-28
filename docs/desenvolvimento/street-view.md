@@ -506,8 +506,7 @@ Cada nó diz o tipo: `cruz` (4 braços), `T` (3), `fim` (1), `borda` (1, na bord
 |---|---|
 | Cruzamento de 4 braços em ângulo reto (até 20° fora) | `cruz2`, ou `cruz4` se a rua mais larga passar de 12 m. A peça é girada pelo 1º braço, com a escala pela largura (entre 0,6 e 1,6) |
 | T em ângulo reto | A mesma peça, com o braço que falta coberto pelo piso da calçada |
-| Trecho | `reta2` (ou `reta4` acima de 12 m) em fileira ao longo de cada segmento, girada pelo rumo dele e esticada na largura da rua. A fileira começa e acaba fora da peça de cruzamento, e a última encolhe para caber |
-| Dobra do trecho | Um quadrado de `asfalto` cobre a junta |
+| Trecho | Uma fita contínua ao longo da linha do meio, na largura da rua, com a textura da `reta2` (ou da `reta4`, acima de 12 m). A textura é recortada do atlas pela transformação afim de três cantos da peça e repetida a cada 5,70 m. Nas dobras, a fita vira em chanfro: as bordas se encontram, e a largura não afina. A fita começa e acaba fora da peça de cruzamento |
 | O resto (X agudo, 5 braços, rua torta) | O asfalto do OSM, que continua por baixo |
 
 - As peças ficam 3 cm acima do asfalto do OSM.
@@ -531,7 +530,7 @@ Cada nó diz o tipo: `cruz` (4 braços), `T` (3), `fim` (1), `borda` (1, na bord
 
 **Limites desta versão:**
 - (resolvido) o grafo levava cerca de 140 ms na cidade e era refeito a cada 60 m, com um engasgo. Quase tudo era o afinamento, que montava um vetor de vizinhos por célula. Reescrito sem alocar e só revisitando as células vivas, o esqueleto caiu de cerca de 60 ms para 1 ms, e o grafo inteiro, no jogo, para 10 a 26 ms em 4 lugares da cidade. O esqueleto e o grafo saem iguais aos de antes nas 4 formas de rua de teste. Um worker não foi preciso;
-- a linha amarela quebra nas dobras do trecho;
+- (resolvido) a linha amarela quebrava nas dobras do trecho, com as retas em fileira. Com a fita contínua, ela segue inteira e só vira no canto que o grafo tem (simplificado a 1 m). A fita também encosta na peça de cruzamento sem a junta escura que a fileira deixava. Em (-1397, 4857), as ruas passaram de 136 retas e 9 asfaltos para 30 triângulos de fita; no cruzamento de (-2044,6; 4290,9), 2 `cruz2`, 1 T e 54 triângulos. No Node, o chanfro de uma fita de 8 m no canto em L põe as bordas a 5,66 m do canto (4·√2), todos os triângulos ficam virados para cima, e o v cresce com a distância;
 - o cruzamento que não é em ângulo reto fica com o asfalto do OSM, sem faixa de pedestre do kit. As listras de hoje também saem, então ali não há faixa desenhada;
 - as curvas do kit ainda não entram.
 

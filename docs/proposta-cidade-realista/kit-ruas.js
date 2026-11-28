@@ -7,10 +7,10 @@
 // - cruzamento de 4 braços em ângulo reto (até 20° fora): a peça de cruzamento de 2 faixas, ou a de 4 se a
 //   rua mais larga passar de 12 m, girada pelo 1º braço e com a escala pela largura;
 // - T em ângulo reto: a mesma peça, com o braço que falta coberto pelo piso da calçada;
-// - trechos: as retas de 2 faixas (ou 4, acima de 12 m), em fileira ao longo de cada segmento, giradas pelo rumo
-//   dele e esticadas na largura da rua. Elas começam e acabam fora da peça de cruzamento. A última da
-//   fileira encolhe para caber;
-// - nas dobras do trecho, um quadrado de asfalto do kit cobre a junta;
+// - trechos: uma faixa contínua (fita) ao longo da linha do meio, na largura da rua, com a textura da reta de 2
+//   faixas (ou 4, acima de 12 m) recortada do atlas e repetida a cada 5,70 m. Nas dobras, a fita vira em
+//   chanfro (as duas bordas se encontram), sem quebrar a linha amarela. Ela começa e acaba fora da peça de
+//   cruzamento;
 // - o que não é ângulo reto (X agudo, 5 braços) fica com o asfalto do OSM, que continua por baixo. Esse
 //   asfalto ganha a textura do asfalto liso do kit (recortada do atlas, repetida a cada 7,71 m pelo mundo),
 //   para não destoar das peças. Vale também para o mapa visto de cima.
@@ -39,8 +39,76 @@ export function squareArms(arms, tol = KIT.square) {
   return { base, slots };
 }
 
+/** Comprimento de uma linha de pontos {x, z}. */
+const lengthOf = (pts) => pts.reduce((sum, p, i) => (i ? sum + Math.hypot(p.x - pts[i - 1].x, p.z - pts[i - 1].z) : 0), 0);
+
+/** Ponto a `d` metros do começo da linha. */
+function pointAt(pts, d) {
+  let run = 0;
+  for (let i = 1; i < pts.length; i++) {
+    const seg = Math.hypot(pts[i].x - pts[i - 1].x, pts[i].z - pts[i - 1].z);
+    if (run + seg >= d) {
+      const t = seg ? (d - run) / seg : 0;
+      return { x: pts[i - 1].x + (pts[i].x - pts[i - 1].x) * t, z: pts[i - 1].z + (pts[i].z - pts[i - 1].z) * t, i };
+    }
+    run += seg;
+  }
+  const last = pts[pts.length - 1];
+  return { x: last.x, z: last.z, i: pts.length - 1 };
+}
+
+/** Corta `a` metros do começo e `b` do fim da linha (nada sobra se a linha for mais curta). */
+export function trimPolyline(pts, a, b) {
+  const total = lengthOf(pts);
+  if (total - a - b < 0.5) return [];
+  const p = pointAt(pts, a), q = pointAt(pts, total - b);
+  // p fica no segmento que termina em pts[p.i] e q no que termina em pts[q.i]: no meio, pts[p.i .. q.i − 1].
+  const line = [p, ...pts.slice(p.i, q.i), q].map(({ x, z }) => ({ x, z }));
+  return line.filter((pt, k) => k === 0 || Math.hypot(pt.x - line[k - 1].x, pt.z - line[k - 1].z) > 0.05);
+}
+
 /**
- * As peças para o grafo: lista de {code, x, z, yaw, sx, sz}. `size(code)` dá {w, l} da peça (do
+ * A fita de uma rua: dois vértices por ponto da linha do meio, um de cada lado a meia largura, com chanfro nas
+ * dobras (a normal é a média dos dois segmentos, esticada para a largura não afinar, até 2 vezes). UV: u de 0
+ * (esquerda) a 1 (direita), v = distância / `repeat` (a peça se repete ao longo da rua). Devolve as posições,
+ * as UVs e os índices, para juntar várias fitas numa malha só.
+ */
+export function ribbon(points, width, repeat, y = 0) {
+  const n = points.length;
+  const pos = [], uv = [], idx = [];
+  let run = 0;
+  for (let i = 0; i < n; i++) {
+    const p = points[i];
+    const a = points[Math.max(0, i - 1)], b = points[Math.min(n - 1, i + 1)];
+    // Rumo antes e depois do ponto; a normal (para a esquerda) é a média.
+    const d1 = i > 0 ? norm(p.x - a.x, p.z - a.z) : norm(b.x - p.x, b.z - p.z);
+    const d2 = i < n - 1 ? norm(b.x - p.x, b.z - p.z) : d1;
+    let nx = -(d1.z + d2.z), nz = d1.x + d2.x;
+    const nl = Math.hypot(nx, nz) || 1;
+    nx /= nl;
+    nz /= nl;
+    // Chanfro: no canto, a borda se afasta 1/cos(meio ângulo) para a largura não afinar.
+    const cosHalf = Math.max(0.5, nx * -d1.z + nz * d1.x);
+    const h = width / 2 / cosHalf;
+    if (i > 0) run += Math.hypot(p.x - points[i - 1].x, p.z - points[i - 1].z);
+    pos.push(p.x + nx * h, y, p.z + nz * h, p.x - nx * h, y, p.z - nz * h);
+    uv.push(0, run / repeat, 1, run / repeat);
+    if (i > 0) {
+      const k = i * 2;
+      idx.push(k - 2, k, k - 1, k - 1, k, k + 1);
+    }
+  }
+  return { pos, uv, idx };
+}
+
+const norm = (x, z) => {
+  const l = Math.hypot(x, z) || 1;
+  return { x: x / l, z: z / l };
+};
+
+/**
+ * As peças para o grafo: lista de {code, x, z, yaw, sx, sz} (os cruzamentos e a calçada dos T) e, em
+ * `.streets`, as fitas dos trechos: {code, width, points}. `size(code)` dá {w, l} da peça (do
  * kit-ruas.json, ou das medidas do GLB). Puro, para os testes.
  */
 export function layout(graph, size, opt = KIT) {
@@ -72,36 +140,14 @@ export function layout(graph, size, opt = KIT) {
       out.push({ code: 'calcada', x: n.x + Math.sin(h) * d, z: n.z + Math.cos(h) * d, yaw: h, sx: (lane * s * 1.1) / c.w, sz: arm / c.l });
     });
   }
+  // Trechos: a linha do meio cortada fora dos cruzamentos, para a fita.
+  const streets = [];
   for (const e of graph.edges) {
-    const code = e.width > opt.wide ? 'reta4' : 'reta2';
-    const p = size(code);
-    const sx = clamp(e.width / p.w);
-    const pts = e.points;
-    // Corta as pontas que entram nos cruzamentos.
-    const cutA = reserve.get(e.a) ?? 0, cutB = reserve.get(e.b) ?? 0;
-    const total = pts.reduce((s2, q, i) => (i ? s2 + Math.hypot(q.x - pts[i - 1].x, q.z - pts[i - 1].z) : 0), 0);
-    let run = 0;
-    for (let i = 1; i < pts.length; i++) {
-      const a = pts[i - 1], b = pts[i];
-      const segLen = Math.hypot(b.x - a.x, b.z - a.z);
-      if (segLen < 0.5) continue;
-      const yaw = Math.atan2(b.x - a.x, b.z - a.z);
-      const from = Math.max(0, cutA - run), to = Math.min(segLen, total - cutB - run);
-      run += segLen;
-      if (to - from < 0.5) continue;
-      const ux = (b.x - a.x) / segLen, uz = (b.z - a.z) / segLen;
-      for (let t = from; t < to - 0.01; t += p.l) {
-        const len = Math.min(p.l, to - t);
-        const mid = t + len / 2;
-        out.push({ code, x: a.x + ux * mid, z: a.z + uz * mid, yaw, sx, sz: len / p.l });
-      }
-      // Junta da dobra (não nas pontas do trecho).
-      if (i < pts.length - 1 && run < total - cutB) {
-        const q = size('asfalto');
-        out.push({ code: 'asfalto', x: b.x, z: b.z, yaw, sx: (e.width * 0.98) / q.w, sz: (e.width * 0.98) / q.l });
-      }
-    }
+    const pts = trimPolyline(e.points, reserve.get(e.a) ?? 0, reserve.get(e.b) ?? 0);
+    if (pts.length < 2) continue;
+    streets.push({ code: e.width > opt.wide ? 'reta4' : 'reta2', width: e.width, points: pts });
   }
+  out.streets = streets;
   return out;
 }
 
@@ -111,6 +157,8 @@ export function createRoadKit({ THREE, scene, streetView, roadGraph, loadGltf, r
   scene.add(group);
   let pieces = null; // code → { geometry, material, size }
   let meshes = {};
+  /** As fitas das ruas, uma malha por reta (2 e 4 faixas). */
+  const ribbons = {};
   let lastGraph = null;
   const stats = { loaded: false, missing: false, layouts: 0, placed: {}, ms: 0 };
 
@@ -139,6 +187,17 @@ export function createRoadKit({ THREE, scene, streetView, roadGraph, loadGltf, r
         meshes[code] = m;
       }
       if (roads && pieces.asfalto) dressRoads(pieces.asfalto);
+      // As fitas das ruas: a textura de cada reta, recortada do atlas, repetida ao longo da rua.
+      for (const code of ['reta2', 'reta4']) {
+        if (!pieces[code]) continue;
+        const map = cropPiece(pieces[code]);
+        const mat = new THREE.MeshStandardMaterial({ map, roughness: 0.85, metalness: 0, polygonOffset: true, polygonOffsetFactor: -1 });
+        const mesh = new THREE.Mesh(new THREE.BufferGeometry(), mat);
+        mesh.receiveShadow = true;
+        mesh.frustumCulled = false;
+        group.add(mesh);
+        ribbons[code] = mesh;
+      }
       stats.loaded = true;
       lastGraph = null;
     })
@@ -190,6 +249,70 @@ export function createRoadKit({ THREE, scene, streetView, roadGraph, loadGltf, r
     stats.dressed = p.count;
   }
 
+  /**
+   * A textura de uma peça, recortada do atlas como ela aparece na peça: u ao longo de x (a largura) e v ao
+   * longo de z (o sentido da rua), seja qual for a posição dela no atlas (a transformação afim sai de três
+   * cantos). Repete em v, para a fita seguir a rua.
+   */
+  function cropPiece(piece) {
+    const g = piece.geometry, p = g.attributes.position, uv = g.attributes.uv, img = piece.material.map.image;
+    let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+    for (let i = 0; i < p.count; i++) {
+      x0 = Math.min(x0, p.getX(i)); x1 = Math.max(x1, p.getX(i));
+      z0 = Math.min(z0, p.getZ(i)); z1 = Math.max(z1, p.getZ(i));
+    }
+    const corner = (x, z) => {
+      let best = 0, bd = Infinity;
+      for (let i = 0; i < p.count; i++) {
+        const d = Math.hypot(p.getX(i) - x, p.getZ(i) - z);
+        if (d < bd) { bd = d; best = i; }
+      }
+      return [uv.getX(best) * img.width, uv.getY(best) * img.height];
+    };
+    const P00 = corner(x0, z0), P10 = corner(x1, z0), P01 = corner(x0, z1);
+    const W = 256, H = 256;
+    // Canvas → imagem: P00 + cx/W·(P10 − P00) + cy/H·(P01 − P00). O canvas precisa do inverso.
+    const ax = (P10[0] - P00[0]) / W, ay = (P10[1] - P00[1]) / W, bx = (P01[0] - P00[0]) / H, by = (P01[1] - P00[1]) / H;
+    const det = ax * by - bx * ay;
+    const i11 = by / det, i12 = -bx / det, i21 = -ay / det, i22 = ax / det;
+    const c = document.createElement('canvas');
+    c.width = W;
+    c.height = H;
+    const ctx = c.getContext('2d');
+    ctx.setTransform(i11, i21, i12, i22, -(i11 * P00[0] + i12 * P00[1]), -(i21 * P00[0] + i22 * P00[1]));
+    ctx.drawImage(img, 0, 0);
+    const tex = new THREE.CanvasTexture(c);
+    tex.wrapS = THREE.ClampToEdgeWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 8;
+    return tex;
+  }
+
+  /** Junta as fitas de uma reta numa malha só. */
+  function buildRibbons(code, streets, y) {
+    const mesh = ribbons[code];
+    if (!mesh) return 0;
+    const repeat = pieces[code].size.l;
+    const pos = [], uvs = [], idx = [];
+    for (const st of streets) {
+      if (st.code !== code) continue;
+      const r = ribbon(st.points, st.width, repeat, y);
+      const base = pos.length / 3;
+      pos.push(...r.pos);
+      uvs.push(...r.uv);
+      for (const k of r.idx) idx.push(base + k);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+    g.setIndex(idx);
+    g.computeVertexNormals();
+    mesh.geometry.dispose();
+    mesh.geometry = g;
+    return idx.length / 3;
+  }
+
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), pos = new THREE.Vector3(), scl = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
 
   function place(graph) {
@@ -213,6 +336,8 @@ export function createRoadKit({ THREE, scene, streetView, roadGraph, loadGltf, r
       m.count = counts[code] ?? 0;
       m.instanceMatrix.needsUpdate = true;
     }
+    // As fitas das ruas, por cima do asfalto do OSM e por baixo das peças de cruzamento.
+    for (const code of ['reta2', 'reta4']) counts[`fita-${code}`] = buildRibbons(code, list.streets, y - 0.005);
     stats.placed = counts;
     stats.layouts++;
     stats.ms = Math.round(performance.now() - t0);
