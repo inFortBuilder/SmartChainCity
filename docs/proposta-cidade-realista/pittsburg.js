@@ -101,10 +101,19 @@ let streetLight = null; // a hora aplicada no street view (null: céu do mapa)
 /** Clima no street view, por cima da hora (clima.js). ?clima= força um. */
 let weather = null;
 let streetLightAt = 0;
+/** Se a camada de lotes estava ligada no mapa antes de entrar na rua (volta assim ao sair). */
+let lotLayerBefore = false;
 /** No street view, o céu e a luz seguem a hora da cidade (ceu.js); no mapa, o céu fixo de sempre. */
 function updateLight(now) {
   const on = !!streetView?.active();
   if (on && (!streetLight || now - streetLightAt > 5000)) {
+    // Ao entrar na rua: a camada de lotes do mapa (o preenchimento translúcido amarelo da Prefeitura e verde
+    // dos vagos, a 3 m de altura, cerca de 1,75 m acima da rua) sai, senão a câmera vê a cena através dela e
+    // tudo fica amarelado ou esverdeado. Volta ao sair.
+    if (!streetLight) {
+      lotLayerBefore = lotLayer.visible;
+      lotLayer.visible = false;
+    }
     streetLightAt = now;
     const hour = cityHour();
     const l = applyLight(THREE, { sky, sun, hemi, renderer, scene }, hour);
@@ -115,6 +124,7 @@ function updateLight(now) {
     streetLight = { ...l, hour };
   } else if (!on && streetLight) {
     streetLight = null;
+    lotLayer.visible = lotLayerBefore;
     weather?.clear();
     cc0?.setEnv(false);
     sky.material.uniforms.sunPosition.value.copy(MAP_LIGHT.sunPos);
