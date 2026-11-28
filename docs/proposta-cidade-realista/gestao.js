@@ -686,6 +686,8 @@ export function createGestao(api) {
   return {
     decorateLot, tick, buyLot, build, claim, goTo, placeModel, removeModel,
     getState: () => state,
+    /** Os prédios e lotes desenhados (o street view usa as caixas dos prédios). */
+    group,
     getPending: () => pending,
   };
 }

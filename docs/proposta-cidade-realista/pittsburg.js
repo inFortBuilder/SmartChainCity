@@ -775,6 +775,8 @@ try {
       THREE, scene, camera, controls, canvas, roads: roadsMesh,
       loadGltf: (url) => new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).loadAsync(url),
       onPlaceClick: (p) => clickPlace(p),
+      // A câmera e a calçada desviam dos prédios: os de LOD (Centro Administrativo, spike) e os da gestão.
+      blockers: () => [...progressive, gestao?.group],
     });
     // Volta de uma visita: ?rua=x,z,rumo põe o avatar de novo na rua, onde estava.
     const rua = PARAMS.get('rua')?.split(',').map(Number);

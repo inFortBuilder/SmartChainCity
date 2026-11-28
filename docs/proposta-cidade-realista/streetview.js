@@ -6,14 +6,86 @@
 // Avatar: os manequins da Universal Animation Library (Quaternius, CC0), Man ou
 // Woman, escolhidos na barra do street view (ver avatar.js).
 //
-// Fica para depois: clicar num escritório ou numa residência (do jogador ou de
-// quem o convidou) para entrar no interior (spike do escritório, ADR-0015).
+// Calçada (fase 1 do mundo aberto, docs/desenvolvimento/mundo-aberto-terceira-pessoa.md):
+// em volta do avatar, uma grade de 0,5 m marca a faixa de 3 m ao lado das ruas como
+// calçada, 15 cm acima do asfalto (o meio-fio). Dá para andar nela, e ela é
+// desenhada no chão. Os prédios (caixas) ficam de fora da calçada e empurram a
+// câmera para não atravessar a parede. Espaço pula.
 
 import { AVATAR_TYPES, getAvatarType, loadAvatarAssets, makeAvatar, setAvatarType } from './avatar.js';
 
 const CELL = 32; // m por célula do índice
 const SPEED = { walk: 1.5, run: 4.2 }; // m/s
 const CAM = { dist: 4.5, minDist: 2, maxDist: 14, height: 1.6 };
+/**
+ * Calçada em volta do avatar. PREMISSAS: 3 m de largura ao lado de toda rua (o OSM quase nunca
+ * desenha a calçada), meio-fio de 15 cm, grade de 0,5 m num raio de 40 m, refeita a cada 20 m.
+ */
+export const SIDEWALK = { width: 3, curb: 0.15, cell: 0.5, radius: 40, rebuildAt: 20 };
+const JUMP = { speed: 4.2, gravity: 9.8 };
+
+/**
+ * Grade da calçada em volta de (cx, cz): 1 = rua, 2 = calçada, 0 = fora. A distância até a rua sai de
+ * uma transformada de distância em duas passadas (chamfer 1/√2), sem testar os vizinhos um a um.
+ * `blocked(x, z)` tira da calçada o chão dos prédios.
+ */
+export function buildSidewalkGrid(isRoad, cx, cz, blocked = () => false, opt = SIDEWALK) {
+  const n = Math.ceil((opt.radius * 2) / opt.cell);
+  const x0 = cx - (n * opt.cell) / 2;
+  const z0 = cz - (n * opt.cell) / 2;
+  const kind = new Uint8Array(n * n);
+  const dist = new Float32Array(n * n).fill(Infinity);
+  for (let r = 0; r < n; r++) {
+    for (let c = 0; c < n; c++) {
+      const x = x0 + (c + 0.5) * opt.cell, z = z0 + (r + 0.5) * opt.cell;
+      if (isRoad(x, z)) { kind[r * n + c] = 1; dist[r * n + c] = 0; }
+    }
+  }
+  const D = Math.SQRT2;
+  for (let r = 0; r < n; r++) {
+    for (let c = 0; c < n; c++) {
+      const k = r * n + c;
+      let d = dist[k];
+      if (c > 0) d = Math.min(d, dist[k - 1] + 1);
+      if (r > 0) {
+        d = Math.min(d, dist[k - n] + 1);
+        if (c > 0) d = Math.min(d, dist[k - n - 1] + D);
+        if (c < n - 1) d = Math.min(d, dist[k - n + 1] + D);
+      }
+      dist[k] = d;
+    }
+  }
+  for (let r = n - 1; r >= 0; r--) {
+    for (let c = n - 1; c >= 0; c--) {
+      const k = r * n + c;
+      let d = dist[k];
+      if (c < n - 1) d = Math.min(d, dist[k + 1] + 1);
+      if (r < n - 1) {
+        d = Math.min(d, dist[k + n] + 1);
+        if (c < n - 1) d = Math.min(d, dist[k + n + 1] + D);
+        if (c > 0) d = Math.min(d, dist[k + n - 1] + D);
+      }
+      dist[k] = d;
+    }
+  }
+  const maxCells = opt.width / opt.cell;
+  let sidewalk = 0;
+  for (let r = 0; r < n; r++) {
+    for (let c = 0; c < n; c++) {
+      const k = r * n + c;
+      if (kind[k] || dist[k] > maxCells) continue;
+      const x = x0 + (c + 0.5) * opt.cell, z = z0 + (r + 0.5) * opt.cell;
+      if (blocked(x, z)) continue;
+      kind[k] = 2;
+      sidewalk++;
+    }
+  }
+  const at = (x, z) => {
+    const c = Math.floor((x - x0) / opt.cell), r = Math.floor((z - z0) / opt.cell);
+    return c < 0 || r < 0 || c >= n || r >= n ? -1 : kind[r * n + c];
+  };
+  return { n, x0, z0, cell: opt.cell, kind, sidewalk, cx, cz, at };
+}
 
 /** Índice dos triângulos das ruas no plano XZ, em grade (formato CSR). */
 export function buildRoadIndex(mesh) {
@@ -82,8 +154,10 @@ export function buildRoadIndex(mesh) {
 
 const PEGMAN = `<svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><circle cx="12" cy="4.6" r="3" fill="#f59e0b"/><path d="M8 9.5c0-1 .8-1.8 1.8-1.8h4.4c1 0 1.8.8 1.8 1.8v5.2c0 .7-.5 1.2-1.2 1.2h-.6l-.4 6.1h-3.6l-.4-6.1h-.6c-.7 0-1.2-.5-1.2-1.2z" fill="#f59e0b" stroke="#b45309" stroke-width=".8"/></svg>`;
 
-export function createStreetView({ THREE, scene, camera, controls, canvas, roads, loadGltf, onPlaceClick }) {
+export function createStreetView({ THREE, scene, camera, controls, canvas, roads, loadGltf, onPlaceClick, blockers = () => [] }) {
   let index = null;
+  let walk = null; // grade da calçada em volta do avatar
+  let boxes = []; // caixas dos prédios perto do avatar (câmera e calçada)
   let active = false;
   let saved = null;
   const avatar = { obj: new THREE.Group(), mixer: null, heading: 0, target: null, speed: 0, model: null, clips: [], type: null, source: null };
@@ -127,7 +201,7 @@ export function createStreetView({ THREE, scene, camera, controls, canvas, roads
   bar.innerHTML = `<button type="button" data-sair>← Voltar ao mapa</button>
     <span class="sv-tipo" role="group" aria-label="Tipo de avatar">Avatar:
       ${Object.entries(AVATAR_TYPES).map(([k, t]) => `<button type="button" data-tipo="${k}">${t.label}</button>`).join('')}</span>
-    <span class="sv-help">W A S D ou setas para andar · Shift corre · clique na rua para ir até lá · clique num imóvel para entrar · arraste para olhar</span>`;
+    <span class="sv-help">W A S D ou setas para andar · Shift corre · Espaço pula · clique na rua ou na calçada para ir até lá · clique num imóvel para entrar · arraste para olhar</span>`;
   document.body.append(bar);
   bar.querySelector('[data-sair]').addEventListener('click', () => exit());
   const markType = (t) => bar.querySelectorAll('[data-tipo]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.tipo === t)));
@@ -158,6 +232,56 @@ export function createStreetView({ THREE, scene, camera, controls, canvas, roads
   ring.renderOrder = 10;
   ring.visible = false;
   scene.add(ring);
+
+  // ---------- Calçada: grade em volta do avatar, desenhada com instâncias de 0,5 m ----------
+  const MAX_TILES = Math.ceil((SIDEWALK.radius * 2) / SIDEWALK.cell) ** 2;
+  const tileGeo = new THREE.PlaneGeometry(SIDEWALK.cell, SIDEWALK.cell).rotateX(-Math.PI / 2);
+  const tileMat = new THREE.MeshStandardMaterial({ color: 0xb9b6ad, roughness: 0.9, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
+  const tiles = new THREE.InstancedMesh(tileGeo, tileMat, MAX_TILES);
+  tiles.count = 0;
+  tiles.receiveShadow = true;
+  tiles.frustumCulled = false;
+  tiles.visible = false;
+  scene.add(tiles);
+  const tileMatrix = new THREE.Matrix4();
+  const boxHit = new THREE.Vector3();
+  /** Caixas (Box3) dos prédios a até 120 m: os objetos de `blockers()` com mais de 2 m de altura. */
+  const refreshBoxes = (x, z) => {
+    const out = [];
+    const size = new THREE.Vector3();
+    for (const root of blockers()) {
+      if (!root) continue;
+      for (const o of root.isLOD || root.isMesh ? [root] : root.children) {
+        const b = new THREE.Box3().setFromObject(o);
+        if (b.isEmpty() || b.getSize(size).y < 2) continue;
+        const dx = Math.max(b.min.x - x, 0, x - b.max.x), dz = Math.max(b.min.z - z, 0, z - b.max.z);
+        if (Math.hypot(dx, dz) < 120) out.push(b);
+      }
+    }
+    boxes = out;
+  };
+  const insideBox = (x, z) => boxes.some((b) => x >= b.min.x && x <= b.max.x && z >= b.min.z && z <= b.max.z);
+  const rebuildWalk = (x, z) => {
+    const t0 = performance.now();
+    refreshBoxes(x, z);
+    walk = buildSidewalkGrid(index.isRoad, x, z, insideBox);
+    let k = 0;
+    for (let r = 0; r < walk.n; r++) {
+      for (let c = 0; c < walk.n; c++) {
+        if (walk.kind[r * walk.n + c] !== 2) continue;
+        tileMatrix.makeTranslation(walk.x0 + (c + 0.5) * walk.cell, index.y + SIDEWALK.curb, walk.z0 + (r + 0.5) * walk.cell);
+        tiles.setMatrixAt(k++, tileMatrix);
+      }
+    }
+    tiles.count = k;
+    tiles.instanceMatrix.needsUpdate = true;
+    tiles.visible = true;
+    walk.ms = Math.round(performance.now() - t0);
+  };
+  /** Chão onde o avatar pode pisar: rua ou calçada (a calçada só existe perto do avatar). */
+  const isWalkable = (x, z) => index.isRoad(x, z) || walk?.at(x, z) === 2;
+  /** Altura do chão no ponto: a calçada fica no alto do meio-fio. */
+  const floorAt = (x, z) => index.y + (walk?.at(x, z) === 2 ? SIDEWALK.curb : 0);
 
   const ray = new THREE.Raycaster();
   const ndc = new THREE.Vector2();
@@ -275,6 +399,9 @@ export function createStreetView({ THREE, scene, camera, controls, canvas, roads
     camera.fov = 60;
     camera.updateProjectionMatrix();
     avatar.obj.visible = true;
+    jump.vy = 0;
+    jump.air = false;
+    rebuildWalk(p.x, p.z);
     await loadAvatar().catch((err) => { console.error(err); say('O avatar não carregou.'); });
   }
 
@@ -282,6 +409,7 @@ export function createStreetView({ THREE, scene, camera, controls, canvas, roads
     if (!active) return;
     active = false;
     avatar.obj.visible = false;
+    tiles.visible = false;
     camera.position.copy(saved.pos);
     controls.target.copy(saved.target);
     Object.assign(camera, { near: saved.near, far: saved.far, fov: saved.fov });
@@ -297,6 +425,11 @@ export function createStreetView({ THREE, scene, camera, controls, canvas, roads
   addEventListener('keydown', (e) => {
     if (!active || e.target.closest?.('input, textarea, select')) return;
     if (e.key === 'Escape') return exit();
+    if (e.key === ' ' && !jump.air) {
+      jump.vy = JUMP.speed;
+      jump.air = true;
+      inst?.playOnce('jumpStart', () => jump.air && play('jump'), 0.1);
+    }
     keys.add(e.key.toLowerCase());
     if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(e.key.toLowerCase())) e.preventDefault();
   });
@@ -323,9 +456,9 @@ export function createStreetView({ THREE, scene, camera, controls, canvas, roads
     drag = null;
     if (!click) return;
     const p = groundAt(e.clientX, e.clientY);
-    if (p && index.isRoad(p.x, p.z)) avatar.target = p;
-    // Fora da rua: talvez um imóvel para entrar.
-    else if (!(p && onPlaceClick?.(p))) say('Só dá para caminhar pelas ruas.');
+    if (p && isWalkable(p.x, p.z)) avatar.target = p;
+    // Fora da rua e da calçada: talvez um imóvel para entrar.
+    else if (!(p && onPlaceClick?.(p))) say('Só dá para caminhar pelas ruas e calçadas.');
   });
   canvas.addEventListener('wheel', (e) => {
     if (!active) return;
@@ -336,13 +469,16 @@ export function createStreetView({ THREE, scene, camera, controls, canvas, roads
   // Um passo de (dx, dz): anda se o destino é rua; senão, desliza ao longo da borda.
   const step = (dx, dz) => {
     const o = avatar.obj.position;
-    if (index.isRoad(o.x + dx, o.z + dz)) { o.x += dx; o.z += dz; return true; }
-    if (Math.abs(dx) > 1e-4 && index.isRoad(o.x + dx, o.z)) { o.x += dx; return true; }
-    if (Math.abs(dz) > 1e-4 && index.isRoad(o.x, o.z + dz)) { o.z += dz; return true; }
+    if (isWalkable(o.x + dx, o.z + dz)) { o.x += dx; o.z += dz; return true; }
+    if (Math.abs(dx) > 1e-4 && isWalkable(o.x + dx, o.z)) { o.x += dx; return true; }
+    if (Math.abs(dz) > 1e-4 && isWalkable(o.x, o.z + dz)) { o.z += dz; return true; }
     return false;
   };
 
   const tmp = new THREE.Vector3();
+  const tmp2 = new THREE.Vector3();
+  const jump = { vy: 0, air: false, landing: false };
+  const camRay = new THREE.Ray();
   function tick(dt) {
     if (!active) return false;
     dt = Math.min(dt, 0.1);
@@ -375,7 +511,29 @@ export function createStreetView({ THREE, scene, camera, controls, canvas, roads
       if (!keys.size && avatar.target) view.yaw += Math.atan2(Math.sin(avatar.heading - view.yaw), Math.cos(avatar.heading - view.yaw)) * Math.min(1, dt * 1.5);
     }
     avatar.speed = moving ? (run ? SPEED.run : SPEED.walk) : 0;
-    play(moving ? (run ? 'run' : 'walk') : 'idle');
+    // Calçada nova quando o avatar se afasta do centro da grade.
+    const o = avatar.obj.position;
+    if (!walk || Math.hypot(o.x - walk.cx, o.z - walk.cz) > SIDEWALK.rebuildAt) rebuildWalk(o.x, o.z);
+    // Chão: rua ou meio-fio; no ar, a gravidade.
+    const floor = floorAt(o.x, o.z);
+    if (jump.air) {
+      jump.vy -= JUMP.gravity * dt;
+      o.y += jump.vy * dt;
+      if (o.y <= floor && jump.vy < 0) {
+        o.y = floor;
+        jump.air = false;
+        jump.vy = 0;
+        jump.landing = true;
+        inst?.playOnce('jumpLand', () => { jump.landing = false; }, 0.08);
+      }
+    } else {
+      // Sobe e desce o meio-fio sem degrau seco.
+      o.y += (floor - o.y) * Math.min(1, dt * 18);
+    }
+    if (!jump.air && !(jump.landing && !moving)) {
+      jump.landing = false;
+      play(moving ? (run ? 'run' : 'walk') : 'idle');
+    }
     avatar.mixer?.update(dt);
 
     // Câmera em terceira pessoa, atrás e acima do avatar.
@@ -383,6 +541,19 @@ export function createStreetView({ THREE, scene, camera, controls, canvas, roads
     head.y += CAM.height;
     const back = view.dist * Math.cos(view.pitch);
     camera.position.set(head.x - Math.sin(view.yaw) * back, head.y + view.dist * Math.sin(view.pitch), head.z - Math.cos(view.yaw) * back);
+    // A câmera não atravessa a parede: para um pouco antes do primeiro prédio entre a cabeça e ela.
+    if (boxes.length) {
+      const dir = tmp2.copy(camera.position).sub(head);
+      const want = dir.length();
+      camRay.set(head, dir.normalize());
+      let near = want;
+      for (const b of boxes) {
+        if (b.containsPoint(head)) continue;
+        const hit = camRay.intersectBox(b, boxHit);
+        if (hit) near = Math.min(near, hit.distanceTo(head));
+      }
+      if (near < want) camera.position.copy(head).addScaledVector(dir, Math.max(0.6, near - 0.3));
+    }
     if (camera.position.y < index.y + 0.4) camera.position.y = index.y + 0.4;
     camera.lookAt(head);
     controls.target.copy(head);
@@ -424,6 +595,13 @@ export function createStreetView({ THREE, scene, camera, controls, canvas, roads
       if (pitch !== undefined) view.pitch = THREE.MathUtils.clamp(pitch, -0.35, 1.2);
     },
     isRoad: (x, z) => ensureIndex().isRoad(x, z),
+    /** Rua ou calçada perto do avatar. */
+    isWalkable: (x, z) => !!index && isWalkable(x, z),
+    /** A grade da calçada em uso (testes e medição): células de calçada e o tempo da última montagem. */
+    sidewalk: () => (walk ? { tiles: tiles.count, ms: walk.ms, cx: walk.cx, cz: walk.cz } : null),
+    /** Prédios que a câmera e a calçada levam em conta agora. */
+    blockerCount: () => boxes.length,
+    jumping: () => jump.air,
     avatar,
   };
 }
