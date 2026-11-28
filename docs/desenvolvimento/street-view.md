@@ -430,15 +430,42 @@ node bin/road-kit.js <kit.fbx> <pasta-das-texturas> ../../.local/rouds
 ```
 
 **Plano do redesenho:**
-1. A ferramenta, com o teste (esta etapa).
-2. O grafo das ruas em volta do avatar. A partir das ruas do OSM, sai a linha do meio de cada rua, com a largura e os cruzamentos (o esqueleto da grade das ruas). A grade é alinhada ao mundo, então o grafo dá o mesmo em toda a cidade.
+1. A ferramenta, com o teste (feito).
+2. O grafo das ruas em volta do avatar (feito, abaixo). A partir das ruas do OSM, sai a linha do meio de cada rua, com a largura e os cruzamentos (o esqueleto da grade das ruas). A grade é alinhada ao mundo, então o grafo dá o mesmo em toda a cidade.
 3. O encaixe:
    - nos cruzamentos de 4 braços perto de 90°, a peça de cruzamento (de 2 ou 4 faixas, pela largura);
    - nos T, o + com o braço fechado;
    - ao longo dos trechos, as retas, giradas pelo rumo da rua;
    - onde nenhuma peça cabe, o asfalto do kit sobre o polígono do OSM.
 
-**Testado** em 2026-11-28: as 8 peças lado a lado, de cima, com a textura do kit no lugar certo (a faixa amarela, as faixas de pedestre, o "STOP", o piso da calçada). O cruzamento de 2 faixas saiu inteiro depois de juntar os braços. O teste da ferramenta (`tests/roadKit.test.js`) cobre a normalização, o UV e as peças.
+### O grafo das ruas
+
+`ruas-grafo.js` tira do polígono das ruas a linha do meio, a largura e os cruzamentos, em volta do avatar:
+
+1. Grade de 1 m, alinhada ao mundo, num quadrado de 240 m: cada célula é rua ou não.
+2. A distância de cada célula de rua até a borda dá a meia largura (transformada de distância).
+3. O afinamento de Zhang-Suen deixa a rua com uma célula de largura, no meio dela: o esqueleto.
+4. Nós são as células do esqueleto com 3 ou mais vizinhos (o cruzamento, juntado num nó só) ou com 1 (o fim da rua). Trechos são o caminho entre dois nós, simplificado a 1 m, com a largura mediana.
+5. Limpeza:
+   - o espinho (trecho que acaba solto, mais curto que 1,5 vez a largura) sai;
+   - dois cruzamentos colados viram um, se o trecho entre eles for mais curto que 1,2 vez a rua mais larga, ou que 2 vezes quando os 4 braços formam duas ruas retas (o X em ângulo agudo, que o afinamento parte em dois T);
+   - os nós que ficam com 2 trechos se juntam.
+
+Cada nó diz o tipo: `cruz` (4 braços), `T` (3), `fim` (1), `borda` (1, na borda da grade: a rua segue) ou `outro` (5 ou mais), com os rumos dos braços. O grafo é refeito quando o avatar se afasta 60 m. `?grafo=1` desenha o grafo na rua. O mapa expõe `__pittsburg.roadGraph()` com `graph()` e `debug()`.
+
+**PREMISSAS:** grade de 1 m num quadrado de 240 m; Douglas-Peucker a 1 m; espinho abaixo de 1,5 vez a largura; cruzamentos colados abaixo de 1,2 vez a rua mais larga (2 vezes no X); refeito a cada 60 m.
+
+**Testado** em 2026-11-28:
+- no Node, com ruas de teste (de 15 a 55 ms cada):
+  - o + dá 1 cruzamento com os braços a 0°, 90°, 180° e 270°; o T, 1 T com 90°, 180° e 270°;
+  - o L e a reta não dão cruzamento;
+  - a rua de 16 m cruzando a de 8 m sai com as duas larguras;
+  - o X a 45° dá 1 cruzamento (na primeira versão, dava dois T a 15 m um do outro);
+  - dois T desencontrados a 30 m continuam dois;
+  - as pontas cortadas pela borda da grade saem como `borda`, não como `fim`;
+- no navegador, em (-1397, 4857), o grafo saiu em 62 ms, com 6 trechos (larguras de 4,3 a 9,7 m) e o T onde estão as faixas de pedestre (a 3,4 m delas). Desenhado de cima sobre a grade das ruas, as linhas do meio seguem as ruas.
+
+**Testado (as peças)** em 2026-11-28: as 8 peças lado a lado, de cima, com a textura do kit no lugar certo (a faixa amarela, as faixas de pedestre, o "STOP", o piso da calçada). O cruzamento de 2 faixas saiu inteiro depois de juntar os braços. O teste da ferramenta (`tests/roadKit.test.js`) cobre a normalização, o UV e as peças.
 
 ## Avatar e animações: Universal Animation Library (Quaternius)
 
