@@ -9,7 +9,8 @@
 //   ou entra à direita;
 // - quando a frente fecha (fim da rua, T), vira para o lado que tem mais rua;
 // - freia atrás de outro carro e para na frente do avatar, se ele estiver na rua, e do pedestre que
-//   atravessa na faixa (`walkers()`, de pedestres.js).
+//   atravessa na faixa (`walkers()`, de pedestres.js);
+// - no semáforo (semaforos.js), para antes da faixa no vermelho, e no amarelo se ainda dá (mais de 4 m).
 // Nascem numa rua de pelo menos 5 m de largura, entre 30 m e 70 m do avatar, e somem a 90 m.
 // O carro é uma peça procedural (carroceria, cabine, rodas, faróis), de cor sorteada, até haver o modelo
 // CC0 do SCC Kit. A quantidade segue o FPS, como os pedestres.
@@ -128,7 +129,7 @@ function parts(THREE) {
 
 const PAINT = [0xe8e8e8, 0x1d1d1f, 0x8a8f96, 0xb3202a, 0x234a8c, 0x2d6a4f, 0xd8b23a, 0x5a3a2a];
 
-export function createTraffic({ THREE, scene, streetView, walkers = () => [], stops = () => streetView.busStops?.() ?? [], opt = CARS, rand = Math.random }) {
+export function createTraffic({ THREE, scene, streetView, walkers = () => [], stops = () => streetView.busStops?.() ?? [], signals = () => [], opt = CARS, rand = Math.random }) {
   const group = new THREE.Group();
   group.name = 'transito';
   scene.add(group);
@@ -137,7 +138,7 @@ export function createTraffic({ THREE, scene, streetView, walkers = () => [], st
   const cars = [];
   let target = opt.start;
   const fps = { frames: 0, time: 0, value: 60 };
-  const stats = { spawned: 0, removed: 0, brakes: 0, straight: 0, turnsRight: 0, yields: 0, busStops: 0 };
+  const stats = { spawned: 0, removed: 0, brakes: 0, straight: 0, turnsRight: 0, yields: 0, busStops: 0, redStops: 0 };
   const isRoad = (x, z) => streetView.isRoad(x, z);
 
   /** Ônibus: carroceria, faixa de janelas, 6 rodas e os faróis nas pontas. */
@@ -241,6 +242,31 @@ export function createTraffic({ THREE, scene, streetView, walkers = () => [], st
     return cars.some((o) => o !== car && ahead(o.x, o.z, 1.4, car.half + o.half - 4.2));
   }
 
+  /**
+   * Semáforo à frente: a velocidade máxima para parar antes da faixa (vermelho, ou amarelo com mais de 4 m
+   * até a linha), ou Infinity. Só conta a faixa que o carro vai cruzar (a rua dele, até 25 m).
+   */
+  function signalSpeed(c) {
+    const fx = Math.sin(c.heading), fz = Math.cos(c.heading);
+    let best = Infinity;
+    c.redLight = false;
+    for (const s of signals()) {
+      if (s.state === 'green') continue;
+      // A faixa atravessa a rua do carro: o rumo dele é perpendicular à travessia.
+      if (Math.abs(fx * s.dir[0] + fz * s.dir[1]) > 0.5) continue;
+      const dx = s.x - c.x, dz = s.z - c.z;
+      const along = dx * fx + dz * fz;
+      if (along < 0 || along > 25) continue;
+      if (Math.abs(dx * fz - dz * fx) > s.width / 2 + 0.5) continue;
+      const line = along - s.depth / 2 - 1 - c.half;
+      if (line < -0.5) continue; // já passou da linha: segue
+      if (s.state === 'yellow' && line < 4) continue;
+      c.redLight = true;
+      best = Math.min(best, Math.sqrt(2 * 3 * Math.max(0, line)));
+    }
+    return best;
+  }
+
   /** Ônibus: velocidade máxima para parar no ponto à frente, ou parado no ponto. */
   function busSpeed(c, dt) {
     if (c.dwell > 0) {
@@ -302,6 +328,9 @@ export function createTraffic({ THREE, scene, streetView, walkers = () => [], st
       // Acelera devagar e freia forte.
       let want = stop ? 0 : c.cruise;
       if (c.bus) want = Math.min(want, busSpeed(c, dt));
+      const wasRed = c.redLight;
+      want = Math.min(want, signalSpeed(c));
+      if (c.redLight && !wasRed) stats.redStops++;
       c.speed += (want - c.speed) * Math.min(1, dt * (want < c.speed ? 4 : 0.8));
       c.x += Math.sin(c.heading) * c.speed * dt;
       c.z += Math.cos(c.heading) * c.speed * dt;
@@ -319,7 +348,7 @@ export function createTraffic({ THREE, scene, streetView, walkers = () => [], st
       target,
       fps: Math.round(fps.value),
       stats: { ...stats },
-      cars: cars.map((c) => ({ x: c.x, z: c.z, heading: c.heading, speed: c.speed, bus: c.bus, dwelling: c.dwell > 0, onRoad: isRoad(c.x, c.z), right: reach(isRoad, c.x, c.z, rightOf(c.heading), opt.side) })),
+      cars: cars.map((c) => ({ x: c.x, z: c.z, heading: c.heading, speed: c.speed, bus: c.bus, dwelling: c.dwell > 0, red: !!c.redLight, onRoad: isRoad(c.x, c.z), right: reach(isRoad, c.x, c.z, rightOf(c.heading), opt.side) })),
     }),
     setTarget: (n) => { target = Math.max(0, Math.min(opt.max, n)); },
     /** Para testes: põe o ônibus em (x, z) com o rumo dado (tira o que houver). */
