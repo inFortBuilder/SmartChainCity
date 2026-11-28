@@ -1,7 +1,7 @@
 import { AppError, forwardRequestId } from '@scc/shared';
 
 import type { HospitalPayer, HospitalStay } from '../domain/hospital.js';
-import { type Meal, type MealPayer, isHousing, isLeisure, isShop, isLicense, isMedicine, isPack, isPetShop, isSchool, isSitter } from '../domain/meal.js';
+import { type Meal, type MealPayer, isBusFare, isHousing, isLeisure, isShop, isLicense, isMedicine, isPack, isPetShop, isSchool, isSitter } from '../domain/meal.js';
 import { hotelSplit, rentSplit } from '../domain/housing.js';
 import { feeSplit } from '../domain/leisure.js';
 import { sitterSplit } from '../domain/sitter.js';
@@ -83,22 +83,23 @@ export class EconomyPayer implements Payer, MealPayer, HospitalPayer, Championsh
     const petShop = isPetShop(meal);
     const school = isSchool(meal);
     const license = isLicense(meal);
+    const bus = isBusFare(meal);
     const error = await this.post(
       `meal:${meal.id}`,
       {
-        kind: license ? 'license_buy' : school ? 'school_buy' : petShop ? 'petshop_buy' : medicine ? 'medicine_buy' : isPack(meal) ? 'pack_buy' : 'meal_buy',
+        kind: bus ? 'bus_fare' : license ? 'license_buy' : school ? 'school_buy' : petShop ? 'petshop_buy' : medicine ? 'medicine_buy' : isPack(meal) ? 'pack_buy' : 'meal_buy',
         ref_type: 'meal',
         ref_id: meal.id,
         legs: [
           { owner_type: 'player', owner_id: meal.accountId, currency: 'THALER', amount: `-${meal.priceCents}` },
-          { owner_type: 'burn', owner_id: license ? 'license' : school ? 'school' : petShop ? 'petshop' : medicine ? 'pharmacy' : 'food', currency: 'THALER', amount: `${meal.priceCents}` },
+          { owner_type: 'burn', owner_id: bus ? 'transit' : license ? 'license' : school ? 'school' : petShop ? 'petshop' : medicine ? 'pharmacy' : 'food', currency: 'THALER', amount: `${meal.priceCents}` },
         ],
       },
       requestId,
     );
     if (error === null) return;
     if (error === 'insufficient_funds') {
-      throw new AppError('insufficient_thaler', `THALER insuficiente para ${license ? 'a autoescola' : school ? 'a escola' : petShop ? 'o Pet Shop' : medicine ? 'o remédio' : isPack(meal) ? 'o pacote' : 'esta refeição'}.`, 409);
+      throw new AppError('insufficient_thaler', `THALER insuficiente para ${bus ? 'a passagem' : license ? 'a autoescola' : school ? 'a escola' : petShop ? 'o Pet Shop' : medicine ? 'o remédio' : isPack(meal) ? 'o pacote' : 'esta refeição'}.`, 409);
     }
     throw new AppError('ledger_unavailable', 'O ledger recusou a cobrança.', 502);
   }

@@ -325,7 +325,25 @@ Os pontos só existem na grade em volta do avatar (40 m): o ônibus só para nos
 - o ônibus posto 30 m antes dele freou (6 → 2,4 m/s), parou a 1 m da parada, ficou 7 s e seguiu; 4 pedestres embarcaram;
 - as 3 faixas do cruzamento seguem lá depois do alinhamento da grade.
 
-**Limites desta versão:** o avatar ainda não embarca (o deslocamento de ônibus do jogo, 6 min e 3 THALER, é só a regra do turno), e o ônibus não segue uma linha fixa.
+**Limites desta versão:** o ônibus não segue uma linha fixa.
+
+### O avatar anda de ônibus
+
+`viagem.js` deixa o avatar embarcar:
+
+1. No ponto, a menos de 4 m da espera, com o ônibus parado e a porta a menos de 12 m, aparece **E Ônibus no ponto: passagem · 3,00 THALER**. Como é dinheiro, o 1º E pede confirmação e o 2º, em 4 s, paga.
+2. A passagem sai pelo game-core: `POST /v1/avatars/:id/bus-ride` cobra pelo ledger o mesmo preço do deslocamento de ônibus do turno (`COMMUTES.onibus`, 3 THALER), para a queima `transit` (kind `bus_fare`), com Idempotency-Key. Não embarca internado, dormindo nem de cama. Sem a cobrança aceita, ninguém embarca. O catálogo da rotina (`/v1/catalog/routine`) mostra `bus_fare`.
+3. Embarcado, o avatar some e vai junto com o ônibus. A câmera se afasta (13 m) e acompanha o rumo dele, e o teclado e o clique não andam. Com o avatar dentro, o ônibus não sai da cena e não freia por ele.
+4. No próximo ponto em que o ônibus para, o avatar desce na calçada, na espera do ponto ("Desceu no ponto."). Se o ônibus sumir, ou a viagem passar de 4 min, ele desce onde está.
+
+**Carro travado:** com o ônibus andando por mais tempo, apareceu um nó no cruzamento (um carro na contramão e outro cruzando na frente, todos parados para sempre). Agora, um carro travado só por outros carros por mais de 8 s sai da cena, e nasce outro em outro lugar. O ônibus com o avatar dentro não sai: passa pelos carros por 3 s.
+
+**PREMISSAS:** embarque a menos de 4 m da espera, com a porta a menos de 12 m; viagem de até 4 min; carro travado sai depois de 8 s.
+
+**Testado** em 2026-11-28, com a conta de teste no ambiente local:
+- game-core: 5 testes novos (preço igual ao do turno, sem efeito no avatar; internado, dormindo e de cama não embarcam, com dor de cabeça embarca; a perna do ledger vai para `transit`; a mesma Idempotency-Key cobra uma vez; sem THALER, 409; de outra conta, 404; o catálogo mostra `bus_fare`). A suíte do game-core passa (305 testes), e o OpenAPI bate com as rotas;
+- no navegador, no ponto de (-1392,2; 4863,2), com o ônibus parado: o E armou "Ônibus no ponto: passagem · 3,00 THALER" e o 2º E embarcou ("No ônibus: desce no próximo ponto."). O saldo caiu exatamente 3 THALER a cada viagem (de 9.698,00 para 9.695,00 e depois para 9.692,00);
+- na primeira viagem, o ônibus ficou preso num nó no cruzamento de (-1455, 4704). Com o destrave, a segunda viagem levou 92 s e cerca de 290 m, e o avatar desceu na calçada do ponto de (-1452,5; 4578,3), visível de novo.
 
 ## Sons da cidade (fase 3)
 

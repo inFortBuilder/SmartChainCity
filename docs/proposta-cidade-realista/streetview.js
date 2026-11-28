@@ -233,6 +233,9 @@ export function createStreetView({
   // target: o próximo ponto; path: os pontos depois dele (caminho.js), quando o clique contorna obstáculos.
   const avatar = { obj: new THREE.Group(), mixer: null, heading: 0, target: null, path: [], speed: 0, model: null, clips: [], type: null, source: null };
   /** Vai até (x, z) pelo caminho em volta dos obstáculos; sem caminho, em linha reta. Devolve os pontos. */
+  /** No ônibus: devolve {x, z, heading} do ônibus a cada quadro (viagem.js), ou null a pé. */
+  let ride = null;
+  let rideDist = null;
   const walkTo = (x, z) => {
     const o = avatar.obj.position;
     const path = findPath(isWalkable, { x: o.x, z: o.z }, { x, z }) ?? [{ x, z }];
@@ -605,6 +608,19 @@ export function createStreetView({
   function tick(dt) {
     if (!active) return false;
     dt = Math.min(dt, 0.1);
+    // No ônibus (viagem.js): o avatar, escondido, vai junto com ele; o teclado e o clique não andam.
+    if (ride) {
+      const p = ride();
+      if (p) {
+        avatar.obj.position.x = p.x;
+        avatar.obj.position.z = p.z;
+        avatar.heading = p.heading;
+        view.yaw += Math.atan2(Math.sin(p.heading - view.yaw), Math.cos(p.heading - view.yaw)) * Math.min(1, dt * 1.5);
+      }
+      keys.clear();
+      avatar.target = null;
+      avatar.path = [];
+    }
     const run = keys.has('shift');
     let fwd = (keys.has('w') || keys.has('arrowup') ? 1 : 0) - (keys.has('s') || keys.has('arrowdown') ? 1 : 0);
     const side = (keys.has('d') || keys.has('arrowright') ? 1 : 0) - (keys.has('a') || keys.has('arrowleft') ? 1 : 0);
@@ -752,6 +768,22 @@ export function createStreetView({
     isWalkable: (x, z) => !!index && isWalkable(x, z),
     /** Anda até (x, z) contornando obstáculos (o mesmo do clique). Devolve os pontos do caminho. */
     walkTo: (x, z) => (index ? walkTo(x, z) : null),
+    /** Embarca: o avatar some e segue `follow()` ({x, z, heading}); a câmera se afasta para ver o ônibus. */
+    startRide: (follow) => {
+      ride = follow;
+      avatar.obj.visible = false;
+      rideDist = view.dist;
+      view.dist = Math.max(view.dist, 13);
+    },
+    /** Desce em (x, z), no chão andável. */
+    endRide: (x, z) => {
+      ride = null;
+      avatar.obj.visible = true;
+      if (rideDist !== null) view.dist = rideDist;
+      rideDist = null;
+      avatar.obj.position.set(x, floorAt(x, z), z);
+    },
+    riding: () => !!ride,
     /** A grade da calçada em uso (testes e medição): células de calçada e o tempo da última montagem. */
     sidewalk: () => (walk ? { cells: walk.sidewalk, triangles: walk.triangles, ms: walk.ms, cx: walk.cx, cz: walk.cz } : null),
     /** Prédios que a câmera e a calçada levam em conta agora. */

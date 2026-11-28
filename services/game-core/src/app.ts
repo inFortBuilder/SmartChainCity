@@ -168,6 +168,8 @@ import {
   MARKET_PER_UNIT_MS,
   cookFromPantry,
   isMedicine,
+  isBusFare,
+  planBusRide,
   isPetShop,
   isLeisure,
   isHousing,
@@ -211,8 +213,10 @@ import {
   mustRestAt,
   UNHOUSED_REST_SHARE,
   choresDto,
+  COMMUTES,
   commuteCatalog,
   doChore,
+  resting as isResting,
   planCommute,
   startRest,
 } from './domain/routine.js';
@@ -659,7 +663,19 @@ export async function buildApp(
     chores: CHORE_CODES.map((c) => ({ code: c, ...CHORES[c] })),
     commutes: commuteCatalog(),
     default_commute: 'a_pe',
+    // Passagem do ônibus na rua (POST /v1/avatars/:id/bus-ride), o mesmo preço do deslocamento.
+    bus_fare: COMMUTES.onibus.costCents.toString(),
   }));
+
+  // Embarca no ônibus na rua (fase 3 do mundo aberto): paga a passagem pelo ledger; a viagem é da cena.
+  app.post('/v1/avatars/:id/bus-ride', async (request, reply) => {
+    const { avatar, done } = await purchase(request, (clientKey) => (current) =>
+      planBusRide(current, { id: randomUUID(), clientKey, fareCents: COMMUTES.onibus.costCents, resting: isResting(current, now()) }, now()),
+    );
+    const fresh = (await store.get(avatar.id))!;
+    const at = now();
+    return reply.status(201).send({ ride: mealDto(done), avatar: avatarDto(decayed(fresh, at), at) });
+  });
 
   /** Tem moradia regular agora (casa própria regular, aluguel ou hotel)? */
   const housedNow = async (avatar: Avatar, request: FastifyRequest) =>
@@ -812,7 +828,7 @@ export async function buildApp(
     const meal = await store.beginMeal(avatar.id, avatar.accountId, clientKey, now(), plan(clientKey));
     const done = await settleMeal(meal, request.id);
     if (done.status === 'failed') {
-      const what = isShop(done) ? 'este item' : isHousing(done) ? (done.effects.housing?.kind === 'hotel' ? 'o hotel' : 'o aluguel') : isLicense(done) ? 'a autoescola' : isLeisure(done) ? 'a entrada' : isSchool(done) ? 'a escola' : isPetShop(done) ? 'o Pet Shop' : isMedicine(done) ? 'o remédio' : isPack(done) ? 'o pacote' : 'esta refeição';
+      const what = isShop(done) ? 'este item' : isHousing(done) ? (done.effects.housing?.kind === 'hotel' ? 'o hotel' : 'o aluguel') : isLicense(done) ? 'a autoescola' : isLeisure(done) ? 'a entrada' : isSchool(done) ? 'a escola' : isPetShop(done) ? 'o Pet Shop' : isMedicine(done) ? 'o remédio' : isBusFare(done) ? 'a passagem' : isPack(done) ? 'o pacote' : 'esta refeição';
       throw new AppError('insufficient_thaler', `THALER insuficiente para ${what}.`, 409);
     }
     return { avatar, done };

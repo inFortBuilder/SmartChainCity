@@ -114,6 +114,14 @@ paths:
       summary: "Descanso, higiene e modos de ir ao trabalho"
       tags: ["catalog"]
       responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/avatars/{id}/bus-ride:
+    post:
+      summary: "Embarca no ônibus na rua: paga a passagem (3 THALER) pelo ledger"
+      tags: ["avatars"]
+      description: "Paga a passagem do ônibus na rua, o mesmo preço do deslocamento de ônibus do turno, para a queima (transit). Não embarca internado, dormindo nem de cama. Aceita Idempotency-Key. Devolve a passagem (ride) e o avatar"
+      security: [{"bearer":[]}]
+      parameters: [{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]
+      responses: {"201":{"description":"Criado","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
   /v1/avatars/{id}/rest:
     post:
       summary: "Dorme 4 ou 8 h {hours}"
