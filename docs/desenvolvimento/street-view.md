@@ -579,7 +579,7 @@ Ao abrir, o celular pede um refresh do servidor e se redesenha. Ele só mostra e
 |---|---|---|
 | ambientCG Asphalt026C (1K: cor, normal, rugosidade) | O asfalto do OSM, no lugar da textura do kit `rouds` (licença não confirmada) | a cada 4 m |
 | ambientCG Concrete034 | A calçada e a face do meio-fio (a malha ganhou UV pelo mundo) | a cada 2,5 m, escurecido (a8a49c) |
-| ambientCG PavingStones092 | O piso da Praça da Prefeitura, no lugar do desenhado | a cada 2,5 m, escurecido (8f8a86) |
+| ambientCG PavingStones092 | O piso da Praça da Prefeitura, no lugar do desenhado | a cada 2,5 m, escurecido (c4bfba) |
 | Poly Haven kloofendal_48d_partly_cloudy_puresky (HDRI 1K) | A luz de ambiente e o reflexo (`scene.environment`, pelo PMREM) | — |
 
 - **O céu**: o céu visível continua o do `Sky` (`ceu.js`), que muda com a hora e o clima.
