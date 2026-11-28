@@ -12,6 +12,8 @@
 //   (menos de 0,5 m), o carro não anda;
 // - o sinal fechado (semaforos.js), o ponto de ônibus, quem atravessa na faixa (pedestres.js), o avatar na rua
 //   e o carro do jogador estacionado entram como obstáculos parados;
+// - os outros jogadores (multiplayer.js, `others`): o carro de quem dirige conta como o carro da frente (com a
+//   velocidade dele), e quem anda na rua, como o avatar;
 // - quando o grafo é refeito (a cada 60 m do avatar), cada carro passa para a faixa nova em que está.
 // Nascem numa faixa de rua de 5 m ou mais, entre 30 e 85 m do avatar, longe dos outros, e somem a 110 m ou na
 // borda da grade. O carro é procedural, de cor sorteada. A quantidade segue o FPS, como os pedestres.
@@ -163,7 +165,7 @@ function parts(THREE) {
 
 const PAINT = [0xe8e8e8, 0x1d1d1f, 0x8a8f96, 0xb3202a, 0x234a8c, 0x2d6a4f, 0xd8b23a, 0x5a3a2a];
 
-export function createTraffic({ THREE, scene, streetView, graph = () => null, walkers = () => [], stops = () => streetView.busStops?.() ?? [], signals = () => [], extra = () => [], opt = CARS, rand = Math.random }) {
+export function createTraffic({ THREE, scene, streetView, graph = () => null, others = () => [], walkers = () => [], stops = () => streetView.busStops?.() ?? [], signals = () => [], extra = () => [], opt = CARS, rand = Math.random }) {
   const group = new THREE.Group();
   group.name = 'transito';
   scene.add(group);
@@ -360,6 +362,13 @@ export function createTraffic({ THREE, scene, streetView, graph = () => null, wa
       if (o.waiting && o.lane !== car.lane && o.lane !== exit) continue;
       // Do da frente, conta só a velocidade no mesmo sentido (o que cruza conta como parado).
       take(r.along - car.half - o.half, Math.max(0, o.speed * Math.cos(o.heading - car.heading)));
+    }
+    // Outros jogadores: o carro de quem dirige (como um carro da frente) e quem anda na rua (como o avatar).
+    for (const o of others()) {
+      const r = rel(o.x, o.z);
+      if (o.kind === 'carro') {
+        if (r.along > 0 && r.along < 60 && r.lat < 1.8) take(r.along - car.half - 2.1, Math.max(0, (o.speed ?? 0) * Math.cos((o.heading ?? 0) - car.heading)));
+      } else if (isRoad(o.x, o.z) && r.along > 0 && r.along < 40 && r.lat < 2.2) take(r.along - car.half - 0.5, 0);
     }
     for (const o of extra()) {
       const r = rel(o.x, o.z);

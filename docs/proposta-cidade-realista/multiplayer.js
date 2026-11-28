@@ -430,6 +430,18 @@ export function createMultiplayer(map) {
     /** Quem está no bairro (para testes e para a tela). */
     players: () => [...pins.entries()].map(([id, p]) => ({ id, x: p.x, z: p.z, mode: p.mode, speed: p.speed, skin: p.skin, avatar: !!p.walker?.obj, visible: !!p.walker?.obj?.visible, vehicle: p.vehicle ?? null, car: !!p.car?.obj, carVisible: !!p.car?.obj?.visible })),
     room: () => room,
+    /**
+     * Os outros jogadores na rua, onde aparecem agora (para o trânsito frear): o carro de quem dirige
+     * ({kind: 'carro', x, z, heading, speed}) e o avatar de quem anda ({kind: 'pessoa', x, z}).
+     */
+    obstacles: () => {
+      const out = [];
+      for (const p of pins.values()) {
+        if (p.mode === 'drive' && p.car?.obj?.visible) out.push({ kind: 'carro', x: p.car.obj.position.x, z: p.car.obj.position.z, heading: p.car.obj.rotation.y, speed: p.speed ?? 0 });
+        else if (p.mode === 'street' && p.walker?.obj?.visible) out.push({ kind: 'pessoa', x: p.walker.obj.position.x, z: p.walker.obj.position.z });
+      }
+      return out;
+    },
     district: () => roomDistrict,
     report: (sessionId, reason = '') => room?.send('report', { sessionId, reason }),
   };
