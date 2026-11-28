@@ -2392,6 +2392,8 @@ export function createServidor(map) {
     routineCatalog,
     /** Os carros da conta (GET /v1/vehicles, do último refresh). */
     myCars: () => cars ?? [],
+    /** A moradia do avatar (GET /v1/avatars/:id/housing, do último refresh), ou null. */
+    housing: () => moradia ?? null,
     medicinePrice: () => medicineCents,
     active: () => session !== null,
     getSession: () => session,

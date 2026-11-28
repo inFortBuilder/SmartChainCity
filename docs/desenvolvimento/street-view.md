@@ -530,6 +530,30 @@ O turno do game-core não tem lugar: o avatar trabalha pelo painel (`POST /v1/av
   - na captura, o prédio do HOTEL, com o letreiro virado para a rua;
   - dentro dele, "Hotel: o seu trabalho (Recepcionista). O turno é pelo painel, em Trabalhar."; na padaria, "Padaria e Cozinha: trabalho de 5 profissões."
 
+## Celular do personagem
+
+Os painéis do mapa ficam escondidos no street view. `celular.js` traz o essencial deles para a rua. Ele abre no botão **Celular** da barra ou na tecla **C**, e fecha com o C, o Esc ou o botão de voltar.
+
+| App | O que faz |
+|---|---|
+| Carteira | THALER e SCITY (o SCITY com 18 casas, mostrado com 2). Depósitos, saques e câmbio continuam no painel do mapa |
+| Status | Os atributos do avatar (0 a 10, em barras vermelhas até 3, amarelas até 6), a profissão, a moradia (regular ou não) e o que ele pode fazer agora (trabalhar, dormindo, internado, no mercado) |
+| GPS | Os destinos do minimapa (loja, farmácia, mercado e o trabalho). Escolher liga o GPS e fecha o celular |
+| Carro | Chama o próprio carro, se a conta tem um em dia |
+| Chat | Fecha o celular e põe o cursor na caixa de mensagem do bairro |
+| Mapa | Volta para o mapa |
+
+Ao abrir, o celular pede um refresh do servidor e se redesenha. Ele só mostra e atalha: nada nele cobra ou muda o jogo. O mapa expõe `__pittsburg.phone()` com `open(tela)` e `debug()`.
+
+**Testado** em 2026-11-28, com a conta de teste:
+- carteira: 9.484,00 THALER (o saldo de 948.400 centavos) e 500,00 SCITY;
+- status: Recepcionista, alimentação 7, energia 10, saúde 10, higiene 8, felicidade 9, "Pode trabalhar", "Sem moradia regular (turno a 50%)";
+- GPS: Loja do jogo, Farmácia, Mercado da Prefeitura e Trabalho: Hotel. Escolher o trabalho ligou a rota no minimapa ("Trabalho: Hotel · 134 m") e fechou o celular;
+- carro: "Hatch" com "Chamar o carro para cá";
+- chat: o cursor foi para a caixa "Mensagem para o bairro";
+- a tecla C (de verdade) fechou e abriu o celular, e o Esc fechou;
+- na primeira captura, a linha da moradia saiu colada ("CasaSem moradia…"). Ganhou espaço entre o rótulo e o valor.
+
 ## Kit de ruas (redesenho das ruas)
 
 As ruas do street view vão ser redesenhadas com as peças do **"modular kit city build v2"** (FBX, Blend e texturas, em `C:Projeto-GitSmartChainCityouds`).
