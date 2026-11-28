@@ -214,7 +214,13 @@ export function buildRoadIndex(mesh) {
 
 const PEGMAN = `<svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><circle cx="12" cy="4.6" r="3" fill="#f59e0b"/><path d="M8 9.5c0-1 .8-1.8 1.8-1.8h4.4c1 0 1.8.8 1.8 1.8v5.2c0 .7-.5 1.2-1.2 1.2h-.6l-.4 6.1h-3.6l-.4-6.1h-.6c-.7 0-1.2-.5-1.2-1.2z" fill="#f59e0b" stroke="#b45309" stroke-width=".8"/></svg>`;
 
-export function createStreetView({ THREE, scene, camera, controls, canvas, roads, loadGltf, onPlaceClick, blockers = () => [] }) {
+export function createStreetView({
+  THREE, scene, camera, controls, canvas, roads, loadGltf, onPlaceClick,
+  blockers = () => [],
+  /** Chão andável fora da rua e da calçada (o salão do mercado, mercado-rua.js) e a altura dele. */
+  extraWalkable = () => false,
+  extraFloor = () => null,
+}) {
   let index = null;
   let walk = null; // grade da calçada em volta do avatar
   let boxes = []; // caixas dos prédios perto do avatar (câmera e calçada)
@@ -326,7 +332,8 @@ export function createStreetView({ THREE, scene, camera, controls, canvas, roads
       if (!root) continue;
       for (const o of root.isLOD || root.isMesh ? [root] : root.children) {
         const world = new THREE.Box3().setFromObject(o);
-        if (world.isEmpty() || world.getSize(size).y < 2) continue;
+        // Peças baixas não seguram a câmera, a não ser as marcadas (o telhado do mercado).
+        if (world.isEmpty() || (world.getSize(size).y < 2 && !o.userData.blocker)) continue;
         const dx = Math.max(world.min.x - x, 0, x - world.max.x), dz = Math.max(world.min.z - z, 0, z - world.max.z);
         if (Math.hypot(dx, dz) >= 120) continue;
         o.updateWorldMatrix(true, true);
@@ -364,10 +371,18 @@ export function createStreetView({ THREE, scene, camera, controls, canvas, roads
     furnitureCounts = furniture.rebuild(walk, index.y + SIDEWALK.curb);
     walk.ms = Math.round(performance.now() - t0);
   };
-  /** Chão onde o avatar pode pisar: rua ou calçada (a calçada só existe perto do avatar). */
-  const isWalkable = (x, z) => index.isRoad(x, z) || walk?.at(x, z) === 2;
+  /**
+   * Chão onde o avatar pode pisar: rua ou calçada (a calçada só existe perto do avatar). A célula de rua da
+   * grade (centro na rua) também vale: sem isso, sobrava uma fresta entre o polígono da rua e a primeira
+   * célula de calçada, onde o avatar empacava.
+   */
+  const isWalkable = (x, z) => {
+    if (index.isRoad(x, z)) return true;
+    const k = walk?.at(x, z);
+    return k === 1 || k === 2 || extraWalkable(x, z);
+  };
   /** Altura do chão no ponto: a calçada fica no alto do meio-fio. */
-  const floorAt = (x, z) => index.y + (walk?.at(x, z) === 2 ? SIDEWALK.curb : 0);
+  const floorAt = (x, z) => extraFloor(x, z) ?? index.y + (walk?.at(x, z) === 2 ? SIDEWALK.curb : 0);
 
   const ray = new THREE.Raycaster();
   const ndc = new THREE.Vector2();

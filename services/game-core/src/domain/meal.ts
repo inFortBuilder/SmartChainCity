@@ -249,8 +249,9 @@ export const unitPriceCents = (f: Food) =>
 /** Confere e monta a refeição. O avatar já vem travado e com a queda até agora. */
 /**
  * Mercado (GDD §6 "Mercado": "compra leva 4 min + volume"): depois da compra, o avatar fica no mercado
- * por 4 min mais 30 s por unidade. Enquanto isso, não começa turno, não sai para o lazer e não compra de
- * novo (`409 at_market`). Comer da despensa e cozinhar são em casa: não contam.
+ * por 4 min mais 30 s por unidade. Enquanto isso, não começa turno nem sai para o lazer (`409 at_market`).
+ * Pode comprar de novo enquanto está lá (o carrinho do mercado no mapa): cada compra soma o tempo dela ao que
+ * falta. Comer da despensa e cozinhar são em casa: não contam.
  *
  * Despensa pela casa: sem moradia regular, cabem 10 unidades; com moradia, 30; com geladeira, 60. O
  * pacote que passa do limite dá `409 pantry_full`. O que vem da fazenda não passa pelo limite.
@@ -280,7 +281,6 @@ export function planMeal(
   if (!f) throw new AppError('unknown_food', 'Alimento não existe no mercado.', 404);
   // No hospital o avatar não vai ao mercado.
   assertNotInHospital(avatar, now);
-  if (!input.atHome) assertNotAtMarket(avatar, now);
   if (avatar.attributes.food >= ATTRIBUTE_MAX) {
     throw new AppError('not_hungry', 'O avatar está satisfeito. Coma quando a alimentação baixar.', 409);
   }
@@ -314,7 +314,6 @@ export function planPack(
   const f = findFood(input.foodCode);
   if (!f) throw new AppError('unknown_food', 'Alimento não existe no mercado.', 404);
   assertNotInHospital(avatar, now);
-  assertNotAtMarket(avatar, now);
   if (input.capacity !== undefined && pantryUnits(avatar) + f.pack > input.capacity) {
     throw new AppError('pantry_full', `A despensa está cheia: cabem ${input.capacity} unidades (moradia e geladeira aumentam).`, 409);
   }
@@ -428,7 +427,10 @@ export function eat(avatar: Avatar, effects: MealEffects, now: Date): Avatar {
     ...avatar,
     conditions,
     pantry,
-    ...(effects.marketMs ? { marketUntil: new Date(now.getTime() + effects.marketMs) } : {}),
+    // No mercado, cada compra soma o tempo dela ao que ainda falta (várias compras numa visita).
+    ...(effects.marketMs
+      ? { marketUntil: new Date(Math.max(now.getTime(), avatar.marketUntil?.getTime() ?? 0) + effects.marketMs) }
+      : {}),
     attributes: {
       ...a,
       food: clamp(a.food + effects.food),
