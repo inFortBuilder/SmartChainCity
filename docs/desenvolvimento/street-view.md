@@ -195,6 +195,30 @@ A UAL não tem clipe de deitar: o corpo gira 90° no colchão (0,52 m) e o clipe
 - A camada de lotes de Pittsburg passa por cima das ruas: com "Lotes" ligado, o chão fica amarelo no street view.
 - O avatar ainda não aparece para os outros jogadores (multiplayer, E2.7).
 
+## Pedestres nas calçadas (fase 3)
+
+`pedestres.js` põe gente nas calçadas em volta do avatar. São pedestres do cliente, não jogadores: cada navegador sorteia os seus, e eles não passam pelo `realtime`.
+
+| O quê | Como |
+|---|---|
+| Corpo | O manequim da UAL (Man ou Woman, sorteado), com a cor da roupa sorteada entre 10 tons, sem sombra própria |
+| Onde nascem | Numa célula de calçada da grade do street view, entre 12 m e 35 m do avatar; somem a 45 m ou fora da grade |
+| Como andam | Em linha reta, de 1,1 a 1,5 m/s, com o clipe de andar no ritmo do passo. Se 0,9 m à frente não é calçada, ou há alguém a menos de 0,9 m (outro pedestre ou o avatar), viram o menor ângulo livre (±30°, ±60°… 180°) |
+| Pausas | De vez em quando param 2 a 6 s; um terço deles conversa (`Idle_Talking_Loop`) |
+| Quantidade | Segue o FPS, medido a cada 2 s: abaixo de 45, tira 4 (mínimo 4); acima de 55, põe 2 (máximo 24). Começa com 12 |
+
+`?pedestres=0` desliga. O mapa expõe `__pittsburg.pedestrians()` com `debug()` e `setTarget(n)`.
+
+**PREMISSAS:** até 24 pedestres, de 1,1 a 1,5 m/s, nascendo de 12 a 35 m, somindo a 45 m, com FPS alvo de 45 a 55.
+
+**Testado** em 2026-11-28:
+- com 12 pedestres, depois de 6 s: os 12 na calçada, 5,4 m andados em média, 43 viradas, nenhum cercado e no mínimo 1,05 m entre dois deles;
+- a 60 FPS, a quantidade subiu até 24;
+- com o quadro atrasado de propósito (cerca de 30 FPS), caiu de 24 para 12 em 6 s e voltou a subir quando o FPS voltou a 60;
+- no Node: o rumo livre segue reto, vira no fim e na borda da faixa, e devolve null quando está cercado; os 200 sorteios caíram na calçada.
+
+**Limites desta versão:** os pedestres não atravessam a rua (ficam na calçada do quarteirão) e não entram nas lojas. Trânsito e ônibus ficam para os próximos passos da fase 3.
+
 ## Avatar e animações: Universal Animation Library (Quaternius)
 
 Análise do pacote [Universal Animation Library](https://quaternius.com/packs/universalanimationlibrary.html), página lida em 2026-11-21:

@@ -723,6 +723,12 @@ export function createStreetView({
     groundY: () => index?.y ?? 0,
     /** Modelo e clipes de um tipo de avatar (`man`, `woman`), para desenhar os outros jogadores. */
     avatarAssets: (type) => loadAvatarAssets(loadGltf, type),
+    /** Um corpo a mais com os assets dados (pedestres.js). */
+    makeAvatarFrom: (assets) => makeAvatar(THREE, assets),
+    /** A grade da calçada em volta do avatar (null antes de entrar). */
+    walkGrid: () => walk,
+    /** Altura do chão no ponto (rua, meio-fio ou salão). */
+    floorAt: (x, z) => (index ? floorAt(x, z) : 0),
     /** O tipo de avatar escolhido neste navegador. */
     avatarType: () => getAvatarType(),
     heading: () => view.yaw,
