@@ -176,3 +176,5 @@ O avatar dos outros segue a posição recebida na velocidade de caminhada, sem p
 1. Colisão da câmera com os prédios, e faixas de pedestre e calçadas como área preferida.
 2. Interiores próprios para cada tipo de imóvel e de negócio, e o modelo do prédio aprovado no lugar do escritório padrão.
 3. Digitar no computador sentado: a UAL vol. 1 não tem esse clipe; a vol. 2 tem ações de mão que podem servir.
+
+**Próximo passo:** a câmera com colisão, as calçadas caminháveis e a cidade viva estão em [mundo aberto em terceira pessoa](mundo-aberto-terceira-pessoa.md).
