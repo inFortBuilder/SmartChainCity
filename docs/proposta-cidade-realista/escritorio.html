@@ -74,6 +74,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { getAvatarType, loadAvatarAssets, makeAvatar } from './avatar.js';
 import { createInteriorMultiplayer } from './interior-mp.js';
+import { createCasaJogo } from './casa-jogo.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { ProgressiveLightMap } from 'three/addons/misc/ProgressiveLightMap.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
@@ -102,6 +103,11 @@ const PARAMS = new URLSearchParams(location.search);
 const TIPO = PARAMS.get('tipo') === 'home' ? 'home' : 'office';
 // Só volta para o mapa: nada de redirecionar para outro endereço.
 const VOLTAR = /^pittsburg\.html(\?[\w=.,%&-]*)?$/.test(PARAMS.get('voltar') ?? '') ? PARAMS.get('voltar') : null;
+// Na própria casa (dono=1, o mapa manda), geladeira, fogão, cama e banheiro chamam o game-core (casa-jogo.js).
+const casa = TIPO === 'home' && PARAMS.get('dono') === '1' ? createCasaJogo() : null;
+casa?.load();
+/** Ação de jogo da casa; sem sessão ou sem avatar, o aviso de enfeite. */
+const naCasa = (acao, enfeite) => async () => aviso(casa?.ready() ? await acao() : enfeite);
 
 const qs = (s) => document.querySelector(s);
 const canvas = qs('#cena');
@@ -347,6 +353,10 @@ function construirInterior() {
   const cabeceira = peca('cabeceira', new THREE.BoxGeometry(0.08, 1.1, 1.7), mat.estante);
   const travesseiro = peca('travesseiro', new THREE.BoxGeometry(0.4, 0.12, 0.6), mat.lampada);
   const criado = peca('criado', new THREE.BoxGeometry(0.45, 0.5, 0.4), mat.estante);
+  // Casa: geladeira, chuveiro (box de vidro) e pia.
+  const geladeira = peca('geladeira', new THREE.BoxGeometry(0.7, 1.9, 0.65), mat.metal);
+  const chuveiro = peca('chuveiro', new THREE.BoxGeometry(1.0, 2.1, 0.95), mat.vaso);
+  const pia = peca('pia', new THREE.BoxGeometry(0.6, 0.86, 0.45), mat.tampo);
 
   const cadeira = (x, z, ry) => {
     base(x, 0.02, z); haste(x, 0.25, z); assento(x, 0.48, z, ry);
@@ -415,7 +425,11 @@ function construirInterior() {
     luzesPos.push([-4.3, 1.0]);
     // Cozinha: bancadas na parede do fundo.
     balcao(-2.6, 0.525, -4.1); balcao(-0.6, 0.525, -4.1);
-    pontos.push({ x: -1.6, z: -3.45, rumo: Math.PI, rotulo: 'Usar a cozinha', usar: () => aviso('Um café passado na hora.') });
+    pontos.push({ x: -1.6, z: -3.45, rumo: Math.PI, rotulo: casa ? 'Cozinhar (fogão)' : 'Usar a cozinha', usar: naCasa(() => casa.cook(), 'Um café passado na hora.') });
+    // Geladeira na ponta da bancada: come da despensa, sem cozinhar.
+    geladeira(-4.05, 0.95, -4.1);
+    caixa(-4.05, -4.1, 0.75, 0.7, true);
+    pontos.push({ x: -4.05, z: -3.4, rumo: Math.PI, rotulo: casa ? 'Comer da geladeira' : 'Abrir a geladeira', usar: naCasa(() => casa.eat(), 'A geladeira está cheia de ideias.') });
     caixa(-1.6, -4.1, 4.0, 0.6, true);
     // Jantar: mesa e quatro cadeiras.
     mesaJantar(-1.4, 0.74, -2.2); pe(-2.1, 0.36, -2.2); pe(-0.7, 0.36, -2.2);
@@ -425,9 +439,22 @@ function construirInterior() {
     // Quarto: cama de casal com cabeceira na parede direita e criados-mudos.
     cama(4.7, 0.25, 2.4); cabeceira(5.82, 0.55, 2.4); travesseiro(5.4, 0.55, 1.95); travesseiro(5.4, 0.55, 2.85);
     assentos.push({ x: 3.85, z: 2.4, rumo: -Math.PI / 2, rotulo: 'Sentar na cama' });
+    if (casa) {
+      // Dormir: os dois lados da cama.
+      pontos.push({ x: 4.2, z: 3.75, rumo: 0, rotulo: 'Dormir 8 h', usar: naCasa(() => casa.sleep(8), 'Uma boa noite de sono.') });
+      pontos.push({ x: 4.2, z: 1.05, rumo: Math.PI, rotulo: 'Cochilar 4 h', usar: naCasa(() => casa.sleep(4), 'Um cochilo.') });
+    }
     criado(5.6, 0.25, 0.95); criado(5.6, 0.25, 3.85);
     caixa(4.7, 2.4, 2.2, 1.7, true); caixa(5.6, 0.95, 0.5, 0.45, true); caixa(5.6, 3.85, 0.5, 0.45, true);
     luzesPos.push([4.5, 2.4]);
+    // Banheiro no canto do fundo à direita: chuveiro e pia.
+    chuveiro(4.75, 1.05, -3.95);
+    pia(2.9, 0.43, -4.2);
+    caixa(4.75, -3.95, 1.05, 1.0, true);
+    caixa(2.9, -4.2, 0.65, 0.5, true);
+    pontos.push({ x: 4.75, z: -3.1, rumo: Math.PI, rotulo: 'Tomar banho', usar: naCasa(() => casa.chore('banho', 'Banho tomado'), 'Um banho quente.') });
+    pontos.push({ x: 2.9, z: -3.55, rumo: Math.PI, rotulo: 'Escovar os dentes', usar: naCasa(() => casa.chore('dentes', 'Dentes escovados'), 'Dentes limpos.') });
+    pontos.push({ x: 2.1, z: -3.55, rumo: Math.PI, rotulo: 'Lavar as mãos', usar: naCasa(() => casa.chore('maos', 'Mãos lavadas'), 'Mãos limpas.') });
   }
   // Estantes na parede direita.
   const ESTANTES = TIPO === 'office' ? [-2.6, 0.2, 3.0] : [-2.6];
