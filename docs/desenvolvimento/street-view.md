@@ -399,6 +399,47 @@ O minimapa redesenha a 15 quadros por segundo.
 - a primeira versão refazia a rota a cada quadro (7 vezes em 0,4 s), porque media a distância até o próximo ponto, que fica longe numa rua reta. O segundo commit mede até o trecho atual: na mesma viagem, a rota só foi refeita pelo relógio de 3 s (4 vezes);
 - na captura, o minimapa está no canto, com a rota amarela e "Farmácia · 276 m".
 
+## Kit de ruas (redesenho das ruas)
+
+As ruas do street view vão ser redesenhadas com as peças do **"modular kit city build v2"** (FBX, Blend e texturas, em `C:Projeto-GitSmartChainCityouds`).
+
+**Licença:** o kit não traz arquivo de licença, e o FBX não diz o autor. Até a licença ser confirmada, nada dele vai para o repositório: o kit fica em `.local/rouds/`, que o git ignora. O mapa só usa o kit se ele estiver lá; sem ele, ficam as ruas de hoje. Vai para o repositório só o código: a ferramenta que tira as peças e o encaixe nas ruas.
+
+**O que há no FBX:** uma cena com 321 peças soltas, em centímetros, chamadas só "modular_kitNN", com um atlas de 67 MB. Conferidas de cima, uma a uma:
+
+| Código | Peça do FBX | Medidas | O que é |
+|---|---|---|---|
+| `reta2` | 05 | 7,71 × 5,70 m | 2 faixas, com a linha amarela no meio |
+| `reta4` | 02 | 15,42 × 5,70 m | 4 faixas |
+| `cruz2` | 238, 239 e 240 | 18,81 × 18,81 m | Cruzamento em + de 2 faixas, com faixas de pedestre e "STOP". O miolo e o asfalto dos braços dos lados são três peças, juntadas |
+| `cruz4` | 237 | 26,52 × 26,52 m | Cruzamento em + de 4 faixas |
+| `faixa` | 65 | 15,42 × 1,43 m | Faixa de pedestre de 4 faixas |
+| `meiofio` | 17 | 1,43 × 5,70 m, 15 cm de altura | Meio-fio |
+| `calcada` | 14 | 5,70 × 5,70 m | Piso da calçada |
+| `asfalto` | 233 | 7,71 × 7,71 m | Asfalto liso, para os trechos em que nenhuma peça cabe |
+
+O kit também tem curvas de vários raios, retas de 3 faixas, estacionamento, trilho, uma ponte e os cruzamentos com faixa de conversão (232, 234, 236). Não tem peça de T: o T vai ser o + com um braço fechado por meio-fio e calçada.
+
+**A ferramenta:** `tools/scc-builder/bin/road-kit.js` lê o FBX com o FBXLoader do three, no Node, e grava em `.local/rouds/`:
+- `kit-ruas.glb`: as 8 peças, uma por nó, com o código dela, em metros, com o centro na origem e o chão em y = 0. A rua corre em z, como já é no FBX. As retas são mais largas que compridas, então o eixo mais comprido não diz o sentido da rua, e nada é girado. O GLB tem 2,9 MB, com o atlas reduzido a 4096 px em JPEG pelo sharp;
+- `kit-ruas.json`: as medidas de cada peça, para o encaixe.
+
+```
+cd tools/scc-builder
+node bin/road-kit.js <kit.fbx> <pasta-das-texturas> ../../.local/rouds
+```
+
+**Plano do redesenho:**
+1. A ferramenta, com o teste (esta etapa).
+2. O grafo das ruas em volta do avatar. A partir das ruas do OSM, sai a linha do meio de cada rua, com a largura e os cruzamentos (o esqueleto da grade das ruas). A grade é alinhada ao mundo, então o grafo dá o mesmo em toda a cidade.
+3. O encaixe:
+   - nos cruzamentos de 4 braços perto de 90°, a peça de cruzamento (de 2 ou 4 faixas, pela largura);
+   - nos T, o + com o braço fechado;
+   - ao longo dos trechos, as retas, giradas pelo rumo da rua;
+   - onde nenhuma peça cabe, o asfalto do kit sobre o polígono do OSM.
+
+**Testado** em 2026-11-28: as 8 peças lado a lado, de cima, com a textura do kit no lugar certo (a faixa amarela, as faixas de pedestre, o "STOP", o piso da calçada). O cruzamento de 2 faixas saiu inteiro depois de juntar os braços. O teste da ferramenta (`tests/roadKit.test.js`) cobre a normalização, o UV e as peças.
+
 ## Avatar e animações: Universal Animation Library (Quaternius)
 
 Análise do pacote [Universal Animation Library](https://quaternius.com/packs/universalanimationlibrary.html), página lida em 2026-11-21:
