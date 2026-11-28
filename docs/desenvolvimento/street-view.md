@@ -64,9 +64,29 @@ Parte da fase 1 do [mundo aberto em terceira pessoa](mundo-aberto-terceira-pesso
 - o avatar mandado contra um poste contornou a célula;
 - ao voltar ao mapa, a exposição voltou a 0,85.
 
+## Faixas de pedestre nos cruzamentos
+
+O OSM de Pittsburg quase não desenha as faixas, então `faixas.js` as tira da grade da calçada:
+
+1. De um ponto do meio-fio, atravessa a rua. Se chega à calçada do outro lado em 4 a 20 m, é um trecho de rua.
+2. Do meio desse trecho, anda ao longo da rua. Onde a largura salta 1,7 vez, começa o cruzamento.
+3. A faixa vai 3 m antes desse ponto, de meio-fio a meio-fio, com listras de 0,5 m a cada 1 m.
+
+- **Filtros:**
+  - a borda da grade só conta como rua que segue depois de 20 m de rua (sem isso, saíam faixas falsas nos cantos da grade);
+  - a faixa precisa de 8 m de rua da mesma largura atrás dela (sem isso, saía uma "faixa" em diagonal, de esquina a esquina, no meio do cruzamento);
+  - a mesma chegada não repete: uma faixa a menos de 6 m e no mesmo rumo é a mesma.
+- **Desenho:** são listras brancas instanciadas, rente ao asfalto. A rua inteira continua caminhável, e os carros e pedestres da fase 3 podem usar as mesmas posições.
+- **Premissas:** a faixa de 3 m, as listras e o salto de 1,7 vez.
+
+**Testado** em 2026-11-28:
+- fora do navegador, a mesma função deu 4 faixas no cruzamento em +, 3 no T, nenhuma na rua reta, 4 no X em 45° e 4 nas ruas de 12 m, todas na posição esperada;
+- em Pittsburg, 34 pontos em volta do Centro Administrativo deram faixas em 8, onde há cruzamento a menos de 40 m;
+- no cruzamento de (-1397, 4857), as 3 chegadas tiveram cada uma a sua faixa, depois de tirar as repetidas (antes eram 6);
+- a grade completa (calçada, postes, árvores e faixas) é montada em cerca de 29 ms.
+
 **Limites desta versão:**
 - A borda segue a grade de 0,5 m (diagonais de 45°); uma curva fina, tirada do polígono da rua, fica para depois.
-- A faixa de pedestre não é desenhada; a rua inteira continua caminhável, como antes.
 - A camada de lotes de Pittsburg passa por cima das ruas: com "Lotes" ligado, o chão fica amarelo no street view.
 - O avatar ainda não aparece para os outros jogadores (multiplayer, E2.7).
 
