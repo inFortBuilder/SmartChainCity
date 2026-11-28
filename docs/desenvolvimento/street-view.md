@@ -110,6 +110,27 @@ O primeiro lugar da fase 2 do [mundo aberto](mundo-aberto-terceira-pessoa.md) (c
 
 O teste também pegou uma fresta entre a rua e a calçada, onde o avatar empacava. A célula de rua da grade passou a valer como chão.
 
+## Loja do jogo e farmácia na rua (fase 2)
+
+Perto do mercado, no mesmo cruzamento, ficam mais duas lojas (`lojas-rua.js`), com a mesma casca do mercado (`storeShell`: paredes com a porta, telhado que segura a câmera, letreiro e luz):
+
+- **Loja do jogo:** expositores com os itens de `/v1/catalog/shop`, comprados por `POST /v1/avatars/:id/shop`:
+  - roupas 1 a 3 na parede da esquerda;
+  - fogão, geladeira e micro-ondas na da direita;
+  - sofá, mesa e guarda-roupa no fundo;
+  - ferramenta de trabalho, cama e skate na ilha do meio.
+- **Farmácia:** o balcão vende o remédio da doença em curso (`POST /v1/avatars/:id/medicine`). Sem doença, avisa e não cobra.
+- **Confirmação:** compra é dinheiro. O 1º **E** mostra o preço e pede confirmação; o 2º **E** (em 4 s) compra. O aviso também tem um botão.
+- **Regras:** as do servidor (saldo, item que o avatar já tem, doença grave só no hospital).
+
+**Testado** em 2026-11-28:
+- na loja, o 1º E armou a compra ("Confirmar: Skate · 120,00 THALER"), e o servidor recusou o skate, que a conta já tinha;
+- o micro-ondas saiu por 150,00 THALER, e o avatar passou a cozinhar no micro-ondas;
+- na farmácia, sem doença: "O avatar não está doente.";
+- o mercado seguiu com os 17 alimentos e as 24 vagas.
+
+**Limite:** o clique para andar vai em linha reta. Na loja, a ilha do meio para o avatar, e é preciso contornar (com o teclado ou com outro clique).
+
 ## Consumir em casa (fase 2)
 
 Na residência do próprio jogador (`escritorio.html?tipo=home&dono=1`; o mapa manda `dono=1` quando a visita não é de convidado), `casa-jogo.js` liga as peças às rotas do game-core:
