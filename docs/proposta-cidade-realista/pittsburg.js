@@ -19,6 +19,7 @@ import { createStreetStores } from './lojas-rua.js';
 import { createPedestrians } from './pedestres.js';
 import { createTraffic } from './carros.js';
 import { createSignals } from './semaforos.js';
+import { createSounds } from './sons.js';
 import { applyLight, cityHour } from './ceu.js';
 import { createMercado } from './mercado.js';
 
@@ -230,6 +231,8 @@ let pedestrians = null;
 let traffic = null;
 /** Semáforos nos cruzamentos do street view (semaforos.js, fase 3). */
 let signals = null;
+/** Sons da cidade no street view (sons.js, fase 3). */
+let sounds = null;
 let mercado = null;
 
 // ---------- Visitas: entrar nos imóveis pelo street view ----------
@@ -833,6 +836,8 @@ try {
     if (PARAMS.get('semaforos') !== '0') signals = createSignals({ THREE, scene, streetView });
     if (PARAMS.get('pedestres') !== '0') pedestrians = createPedestrians({ THREE, scene, streetView, cars: () => traffic?.positions() ?? [], buses: () => traffic?.buses() ?? [], signals });
     // Trânsito (fase 3): carros do cliente na mão direita. ?transito=0 desliga.
+    // Sons (fase 3): sintetizados, começam no primeiro gesto. ?som=0 tira o botão e o áudio.
+    if (PARAMS.get('som') !== '0') sounds = createSounds({ streetView, camera, cars: () => traffic?.positions() ?? [], signals: () => signals });
     if (PARAMS.get('transito') !== '0') traffic = createTraffic({ THREE, scene, streetView, walkers: () => pedestrians?.onRoad() ?? [], signals: () => signals?.arms() ?? [] });
     // Volta de uma visita: ?rua=x,z,rumo põe o avatar de novo na rua, onde estava.
     const rua = PARAMS.get('rua')?.split(',').map(Number);
@@ -842,7 +847,7 @@ try {
       history.replaceState(null, '', location.pathname);
     }
   }
-  window.__pittsburg = { scene, camera, controls, renderer, buildings, light: () => streetLight, market: () => streetMarket, stores: () => streetStores, pedestrians: () => pedestrians, traffic: () => traffic, signals: () => signals, pick, showBuilding, pickLot, showLot, getLots: () => lots, gestao, civicBuilding, progressiveBuilding, loadLotsFor, servidor, multiplayer, streetView, lotAt, mercado };
+  window.__pittsburg = { scene, camera, controls, renderer, buildings, light: () => streetLight, market: () => streetMarket, stores: () => streetStores, pedestrians: () => pedestrians, traffic: () => traffic, signals: () => signals, sounds: () => sounds, pick, showBuilding, pickLot, showLot, getLots: () => lots, gestao, civicBuilding, progressiveBuilding, loadLotsFor, servidor, multiplayer, streetView, lotAt, mercado };
 
   // Spike E0.9: ?spike (ou ?spike=20) mede download, FPS e 20 prédios com LOD.
   const spikeParam = new URLSearchParams(location.search).get('spike');
@@ -933,6 +938,7 @@ renderer.setAnimationLoop((now) => {
   signals?.update(dt);
   pedestrians?.update(dt);
   traffic?.update(dt);
+  sounds?.update(dt);
   if (!streetView?.tick(dt)) {
     controls.update();
     updateNearPlane();

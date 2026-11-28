@@ -361,7 +361,7 @@ export function createTraffic({ THREE, scene, streetView, walkers = () => [], st
       group.add(obj);
     },
     /** Onde estão os carros e a que velocidade (os pedestres esperam no meio-fio). */
-    positions: () => cars.map((c) => ({ x: c.x, z: c.z, speed: c.speed })),
+    positions: () => cars.map((c) => ({ x: c.x, z: c.z, speed: c.speed, bus: c.bus })),
     /** Ônibus parados no ponto, com a porta (do lado da calçada, perto da frente). */
     buses: () =>
       cars
