@@ -142,6 +142,8 @@ A gripe e a dor de cabeça saem da semente do próprio turno (`draw(semente, tur
 
 **Farmácia do jogo.** `POST /v1/avatars/:id/medicine` com `{condition}` compra o remédio daquela doença e toma na hora: cura com 70% de chance (GDD); sem cura, o THALER não volta. Custa 10 THALER (**premissa**: o GDD não tem o preço), que vão para a queima (`burn/pharmacy`, lançamento `medicine_buy`). O remédio passa pelo mesmo caminho da refeição: mesma tabela `meal` (código `remedio`), mesma cobrança em duas fases, mesma `Idempotency-Key`. A exigência de enfermeiro como dono vale quando as farmácias forem de jogadores (fase 2).
 
+**Passagem de ônibus na rua** (fase 3 do mundo aberto). `POST /v1/avatars/:id/bus-ride` paga a passagem quando o avatar embarca no ônibus do street view. Custa o mesmo que o deslocamento de ônibus do turno (`COMMUTES.onibus`, 3 THALER), que vai para a queima (`burn/transit`, lançamento `bus_fare`), pelo mesmo caminho da refeição (código `onibus`, cobrança em duas fases, `Idempotency-Key`). Não muda nada no avatar; a viagem é da cena. Não embarca internado, dormindo nem de cama. O catálogo da rotina mostra o preço em `bus_fare`.
+
 No mapa de Pittsburg, o painel mostra "🤒 Doente" com cada doença, o tempo até passar e o botão do remédio.
 
 Depois de atualizar o código, rode `pnpm db:migrate`: a coluna `avatar.conditions` é nova.
@@ -396,6 +398,7 @@ TEST_DATABASE_URL=postgresql://scc:scc_dev@127.0.0.1:5433/scc_test pnpm --filter
 | POST | `/v1/avatars/:id/consume` | jogador (Bearer) | Come uma unidade `{food}` da despensa, sem cobrar. Devolve o avatar |
 | POST | `/v1/avatars/:id/cook` | jogador (Bearer) | Cozinha em casa uma unidade `{food}` da despensa (fogão ou micro-ondas, moradia regular) |
 | POST | `/v1/avatars/:id/medicine` | jogador (Bearer) | Compra e toma o remédio `{condition}`. Aceita `Idempotency-Key`. Devolve o remédio, `cured` e o avatar |
+| POST | `/v1/avatars/:id/bus-ride` | jogador (Bearer) | Paga a passagem do ônibus na rua (3 THALER, para `burn/transit`). Aceita `Idempotency-Key`. Devolve a passagem (`ride`) e o avatar |
 | GET | `/v1/catalog/pharmacy` | público | Preço do remédio, chance de cura e a tabela das doenças |
 | GET | `/v1/catalog/vehicles` | público | Modelos da agência (preço, aluguel, velocidade, força) e as regras de vida útil, IPVA, aluguel, recompra e autoescola |
 | POST | `/v1/avatars/:id/license` | jogador (Bearer) | Autoescola: paga e fica 3 h parado. Aceita `Idempotency-Key` |
