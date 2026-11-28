@@ -332,7 +332,7 @@ export function createPlazas({ THREE, scene, streetView, list = () => [], paving
           if (b.cc0) continue;
           b.floor.geometry.dispose();
           b.floor.geometry = floorGeometry(THREE, b.grid, b.y + 0.012, stone.tile);
-          b.floor.material = new THREE.MeshStandardMaterial({ map: stone.map, normalMap: stone.normalMap, roughnessMap: stone.roughnessMap });
+          b.floor.material = new THREE.MeshStandardMaterial({ map: stone.map, normalMap: stone.normalMap, roughnessMap: stone.roughnessMap, color: stone.tint ?? 0xffffff });
           b.cc0 = true;
         }
       }

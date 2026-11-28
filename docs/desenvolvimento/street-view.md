@@ -571,6 +571,24 @@ Ao abrir, o celular pede um refresh do servidor e se redesenha. Ele só mostra e
 - a tecla C (de verdade) fechou e abriu o celular, e o Esc fechou;
 - na primeira captura, a linha da moradia saiu colada ("CasaSem moradia…"). Ganhou espaço entre o rótulo e o valor.
 
+## Texturas CC0 e luz de ambiente
+
+`texturas-cc0.js` usa as peças CC0 baixadas para `.local/cc0/`. Elas ficam fora do git, e a origem, a licença e o tamanho estão em `.local/cc0/ORIGEM.md`. Poly Haven e ambientCG: CC0 1.0, uso comercial livre, sem crédito obrigatório.
+
+| Peça | Onde entra | Repetição |
+|---|---|---|
+| ambientCG Asphalt026C (1K: cor, normal, rugosidade) | O asfalto do OSM, no lugar da textura do kit `rouds` (licença não confirmada) | a cada 4 m |
+| ambientCG Concrete034 | A calçada e a face do meio-fio (a malha ganhou UV pelo mundo) | a cada 2,5 m, escurecido (a8a49c) |
+| ambientCG PavingStones092 | O piso da Praça da Prefeitura, no lugar do desenhado | a cada 2,5 m, escurecido (8f8a86) |
+| Poly Haven kloofendal_48d_partly_cloudy_puresky (HDRI 1K) | A luz de ambiente e o reflexo (`scene.environment`, pelo PMREM) | — |
+
+- **O céu**: o céu visível continua o do `Sky` (`ceu.js`), que muda com a hora e o clima.
+- **A luz de ambiente**: segue o céu. É 0,3 de dia com sol e cai à noite e com chuva. No mapa visto de cima, sai.
+- **O concreto e a pedra**: vêm claros e estouravam com o sol e o céu fortes, por isso foram escurecidos.
+- **Sem os arquivos**: tudo fica como antes. `?cc0=0` desliga, e `__pittsburg.cc0().debug()` mostra o que carregou.
+- **Kit `rouds`**: as peças dele (retas e cruzamentos com faixa) continuam com a textura do próprio kit.
+- **Lote 2**: as peças 3D (Kenney City Kit Roads, Quaternius Stylized Nature MegaKit) não mostram o tamanho na página. Ele vai para aprovação antes de baixar.
+
 ## Praça da Prefeitura
 
 `pracas.js` faz chão andável fora da rua e da calçada. A primeira praça é a da Prefeitura: os lotes do Centro Administrativo (que não estão à venda) viram a praça onde a cidade faz os eventos.
