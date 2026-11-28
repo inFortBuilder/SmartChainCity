@@ -28,6 +28,7 @@ import { createPhone } from './celular.js';
 import { createRoadGraph } from './ruas-grafo.js';
 import { createRoadKit } from './kit-ruas.js';
 import { applyLight, cityHour } from './ceu.js';
+import { createWeather } from './clima.js';
 import { createMercado } from './mercado.js';
 
 const BASE = '../../.local/cidades/pittsburg';
@@ -95,6 +96,8 @@ scene.add(sun, hemi);
 // O céu de sempre (visão de mapa): volta ao sair do street view.
 const MAP_LIGHT = { sunPos: sky.material.uniforms.sunPosition.value.clone(), sun: sun.intensity, sunColor: sun.color.clone(), hemi: hemi.intensity, exposure: renderer.toneMappingExposure, fog: scene.fog.color.clone() };
 let streetLight = null; // a hora aplicada no street view (null: céu do mapa)
+/** Clima no street view, por cima da hora (clima.js). ?clima= força um. */
+let weather = null;
 let streetLightAt = 0;
 /** No street view, o céu e a luz seguem a hora da cidade (ceu.js); no mapa, o céu fixo de sempre. */
 function updateLight(now) {
@@ -103,10 +106,12 @@ function updateLight(now) {
     streetLightAt = now;
     const hour = cityHour();
     const l = applyLight(THREE, { sky, sun, hemi, renderer, scene }, hour);
+    weather?.apply({ sun, hemi, renderer }, l);
     if (streetLight?.night !== l.night) streetView.setNight(l.night);
     streetLight = { ...l, hour };
   } else if (!on && streetLight) {
     streetLight = null;
+    weather?.clear();
     sky.material.uniforms.sunPosition.value.copy(MAP_LIGHT.sunPos);
     sun.position.copy(MAP_LIGHT.sunPos).multiplyScalar(1000);
     sun.intensity = MAP_LIGHT.sun;
@@ -881,8 +886,9 @@ try {
       phonePlaces = places;
       minimap = createMinimap({ streetView, places, cars: () => traffic?.positions() ?? [], peds: () => pedestrians?.debug().peds ?? [], signals: () => signals });
     }
+    weather = createWeather({ THREE, scene, camera, streetView, sky, sounds: () => sounds });
     // Celular (C): carteira, status, GPS, carro, chat e mapa, sem sair da rua.
-    phone = createPhone({ streetView, servidor, minimap, places: () => phonePlaces(), playerCar });
+    phone = createPhone({ streetView, servidor, minimap, places: () => phonePlaces(), playerCar, weather: () => weather?.current() });
     // Volta de uma visita: ?rua=x,z,rumo põe o avatar de novo na rua, onde estava.
     const rua = PARAMS.get('rua')?.split(',').map(Number);
     if (rua?.length === 3 && rua.every(Number.isFinite)) {
@@ -891,7 +897,7 @@ try {
       history.replaceState(null, '', location.pathname);
     }
   }
-  window.__pittsburg = { scene, camera, controls, renderer, buildings, light: () => streetLight, market: () => streetMarket, stores: () => streetStores, workplaces: () => workplaces, pedestrians: () => pedestrians, traffic: () => traffic, signals: () => signals, sounds: () => sounds, busRide: () => busRide, minimap: () => minimap, phone: () => phone, roadGraph: () => roadGraph, roadKit: () => roadKit, playerCar: () => playerCar, pick, showBuilding, pickLot, showLot, getLots: () => lots, gestao, civicBuilding, progressiveBuilding, loadLotsFor, servidor, multiplayer, streetView, lotAt, mercado };
+  window.__pittsburg = { scene, camera, controls, renderer, buildings, light: () => streetLight, market: () => streetMarket, stores: () => streetStores, workplaces: () => workplaces, pedestrians: () => pedestrians, traffic: () => traffic, signals: () => signals, sounds: () => sounds, busRide: () => busRide, minimap: () => minimap, phone: () => phone, weather: () => weather, roadGraph: () => roadGraph, roadKit: () => roadKit, playerCar: () => playerCar, pick, showBuilding, pickLot, showLot, getLots: () => lots, gestao, civicBuilding, progressiveBuilding, loadLotsFor, servidor, multiplayer, streetView, lotAt, mercado };
 
   // Spike E0.9: ?spike (ou ?spike=20) mede download, FPS e 20 prédios com LOD.
   const spikeParam = new URLSearchParams(location.search).get('spike');
@@ -987,6 +993,7 @@ renderer.setAnimationLoop((now) => {
   busRide?.update();
   minimap?.update();
   phone?.update();
+  weather?.update(dt);
   playerCar?.update(dt);
   roadGraph?.update();
   roadKit?.update();

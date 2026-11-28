@@ -3,7 +3,8 @@
 // Os painéis do mapa ficam escondidos no street view. O celular traz o essencial deles para a rua, sem sair
 // dela: abre no botão "Celular" da barra ou na tecla C, e fecha no Esc ou no botão de voltar.
 // - Carteira: THALER e SCITY (do economy, como no painel).
-// - Status: os atributos do avatar (0 a 10), a profissão, a moradia (regular ou não) e o que ele pode fazer agora.
+// - Status: os atributos do avatar (0 a 10), a profissão, a moradia (regular ou não), o que ele pode fazer agora e
+//   o tempo (clima.js).
 // - GPS: os destinos do minimapa (loja, farmácia, mercado, trabalho); escolher liga o GPS e fecha o celular.
 // - Carro: chama o próprio carro (carro-jogo.js).
 // - Chat: vai para a caixa de mensagem do bairro (multiplayer.js).
@@ -35,7 +36,7 @@ const ATTRS = [
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
-export function createPhone({ streetView, servidor, minimap = null, places = () => [], playerCar = null }) {
+export function createPhone({ streetView, servidor, minimap = null, places = () => [], playerCar = null, weather = () => null }) {
   const style = document.createElement('style');
   style.textContent = `
     .cel { position: fixed; left: 16px; bottom: 16px; z-index: 9; width: 260px; height: 460px; border-radius: 28px; padding: 14px 12px 18px;
@@ -115,7 +116,8 @@ export function createPhone({ streetView, servidor, minimap = null, places = () 
     const moradia = h ? (h.factor === 1 ? 'Moradia regular' : 'Sem moradia regular (turno a 50%)') : 'Moradia: veja no painel';
     return `<h4>${esc(a.job?.label ?? 'Avatar')}</h4>${bars}
       <div class="linha-v"><span>Agora</span><b data-v="agora">${now}</b></div>
-      <div class="linha-v"><span>Casa</span><span data-v="moradia">${moradia}</span></div>`;
+      <div class="linha-v"><span>Casa</span><span data-v="moradia">${moradia}</span></div>
+      <div class="linha-v"><span>Tempo</span><span data-v="tempo">${esc(weather()?.label ?? '—')}</span></div>`;
   }
 
   function gps() {

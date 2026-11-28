@@ -20,7 +20,7 @@ O GTA 6 é a referência de **gênero** (mundo aberto em terceira pessoa), não 
 | Entrar no carro e dirigir | O carro da agência (E3.5) vira dirigível | ✅ o carro da conta, com 2 THALER de combustível por saída; os outros jogadores o veem ([carro](street-view.md#o-próprio-carro-fase-4)) |
 | Minimapa, GPS e destino | Minimapa do próprio mapa da cidade, com rota até a loja | ✅ minimapa e GPS até a loja, a farmácia, o mercado e o trabalho ([minimapa](street-view.md#minimapa-e-gps-fase-4)) |
 | Telefone do personagem | Atalhos para carteira, mercado, moradia e chat | ✅ carteira, status, GPS, carro, chat e mapa ([celular](street-view.md#celular-do-personagem)) |
-| Dia e noite, clima | Céu e luz pela hora do jogo; o HDRI troca | 🟡 céu, luz e postes pela hora ([céu](street-view.md#postes-árvores-e-céu-pela-hora)); clima não |
+| Dia e noite, clima | Céu e luz pela hora do jogo; o HDRI troca | ✅ céu, luz e postes pela hora ([céu](street-view.md#postes-árvores-e-céu-pela-hora)); clima em blocos de 3 h ([clima](street-view.md#clima)) |
 | Violência, crime, polícia, armas | **Fora.** O jogo é de economia e vida na cidade (P2E com moeda real e público amplo); o doc 10 já trata o risco de conteúdo | — |
 
 ## 2. O que já existe e o que a camada nova usa

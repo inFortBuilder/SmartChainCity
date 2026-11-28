@@ -5,7 +5,8 @@
 // - motores: 4 vozes (dente de serra filtrado, com um pouco de ruído) presas aos 4 carros mais perto,
 //   posicionadas no espaço (PannerNode); o tom sobe com a velocidade, e o ônibus é mais grave e mais alto;
 // - passos do avatar: um estalo curto de ruído a cada passo (0,5 s andando, 0,32 s correndo);
-// - bipe da travessia: no semáforo a menos de 15 m, um bipe por segundo enquanto o pedestre pode atravessar.
+// - bipe da travessia: no semáforo a menos de 15 m, um bipe por segundo enquanto o pedestre pode atravessar;
+// - chuva (clima.js): ruído filtrado entre 1 e 5 kHz, pelo nível da chuva (`setRain`).
 //
 // O navegador só deixa tocar depois de um gesto do jogador: o som começa no primeiro clique ou tecla do
 // street view. O botão "Som" na barra liga e desliga (fica salvo neste navegador).
@@ -36,6 +37,8 @@ export function createSounds({ streetView, camera, cars = () => [], signals = ()
   let noiseBuf = null;
   let stepClock = 0;
   let beepClock = 0;
+  let rainLevel = 0;
+  let rainGain = null;
   const stats = { steps: 0, beeps: 0 };
 
   // Botão na barra do street view.
@@ -94,6 +97,18 @@ export function createSounds({ streetView, camera, cars = () => [], signals = ()
     ag.gain.value = opt.ambient;
     amb.connect(lp).connect(ag).connect(master);
     amb.start();
+    // Chuva: o mesmo ruído, num chiado agudo, no volume do nível.
+    const rs = ctx.createBufferSource();
+    rs.buffer = noiseBuf;
+    rs.loop = true;
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = 2500;
+    bp.Q.value = 0.5;
+    rainGain = ctx.createGain();
+    rainGain.gain.value = rainLevel * 0.06;
+    rs.connect(bp).connect(rainGain).connect(master);
+    rs.start(0, 0.7);
     // Vozes de motor.
     for (let i = 0; i < opt.voices; i++) {
       const osc = ctx.createOscillator();
@@ -229,12 +244,18 @@ export function createSounds({ streetView, camera, cars = () => [], signals = ()
 
   return {
     update,
+    /** Nível da chuva (0 a 1). */
+    setRain(level) {
+      rainLevel = Math.max(0, Math.min(1, Number(level) || 0));
+      if (rainGain) rainGain.gain.setTargetAtTime(rainLevel * 0.06, ctx.currentTime, 0.5);
+    },
     /** Para testes: estado do áudio e das vozes. */
     debug: () => ({
       on,
       state: ctx?.state ?? 'sem contexto',
       voices: voices.map((v) => (v.car ? { hz: Math.round(v.osc.frequency.value), gain: +v.gain.gain.value.toFixed(3), d: +v.car.d.toFixed(1), bus: !!v.car.bus } : null)),
       ...stats,
+      rain: rainLevel,
     }),
     start,
   };
