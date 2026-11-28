@@ -90,7 +90,7 @@ const CSS = `
   .cel-widget { margin: 6px 2px 20px; padding: 12px 14px; border-radius: 22px; background: rgba(255,255,255,.17);
     backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); display: flex; justify-content: space-between; align-items: flex-end; }
   .cel-widget b { display: block; font-size: 36px; font-weight: 300; letter-spacing: -.5px; line-height: 1.05; }
-  .cel-widget small { opacity: .9; font-size: 12px; text-transform: capitalize; }
+  .cel-widget small { opacity: .9; font-size: 12px; }
   .cel-grade { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px 4px; }
   .cel-app { border: 0; background: none; color: #fff; cursor: pointer; padding: 0; display: flex; flex-direction: column; align-items: center; gap: 5px; }
   .cel-ico { width: 56px; height: 56px; border-radius: 14px; display: grid; place-items: center;
@@ -154,7 +154,8 @@ export function createPhone({ streetView, servidor, minimap = null, places = () 
   const hhmm = () => new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
   function home() {
-    const data = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
+    const dia = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
+    const data = dia.charAt(0).toUpperCase() + dia.slice(1);
     const tempo = weather()?.label;
     return `<div class="cel-home">
       <div class="cel-widget"><div><small>${esc(data)}</small><b>${hhmm()}</b></div><small data-v="tempo-widget">${tempo ? esc(tempo) : ''}</small></div>
@@ -265,12 +266,16 @@ export function createPhone({ streetView, servidor, minimap = null, places = () 
       close();
     }
   });
+  // Na captura: com o celular aberto, o Esc é dele (volta ou fecha) e não chega ao street view, que sairia da rua.
   addEventListener('keydown', (e) => {
     if (!streetView.active() || e.target.closest?.('input, textarea, select')) return;
     const k = e.key.toLowerCase();
     if (k === 'c' && !e.repeat) toggle();
-    else if (k === 'escape' && !box.hidden) back();
-  });
+    else if (k === 'escape' && !box.hidden) {
+      e.stopImmediatePropagation();
+      back();
+    }
+  }, true);
 
   return {
     update() {
