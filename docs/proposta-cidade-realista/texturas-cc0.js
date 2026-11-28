@@ -8,7 +8,7 @@
 //   a força do ambiente segue a luz do céu (de dia até 0,3, à noite quase nada). No mapa, sai.
 // Sem os arquivos, nada muda (as texturas de antes ficam). ?cc0=0 desliga.
 //
-// PREMISSAS: asfalto a cada 4 m, concreto e pedra a cada 2,5 m; concreto (a8a49c) e pedra (8f8a86) escurecidos,
+// PREMISSAS: asfalto a cada 4 m, concreto e pedra a cada 2,5 m; concreto (a8a49c) e pedra (c4bfba) escurecidos,
 // porque são claros e estouravam com o sol e o céu fortes; ambiente a 0,3 com o céu cheio.
 
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
@@ -18,7 +18,7 @@ export const CC0 = {
   sets: {
     asfalto: { dir: 'ambientcg-Asphalt026C', id: 'Asphalt026C', tile: 4 },
     concreto: { dir: 'ambientcg-Concrete034', id: 'Concrete034', tile: 2.5, tint: 0xa8a49c },
-    pedra: { dir: 'ambientcg-PavingStones092', id: 'PavingStones092', tile: 2.5, tint: 0x8f8a86 },
+    pedra: { dir: 'ambientcg-PavingStones092', id: 'PavingStones092', tile: 2.5, tint: 0xc4bfba },
   },
   hdri: 'polyhaven-hdri/kloofendal_48d_partly_cloudy_puresky_1k.hdr',
   envMax: 0.3,
