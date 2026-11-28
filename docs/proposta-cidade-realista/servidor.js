@@ -2390,6 +2390,8 @@ export function createServidor(map) {
     avatarPost,
     shopCatalog,
     routineCatalog,
+    /** Os carros da conta (GET /v1/vehicles, do último refresh). */
+    myCars: () => cars ?? [],
     medicinePrice: () => medicineCents,
     active: () => session !== null,
     getSession: () => session,

@@ -145,8 +145,12 @@ export function createBusRide({ streetView, traffic, servidor, opt = RIDE }) {
       render();
       return;
     }
-    // A pé: o ponto ao alcance, com o ônibus parado nele.
+    // A pé: o ponto ao alcance, com o ônibus parado nele (dirigindo o próprio carro, não).
     near = null;
+    if (streetView.riding()) {
+      prompt.hidden = true;
+      return;
+    }
     if (bus?.dwelling) {
       const a = streetView.position();
       const s = streetView.busStops().find((x) => Math.hypot(x.wait.x - a.x, x.wait.z - a.z) < opt.reach && Math.hypot(x.bay.x - bus.door.x, x.bay.z - bus.door.z) < opt.door);

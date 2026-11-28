@@ -768,12 +768,15 @@ export function createStreetView({
     isWalkable: (x, z) => !!index && isWalkable(x, z),
     /** Anda até (x, z) contornando obstáculos (o mesmo do clique). Devolve os pontos do caminho. */
     walkTo: (x, z) => (index ? walkTo(x, z) : null),
-    /** Embarca: o avatar some e segue `follow()` ({x, z, heading}); a câmera se afasta para ver o ônibus. */
-    startRide: (follow) => {
+    /**
+     * Embarca (ônibus, viagem.js) ou entra no carro (carro-jogo.js): o avatar some e segue `follow()`
+     * ({x, z, heading}); a câmera fica a `dist` m (13 para ver o ônibus de fora, 7 atrás do carro).
+     */
+    startRide: (follow, dist = 13) => {
       ride = follow;
       avatar.obj.visible = false;
       rideDist = view.dist;
-      view.dist = Math.max(view.dist, 13);
+      view.dist = Math.max(view.dist, dist);
     },
     /** Desce em (x, z), no chão andável. */
     endRide: (x, z) => {
