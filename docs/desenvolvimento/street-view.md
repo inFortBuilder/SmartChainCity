@@ -554,6 +554,17 @@ Ao abrir, o celular pede um refresh do servidor e se redesenha. Ele só mostra e
 - a tecla C (de verdade) fechou e abriu o celular, e o Esc fechou;
 - na primeira captura, a linha da moradia saiu colada ("CasaSem moradia…"). Ganhou espaço entre o rótulo e o valor.
 
+## Clima
+
+`clima.js` põe o tempo por cima da luz da hora (`ceu.js`), só no street view:
+
+- **O mesmo para todos, sem servidor**: o dia da cidade (fuso de Brasília) se divide em blocos de 3 h; cada bloco sorteia o clima por uma semente fixa (a data e o número do bloco, FNV-1a). Sol 50%, nublado 25%, chuva 15%, neblina 10%.
+- **Nublado**: céu turvo, sol a 45%.
+- **Chuva**: céu escuro (sol a 25%), neblina de 30 a 380 m, 2.500 gotas num cubo de 60 m em volta da câmera e o chiado da chuva (`sons.js`, `setRain`).
+- **Neblina**: visão de 15 a 200 m.
+- À noite, a cor da neblina escurece junto. Ao voltar ao mapa, o céu e a neblina do mapa voltam.
+- O celular mostra o tempo em Status. `?clima=sol|nublado|chuva|neblina` força um, para testar; `__pittsburg.weather().debug()` mostra o atual.
+
 ## Kit de ruas (redesenho das ruas)
 
 As ruas do street view vão ser redesenhadas com as peças do **"modular kit city build v2"** (FBX, Blend e texturas, em `C:Projeto-GitSmartChainCityouds`).
