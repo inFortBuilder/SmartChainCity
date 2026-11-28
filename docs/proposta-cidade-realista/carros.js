@@ -13,7 +13,7 @@
 // - o sinal fechado (semaforos.js), o ponto de ônibus, quem atravessa na faixa (pedestres.js), o avatar na rua
 //   e o carro do jogador estacionado entram como obstáculos parados;
 // - quando o grafo é refeito (a cada 60 m do avatar), cada carro passa para a faixa nova em que está.
-// Nascem numa faixa de rua de 5 m ou mais, entre 30 e 70 m do avatar, longe dos outros, e somem a 90 m ou na
+// Nascem numa faixa de rua de 5 m ou mais, entre 30 e 85 m do avatar, longe dos outros, e somem a 110 m ou na
 // borda da grade. O carro é procedural, de cor sorteada. A quantidade segue o FPS, como os pedestres.
 //
 // Ônibus: com 3 carros ou mais, um é ônibus (11 m). Com um ponto de ônibus (onibus.js) à frente, freia até a
@@ -33,8 +33,8 @@ export const CARS = {
   min: 2,
   start: 6,
   near: 30,
-  spawn: 70,
-  despawn: 90,
+  spawn: 85,
+  despawn: 110,
   speed: [7, 10],
   lane: 1.8,
   minWidth: 5,
