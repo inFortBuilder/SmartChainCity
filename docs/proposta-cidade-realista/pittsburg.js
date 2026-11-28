@@ -17,6 +17,7 @@ import { createStreetView } from './streetview.js';
 import { createStreetMarket } from './mercado-rua.js';
 import { createStreetStores } from './lojas-rua.js';
 import { createPedestrians } from './pedestres.js';
+import { createTraffic } from './carros.js';
 import { applyLight, cityHour } from './ceu.js';
 import { createMercado } from './mercado.js';
 
@@ -224,6 +225,8 @@ let streetMarket = null;
 let streetStores = null;
 /** Pedestres nas calçadas do street view (pedestres.js, fase 3). */
 let pedestrians = null;
+/** Carros nas ruas do street view (carros.js, fase 3). */
+let traffic = null;
 let mercado = null;
 
 // ---------- Visitas: entrar nos imóveis pelo street view ----------
@@ -824,6 +827,8 @@ try {
     streetStores = createStreetStores({ THREE, scene, city: 'pittsburg', groundY: streetView.groundY(), servidor, streetView });
     // Cidade viva (fase 3): gente nas calçadas, só deste navegador. ?pedestres=0 desliga.
     if (PARAMS.get('pedestres') !== '0') pedestrians = createPedestrians({ THREE, scene, streetView });
+    // Trânsito (fase 3): carros do cliente na mão direita. ?transito=0 desliga.
+    if (PARAMS.get('transito') !== '0') traffic = createTraffic({ THREE, scene, streetView });
     // Volta de uma visita: ?rua=x,z,rumo põe o avatar de novo na rua, onde estava.
     const rua = PARAMS.get('rua')?.split(',').map(Number);
     if (rua?.length === 3 && rua.every(Number.isFinite)) {
@@ -832,7 +837,7 @@ try {
       history.replaceState(null, '', location.pathname);
     }
   }
-  window.__pittsburg = { scene, camera, controls, renderer, buildings, light: () => streetLight, market: () => streetMarket, stores: () => streetStores, pedestrians: () => pedestrians, pick, showBuilding, pickLot, showLot, getLots: () => lots, gestao, civicBuilding, progressiveBuilding, loadLotsFor, servidor, multiplayer, streetView, lotAt, mercado };
+  window.__pittsburg = { scene, camera, controls, renderer, buildings, light: () => streetLight, market: () => streetMarket, stores: () => streetStores, pedestrians: () => pedestrians, traffic: () => traffic, pick, showBuilding, pickLot, showLot, getLots: () => lots, gestao, civicBuilding, progressiveBuilding, loadLotsFor, servidor, multiplayer, streetView, lotAt, mercado };
 
   // Spike E0.9: ?spike (ou ?spike=20) mede download, FPS e 20 prédios com LOD.
   const spikeParam = new URLSearchParams(location.search).get('spike');
@@ -921,6 +926,7 @@ renderer.setAnimationLoop((now) => {
   streetMarket?.update();
   streetStores?.update();
   pedestrians?.update(dt);
+  traffic?.update(dt);
   if (!streetView?.tick(dt)) {
     controls.update();
     updateNearPlane();
