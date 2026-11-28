@@ -2337,5 +2337,34 @@ export function createServidor(map) {
     if (session && !busy && !document.hidden) refresh();
   }, 10_000);
 
-  return { refresh, decorateLot, visit, active: () => session !== null, getSession: () => session, getData: () => data, API };
+  /** Compra de mercado vinda da cena (mercado-rua.js): o pacote vai para a despensa; a refeição é comida na hora. */
+  async function buyFood(kind, food) {
+    if (!session || !data.avatar) throw Object.assign(new Error('Entre no jogo e pegue um avatar para comprar.'), { code: 'no_session' });
+    const path = kind === 'pack' ? 'pantry' : 'meals';
+    const r = await call(API.game, `/v1/avatars/${data.avatar.id}/${path}`, {
+      method: 'POST',
+      token: session.token,
+      body: { food },
+      headers: { 'idempotency-key': crypto.randomUUID() },
+    });
+    data.avatar = r.avatar;
+    return r;
+  }
+  /** O catálogo do mercado (carrega se ainda não veio). */
+  async function foodCatalog() {
+    if (!foods.length) foods = await call(API.game, '/v1/catalog/foods').then((r) => r.foods).catch(() => []);
+    return foods;
+  }
+
+  return {
+    refresh,
+    decorateLot,
+    visit,
+    buyFood,
+    foodCatalog,
+    active: () => session !== null,
+    getSession: () => session,
+    getData: () => data,
+    API,
+  };
 }

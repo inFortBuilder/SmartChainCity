@@ -14,6 +14,7 @@ import { createServidor } from './servidor.js';
 import { createCortinas } from './cortinas.js';
 import { createMultiplayer } from './multiplayer.js';
 import { createStreetView } from './streetview.js';
+import { createStreetMarket } from './mercado-rua.js';
 import { applyLight, cityHour } from './ceu.js';
 import { createMercado } from './mercado.js';
 
@@ -215,6 +216,8 @@ let lotToggle = null;
 let lotsPromise = null;
 let gestao = null;
 let streetView = null;
+/** Mercado na rua (mercado-rua.js), criado junto com o street view. */
+let streetMarket = null;
 let mercado = null;
 
 // ---------- Visitas: entrar nos imóveis pelo street view ----------
@@ -802,8 +805,14 @@ try {
       loadGltf: (url) => new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).loadAsync(url),
       onPlaceClick: (p) => clickPlace(p),
       // A câmera e a calçada desviam dos prédios: os de LOD (Centro Administrativo, spike) e os da gestão.
-      blockers: () => [...progressive, gestao?.group],
+      blockers: () => [...progressive, gestao?.group, streetMarket?.group],
+      // O salão do Mercado da Prefeitura (mercado-rua.js): anda-se dentro dele, na altura do meio-fio.
+      extraWalkable: (x, z) => !!streetMarket?.walkable(x, z),
+      extraFloor: (x, z) => streetMarket?.floorAt(x, z) ?? null,
     });
+    // Mercado na rua (fase 2): entra-se pela porta, pega-se o pacote na gôndola e paga-se no caixa.
+    streetView.isRoad(0, 0); // monta o índice das ruas, para saber a altura do chão
+    streetMarket = createStreetMarket({ THREE, scene, city: 'pittsburg', groundY: streetView.groundY(), servidor, streetView });
     // Volta de uma visita: ?rua=x,z,rumo põe o avatar de novo na rua, onde estava.
     const rua = PARAMS.get('rua')?.split(',').map(Number);
     if (rua?.length === 3 && rua.every(Number.isFinite)) {
@@ -812,7 +821,7 @@ try {
       history.replaceState(null, '', location.pathname);
     }
   }
-  window.__pittsburg = { scene, camera, controls, renderer, buildings, light: () => streetLight, pick, showBuilding, pickLot, showLot, getLots: () => lots, gestao, civicBuilding, progressiveBuilding, loadLotsFor, servidor, multiplayer, streetView, lotAt, mercado };
+  window.__pittsburg = { scene, camera, controls, renderer, buildings, light: () => streetLight, market: () => streetMarket, pick, showBuilding, pickLot, showLot, getLots: () => lots, gestao, civicBuilding, progressiveBuilding, loadLotsFor, servidor, multiplayer, streetView, lotAt, mercado };
 
   // Spike E0.9: ?spike (ou ?spike=20) mede download, FPS e 20 prédios com LOD.
   const spikeParam = new URLSearchParams(location.search).get('spike');
@@ -898,6 +907,7 @@ renderer.setAnimationLoop((now) => {
   svLast = now;
   // No street view, a câmera segue o avatar; no mapa, os controles de órbita.
   updateLight(performance.now());
+  streetMarket?.update();
   if (!streetView?.tick(dt)) {
     controls.update();
     updateNearPlane();

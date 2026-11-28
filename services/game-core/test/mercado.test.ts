@@ -60,8 +60,10 @@ describe('tempo de compra no mercado', () => {
     expect(fed.marketUntil).toEqual(new Date(t0.getTime() + 4.5 * MIN));
     expect(status(fed, at(1))).toMatchObject({ atMarket: true, canWork: false, canLeisure: false });
     expect(code(() => startShift(fed, { id: randomUUID(), hours: 6, hoursToday: 0, running: false }, at(1)))).toBe('at_market');
-    expect(code(() => planMeal(fed, { id: 'x', foodCode: 'maca', clientKey: null }, at(1)))).toBe('at_market');
-    expect(code(() => planPack(fed, { id: 'x', foodCode: 'maca', clientKey: null }, at(1)))).toBe('at_market');
+    // Ainda no mercado, compra de novo (o carrinho): o tempo da compra soma ao que falta.
+    const again = eat(fed, planPack(fed, { id: 'x', foodCode: 'maca', clientKey: null }, at(1)).effects, at(1));
+    const packMs = planPack(make(), { id: 'p', foodCode: 'maca', clientKey: null }, t0).effects.marketMs!;
+    expect(again.marketUntil).toEqual(new Date(t0.getTime() + 4.5 * MIN + packMs));
     // Comer da despensa e cozinhar são em casa: não contam e não prendem no mercado.
     const home = { ...fed, attributes: { ...fed.attributes, food: 2 }, pantry: { maca: 2 } };
     expect(eatFromPantry(home, { foodCode: 'maca', roll: 1 }, at(1)).marketUntil).toEqual(fed.marketUntil);
