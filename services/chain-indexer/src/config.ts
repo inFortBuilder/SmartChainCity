@@ -44,6 +44,9 @@ const schema = z.object({
   PROPERTY_NFT_ADDRESS: address,
   GAME_VAULT_ADDRESS: address,
   MARKETPLACE_ADDRESS: address,
+  BUILDING_NFT_ADDRESS: address,
+  UNIT_NFT_ADDRESS: address,
+  UNIT_MARKET_ADDRESS: address,
   /** Crédito dos depósitos: o gateway diz de quem é a carteira e o economy lança o SCITY. Sem os quatro, o crédito fica desligado. */
   GATEWAY_URL: optional(z.url()),
   GATEWAY_TOKEN: optional(z.string().min(32)),
@@ -59,6 +62,9 @@ export type Config = z.infer<typeof schema> & {
     PropertyNFT?: `0x${string}`;
     GameVault?: `0x${string}`;
     Marketplace?: `0x${string}`;
+    BuildingNFT?: `0x${string}`;
+    UnitNFT?: `0x${string}`;
+    UnitMarket?: `0x${string}`;
   };
 };
 
@@ -76,6 +82,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       PropertyNFT: pick(c.PROPERTY_NFT_ADDRESS, 'PropertyNFT'),
       GameVault: pick(c.GAME_VAULT_ADDRESS, 'GameVault'),
       Marketplace: pick(c.MARKETPLACE_ADDRESS, 'Marketplace'),
+      BuildingNFT: pick(c.BUILDING_NFT_ADDRESS, 'BuildingNFT'),
+      UnitNFT: pick(c.UNIT_NFT_ADDRESS, 'UnitNFT'),
+      UnitMarket: pick(c.UNIT_MARKET_ADDRESS, 'UnitMarket'),
     },
   };
 }

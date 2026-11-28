@@ -56,7 +56,7 @@ O GDD amarra o ganho do turno à moradia. Já funcionam a regularização, água
 | ✅ **Hotel de jogadores:** a diária vai para o dono (90%), com quartos por nível. O aluguel de unidade de jogador também já funciona | 🔧 | Preço da obra e quartos provisórios |
 | 🟡 **Tipos de imóvel:** a troca T1 → T2 → T3 e o catálogo do Strapi já funcionam; faltam os valores dos outros tipos do doc 03 §6 (o Strapi os mostra como "aguardando") e o lote duplo (Residencial 2 e 3) | 👤 🔧 | Os valores vêm da "Figura 16" do GDD, que não veio no texto (doc 11, lacuna 3) |
 | ⬜ **Seguro** do imóvel | 🔧 👤 | Faltam regra e preço |
-| 🟡 **Prédios:** as unidades se vendem e se alugam no jogo; o `UnitNFT` e o `UnitMarket` estão escritos e testados (falta a auditoria e o world assinar o voucher); faltam taxa de alvará, prazo de obra pela área, IPTU por unidade, condomínio e o `BuildingNFT` lido pelo indexer | 🔧 👤 | doc 13 |
+| 🟡 **Prédios:** as unidades se vendem e se alugam no jogo; o `UnitNFT` e o `UnitMarket` estão escritos e testados (falta a auditoria e o world assinar o voucher); faltam taxa de alvará, prazo de obra pela área, IPTU por unidade e condomínio. O chain-indexer já lê o `BuildingNFT`, o `UnitNFT` e o `UnitMarket` | 🔧 👤 | doc 13 |
 
 ### 2.2 Avatar e trabalho
 
