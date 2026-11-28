@@ -8,6 +8,10 @@
 // No mapa, cada jogador é um alfinete. No street view, quem também está na rua
 // aparece como avatar, com o mesmo modelo e a animação pela velocidade.
 import { getAvatarType, isAvatarType, makeAvatar } from './avatar.js';
+import { carMesh } from './carro-jogo.js';
+
+/** Modelos de carro que o realtime aceita (o modo `drive`). */
+const VEHICLES = new Set(['hatch', 'sedan', 'super']);
 import { REALTIME_URLS, districtKey, realtimeFor } from './realtime-shard.js';
 
 
@@ -158,10 +162,24 @@ export function createMultiplayer(map) {
     return obj;
   }
 
+  // Carro de quem está dirigindo (modo `drive`): o mesmo modelo do carro do jogador, com o nome em cima.
+  function makeCar(pin, name) {
+    const obj = carMesh(THREE, pin.vehicle);
+    const label = streetLabel(name);
+    label.position.y = 2.2;
+    obj.add(label);
+    obj.position.set(pin.x, map.getStreetView?.()?.groundY() ?? 0, pin.z);
+    obj.rotation.y = pin.rot;
+    obj.visible = false;
+    group.add(obj);
+    pin.car = { obj, model: pin.vehicle };
+  }
+
   function removePin(pin) {
     pin.obj.traverse((o) => o.material?.map?.dispose?.());
     group.remove(pin.obj);
     if (pin.walker?.obj) group.remove(pin.walker.obj);
+    if (pin.car?.obj) group.remove(pin.car.obj);
   }
 
   function dropPins() {
@@ -194,6 +212,13 @@ export function createMultiplayer(map) {
         pin.walker = null;
       }
       if (pin.mode === 'street' && !pin.walker) makeWalker(pin, p.name);
+      // Dirigindo: o carro do modelo; trocou de modelo, refaz.
+      pin.vehicle = VEHICLES.has(p.vehicle) ? p.vehicle : null;
+      if (pin.car && pin.car.model !== pin.vehicle) {
+        group.remove(pin.car.obj);
+        pin.car = null;
+      }
+      if (pin.mode === 'drive' && pin.vehicle && !pin.car) makeCar(pin, p.name);
     });
     for (const [id, pin] of pins) {
       if (alive.has(id)) continue;
@@ -217,6 +242,20 @@ export function createMultiplayer(map) {
       pin.obj.visible = !street;
       pin.obj.position.x += (pin.x - pin.obj.position.x) * 0.2;
       pin.obj.position.z += (pin.z - pin.obj.position.z) * 0.2;
+      // Carro: segue a posição recebida na velocidade dele (longe demais, salta) e vira para o rumo.
+      const car = pin.car;
+      if (car?.obj) {
+        car.obj.visible = street && pin.mode === 'drive';
+        const dx = pin.x - car.obj.position.x, dz = pin.z - car.obj.position.z, gap = Math.hypot(dx, dz);
+        if (!car.obj.visible || gap > 40) car.obj.position.set(pin.x, car.obj.position.y, pin.z);
+        else if (gap > 0.01) {
+          const step = Math.min(gap, Math.max(pin.speed, gap * 4) * dt);
+          car.obj.position.x += (dx / gap) * step;
+          car.obj.position.z += (dz / gap) * step;
+        }
+        const turn = Math.atan2(Math.sin(pin.rot - car.obj.rotation.y), Math.cos(pin.rot - car.obj.rotation.y));
+        car.obj.rotation.y += turn * Math.min(1, dt * 8);
+      }
       const w = pin.walker;
       if (!w?.obj) continue;
       w.obj.visible = street && pin.mode === 'street';
@@ -342,6 +381,19 @@ export function createMultiplayer(map) {
     }
     if (!room) return;
     const sv = map.getStreetView?.();
+    // Dirigindo o próprio carro (carro-jogo.js): a posição, o rumo e a velocidade são os do carro.
+    const car = map.getPlayerCar?.();
+    if (sv?.active() && car?.driving()) {
+      const c = car.position();
+      const msg = { x: c.x, z: c.z, rot: c.heading, mode: 'drive', speed: Math.abs(c.speed), skin: getAvatarType(), vehicle: car.model() };
+      const changed =
+        lastSent.mode !== 'drive' || lastSent.vehicle !== msg.vehicle || Math.hypot(c.x - lastSent.x, c.z - lastSent.z) > 0.05 || Math.abs(msg.speed - lastSent.speed) > 0.1 || Math.abs(msg.rot - lastSent.rot) > 0.02;
+      if (changed) {
+        room.send('move', msg);
+        lastSent = msg;
+      }
+      return;
+    }
     if (sv?.active()) {
       // No street view, a posição é a do avatar, com o rumo do corpo e a velocidade.
       const p = sv.position();
@@ -376,7 +428,7 @@ export function createMultiplayer(map) {
 
   return {
     /** Quem está no bairro (para testes e para a tela). */
-    players: () => [...pins.entries()].map(([id, p]) => ({ id, x: p.x, z: p.z, mode: p.mode, speed: p.speed, skin: p.skin, avatar: !!p.walker?.obj, visible: !!p.walker?.obj?.visible })),
+    players: () => [...pins.entries()].map(([id, p]) => ({ id, x: p.x, z: p.z, mode: p.mode, speed: p.speed, skin: p.skin, avatar: !!p.walker?.obj, visible: !!p.walker?.obj?.visible, vehicle: p.vehicle ?? null, car: !!p.car?.obj, carVisible: !!p.car?.obj?.visible })),
     room: () => room,
     district: () => roomDistrict,
     report: (sessionId, reason = '') => room?.send('report', { sessionId, reason }),

@@ -118,7 +118,7 @@ async function waitFor(cond: () => boolean, ms = 3000) {
   }
 }
 
-const players = (room: Room) => room.state.players as Map<string, { name: string; x: number; z: number; mode: string; speed: number; skin: string }>;
+const players = (room: Room) => room.state.players as Map<string, { name: string; x: number; z: number; mode: string; speed: number; skin: string; vehicle: string }>;
 const messages = (room: Room, type: string) => {
   const got: Record<string, unknown>[] = [];
   room.onMessage(type, (m: Record<string, unknown>) => got.push(m));
@@ -169,6 +169,19 @@ describe('sala do bairro', () => {
     a.send('move', { x: 128, z: -42, mode: 'street', speed: 0, skin: 'dragao' });
     await waitFor(() => players(b).get(a.sessionId)?.x === 128);
     expect(players(b).get(a.sessionId)?.skin).toBe('woman');
+
+    // Dirigindo: o modelo do carro chega aos outros, a velocidade vai até 30 m/s, o modelo estranho vira hatch
+    // e, a pé de novo, o carro some.
+    a.send('move', { x: 129, z: -42, rot: 1, mode: 'drive', speed: 13.9, vehicle: 'sedan' });
+    await waitFor(() => players(b).get(a.sessionId)?.mode === 'drive');
+    expect(players(b).get(a.sessionId)).toMatchObject({ vehicle: 'sedan' });
+    expect(players(b).get(a.sessionId)?.speed).toBeCloseTo(13.9);
+    a.send('move', { x: 130, z: -42, mode: 'drive', speed: 99, vehicle: 'tanque' });
+    await waitFor(() => players(b).get(a.sessionId)?.x === 130);
+    expect(players(b).get(a.sessionId)).toMatchObject({ speed: 30, vehicle: 'hatch' });
+    a.send('move', { x: 131, z: -42, mode: 'street', speed: 1, vehicle: 'super' });
+    await waitFor(() => players(b).get(a.sessionId)?.x === 131);
+    expect(players(b).get(a.sessionId)).toMatchObject({ mode: 'street', vehicle: '' });
 
     await b.leave();
     await waitFor(() => players(a).size === 1);

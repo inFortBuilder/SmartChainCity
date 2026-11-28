@@ -831,6 +831,8 @@ try {
     THREE, scene, camera, controls, lotAt, getLots: () => lots,
     getSession: () => servidor.getSession(), getAvatar: () => servidor.getData().avatar,
     getStreetView: () => streetView,
+    // Dirigindo o próprio carro: o carro vai para os outros jogadores (modo drive do realtime).
+    getPlayerCar: () => playerCar,
   });
   // Street view: arrastar o boneco do canto até uma rua e caminhar só pelas ruas.
   const roadsMesh = gltf.scene.getObjectByName('roads');
