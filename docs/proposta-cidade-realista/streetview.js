@@ -13,6 +13,7 @@
 // câmera para não atravessar a parede. Espaço pula.
 
 import { AVATAR_TYPES, getAvatarType, loadAvatarAssets, makeAvatar, setAvatarType } from './avatar.js';
+import { createFurniture } from './mobiliario.js';
 
 const CELL = 32; // m por célula do índice
 const SPEED = { walk: 1.5, run: 4.2 }; // m/s
@@ -84,7 +85,7 @@ export function buildSidewalkGrid(isRoad, cx, cz, blocked = () => false, opt = S
     const c = Math.floor((x - x0) / opt.cell), r = Math.floor((z - z0) / opt.cell);
     return c < 0 || r < 0 || c >= n || r >= n ? -1 : kind[r * n + c];
   };
-  return { n, x0, z0, cell: opt.cell, kind, sidewalk, cx, cz, at };
+  return { n, x0, z0, cell: opt.cell, kind, dist, sidewalk, cx, cz, at };
 }
 
 /** Índice dos triângulos das ruas no plano XZ, em grade (formato CSR). */
@@ -243,6 +244,9 @@ export function createStreetView({ THREE, scene, camera, controls, canvas, roads
   tiles.frustumCulled = false;
   tiles.visible = false;
   scene.add(tiles);
+  // Postes e árvores ao longo da calçada (mobiliario.js); ocupam a célula, e o avatar contorna.
+  const furniture = createFurniture(THREE, scene);
+  let furnitureCounts = null;
   const tileMatrix = new THREE.Matrix4();
   const boxHit = new THREE.Vector3();
   /**
@@ -294,6 +298,7 @@ export function createStreetView({ THREE, scene, camera, controls, canvas, roads
     tiles.count = k;
     tiles.instanceMatrix.needsUpdate = true;
     tiles.visible = true;
+    furnitureCounts = furniture.rebuild(walk, index.y + SIDEWALK.curb);
     walk.ms = Math.round(performance.now() - t0);
   };
   /** Chão onde o avatar pode pisar: rua ou calçada (a calçada só existe perto do avatar). */
@@ -428,6 +433,7 @@ export function createStreetView({ THREE, scene, camera, controls, canvas, roads
     active = false;
     avatar.obj.visible = false;
     tiles.visible = false;
+    furniture.hide();
     camera.position.copy(saved.pos);
     controls.target.copy(saved.target);
     Object.assign(camera, { near: saved.near, far: saved.far, fov: saved.fov });
@@ -623,6 +629,10 @@ export function createStreetView({ THREE, scene, camera, controls, canvas, roads
     /** Prédios que a câmera e a calçada levam em conta agora. */
     blockerCount: () => boxes.length,
     jumping: () => jump.air,
+    /** Postes e árvores em volta do avatar agora. */
+    furniture: () => furnitureCounts,
+    /** À noite, as luminárias dos postes acendem (ceu.js). */
+    setNight: (on) => furniture.setNight(on),
     avatar,
   };
 }
