@@ -371,8 +371,16 @@ export function createStreetView({
     furnitureCounts = furniture.rebuild(walk, index.y + SIDEWALK.curb);
     walk.ms = Math.round(performance.now() - t0);
   };
-  /** Chão onde o avatar pode pisar: rua ou calçada (a calçada só existe perto do avatar). */
-  const isWalkable = (x, z) => index.isRoad(x, z) || walk?.at(x, z) === 2 || extraWalkable(x, z);
+  /**
+   * Chão onde o avatar pode pisar: rua ou calçada (a calçada só existe perto do avatar). A célula de rua da
+   * grade (centro na rua) também vale: sem isso, sobrava uma fresta entre o polígono da rua e a primeira
+   * célula de calçada, onde o avatar empacava.
+   */
+  const isWalkable = (x, z) => {
+    if (index.isRoad(x, z)) return true;
+    const k = walk?.at(x, z);
+    return k === 1 || k === 2 || extraWalkable(x, z);
+  };
   /** Altura do chão no ponto: a calçada fica no alto do meio-fio. */
   const floorAt = (x, z) => extraFloor(x, z) ?? index.y + (walk?.at(x, z) === 2 ? SIDEWALK.curb : 0);
 
