@@ -21,12 +21,14 @@ export const Player = schema(
     x: t.float32().default(0),
     z: t.float32().default(0),
     rot: t.float32().default(0),
-    /** `map`: olhando o mapa de cima (alfinete). `street`: caminhando no street view (avatar). */
+    /** `map`: olhando o mapa de cima (alfinete). `street`: caminhando no street view (avatar). `drive`: dirigindo o próprio carro. */
     mode: t.string().default('map'),
     /** Velocidade no street view, em m/s: escolhe a animação (parado, andando, correndo). */
     speed: t.float32().default(0),
     /** Tipo de avatar no street view: `man` ou `woman` (manequins da Universal Animation Library). */
     skin: t.string().default('man'),
+    /** Dirigindo (`drive`): o modelo do carro (`hatch`, `sedan`, `super`); vazio a pé. */
+    vehicle: t.string().default(''),
   },
   'Player',
 );
@@ -56,8 +58,11 @@ export interface RoomDeps {
 
 /** Limite do mapa em metros (Pittsburg tem 34,6 km de base). Fora disso, o movimento é ignorado. */
 const MAX_COORD = 200_000;
-const MODES = new Set(['map', 'street']);
+const MODES = new Set(['map', 'street', 'drive']);
 const MAX_SPEED = 10; // m/s: acima disso não é caminhada
+/** Dirigindo: até 30 m/s (108 km/h, acima dos 90 km/h do superesportivo). */
+const MAX_DRIVE_SPEED = 30;
+const VEHICLES = new Set(['hatch', 'sedan', 'super']);
 const SKINS = new Set(['man', 'woman']);
 /** Nome antigo do manequim feminino, de clientes que ainda não atualizaram. */
 const skinOf = (v: unknown) => (v === 'human' ? 'woman' : v);
@@ -96,7 +101,7 @@ export class DistrictRoom extends Room {
     this.setMetadata({ city, district });
     deps.registry.add(this);
 
-    this.onMessage('move', (client, msg: { x?: unknown; z?: unknown; rot?: unknown; mode?: unknown; speed?: unknown; skin?: unknown }) => {
+    this.onMessage('move', (client, msg: { x?: unknown; z?: unknown; rot?: unknown; mode?: unknown; speed?: unknown; skin?: unknown; vehicle?: unknown }) => {
       const p = this.state.players.get(client.sessionId);
       if (!p || !this.moves.take(client.sessionId)) return;
       const x = Number(msg?.x);
@@ -109,7 +114,10 @@ export class DistrictRoom extends Room {
       p.rot = rot;
       // Modo desconhecido vira mapa; velocidade fica entre 0 e o limite.
       p.mode = typeof msg?.mode === 'string' && MODES.has(msg.mode) ? msg.mode : 'map';
-      p.speed = p.mode === 'street' ? Math.min(MAX_SPEED, Math.max(0, speed)) : 0;
+      const limit = p.mode === 'drive' ? MAX_DRIVE_SPEED : p.mode === 'street' ? MAX_SPEED : 0;
+      p.speed = Math.min(limit, Math.max(0, speed));
+      // Dirigindo, o modelo do carro (desconhecido vira hatch); a pé, nenhum.
+      p.vehicle = p.mode === 'drive' ? (typeof msg?.vehicle === 'string' && VEHICLES.has(msg.vehicle) ? msg.vehicle : 'hatch') : '';
       // Tipo de avatar desconhecido não muda o atual.
       const skin = skinOf(msg?.skin);
       if (typeof skin === 'string' && SKINS.has(skin)) p.skin = skin;

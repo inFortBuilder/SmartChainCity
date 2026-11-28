@@ -53,6 +53,34 @@ export function driveStep(car, input, dt, free, max, blocked = false, o = DRIVE)
   return { x: nx, z: nz, heading, speed, bumped: false };
 }
 
+/**
+ * O carro do modelo (`hatch`, `sedan`, `super`), procedural: carroceria na cor do modelo, cabine, rodas e
+ * faróis. O mesmo para o carro do jogador e para o dos outros jogadores (multiplayer.js).
+ */
+export function carMesh(THREE, model) {
+  const g = new THREE.Group();
+  const paint = new THREE.MeshStandardMaterial({ color: PAINT[model] ?? 0x888888, roughness: 0.3, metalness: 0.6 });
+  const glass = new THREE.MeshStandardMaterial({ color: 0x1b2633, roughness: 0.15, metalness: 0.6 });
+  const tire = new THREE.MeshStandardMaterial({ color: 0x151515, roughness: 0.9 });
+  g.add(new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.7, 4.2).translate(0, 0.65, 0), paint), new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.6, 2.1).translate(0, 1.3, -0.2), glass));
+  const wheel = new THREE.CylinderGeometry(0.34, 0.34, 0.25, 14).rotateZ(Math.PI / 2);
+  for (const [wx, wz] of [[-0.85, 1.35], [0.85, 1.35], [-0.85, -1.35], [0.85, -1.35]]) {
+    const w = new THREE.Mesh(wheel, tire);
+    w.position.set(wx, 0.34, wz);
+    g.add(w);
+  }
+  const lamp = new THREE.BoxGeometry(0.35, 0.15, 0.05);
+  for (const s of [-0.6, 0.6]) {
+    const f = new THREE.Mesh(lamp, new THREE.MeshStandardMaterial({ color: 0xfff6d8, emissive: 0xfff2c0, emissiveIntensity: 0.6 }));
+    f.position.set(s, 0.75, 2.11);
+    const b = new THREE.Mesh(lamp, new THREE.MeshStandardMaterial({ color: 0xa01010, emissive: 0x700000, emissiveIntensity: 0.5 }));
+    b.position.set(s, 0.8, -2.11);
+    g.add(f, b);
+  }
+  g.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+  return g;
+}
+
 export function createPlayerCar({ THREE, scene, streetView, servidor, cars = () => [], walkers = () => [], opt = DRIVE }) {
   const style = document.createElement('style');
   style.textContent = `
@@ -92,31 +120,11 @@ export function createPlayerCar({ THREE, scene, streetView, servidor, cars = () 
   const isRoad = (x, z) => streetView.isRoad(x, z);
 
   function mesh(model) {
-    const g = new THREE.Group();
-    const paint = new THREE.MeshStandardMaterial({ color: PAINT[model] ?? 0x888888, roughness: 0.3, metalness: 0.6 });
-    const glass = new THREE.MeshStandardMaterial({ color: 0x1b2633, roughness: 0.15, metalness: 0.6 });
-    const tire = new THREE.MeshStandardMaterial({ color: 0x151515, roughness: 0.9 });
-    const body = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.7, 4.2).translate(0, 0.65, 0), paint);
-    const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.6, 2.1).translate(0, 1.3, -0.2), glass);
-    g.add(body, cabin);
-    const wheel = new THREE.CylinderGeometry(0.34, 0.34, 0.25, 14).rotateZ(Math.PI / 2);
-    for (const [wx, wz] of [[-0.85, 1.35], [0.85, 1.35], [-0.85, -1.35], [0.85, -1.35]]) {
-      const w = new THREE.Mesh(wheel, tire);
-      w.position.set(wx, 0.34, wz);
-      g.add(w);
-    }
-    const lamp = new THREE.BoxGeometry(0.35, 0.15, 0.05);
-    for (const s of [-0.6, 0.6]) {
-      const f = new THREE.Mesh(lamp, new THREE.MeshStandardMaterial({ color: 0xfff6d8, emissive: 0xfff2c0, emissiveIntensity: 0.6 }));
-      f.position.set(s, 0.75, 2.11);
-      const b = new THREE.Mesh(lamp, new THREE.MeshStandardMaterial({ color: 0xa01010, emissive: 0x700000, emissiveIntensity: 0.5 }));
-      b.position.set(s, 0.8, -2.11);
-      g.add(f, b);
-    }
-    g.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+    const g = carMesh(THREE, model);
     g.name = 'meu-carro';
     return g;
   }
+
 
   /** O primeiro carro da conta que pode rodar. */
   const okVehicle = () => (servidor.myCars?.() ?? []).find((v) => v.state === 'ok') ?? null;
@@ -264,7 +272,9 @@ export function createPlayerCar({ THREE, scene, streetView, servidor, cars = () 
   return {
     update,
     /** O carro do jogador para os outros sistemas (sons, minimapa), ou null. */
-    position: () => (car ? { x: car.x, z: car.z, speed: car.speed, bus: false } : null),
+    position: () => (car ? { x: car.x, z: car.z, speed: car.speed, bus: false, heading: car.heading } : null),
+    /** O modelo do carro chamado (para o realtime), ou null. */
+    model: () => vehicle?.model ?? null,
     driving: () => state === 'driving',
     debug: () => ({ state, vehicle: vehicle && { id: vehicle.id, model: vehicle.model }, car: car && { x: +car.x.toFixed(1), z: +car.z.toFixed(1), speed: +car.speed.toFixed(1), onRoad: isRoad(car.x, car.z) }, near: near(), ...stats, meters: Math.round(stats.meters), maxSpeed: +(stats.maxSpeed * 3.6).toFixed(0) }),
     /** Para testes: o botão, o E e as teclas. */
