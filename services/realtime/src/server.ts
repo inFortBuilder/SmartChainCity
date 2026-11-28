@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { DistrictRoom } from './district-room.js';
 import { HttpVisitChecker, InteriorRoom, type VisitChecker } from './interior-room.js';
 import { MuteBook, moderateText } from './moderation.js';
+import { type MuteStore, PostgresMuteStore, migrateMutes } from './mute-store.js';
 import { parseShard } from './shard.js';
 import { DEFAULT_UTC_OFFSET_MIN, type WeeklyEvent, airshipText, dueEvents, eventsBetween } from './schedule.js';
 
@@ -36,6 +37,10 @@ export const configSchema = z.object({
   EVENTS_TICK_SECONDS: z.coerce.number().int().positive().default(30),
   /** game-core: o evento da semana para o texto do dirigível. Sem ele, avisos da Prefeitura. */
   GAME_CORE_URL: z.preprocess((v) => (v === '' ? undefined : v), z.url().optional()),
+  /** Postgres para guardar os silenciamentos (mute-store.ts). Sem ele, ficam só na memória do processo. */
+  DATABASE_URL: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
+  /** De quanto em quanto tempo o processo busca os silenciamentos dos outros processos. */
+  MUTE_SYNC_SECONDS: z.coerce.number().int().positive().default(30),
 });
 export type Config = z.infer<typeof configSchema>;
 
@@ -62,13 +67,45 @@ const broadcastBody = z.object({ kind: z.string().regex(/^[a-z_]{1,32}$/), text:
 export async function startRealtime(
   config: Config,
   log: Log = () => {},
-  overrides: { visits?: VisitChecker; now?: () => Date; weekly?: () => Promise<WeeklyEvent | null> } = {},
+  overrides: { visits?: VisitChecker; now?: () => Date; weekly?: () => Promise<WeeklyEvent | null>; muteStore?: MuteStore } = {},
 ) {
   const now = overrides.now ?? (() => new Date());
+  // Silenciamentos no banco: o mesmo Postgres dos outros serviços, esquema `realtime`.
+  let pool: { end(): Promise<void> } | null = null;
+  let muteStore: MuteStore | null = overrides.muteStore ?? null;
+  if (!muteStore && config.DATABASE_URL) {
+    const { Pool } = await import('pg');
+    const p = new Pool({ connectionString: config.DATABASE_URL, max: 3 });
+    await migrateMutes(p);
+    pool = p;
+    muteStore = new PostgresMuteStore(p);
+  }
   const registry = new Set<DistrictRoom>();
   const worldUrl = config.WORLD_URL ?? (config.NODE_ENV === 'production' ? undefined : 'http://127.0.0.1:8030');
   // Um silêncio vale em todas as salas: bairro e interior.
   const mutes = new MuteBook();
+  // Carrega os que valem, grava os novos e busca os dos outros processos de tempos em tempos.
+  let lastId: number | null = null;
+  const syncMutes = async () => {
+    if (!muteStore) return 0;
+    const rows = await muteStore.active(now(), lastId);
+    for (const r of rows) {
+      mutes.restore(r.account, r.until.getTime());
+      if (lastId === null || r.id > lastId) lastId = r.id;
+    }
+    return rows.length;
+  };
+  if (muteStore) {
+    const loaded = await syncMutes();
+    log('mutes.loaded', { active: loaded });
+    mutes.onMute((m) => {
+      muteStore!.save({ account: m.account, until: new Date(m.until), reason: m.reason }).catch((e: Error) => log('mutes.save_failed', { error: e.message }));
+    });
+  }
+  const muteTimer = muteStore
+    ? setInterval(() => void syncMutes().catch((e: Error) => log('mutes.sync_failed', { error: e.message })), config.MUTE_SYNC_SECONDS * 1000)
+    : null;
+  muteTimer?.unref();
   const shard = parseShard(config.SHARD);
   DistrictRoom.deps = {
     shard,
@@ -189,9 +226,13 @@ export async function startRealtime(
     port,
     registry,
     tick,
+    syncMutes,
+    mutes,
     stop: async () => {
       if (timer) clearInterval(timer);
+      if (muteTimer) clearInterval(muteTimer);
       await gameServer.gracefullyShutdown(false);
+      await pool?.end();
     },
   };
 }

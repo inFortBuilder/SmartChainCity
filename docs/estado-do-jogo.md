@@ -70,7 +70,7 @@ O GDD amarra o ganho do turno à moradia. Já funcionam a regularização, água
 | Falta | Quem | Observação |
 |---|---|---|
 | ✅ **Agenda de eventos ao vivo:** dirigível 3 vezes ao dia com o evento da semana e o anúncio do Ano Novo, Carnaval e Natal | 🔧 | realtime; faltam os anúncios pagos de jogadores (fase 2) |
-| ⬜ **Presença no Redis** para vários processos (hoje cada processo tem o seu matchmaker; o shard por bairro já divide a carga) e **silenciamentos guardados em banco** | 🔧 | Redis seria um serviço a mais na máquina local |
+| ⬜ **Presença no Redis** para vários processos (hoje cada processo tem o seu matchmaker; o shard por bairro já divide a carga). Os silenciamentos já ficam no Postgres e valem em todos os processos | 🔧 | Redis seria um serviço a mais na máquina local |
 | 🟡 **Eventos de data marcada** (Natal, Carnaval): o anúncio já sai pela agenda; faltam os efeitos de jogo (itens e bônus da data) | 👤 🔧 | E3.10 |
 | ⬜ **Espaços Spatial**: stand de vendas, Prefeitura Virtual e showroom | 👤 | E4.4; plataforma externa |
 | ⬜ **Live Ops** em ondas: anel A2, franquias e food trucks, mineração e combustível, energia, staking, transporte, marcas, mobile e idiomas | 🔧 👤 | Etapa 5 do ROADMAP; cada onda só abre com o painel econômico saudável |
