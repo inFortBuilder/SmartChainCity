@@ -262,7 +262,27 @@ O OSM da cidade só traz o polígono das ruas, sem a linha do meio. O carro se g
 - com o avatar parado na rua, 14 m à frente de um carro a 6 a 8 m/s: o carro parou a 4,5 m, 5 m e 7 m nas três tentativas;
 - no Node, em duas ruas de 10 m que se cruzam: seguindo reto, atravessou o cruzamento; entrando, virou à direita e ficou na faixa; numa rua sem saída, deu a volta. Nenhum passo fora da rua, e no máximo 0,3 m fora da faixa.
 
-**Limites desta versão:** não há semáforo nem preferência no cruzamento, e o carro não vira à esquerda. O carro já para para o pedestre que atravessa na faixa ([travessia](#travessia-na-faixa)). Os sons ficam para os próximos passos.
+**Limites desta versão:** o carro não vira à esquerda e não há preferência no cruzamento sem semáforo. O carro já para para o pedestre que atravessa na faixa ([travessia](#travessia-na-faixa)) e no semáforo ([semáforos](#semáforos-nos-cruzamentos-fase-3)). Os sons ficam para os próximos passos.
+
+## Semáforos nos cruzamentos (fase 3)
+
+`semaforos.js` põe semáforo onde há duas ou mais faixas de pedestre a menos de 22 m umas das outras (um cruzamento). Faixa sozinha continua sem semáforo, com a regra de olhar os carros.
+
+- **Grupos:** cada faixa é um braço do cruzamento. Os braços se dividem em dois grupos pelo rumo da rua: o do primeiro braço e os que ficam a menos de 30° dele, e os outros. Num cruzamento em +, os braços opostos ficam no mesmo grupo; num T, a rua que passa é um grupo e a que chega é o outro.
+- **Ciclo de 33 s:** grupo 1 verde 12 s, amarelo 3 s, todos no vermelho 1,5 s; depois o grupo 2, igual. Os dois grupos nunca ficam verdes ou amarelos ao mesmo tempo. O ciclo de cada cruzamento começa num ponto sorteado pela posição dele.
+- **Postes:** um em cada ponta da faixa, com a caixa e as três luzes viradas para quem chega. As luzes acendem pela cor do braço.
+- **Carro:** no vermelho, para antes da faixa (1 m antes da listra), freando a até 3 m/s². No amarelo, para se ainda faltam mais de 4 m até a linha; senão, segue. Só conta a faixa da rua dele, de quem chega ao cruzamento.
+- **Pedestre:** começa a atravessar quando os carros daquele braço estão no vermelho, se ainda falta vermelho para cruzar a rua inteira (largura ÷ 1,1 m/s + 1 s) e nenhum carro andando está a menos de 5 m da faixa. Espera até 35 s.
+
+`?semaforos=0` desliga. O mapa expõe `__pittsburg.signals()` com `arms()`, `walkOk(faixa)` e `debug()`.
+
+**PREMISSAS:** cruzamento com faixas a menos de 22 m; ciclo de 33 s (12 + 3 + 1,5 por grupo); grupos por 30°; parada 1 m antes da faixa; amarelo segue a menos de 4 m.
+
+**Testado** em 2026-11-28, no cruzamento em T de (-1397, 4857):
+- 1 cruzamento, 3 braços (2 no grupo da rua que passa, 1 no da que chega) e 6 postes; as três cores apareceram;
+- em 30 s, os carros pararam 25 vezes no vermelho. Entrando no cruzamento, um carro foi visto na faixa com o vermelho numa amostra só (0,25 s), o que bate com o carro que passou a linha no amarelo. Os outros 5 casos eram carros saindo do cruzamento pela rua em que tinham virado;
+- pedestres na faixa com o verde dos carros: 76 em 291 amostras na primeira versão, que deixava começar a travessia no fim do vermelho; 6 em 243 depois do segundo commit, que pede vermelho para cruzar a rua toda. Quem ainda está na faixa continua protegido: o carro para para ele;
+- no Node, o ciclo dá a sequência esperada para os dois grupos, e o cruzamento em + sai com 4 braços em 2 grupos, sem a faixa solta.
 
 ## Ônibus e pontos de ônibus (fase 3)
 

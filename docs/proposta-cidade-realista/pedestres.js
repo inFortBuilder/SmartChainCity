@@ -10,7 +10,8 @@
 // - A quantidade segue o FPS: abaixo de 45, tira 4 (até 4); acima de 55, põe 2 (até 24).
 // - Na ponta de uma faixa de pedestre (faixas.js), metade atravessa: espera no meio-fio até não haver
 //   carro andando a menos de 12 m da faixa (desiste depois de 8 s) e cruza em linha reta até a outra
-//   calçada. Enquanto atravessa, os carros param para ele (carros.js, `walkers`).
+//   calçada. Enquanto atravessa, os carros param para ele (carros.js, `walkers`). Na faixa com semáforo
+//   (semaforos.js), espera os carros daquele braço ficarem no vermelho (até 35 s).
 // - Passando por um ponto de ônibus (onibus.js), 40% vão esperar no ponto (até 45 s). Quando o ônibus
 //   para com a porta a menos de 10 m, embarcam: andam até a porta e saem da cena.
 //
@@ -37,6 +38,8 @@ export const PEDS = {
   crossReach: 1.2,
   carClear: 12,
   crossWait: 8,
+  /** Espera máxima (s) na faixa com semáforo (o ciclo é de 33 s). */
+  signalWait: 35,
   /** Ponto de ônibus: chance de esperar, alcance do ponto (m), espera máxima (s) e a porta a menos de (m). */
   board: 0.4,
   stopReach: 2.5,
@@ -88,7 +91,7 @@ export function crosswalkEnds(list, walk) {
   return out;
 }
 
-export function createPedestrians({ THREE, scene, streetView, cars = () => [], buses = () => [], opt = PEDS, rand = Math.random }) {
+export function createPedestrians({ THREE, scene, streetView, cars = () => [], buses = () => [], signals = null, opt = PEDS, rand = Math.random }) {
   const group = new THREE.Group();
   group.name = 'pedestres';
   scene.add(group);
@@ -96,7 +99,7 @@ export function createPedestrians({ THREE, scene, streetView, cars = () => [], b
   let target = opt.start;
   let assets = null;
   const fps = { frames: 0, time: 0, value: 60 };
-  const stats = { spawned: 0, removed: 0, turns: 0, blocked: 0, crossed: 0, waitedCar: 0, gaveUp: 0, atStop: 0, boarded: 0, leftStop: 0 };
+  const stats = { spawned: 0, removed: 0, turns: 0, blocked: 0, crossed: 0, waitedCar: 0, gaveUp: 0, atStop: 0, boarded: 0, leftStop: 0, onRed: 0 };
   let stops = [];
   // Pontas das faixas, refeitas a cada segundo (a grade muda quando o avatar anda).
   let ends = [];
@@ -244,10 +247,14 @@ export function createPedestrians({ THREE, scene, streetView, cars = () => [], b
         if (c.waiting) {
           // No meio-fio: atravessa quando não há carro andando perto da faixa.
           c.waited += dt;
-          if (!carNear(c.cx, c.cz)) {
+          // Com semáforo: o vermelho dos carros (e nenhum carro andando colado na faixa). Sem: rua livre.
+          const signal = signals?.has(c.key);
+          const go = signal ? signals.walkOk(c.key) && !cars().some((v) => v.speed > 2 && Math.hypot(v.x - c.cx, v.z - c.cz) < 5) : !carNear(c.cx, c.cz);
+          if (go) {
+            if (signal) stats.onRed++;
             c.waiting = false;
             ped.inst.play('walk');
-          } else if (c.waited > opt.crossWait) {
+          } else if (c.waited > (signal ? opt.signalWait : opt.crossWait)) {
             ped.cross = null;
             ped.lastCw = c.key;
             ped.inst.play('walk');

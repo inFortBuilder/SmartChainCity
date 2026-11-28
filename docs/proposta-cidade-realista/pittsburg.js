@@ -18,6 +18,7 @@ import { createStreetMarket } from './mercado-rua.js';
 import { createStreetStores } from './lojas-rua.js';
 import { createPedestrians } from './pedestres.js';
 import { createTraffic } from './carros.js';
+import { createSignals } from './semaforos.js';
 import { applyLight, cityHour } from './ceu.js';
 import { createMercado } from './mercado.js';
 
@@ -227,6 +228,8 @@ let streetStores = null;
 let pedestrians = null;
 /** Carros nas ruas do street view (carros.js, fase 3). */
 let traffic = null;
+/** Semáforos nos cruzamentos do street view (semaforos.js, fase 3). */
+let signals = null;
 let mercado = null;
 
 // ---------- Visitas: entrar nos imóveis pelo street view ----------
@@ -826,9 +829,11 @@ try {
     streetMarket = createStreetMarket({ THREE, scene, city: 'pittsburg', groundY: streetView.groundY(), servidor, streetView });
     streetStores = createStreetStores({ THREE, scene, city: 'pittsburg', groundY: streetView.groundY(), servidor, streetView });
     // Cidade viva (fase 3): gente nas calçadas, só deste navegador. ?pedestres=0 desliga.
-    if (PARAMS.get('pedestres') !== '0') pedestrians = createPedestrians({ THREE, scene, streetView, cars: () => traffic?.positions() ?? [], buses: () => traffic?.buses() ?? [] });
+    // Semáforos (fase 3): nos cruzamentos com duas ou mais faixas. ?semaforos=0 desliga.
+    if (PARAMS.get('semaforos') !== '0') signals = createSignals({ THREE, scene, streetView });
+    if (PARAMS.get('pedestres') !== '0') pedestrians = createPedestrians({ THREE, scene, streetView, cars: () => traffic?.positions() ?? [], buses: () => traffic?.buses() ?? [], signals });
     // Trânsito (fase 3): carros do cliente na mão direita. ?transito=0 desliga.
-    if (PARAMS.get('transito') !== '0') traffic = createTraffic({ THREE, scene, streetView, walkers: () => pedestrians?.onRoad() ?? [] });
+    if (PARAMS.get('transito') !== '0') traffic = createTraffic({ THREE, scene, streetView, walkers: () => pedestrians?.onRoad() ?? [], signals: () => signals?.arms() ?? [] });
     // Volta de uma visita: ?rua=x,z,rumo põe o avatar de novo na rua, onde estava.
     const rua = PARAMS.get('rua')?.split(',').map(Number);
     if (rua?.length === 3 && rua.every(Number.isFinite)) {
@@ -837,7 +842,7 @@ try {
       history.replaceState(null, '', location.pathname);
     }
   }
-  window.__pittsburg = { scene, camera, controls, renderer, buildings, light: () => streetLight, market: () => streetMarket, stores: () => streetStores, pedestrians: () => pedestrians, traffic: () => traffic, pick, showBuilding, pickLot, showLot, getLots: () => lots, gestao, civicBuilding, progressiveBuilding, loadLotsFor, servidor, multiplayer, streetView, lotAt, mercado };
+  window.__pittsburg = { scene, camera, controls, renderer, buildings, light: () => streetLight, market: () => streetMarket, stores: () => streetStores, pedestrians: () => pedestrians, traffic: () => traffic, signals: () => signals, pick, showBuilding, pickLot, showLot, getLots: () => lots, gestao, civicBuilding, progressiveBuilding, loadLotsFor, servidor, multiplayer, streetView, lotAt, mercado };
 
   // Spike E0.9: ?spike (ou ?spike=20) mede download, FPS e 20 prédios com LOD.
   const spikeParam = new URLSearchParams(location.search).get('spike');
@@ -925,6 +930,7 @@ renderer.setAnimationLoop((now) => {
   updateLight(performance.now());
   streetMarket?.update();
   streetStores?.update();
+  signals?.update(dt);
   pedestrians?.update(dt);
   traffic?.update(dt);
   if (!streetView?.tick(dt)) {
