@@ -30,6 +30,7 @@ import { createRoadKit } from './kit-ruas.js';
 import { applyLight, cityHour } from './ceu.js';
 import { createWeather } from './clima.js';
 import { createPlazas } from './pracas.js';
+import { createCC0 } from './texturas-cc0.js';
 import { createMercado } from './mercado.js';
 
 const BASE = '../../.local/cidades/pittsburg';
@@ -108,11 +109,14 @@ function updateLight(now) {
     const hour = cityHour();
     const l = applyLight(THREE, { sky, sun, hemi, renderer, scene }, hour);
     weather?.apply({ sun, hemi, renderer }, l);
+    // A luz de ambiente do HDRI acompanha o céu (a hora e o clima).
+    cc0?.setEnv(true, hemi.intensity / 2.2);
     if (streetLight?.night !== l.night) streetView.setNight(l.night);
     streetLight = { ...l, hour };
   } else if (!on && streetLight) {
     streetLight = null;
     weather?.clear();
+    cc0?.setEnv(false);
     sky.material.uniforms.sunPosition.value.copy(MAP_LIGHT.sunPos);
     sun.position.copy(MAP_LIGHT.sunPos).multiplyScalar(1000);
     sun.intensity = MAP_LIGHT.sun;
@@ -241,6 +245,8 @@ let streetStores = null;
 /** Locais de trabalho na rua, um por setor de profissão (trabalho.js, fase 4). */
 let workplaces = null;
 let plazas = null;
+/** Texturas e luz de ambiente CC0 de .local/cc0 (texturas-cc0.js). ?cc0=0 desliga. */
+let cc0 = null;
 /** Pedestres nas calçadas do street view (pedestres.js, fase 3). */
 let pedestrians = null;
 /** Carros nas ruas do street view (carros.js, fase 3). */
@@ -885,7 +891,7 @@ try {
       };
       return () => [def];
     })();
-    if (civicPlaza && PARAMS.get('pracas') !== '0') plazas = createPlazas({ THREE, scene, streetView, list: civicPlaza });
+    if (civicPlaza && PARAMS.get('pracas') !== '0') plazas = createPlazas({ THREE, scene, streetView, list: civicPlaza, paving: () => cc0?.set('pedra') });
     // Cidade viva (fase 3): gente nas calçadas, só deste navegador. ?pedestres=0 desliga.
     // Semáforos (fase 3): nos cruzamentos com duas ou mais faixas. ?semaforos=0 desliga.
     if (PARAMS.get('semaforos') !== '0') signals = createSignals({ THREE, scene, streetView });
@@ -900,6 +906,14 @@ try {
     if (traffic) busRide = createBusRide({ streetView, traffic, servidor });
     roadGraph = createRoadGraph({ THREE, scene, streetView, show: PARAMS.get('grafo') === '1' });
     if (PARAMS.get('kit') !== '0') roadKit = createRoadKit({ THREE, scene, streetView, roadGraph, roads: roadsMesh, loadGltf: (url) => new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).loadAsync(url) });
+    if (PARAMS.get('cc0') !== '0') {
+      cc0 = createCC0({ THREE, renderer, scene });
+      cc0.ready.then(() => {
+        cc0.dressRoads(roadsMesh);
+        cc0.dress(streetView.sidewalkMaterial(), 'concreto');
+        streetLightAt = 0; // reaplica a luz já com o ambiente
+      });
+    }
     // Minimapa e GPS (fase 4): os lugares do jogo na rua são os destinos. ?minimapa=0 desliga.
     let phonePlaces = () => [];
     if (PARAMS.get('minimapa') !== '0') {
@@ -924,7 +938,7 @@ try {
       history.replaceState(null, '', location.pathname);
     }
   }
-  window.__pittsburg = { scene, camera, controls, renderer, buildings, light: () => streetLight, market: () => streetMarket, stores: () => streetStores, workplaces: () => workplaces, pedestrians: () => pedestrians, traffic: () => traffic, signals: () => signals, sounds: () => sounds, busRide: () => busRide, minimap: () => minimap, phone: () => phone, weather: () => weather, plazas: () => plazas, roadGraph: () => roadGraph, roadKit: () => roadKit, playerCar: () => playerCar, pick, showBuilding, pickLot, showLot, getLots: () => lots, gestao, civicBuilding, progressiveBuilding, loadLotsFor, servidor, multiplayer, streetView, lotAt, mercado };
+  window.__pittsburg = { scene, camera, controls, renderer, buildings, light: () => streetLight, market: () => streetMarket, stores: () => streetStores, workplaces: () => workplaces, pedestrians: () => pedestrians, traffic: () => traffic, signals: () => signals, sounds: () => sounds, busRide: () => busRide, minimap: () => minimap, phone: () => phone, weather: () => weather, plazas: () => plazas, cc0: () => cc0, roadGraph: () => roadGraph, roadKit: () => roadKit, playerCar: () => playerCar, pick, showBuilding, pickLot, showLot, getLots: () => lots, gestao, civicBuilding, progressiveBuilding, loadLotsFor, servidor, multiplayer, streetView, lotAt, mercado };
 
   // Spike E0.9: ?spike (ou ?spike=20) mede download, FPS e 20 prédios com LOD.
   const spikeParam = new URLSearchParams(location.search).get('spike');

@@ -201,7 +201,7 @@ function pavingTexture(THREE) {
 }
 
 /** O piso: uma tira por sequência de células de chão em cada linha da grade. */
-function floorGeometry(THREE, grid, y) {
+function floorGeometry(THREE, grid, y, tile = 4) {
   const { nx, nz, cell, x0, z0, mask } = grid;
   const pos = [], uv = [], idx = [];
   for (let r = 0; r < nz; r++) {
@@ -213,7 +213,7 @@ function floorGeometry(THREE, grid, y) {
       const xa = x0 + start * cell, xb = x0 + c * cell, za = z0 + r * cell, zb = za + cell;
       const v = pos.length / 3;
       pos.push(xa, y, za, xb, y, za, xb, y, zb, xa, y, zb);
-      uv.push(xa, za, xb, za, xb, zb, xa, zb);
+      uv.push(xa / tile, za / tile, xb / tile, za / tile, xb / tile, zb / tile, xa / tile, zb / tile);
       idx.push(v, v + 2, v + 1, v, v + 3, v + 2);
     }
   }
@@ -229,7 +229,7 @@ function floorGeometry(THREE, grid, y) {
  * As praças da cidade. `list()` devolve as definições {id, name, rings, hole, center: [x, z], otherLot}; cada
  * uma é montada quando o avatar chega perto.
  */
-export function createPlazas({ THREE, scene, streetView, list = () => [], opt = PLAZA }) {
+export function createPlazas({ THREE, scene, streetView, list = () => [], paving: cc0Paving = () => null, opt = PLAZA }) {
   const group = new THREE.Group();
   group.name = 'pracas';
   group.visible = false;
@@ -309,7 +309,7 @@ export function createPlazas({ THREE, scene, streetView, list = () => [], opt = 
       if (d < gd) { gd = d; gk = k; }
     }
     const gps = gk >= 0 ? grid.center(gk) : { x: def.center[0], z: def.center[1] };
-    built.set(def.id, { def, grid, items, group: g, gps, ms: Math.round(performance.now() - t0) });
+    built.set(def.id, { def, grid, items, group: g, gps, floor, y, ms: Math.round(performance.now() - t0) });
   }
 
   const walkable = (x, z) => {
@@ -325,6 +325,17 @@ export function createPlazas({ THREE, scene, streetView, list = () => [], opt = 
       const on = streetView.active();
       group.visible = on;
       if (!on) { inside = null; return; }
+      // Com a pedra CC0 carregada (texturas-cc0.js), o piso troca a textura desenhada por ela.
+      const stone = cc0Paving();
+      if (stone) {
+        for (const b of built.values()) {
+          if (b.cc0) continue;
+          b.floor.geometry.dispose();
+          b.floor.geometry = floorGeometry(THREE, b.grid, b.y + 0.012, stone.tile);
+          b.floor.material = new THREE.MeshStandardMaterial({ map: stone.map, normalMap: stone.normalMap, roughnessMap: stone.roughnessMap, color: stone.tint ?? 0xffffff });
+          b.cc0 = true;
+        }
+      }
       const p = streetView.position();
       for (const def of list()) {
         if (!built.has(def.id) && Math.hypot(p.x - def.center[0], p.z - def.center[1]) < opt.buildWithin) build(def);
@@ -342,7 +353,7 @@ export function createPlazas({ THREE, scene, streetView, list = () => [], opt = 
     }),
     debug: () => ({
       inside,
-      plazas: [...built.values()].map((b) => ({ id: b.def.id, area: Math.round(b.grid.area), trees: b.items.trees.length, benches: b.items.benches.length, fountain: b.items.fountain, gps: b.gps, ms: b.ms })),
+      plazas: [...built.values()].map((b) => ({ id: b.def.id, cc0: !!b.cc0, area: Math.round(b.grid.area), trees: b.items.trees.length, benches: b.items.benches.length, fountain: b.items.fountain, gps: b.gps, ms: b.ms })),
     }),
   };
 }
