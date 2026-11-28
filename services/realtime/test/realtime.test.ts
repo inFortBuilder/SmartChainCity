@@ -118,7 +118,7 @@ async function waitFor(cond: () => boolean, ms = 3000) {
   }
 }
 
-const players = (room: Room) => room.state.players as Map<string, { name: string; x: number; z: number; mode: string; speed: number; skin: string; vehicle: string }>;
+const players = (room: Room) => room.state.players as Map<string, { name: string; x: number; z: number; mode: string; speed: number; skin: string; vehicle: string; carX: number; carZ: number; carRot: number }>;
 const messages = (room: Room, type: string) => {
   const got: Record<string, unknown>[] = [];
   room.onMessage(type, (m: Record<string, unknown>) => got.push(m));
@@ -182,6 +182,15 @@ describe('sala do bairro', () => {
     a.send('move', { x: 131, z: -42, mode: 'street', speed: 1, vehicle: 'super' });
     await waitFor(() => players(b).get(a.sessionId)?.x === 131);
     expect(players(b).get(a.sessionId)).toMatchObject({ mode: 'street', vehicle: '' });
+
+    // Estacionado: a pé, com o carro chamado, o carro fica onde está; longe demais (mais de 200 m) não vale.
+    a.send('move', { x: 132, z: -42, mode: 'street', speed: 1, car: { x: 140, z: -40, rot: 0.5, model: 'super' } });
+    await waitFor(() => players(b).get(a.sessionId)?.vehicle === 'super');
+    expect(players(b).get(a.sessionId)).toMatchObject({ carX: 140, carZ: -40 });
+    expect(players(b).get(a.sessionId)?.carRot).toBeCloseTo(0.5);
+    a.send('move', { x: 133, z: -42, mode: 'street', speed: 1, car: { x: 900, z: -40, rot: 0, model: 'super' } });
+    await waitFor(() => players(b).get(a.sessionId)?.x === 133);
+    expect(players(b).get(a.sessionId)?.vehicle).toBe('');
 
     await b.leave();
     await waitFor(() => players(a).size === 1);

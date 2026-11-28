@@ -212,13 +212,16 @@ export function createMultiplayer(map) {
         pin.walker = null;
       }
       if (pin.mode === 'street' && !pin.walker) makeWalker(pin, p.name);
-      // Dirigindo: o carro do modelo; trocou de modelo, refaz.
+      // O carro do jogador (dirigindo ou estacionado): o modelo e onde ele está; trocou de modelo, refaz.
       pin.vehicle = VEHICLES.has(p.vehicle) ? p.vehicle : null;
+      pin.carX = p.carX ?? p.x;
+      pin.carZ = p.carZ ?? p.z;
+      pin.carRot = p.carRot ?? p.rot;
       if (pin.car && pin.car.model !== pin.vehicle) {
         group.remove(pin.car.obj);
         pin.car = null;
       }
-      if (pin.mode === 'drive' && pin.vehicle && !pin.car) makeCar(pin, p.name);
+      if ((pin.mode === 'drive' || pin.mode === 'street') && pin.vehicle && !pin.car) makeCar(pin, p.name);
     });
     for (const [id, pin] of pins) {
       if (alive.has(id)) continue;
@@ -242,9 +245,14 @@ export function createMultiplayer(map) {
       pin.obj.visible = !street;
       pin.obj.position.x += (pin.x - pin.obj.position.x) * 0.2;
       pin.obj.position.z += (pin.z - pin.obj.position.z) * 0.2;
-      // Carro: segue a posição recebida na velocidade dele (longe demais, salta) e vira para o rumo.
+      // Carro: dirigindo, segue a posição recebida na velocidade dele (longe demais, salta) e vira para o rumo;
+      // estacionado (o dono a pé), fica onde o dono deixou.
       const car = pin.car;
-      if (car?.obj) {
+      if (car?.obj && pin.mode === 'street') {
+        car.obj.visible = street && !!pin.vehicle;
+        car.obj.position.set(pin.carX, car.obj.position.y, pin.carZ);
+        car.obj.rotation.y = pin.carRot;
+      } else if (car?.obj) {
         car.obj.visible = street && pin.mode === 'drive';
         const dx = pin.x - car.obj.position.x, dz = pin.z - car.obj.position.z, gap = Math.hypot(dx, dz);
         if (!car.obj.visible || gap > 40) car.obj.position.set(pin.x, car.obj.position.y, pin.z);
@@ -398,8 +406,14 @@ export function createMultiplayer(map) {
       // No street view, a posição é a do avatar, com o rumo do corpo e a velocidade.
       const p = sv.position();
       const msg = { x: p.x, z: p.z, rot: sv.bodyHeading(), mode: 'street', speed: sv.speed(), skin: getAvatarType() };
+      // O carro chamado e estacionado vai junto, para os outros o verem onde ele está.
+      const parked = car?.position();
+      if (parked && car.model()) msg.car = { x: parked.x, z: parked.z, rot: parked.heading, model: car.model() };
+      const carKey = msg.car ? `${msg.car.x.toFixed(1)},${msg.car.z.toFixed(1)},${msg.car.model}` : '';
+      msg.carKey = carKey;
       const changed =
         lastSent.mode !== 'street' ||
+        lastSent.carKey !== carKey ||
         lastSent.skin !== msg.skin || Math.hypot(p.x - lastSent.x, p.z - lastSent.z) > 0.05 || msg.speed !== lastSent.speed || Math.abs(msg.rot - lastSent.rot) > 0.05;
       if (changed) {
         room.send('move', msg);
@@ -438,7 +452,9 @@ export function createMultiplayer(map) {
       const out = [];
       for (const p of pins.values()) {
         if (p.mode === 'drive' && p.car?.obj?.visible) out.push({ kind: 'carro', x: p.car.obj.position.x, z: p.car.obj.position.z, heading: p.car.obj.rotation.y, speed: p.speed ?? 0 });
-        else if (p.mode === 'street' && p.walker?.obj?.visible) out.push({ kind: 'pessoa', x: p.walker.obj.position.x, z: p.walker.obj.position.z });
+        if (p.mode === 'street' && p.walker?.obj?.visible) out.push({ kind: 'pessoa', x: p.walker.obj.position.x, z: p.walker.obj.position.z });
+        // O carro estacionado de quem anda: parado.
+        if (p.mode === 'street' && p.car?.obj?.visible) out.push({ kind: 'carro', x: p.car.obj.position.x, z: p.car.obj.position.z, heading: p.car.obj.rotation.y, speed: 0 });
       }
       return out;
     },

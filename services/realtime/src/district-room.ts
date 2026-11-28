@@ -27,8 +27,14 @@ export const Player = schema(
     speed: t.float32().default(0),
     /** Tipo de avatar no street view: `man` ou `woman` (manequins da Universal Animation Library). */
     skin: t.string().default('man'),
-    /** Dirigindo (`drive`): o modelo do carro (`hatch`, `sedan`, `super`); vazio a pé. */
+    /**
+     * O carro do jogador na rua: o modelo (`hatch`, `sedan`, `super`), dirigindo (`drive`) ou estacionado (a pé,
+     * com o carro chamado); vazio sem carro. `carX`, `carZ` e `carRot` dizem onde ele está.
+     */
     vehicle: t.string().default(''),
+    carX: t.float32().default(0),
+    carZ: t.float32().default(0),
+    carRot: t.float32().default(0),
   },
   'Player',
 );
@@ -63,6 +69,8 @@ const MAX_SPEED = 10; // m/s: acima disso não é caminhada
 /** Dirigindo: até 30 m/s (108 km/h, acima dos 90 km/h do superesportivo). */
 const MAX_DRIVE_SPEED = 30;
 const VEHICLES = new Set(['hatch', 'sedan', 'super']);
+/** O carro estacionado fica a até 200 m de quem anda (senão, não vale). */
+const MAX_CAR_DISTANCE = 200;
 const SKINS = new Set(['man', 'woman']);
 /** Nome antigo do manequim feminino, de clientes que ainda não atualizaram. */
 const skinOf = (v: unknown) => (v === 'human' ? 'woman' : v);
@@ -101,7 +109,7 @@ export class DistrictRoom extends Room {
     this.setMetadata({ city, district });
     deps.registry.add(this);
 
-    this.onMessage('move', (client, msg: { x?: unknown; z?: unknown; rot?: unknown; mode?: unknown; speed?: unknown; skin?: unknown; vehicle?: unknown }) => {
+    this.onMessage('move', (client, msg: { x?: unknown; z?: unknown; rot?: unknown; mode?: unknown; speed?: unknown; skin?: unknown; vehicle?: unknown; car?: { x?: unknown; z?: unknown; rot?: unknown; model?: unknown } }) => {
       const p = this.state.players.get(client.sessionId);
       if (!p || !this.moves.take(client.sessionId)) return;
       const x = Number(msg?.x);
@@ -116,8 +124,25 @@ export class DistrictRoom extends Room {
       p.mode = typeof msg?.mode === 'string' && MODES.has(msg.mode) ? msg.mode : 'map';
       const limit = p.mode === 'drive' ? MAX_DRIVE_SPEED : p.mode === 'street' ? MAX_SPEED : 0;
       p.speed = Math.min(limit, Math.max(0, speed));
-      // Dirigindo, o modelo do carro (desconhecido vira hatch); a pé, nenhum.
-      p.vehicle = p.mode === 'drive' ? (typeof msg?.vehicle === 'string' && VEHICLES.has(msg.vehicle) ? msg.vehicle : 'hatch') : '';
+      // Dirigindo: o carro é o do jogador (o modelo desconhecido vira hatch). A pé, no street view: o carro
+      // estacionado, se veio um válido perto dele. No mapa, ou sem carro: nenhum.
+      if (p.mode === 'drive') {
+        p.vehicle = typeof msg?.vehicle === 'string' && VEHICLES.has(msg.vehicle) ? msg.vehicle : 'hatch';
+        p.carX = x;
+        p.carZ = z;
+        p.carRot = rot;
+      } else {
+        const c = p.mode === 'street' ? msg?.car : null;
+        const cx = Number(c?.x), cz = Number(c?.z), cr = Number(c?.rot ?? 0);
+        const ok =
+          c && typeof c.model === 'string' && VEHICLES.has(c.model) && [cx, cz, cr].every(Number.isFinite) && Math.hypot(cx - x, cz - z) <= MAX_CAR_DISTANCE;
+        p.vehicle = ok ? (c.model as string) : '';
+        if (ok) {
+          p.carX = cx;
+          p.carZ = cz;
+          p.carRot = cr;
+        }
+      }
       // Tipo de avatar desconhecido não muda o atual.
       const skin = skinOf(msg?.skin);
       if (typeof skin === 'string' && SKINS.has(skin)) p.skin = skin;

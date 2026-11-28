@@ -484,7 +484,15 @@ Dirigindo, o carro vai para quem está no mesmo bairro, pelo `realtime`:
   - na aba B, com 10 carros por 1 minuto: 0 batidas no carro de A, 151 amostras de carro parado atrás dele, e a menor distância de 5,1 m entre os centros;
   - na captura, a fila na faixa da direita atrás do carro de A.
 
-**Limites desta versão:** o carro estacionado (fora de uso) não aparece para os outros. Por isso, o trânsito dos outros não freia por ele. O GPS já tem o trabalho como destino ([locais de trabalho](#locais-de-trabalho-fase-4)).
+**O carro estacionado também aparece.**
+- **Servidor:** o campo `vehicle` passou a ser o carro do jogador na rua, dirigindo ou estacionado, com `carX`, `carZ` e `carRot`. A pé, o cliente manda o carro chamado (`car: {x, z, rot, model}`). Ele só vale a até 200 m de quem anda; sem ele, o carro some.
+- **Quem vê:** desenha o carro onde o dono o deixou, junto com o avatar a pé. O trânsito freia por ele como por um carro parado.
+
+**Testado** em 2026-11-28:
+- `realtime`: o teste da sala cobre o carro estacionado que chega aos outros com a posição e o rumo, e o que fica a mais de 200 m e não vale. A suíte passa (22 testes);
+- no navegador, com duas abas no bairro 8, a aba A chamou o Hatch, sem dirigir (sem combustível), e ficou a pé ao lado;
+- a aba B viu os dois: o avatar a pé de A e o Hatch estacionado em (-2007,5; 4314), onde A o deixou;
+- com 10 carros por 1 minuto na aba B: 0 batidas no carro estacionado, 254 amostras de carro parado atrás dele, a no mínimo 5,1 m. Na captura, a fila até o Hatch de A, com o nome dele em cima e o avatar na calçada. O GPS já tem o trabalho como destino ([locais de trabalho](#locais-de-trabalho-fase-4)).
 ## Locais de trabalho (fase 4)
 
 O turno do game-core não tem lugar: o avatar trabalha pelo painel (`POST /v1/avatars/:id/work`). Para o GPS ter o trabalho como destino, `trabalho.js` divide as 44 profissões do catálogo em 12 setores. Cada setor tem um prédio na rua, com a mesma casca da loja do jogo e da farmácia: paredes, porta, letreiro e um balcão no fundo.
