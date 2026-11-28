@@ -181,7 +181,7 @@ export function createTraffic({ THREE, scene, streetView, opt = CARS, rand = Mat
     stats.removed++;
   }
 
-  /** Alguém na frente, no mesmo sentido de marcha (cone de ±25°, até `gap`): o carro freia. */
+  /** Alguém na frente (até `gap` m, numa faixa de 1,4 m para carros e 2,6 m para o avatar): o carro freia. */
   function blockedAhead(car, a) {
     const fx = Math.sin(car.heading), fz = Math.cos(car.heading);
     const ahead = (x, z, r) => {
@@ -189,7 +189,11 @@ export function createTraffic({ THREE, scene, streetView, opt = CARS, rand = Mat
       const along = dx * fx + dz * fz;
       return along > 0 && along < opt.gap && Math.abs(dx * fz - dz * fx) < r;
     };
-    if (isRoad(a.x, a.z) && ahead(a.x, a.z, 1.6)) return true;
+    // O avatar na rua: faixa larga (o carro corrige a faixa e não pode escapar dele) e parada firme a menos de 5 m.
+    if (isRoad(a.x, a.z)) {
+      const dx = a.x - car.x, dz = a.z - car.z;
+      if (ahead(a.x, a.z, 2.6) || (dx * fx + dz * fz > 0 && Math.hypot(dx, dz) < 5)) return true;
+    }
     return cars.some((o) => o !== car && ahead(o.x, o.z, 1.4));
   }
 
