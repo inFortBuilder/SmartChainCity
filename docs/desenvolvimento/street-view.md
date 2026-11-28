@@ -86,6 +86,30 @@ O OSM de Pittsburg quase não desenha as faixas, então `faixas.js` as tira da g
 - no cruzamento de (-1397, 4857), as 3 chegadas tiveram cada uma a sua faixa, depois de tirar as repetidas (antes eram 6);
 - a grade completa (calçada, postes, árvores e faixas) é montada em cerca de 29 ms.
 
+## Mercado da Prefeitura na rua (fase 2)
+
+O primeiro lugar da fase 2 do [mundo aberto](mundo-aberto-terceira-pessoa.md) (comprar e consumir). O Mercado da Prefeitura (`mercado-rua.js`) fica num lote ao lado da calçada, perto do cruzamento de (-1397, 4857), em Pittsburg.
+
+- **Entrar:** pela porta, sem tela de carregamento. Dentro, o chão fica na altura do meio-fio. Paredes e telhado seguram a câmera, e uma luz acende o salão.
+- **Dentro:** 4 gôndolas com os alimentos do catálogo do game-core (a cor sai do grupo), o caixa à direita da porta e o balcão de lanches à esquerda.
+- **Comprar:**
+  - na gôndola, **E** põe o pacote no carrinho, que fica no canto da tela com o total;
+  - no caixa, **E** paga, e cada pacote vai para a despensa pela rota do painel (`POST /v1/avatars/:id/pantry`);
+  - no balcão, **E** come na hora (`POST /v1/avatars/:id/meals`), e **Q** troca o alimento;
+  - o aviso também tem um botão, para o celular.
+- **Regras:** as do servidor. Se a compra para (despensa cheia, sem saldo), o carrinho fica com o que faltou e mostra o motivo.
+- **No game-core:** no mercado, dá para comprar de novo, porque cada compra soma o tempo dela ao que falta. Antes, a 2ª compra dava `at_market` e impedia o carrinho. O turno e o lazer continuam travados enquanto o avatar está no mercado.
+- **Peças:** procedurais, como o mobiliário da rua. O interior do SCC Kit ([ADR-0015](../adr/0015-render-realista-e-biblioteca-3d.md)) entra depois.
+- **Premissas:** o lugar, o tamanho (14 × 12 m) e a arrumação.
+
+**Testado** em 2026-11-28 com a conta de teste:
+- o avatar foi da rua até a porta e entrou;
+- pegou Ovos e Leite em duas vagas da gôndola;
+- no caixa, os Ovos foram para a despensa (de 5 para 8 unidades);
+- o Leite foi recusado: sem moradia, cabem 10, e seriam 11. O carrinho ficou com o Leite e o aviso "A despensa está cheia".
+
+O teste também pegou uma fresta entre a rua e a calçada, onde o avatar empacava. A célula de rua da grade passou a valer como chão.
+
 **Limites desta versão:**
 - A borda segue a grade de 0,5 m (diagonais de 45°); uma curva fina, tirada do polígono da rua, fica para depois.
 - A camada de lotes de Pittsburg passa por cima das ruas: com "Lotes" ligado, o chão fica amarelo no street view.
