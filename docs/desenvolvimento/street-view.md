@@ -43,6 +43,27 @@ Parte da fase 1 do [mundo aberto em terceira pessoa](mundo-aberto-terceira-pesso
 - o pulo chegou a 0,94 m e pousou no meio-fio;
 - a câmera parou antes da parede de teste.
 
+## Postes, árvores e céu pela hora
+
+- **Mobiliário** (`mobiliario.js`):
+  - postes de luz no meio-fio, um a cada ~24 m, com o braço para a rua; árvores no lado de dentro da calçada, a cada ~11 m;
+  - a posição sai de um sorteio fixo pela posição no mundo, e refazer a grade não tira nada do lugar;
+  - são 5 malhas procedurais instanciadas, sem arquivo externo; um GLB CC0 entra no lugar quando o SCC Kit tiver a peça;
+  - poste e árvore ocupam a célula da calçada, e o avatar contorna.
+- **Céu** (`ceu.js`):
+  - no street view, o sol, o céu, a exposição e a neblina seguem a hora de Brasília (o mesmo fuso da agenda do realtime); `?hora=HH` força uma hora para testar;
+  - o sol nasce às 6 h e se põe às 18 h e sobe a 70° ao meio-dia, com luz quente quando está baixo;
+  - à noite, as luminárias dos postes acendem (emissivas, sem luz real por poste, para caber no orçamento);
+  - na visão de mapa, volta o céu fixo de sempre.
+- **Premissas:** os espaçamentos, as alturas (poste de 6 m, árvore de ~4,5 m) e o nascer e o pôr do sol fixos, sem estação do ano.
+
+**Testado** em 2026-11-28 perto do Centro Administrativo:
+- ao meio-dia, 5 postes e 14 árvores em volta do avatar;
+- às 21 h, céu escuro e luminárias acesas;
+- às 17h30, o sol a 9° e a luz mais quente;
+- o avatar mandado contra um poste contornou a célula;
+- ao voltar ao mapa, a exposição voltou a 0,85.
+
 **Limites desta versão:**
 - A borda da calçada sai em degraus de 0,5 m (a grade). Fica para depois um contorno suave, tirado do polígono da rua.
 - A faixa de pedestre não é desenhada; a rua inteira continua caminhável, como antes.

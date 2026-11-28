@@ -14,6 +14,7 @@ import { createServidor } from './servidor.js';
 import { createCortinas } from './cortinas.js';
 import { createMultiplayer } from './multiplayer.js';
 import { createStreetView } from './streetview.js';
+import { applyLight, cityHour } from './ceu.js';
 import { createMercado } from './mercado.js';
 
 const BASE = '../../.local/cidades/pittsburg';
@@ -76,7 +77,32 @@ scene.add(sky);
 
 const sun = new THREE.DirectionalLight(0xfff4e6, 2.6);
 sun.position.copy(sunDir).multiplyScalar(1000);
-scene.add(sun, new THREE.HemisphereLight(0xffffff, 0xa89f8c, 2.2));
+const hemi = new THREE.HemisphereLight(0xffffff, 0xa89f8c, 2.2);
+scene.add(sun, hemi);
+// O céu de sempre (visão de mapa): volta ao sair do street view.
+const MAP_LIGHT = { sunPos: sky.material.uniforms.sunPosition.value.clone(), sun: sun.intensity, sunColor: sun.color.clone(), hemi: hemi.intensity, exposure: renderer.toneMappingExposure, fog: scene.fog.color.clone() };
+let streetLight = null; // a hora aplicada no street view (null: céu do mapa)
+let streetLightAt = 0;
+/** No street view, o céu e a luz seguem a hora da cidade (ceu.js); no mapa, o céu fixo de sempre. */
+function updateLight(now) {
+  const on = !!streetView?.active();
+  if (on && (!streetLight || now - streetLightAt > 5000)) {
+    streetLightAt = now;
+    const hour = cityHour();
+    const l = applyLight(THREE, { sky, sun, hemi, renderer, scene }, hour);
+    if (streetLight?.night !== l.night) streetView.setNight(l.night);
+    streetLight = { ...l, hour };
+  } else if (!on && streetLight) {
+    streetLight = null;
+    sky.material.uniforms.sunPosition.value.copy(MAP_LIGHT.sunPos);
+    sun.position.copy(MAP_LIGHT.sunPos).multiplyScalar(1000);
+    sun.intensity = MAP_LIGHT.sun;
+    sun.color.copy(MAP_LIGHT.sunColor);
+    hemi.intensity = MAP_LIGHT.hemi;
+    renderer.toneMappingExposure = MAP_LIGHT.exposure;
+    scene.fog.color.copy(MAP_LIGHT.fog);
+  }
+}
 
 // predios.json vira uma grade de 200 m para achar o prédio do clique sem varrer 75 mil.
 const CELL = 200;
@@ -786,7 +812,7 @@ try {
       history.replaceState(null, '', location.pathname);
     }
   }
-  window.__pittsburg = { scene, camera, controls, renderer, buildings, pick, showBuilding, pickLot, showLot, getLots: () => lots, gestao, civicBuilding, progressiveBuilding, loadLotsFor, servidor, multiplayer, streetView, lotAt, mercado };
+  window.__pittsburg = { scene, camera, controls, renderer, buildings, light: () => streetLight, pick, showBuilding, pickLot, showLot, getLots: () => lots, gestao, civicBuilding, progressiveBuilding, loadLotsFor, servidor, multiplayer, streetView, lotAt, mercado };
 
   // Spike E0.9: ?spike (ou ?spike=20) mede download, FPS e 20 prédios com LOD.
   const spikeParam = new URLSearchParams(location.search).get('spike');
@@ -871,6 +897,7 @@ renderer.setAnimationLoop((now) => {
   const dt = svLast ? (now - svLast) / 1000 : 0;
   svLast = now;
   // No street view, a câmera segue o avatar; no mapa, os controles de órbita.
+  updateLight(performance.now());
   if (!streetView?.tick(dt)) {
     controls.update();
     updateNearPlane();
