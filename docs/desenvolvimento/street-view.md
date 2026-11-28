@@ -238,6 +238,36 @@ Os carros param para quem está atravessando, se ele estiver em qualquer ponto d
 
 ## Trânsito nas ruas (fase 3)
 
+> **Atualizado em 2026-11-28: o trânsito anda pelas faixas do grafo das ruas** (ver "Trânsito pelas faixas", logo abaixo). O guia pelo meio-fio descrito depois continua só no carro do jogador e nos testes; a preferência pela direita foi trocada por "um carro por vez no cruzamento".
+
+### Trânsito pelas faixas
+
+O guia pelo meio-fio deixava o carro sair na contramão nos cruzamentos, colar no da frente e passar por cima de outro. Agora `carros.js` usa as faixas de `vias.js`, tiradas do grafo das ruas (`ruas-grafo.js`):
+
+| Regra | Como |
+|---|---|
+| Mão direita | Cada trecho tem uma faixa em cada sentido, a 1/4 da largura da linha do meio (mínimo 1,6 m), à direita de quem anda. O carro segue a geometria da faixa: não tem como ir na contramão nem sair dela |
+| Cruzamento | A faixa para antes do cruzamento (0,6 vez a rua mais larga dele). O carro escolhe a saída 30 m antes: reto pesa 3, virar pesa 1. Volta pelo mesmo trecho só no fim de rua. Ele passa numa curva (Bézier) até a faixa nova |
+| Um por vez | Só entra no cruzamento quem chega com ele vazio, ou atrás de quem veio da mesma faixa. Os outros esperam 1 m antes do fim da faixa. Assim, quem cruza não passa por cima de ninguém |
+| Distância | O IDM (modelo de motorista inteligente) guarda 2,5 m mais 1,2 s de viagem do carro da frente e freia suave pela diferença de velocidade. "Da frente" é medido pelo caminho (a mesma faixa, a faixa de saída somando o que falta da curva, a mesma curva) e pelo rumo, para quem cruza na frente. Quem espera na linha de outra faixa não conta. Colado (menos de 1,5 m), o carro não anda |
+| Obstáculos parados | O sinal fechado (o carro para 2,5 m antes da linha), quem atravessa na faixa, o avatar na rua, o carro do jogador estacionado e o ponto de ônibus (o obstáculo fica 2,5 m além da parada, para o ônibus parar nela) |
+| Grafo novo | A cada 60 m do avatar, o grafo é refeito, e cada carro numa faixa passa para a faixa nova em que está (até 3 m, no mesmo sentido) |
+| Quadro longo | O quadro anda em passos de até 0,05 s, para o IDM não passar do ponto quando a página fica lenta |
+
+Os carros nascem numa faixa entre 30 e 85 m do avatar, a 15 m dos outros, e somem a 110 m ou na borda da grade. Só o carro parado dentro do cruzamento por mais de 30 s sai da cena, como travado; esperar na fila não conta.
+
+**PREMISSAS:** faixa a 1/4 da largura (mínimo 1,6 m); cruzamento a 0,6 vez a rua mais larga; IDM com 2,5 m, 1,2 s, 2 m/s² e 3 m/s²; colado a menos de 1,5 m; passos de 0,05 s.
+
+**Testado** em 2026-11-28:
+- no Node, com o `createTraffic` de verdade numa grade de ruas de 10 m a cada 80 m e 10 carros por 2 minutos, conferindo a cada quadro:
+  - a 60 quadros por segundo: 0 carros do lado errado da rua fora dos cruzamentos e 0 fora da rua, em 71.940 amostras; 0 sobreposições (caixas de 4,2 × 1,8 m, com o teste de eixos separadores); a menor folga na fila foi de 4,07 m; nenhum travado; 104 passagens por cruzamento (61 retas, 19 à esquerda, 24 à direita);
+  - a 2 quadros por segundo (passo de 0,5 s): 0 do lado errado e 0 sobreposições, a menor folga foi de 4,08 m;
+  - no caminho: na primeira versão, com 10 carros, houve 132 amostras de sobreposição. O "da frente" só pelo rumo não via o carro parado logo depois do cruzamento enquanto o outro fazia a curva. A medida pelo caminho resolveu;
+- no navegador, no cruzamento de (-2044,6; 4290,9), com 10 carros por 1 minuto: 0 do lado errado, 0 fora da rua e 0 sobreposições, em 2.394 amostras; 27 paradas no vermelho, 41 para pedestres, 8 esperas na entrada do cruzamento e nenhum travado. Na captura, o carro que se afasta vai à direita da linha amarela, e o que cruza passa sozinho no cruzamento;
+- o ônibus posto 30 m antes do ponto parou a 1,3 m da parada e abriu a porta. Antes da correção, parava 2,9 m antes e não abria;
+- a página do painel, fora de foco, rodava a 2 ou 3 quadros por segundo. O FPS baixava a quantidade de carros para 2, e nos testes a quantidade ficou fixa em 10.
+
+
 `carros.js` põe carros nas ruas em volta do avatar, na mão direita. Como os pedestres, são do cliente: não passam pelo `realtime`.
 
 O OSM da cidade só traz o polígono das ruas, sem a linha do meio. O carro se guia pelo chão, como quem dirige olhando o meio-fio:
