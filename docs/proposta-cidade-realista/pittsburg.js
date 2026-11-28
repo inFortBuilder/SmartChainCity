@@ -870,7 +870,18 @@ try {
         id: 'praca-prefeitura', name: 'Praça da Prefeitura', center: c.centro,
         rings: c.lotes.map((i) => lotRing(i)),
         hole: { x: c.centro[0], z: c.centro[1], angle: c.angulo, w, d },
-        otherLot: (x, z) => { const i = lotAt(x, z); return i !== null && !lots.civicLots.has(i); },
+        // Os lotes vizinhos (das células da grade de lotes em volta), para o recuo não entrar neles.
+        others: () => {
+          const near = new Set();
+          const xs = c.lotes.flatMap((i) => lotRing(i));
+          const [ax, az, bx, bz] = xs.reduce((b, [x, z]) => [Math.min(b[0], x), Math.min(b[1], z), Math.max(b[2], x), Math.max(b[3], z)], [Infinity, Infinity, -Infinity, -Infinity]);
+          for (let gx = Math.floor((ax - 10) / LOT_CELL); gx <= Math.floor((bx + 10) / LOT_CELL); gx++) {
+            for (let gz = Math.floor((az - 10) / LOT_CELL); gz <= Math.floor((bz + 10) / LOT_CELL); gz++) {
+              for (const i of lots.grid.get(`${gx},${gz}`) ?? []) if (!lots.civicLots.has(i)) near.add(i);
+            }
+          }
+          return [...near].map((i) => lotRing(i));
+        },
       };
       return () => [def];
     })();

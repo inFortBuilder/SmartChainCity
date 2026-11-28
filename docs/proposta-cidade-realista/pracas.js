@@ -73,33 +73,36 @@ export function chamfer(seed, nx, nz) {
 
 /**
  * A grade da praça: `mask` 1 = chão, 2 = chão ocupado (árvore, banco, chafariz), 0 = fora; `edge` = distância
- * (em células) até a borda do chão. `rings`: os lotes ([[x, z], …]); `hole`: o prédio {x, z, angle, w, d}.
+ * (em células) até a borda do chão. `rings`: os lotes ([[x, z], …]); `others`: os lotes vizinhos, de outros donos (o recuo não entra neles); `hole`: o prédio {x, z, angle, w, d}.
  */
-export function buildPlazaGrid({ rings, hole = null, isRoad = () => false, otherLot = () => false }, o = PLAZA) {
+export function buildPlazaGrid({ rings, hole = null, isRoad = () => false, others = [] }, o = PLAZA) {
   let minX = Infinity, minZ = Infinity, maxX = -Infinity, maxZ = -Infinity;
-  const boxes = rings.map((ring) => {
-    const b = [Infinity, Infinity, -Infinity, -Infinity];
+  for (const ring of rings) {
     for (const [x, z] of ring) {
-      b[0] = Math.min(b[0], x); b[1] = Math.min(b[1], z); b[2] = Math.max(b[2], x); b[3] = Math.max(b[3], z);
+      minX = Math.min(minX, x); minZ = Math.min(minZ, z); maxX = Math.max(maxX, x); maxZ = Math.max(maxZ, z);
     }
-    minX = Math.min(minX, b[0]); minZ = Math.min(minZ, b[1]); maxX = Math.max(maxX, b[2]); maxZ = Math.max(maxZ, b[3]);
-    return b;
-  });
+  }
   const cell = o.cell;
   const x0 = Math.floor((minX - o.reach - 1) / cell) * cell, z0 = Math.floor((minZ - o.reach - 1) / cell) * cell;
   const nx = Math.ceil((maxX + o.reach + 1 - x0) / cell), nz = Math.ceil((maxZ + o.reach + 1 - z0) / cell);
-  const inLot = new Uint8Array(nx * nz);
-  for (let r = 0; r < nz; r++) {
-    const z = z0 + (r + 0.5) * cell;
-    for (let c = 0; c < nx; c++) {
-      const x = x0 + (c + 0.5) * cell;
-      for (let i = 0; i < rings.length; i++) {
-        const b = boxes[i];
-        if (x < b[0] || x > b[2] || z < b[1] || z > b[3]) continue;
-        if (insidePolygon(x, z, rings[i])) { inLot[r * nx + c] = 1; break; }
+  // Cada lote só nas células da caixa dele.
+  const raster = (list, out) => {
+    for (const ring of list) {
+      let a = Infinity, b = Infinity, e = -Infinity, f = -Infinity;
+      for (const [x, z] of ring) { a = Math.min(a, x); b = Math.min(b, z); e = Math.max(e, x); f = Math.max(f, z); }
+      const c0 = Math.max(0, Math.floor((a - x0) / cell)), c1 = Math.min(nx - 1, Math.floor((e - x0) / cell));
+      const r0 = Math.max(0, Math.floor((b - z0) / cell)), r1 = Math.min(nz - 1, Math.floor((f - z0) / cell));
+      for (let r = r0; r <= r1; r++) {
+        for (let c = c0; c <= c1; c++) {
+          if (!out[r * nx + c] && insidePolygon(x0 + (c + 0.5) * cell, z0 + (r + 0.5) * cell, ring)) out[r * nx + c] = 1;
+        }
       }
     }
-  }
+  };
+  const inLot = new Uint8Array(nx * nz);
+  raster(rings, inLot);
+  const taken = new Uint8Array(nx * nz);
+  raster(others, taken);
   const fromLot = chamfer(inLot, nx, nz);
   const reach = o.reach / cell;
   const mask = new Uint8Array(nx * nz);
@@ -110,7 +113,7 @@ export function buildPlazaGrid({ rings, hole = null, isRoad = () => false, other
       if (!inLot[k] && fromLot[k] > reach) continue;
       const x = x0 + (c + 0.5) * cell;
       if (insideHole(x, z, hole, o.holeMargin) || isRoad(x, z)) continue;
-      if (!inLot[k] && otherLot(x, z)) continue;
+      if (!inLot[k] && taken[k]) continue;
       mask[k] = 1;
     }
   }
@@ -260,7 +263,7 @@ export function createPlazas({ THREE, scene, streetView, list = () => [], opt = 
 
   function build(def) {
     const t0 = performance.now();
-    const grid = buildPlazaGrid({ rings: def.rings, hole: def.hole, isRoad: (x, z) => streetView.isRoad(x, z), otherLot: def.otherLot ?? (() => false) }, opt);
+    const grid = buildPlazaGrid({ rings: def.rings, hole: def.hole, isRoad: (x, z) => streetView.isRoad(x, z), others: def.others?.() ?? [] }, opt);
     const items = placePlaza(grid, opt);
     occupy(grid, [
       ...items.trees.map((t) => ({ x: t.x, z: t.z, r: 0.45 })),
