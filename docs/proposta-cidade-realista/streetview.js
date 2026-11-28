@@ -13,6 +13,7 @@
 // câmera para não atravessar a parede. Espaço pula.
 
 import { AVATAR_TYPES, getAvatarType, loadAvatarAssets, makeAvatar, setAvatarType } from './avatar.js';
+import { findPath } from './caminho.js';
 import { createCrosswalks } from './faixas.js';
 import { createFurniture } from './mobiliario.js';
 
@@ -226,7 +227,16 @@ export function createStreetView({
   let boxes = []; // caixas dos prédios perto do avatar (câmera e calçada)
   let active = false;
   let saved = null;
-  const avatar = { obj: new THREE.Group(), mixer: null, heading: 0, target: null, speed: 0, model: null, clips: [], type: null, source: null };
+  // target: o próximo ponto; path: os pontos depois dele (caminho.js), quando o clique contorna obstáculos.
+  const avatar = { obj: new THREE.Group(), mixer: null, heading: 0, target: null, path: [], speed: 0, model: null, clips: [], type: null, source: null };
+  /** Vai até (x, z) pelo caminho em volta dos obstáculos; sem caminho, em linha reta. Devolve os pontos. */
+  const walkTo = (x, z) => {
+    const o = avatar.obj.position;
+    const path = findPath(isWalkable, { x: o.x, z: o.z }, { x, z }) ?? [{ x, z }];
+    avatar.path = path.slice(1).map((p) => new THREE.Vector3(p.x, o.y, p.z));
+    avatar.target = new THREE.Vector3(path[0].x, o.y, path[0].z);
+    return path;
+  };
   avatar.obj.visible = false;
   scene.add(avatar.obj);
   const view = { yaw: 0, pitch: 0.12, dist: CAM.dist };
@@ -559,7 +569,7 @@ export function createStreetView({
     drag = null;
     if (!click) return;
     const p = groundAt(e.clientX, e.clientY);
-    if (p && isWalkable(p.x, p.z)) avatar.target = p;
+    if (p && isWalkable(p.x, p.z)) walkTo(p.x, p.z);
     // Fora da rua e da calçada: talvez um imóvel para entrar.
     else if (!(p && onPlaceClick?.(p))) say('Só dá para caminhar pelas ruas e calçadas.');
   });
@@ -593,13 +603,19 @@ export function createStreetView({
     let dirX = 0, dirZ = 0;
     if (fwd || side) {
       avatar.target = null;
+      avatar.path = [];
       // Para frente é para onde a câmera olha.
       dirX = Math.sin(view.yaw) * fwd + Math.sin(view.yaw - Math.PI / 2) * side;
       dirZ = Math.cos(view.yaw) * fwd + Math.cos(view.yaw - Math.PI / 2) * side;
     } else if (avatar.target) {
       dirX = avatar.target.x - avatar.obj.position.x;
       dirZ = avatar.target.z - avatar.obj.position.z;
-      if (Math.hypot(dirX, dirZ) < 0.3) { avatar.target = null; dirX = dirZ = 0; }
+      if (Math.hypot(dirX, dirZ) < 0.3) {
+        // Chegou no ponto: segue para o próximo do caminho, ou para.
+        avatar.target = avatar.path.shift() ?? null;
+        dirX = avatar.target ? avatar.target.x - avatar.obj.position.x : 0;
+        dirZ = avatar.target ? avatar.target.z - avatar.obj.position.z : 0;
+      }
       fwd = 1;
     }
     const len = Math.hypot(dirX, dirZ);
@@ -617,7 +633,10 @@ export function createStreetView({
         if (Math.abs(diff - a) < TURN.done) turn.on = false;
       } else {
         moving = step((dirX / len) * speed * dt, (dirZ / len) * speed * dt);
-        if (!moving) avatar.target = null;
+        if (!moving) {
+          avatar.target = null;
+          avatar.path = [];
+        }
         avatar.heading += diff * Math.min(1, dt * 10);
       }
       avatar.obj.rotation.y = avatar.heading;
@@ -717,6 +736,8 @@ export function createStreetView({
     isRoad: (x, z) => ensureIndex().isRoad(x, z),
     /** Rua ou calçada perto do avatar. */
     isWalkable: (x, z) => !!index && isWalkable(x, z),
+    /** Anda até (x, z) contornando obstáculos (o mesmo do clique). Devolve os pontos do caminho. */
+    walkTo: (x, z) => (index ? walkTo(x, z) : null),
     /** A grade da calçada em uso (testes e medição): células de calçada e o tempo da última montagem. */
     sidewalk: () => (walk ? { cells: walk.sidewalk, triangles: walk.triangles, ms: walk.ms, cx: walk.cx, cz: walk.cz } : null),
     /** Prédios que a câmera e a calçada levam em conta agora. */
