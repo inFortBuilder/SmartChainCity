@@ -22,6 +22,7 @@ import { createSignals } from './semaforos.js';
 import { createSounds } from './sons.js';
 import { createBusRide } from './viagem.js';
 import { createMinimap } from './minimapa.js';
+import { createRoadGraph } from './ruas-grafo.js';
 import { applyLight, cityHour } from './ceu.js';
 import { createMercado } from './mercado.js';
 
@@ -239,6 +240,8 @@ let sounds = null;
 let busRide = null;
 /** Minimapa e GPS do street view (minimapa.js, fase 4). */
 let minimap = null;
+/** Grafo das ruas em volta do avatar, para o kit de ruas (ruas-grafo.js). ?grafo=1 desenha. */
+let roadGraph = null;
 let mercado = null;
 
 // ---------- Visitas: entrar nos imóveis pelo street view ----------
@@ -847,6 +850,7 @@ try {
     if (PARAMS.get('transito') !== '0') traffic = createTraffic({ THREE, scene, streetView, walkers: () => pedestrians?.onRoad() ?? [], signals: () => signals?.arms() ?? [] });
     // Embarcar no ônibus: a passagem sai pelo game-core (POST /v1/avatars/:id/bus-ride).
     if (traffic) busRide = createBusRide({ streetView, traffic, servidor });
+    roadGraph = createRoadGraph({ THREE, scene, streetView, show: PARAMS.get('grafo') === '1' });
     // Minimapa e GPS (fase 4): os lugares do jogo na rua são os destinos. ?minimapa=0 desliga.
     if (PARAMS.get('minimapa') !== '0') {
       const places = () => [
@@ -863,7 +867,7 @@ try {
       history.replaceState(null, '', location.pathname);
     }
   }
-  window.__pittsburg = { scene, camera, controls, renderer, buildings, light: () => streetLight, market: () => streetMarket, stores: () => streetStores, pedestrians: () => pedestrians, traffic: () => traffic, signals: () => signals, sounds: () => sounds, busRide: () => busRide, minimap: () => minimap, pick, showBuilding, pickLot, showLot, getLots: () => lots, gestao, civicBuilding, progressiveBuilding, loadLotsFor, servidor, multiplayer, streetView, lotAt, mercado };
+  window.__pittsburg = { scene, camera, controls, renderer, buildings, light: () => streetLight, market: () => streetMarket, stores: () => streetStores, pedestrians: () => pedestrians, traffic: () => traffic, signals: () => signals, sounds: () => sounds, busRide: () => busRide, minimap: () => minimap, roadGraph: () => roadGraph, pick, showBuilding, pickLot, showLot, getLots: () => lots, gestao, civicBuilding, progressiveBuilding, loadLotsFor, servidor, multiplayer, streetView, lotAt, mercado };
 
   // Spike E0.9: ?spike (ou ?spike=20) mede download, FPS e 20 prédios com LOD.
   const spikeParam = new URLSearchParams(location.search).get('spike');
@@ -957,6 +961,7 @@ renderer.setAnimationLoop((now) => {
   sounds?.update(dt);
   busRide?.update();
   minimap?.update();
+  roadGraph?.update();
   if (!streetView?.tick(dt)) {
     controls.update();
     updateNearPlane();
