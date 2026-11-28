@@ -461,6 +461,43 @@ O minimapa redesenha a 15 quadros por segundo.
   - na captura, o Hatch vermelho visto de trás, com o minimapa no canto.
 
 **Limites desta versão:** o carro não aparece para os outros jogadores, e o GPS ainda não tem o trabalho como destino.
+## Locais de trabalho (fase 4)
+
+O turno do game-core não tem lugar: o avatar trabalha pelo painel (`POST /v1/avatars/:id/work`). Para o GPS ter o trabalho como destino, `trabalho.js` divide as 44 profissões do catálogo em 12 setores. Cada setor tem um prédio na rua, com a mesma casca da loja do jogo e da farmácia: paredes, porta, letreiro e um balcão no fundo.
+
+| Setor | Letreiro | Profissões |
+|---|---|---|
+| Padaria e Cozinha | PADARIA | padeiro, confeiteiro, cozinheiro, chef, garçom |
+| Hospital | HOSPITAL | enfermeira, dentista, farmacêutico, médico |
+| Escola | ESCOLA | professor, orientador escolar, coordenador escolar, diretor |
+| Delegacia e Bombeiros | DELEGACIA | bombeiro, policial, perito, delegado |
+| Construtora | CONSTRUTORA | pedreiro, construtor, arquiteto, engenheiro civil, incorporador |
+| Imobiliária | IMOBILIÁRIA | corretor e consultor de imóveis, administrador de condomínio |
+| Clínica Pet | CLÍNICA PET | tosador, pet sitter, adestrador, veterinário |
+| Ateliê de Moda | ATELIÊ | alfaiate, modelista, designer de acessórios, estilista |
+| Cooperativa do Campo | COOPERATIVA | agricultor, pescador, fazendeiro, agrônomo |
+| Garagem de Transportes | GARAGEM | motorista, mecânico |
+| Hotel | HOTEL | recepcionista, concierge, hoteleiro |
+| Escritório da Aviação | AVIAÇÃO | piloto, astronauta |
+
+- **Os lugares:**
+  - saíram de uma busca no street view, perto das lojas, sobre o grafo das ruas;
+  - a frente do prédio fica atrás da calçada (meia largura da rua mais 3,2 m da linha do meio), virada para a rua;
+  - o prédio inteiro (12 × 10 m, mais 1 m de folga) fica fora das ruas, a pelo menos 35 m dos outros e das lojas, e a até 450 m da loja do jogo;
+  - os prédios não ocupam lotes do jogo (que estão à venda): ficam na beira da calçada, como as lojas.
+- **O GPS** ganha **Trabalho: <setor>**, com o setor da profissão do avatar. Dentro do próprio trabalho, o aviso diz que o turno é pelo painel. Nos outros prédios, diz para quantas profissões é aquele trabalho.
+- **Só a cena:** o turno, o pagamento e o deslocamento seguem do jeito que são. O mapa expõe `__pittsburg.workplaces()` com `myPlace()` e `debug()`.
+
+**PREMISSAS:** os 12 setores e quem fica em cada um, os lugares em Pittsburg, e o tamanho de 12 × 10 m.
+
+**Testado** em 2026-11-28:
+- no Node, as 44 profissões do catálogo caem cada uma num setor só, sem sobrar e sem repetir. Os 12 lugares ficam a pelo menos 36 m um do outro;
+- no navegador, com a conta de teste (recepcionista):
+  - o GPS ofereceu **Trabalho: Hotel**, com uma rota de 134 m saindo de (-1397, 4857);
+  - andando por ela, deu "Chegou: Trabalho: Hotel";
+  - na captura, o prédio do HOTEL, com o letreiro virado para a rua;
+  - dentro dele, "Hotel: o seu trabalho (Recepcionista). O turno é pelo painel, em Trabalhar."; na padaria, "Padaria e Cozinha: trabalho de 5 profissões."
+
 ## Kit de ruas (redesenho das ruas)
 
 As ruas do street view vão ser redesenhadas com as peças do **"modular kit city build v2"** (FBX, Blend e texturas, em `C:Projeto-GitSmartChainCityouds`).
