@@ -460,7 +460,22 @@ O minimapa redesenha a 15 quadros por segundo.
   - o E tirou o avatar para a calçada, a 4 m do carro, que ficou estacionado;
   - na captura, o Hatch vermelho visto de trás, com o minimapa no canto.
 
-**Limites desta versão:** o carro não aparece para os outros jogadores, e o GPS ainda não tem o trabalho como destino.
+### O carro para os outros jogadores
+
+Dirigindo, o carro vai para quem está no mesmo bairro, pelo `realtime`:
+- **Servidor** (sala `district`): o modo `drive`, além de `map` e `street`. O campo `vehicle` traz o modelo (`hatch`, `sedan` ou `super`; o desconhecido vira `hatch`, e a pé fica vazio). A velocidade vai até 30 m/s dirigindo (10 m/s a pé).
+- **Quem dirige** (`multiplayer.js`): manda a posição, o rumo e a velocidade do carro, com o modelo.
+- **Quem vê:** desenha o mesmo carro do modelo (`carMesh`, de `carro-jogo.js`), com o nome do jogador em cima. O carro desliza na velocidade recebida, salta se estiver longe demais e vira para o rumo. O avatar a pé daquele jogador fica escondido enquanto ele dirige.
+
+**Testado** em 2026-11-28:
+- `realtime`: o teste da sala cobre o modelo que chega aos outros, a velocidade até 30 m/s, o modelo desconhecido que vira `hatch` e o modelo que some ao voltar a pé. A suíte passa (22 testes);
+- no navegador, com duas abas no mesmo bairro (2) e um `realtime` desta versão numa porta à parte:
+  - a aba A chamou o Hatch e saiu dirigindo (mais 2 THALER de combustível na conta de teste local);
+  - a aba B viu o carro: modo `drive`, `hatch`, visível, sem o avatar a pé. Na captura, o Hatch vermelho com "Recepcionista 08dE" em cima, e "2 jogadores aqui";
+  - a aba A andou de z 4626,5 para 4650,2, e a B recebeu o carro em z 4660,8 (onde ele parou depois de soltar o acelerador);
+  - a aba A saiu do carro, e a B passou a ver o avatar a pé, sem o carro.
+
+**Limites desta versão:** o carro estacionado (fora de uso) não aparece para os outros, e os carros do trânsito de cada navegador não freiam pelo carro de outro jogador. O GPS já tem o trabalho como destino ([locais de trabalho](#locais-de-trabalho-fase-4)).
 ## Locais de trabalho (fase 4)
 
 O turno do game-core não tem lugar: o avatar trabalha pelo painel (`POST /v1/avatars/:id/work`). Para o GPS ter o trabalho como destino, `trabalho.js` divide as 44 profissões do catálogo em 12 setores. Cada setor tem um prédio na rua, com a mesma casca da loja do jogo e da farmácia: paredes, porta, letreiro e um balcão no fundo.
