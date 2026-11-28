@@ -31,7 +31,7 @@ A área de caminhada é a própria camada `roads` da cidade: os polígonos das r
 
 Parte da fase 1 do [mundo aberto em terceira pessoa](mundo-aberto-terceira-pessoa.md):
 
-- **Calçada:** em volta do avatar, uma grade de 0,5 m num raio de 40 m marca a faixa de 3 m ao lado das ruas. A grade é refeita a cada 20 m andados, em cerca de 14 ms. A distância até a rua sai de uma transformada de distância em duas passadas (chamfer 1/√2), sem testar vizinho a vizinho. A faixa fica 15 cm acima do asfalto (o meio-fio), e o avatar sobe e desce dela sem degrau seco. Dá para andar e clicar nela. É desenhada em concreto claro, com instâncias de 0,5 m.
+- **Calçada:** em volta do avatar, uma grade de 0,5 m num raio de 40 m marca a faixa de 3 m ao lado das ruas. A grade é refeita a cada 20 m andados, em cerca de 14 ms. A distância até a rua sai de uma transformada de distância em duas passadas (chamfer 1/√2), sem testar vizinho a vizinho. A faixa fica 15 cm acima do asfalto (o meio-fio), e o avatar sobe e desce dela sem degrau seco. Dá para andar e clicar nela. É desenhada em concreto claro, numa malha só: o contorno sai de marching squares sobre a grade (a borda corta em diagonal, sem degraus de 0,5 m), e uma face vertical de 15 cm fecha o meio-fio ao longo da borda (`sidewalkMesh`). Com a malha, a grade passou a ser montada em ~23 ms (cerca de 4.500 triângulos).
 - **Prédios:** os prédios com LOD (o Centro Administrativo) e os da gestão entram como caixas orientadas, no espaço do próprio prédio. A caixa alinhada aos eixos de um prédio girado cobria as ruas em volta: no Centro Administrativo, tirava cerca de 230 peças de calçada. O chão dentro do prédio fica fora da calçada.
 - **Câmera:** para 30 cm antes do primeiro prédio entre a cabeça do avatar e ela. Testado com uma parede de 12 m a 6 m atrás do avatar: a câmera parou a 5,2 m, em vez dos 14 m pedidos.
 - **Pulo:** sobe 0,94 m (4,2 m/s, gravidade de 9,8 m/s²) e pousa de volta no meio-fio ou na rua.
@@ -65,7 +65,7 @@ Parte da fase 1 do [mundo aberto em terceira pessoa](mundo-aberto-terceira-pesso
 - ao voltar ao mapa, a exposição voltou a 0,85.
 
 **Limites desta versão:**
-- A borda da calçada sai em degraus de 0,5 m (a grade). Fica para depois um contorno suave, tirado do polígono da rua.
+- A borda segue a grade de 0,5 m (diagonais de 45°); uma curva fina, tirada do polígono da rua, fica para depois.
 - A faixa de pedestre não é desenhada; a rua inteira continua caminhável, como antes.
 - A camada de lotes de Pittsburg passa por cima das ruas: com "Lotes" ligado, o chão fica amarelo no street view.
 - O avatar ainda não aparece para os outros jogadores (multiplayer, E2.7).
