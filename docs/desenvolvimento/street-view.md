@@ -217,7 +217,24 @@ A UAL não tem clipe de deitar: o corpo gira 90° no colchão (0,52 m) e o clipe
 - com o quadro atrasado de propósito (cerca de 30 FPS), caiu de 24 para 12 em 6 s e voltou a subir quando o FPS voltou a 60;
 - no Node: o rumo livre segue reto, vira no fim e na borda da faixa, e devolve null quando está cercado; os 200 sorteios caíram na calçada.
 
-**Limites desta versão:** os pedestres não atravessam a rua (ficam na calçada do quarteirão) e não entram nas lojas.
+**Limites desta versão:** os pedestres não entram nas lojas.
+
+### Travessia na faixa
+
+Os pedestres usam as faixas de `faixas.js`. As pontas de cada faixa ficam a meia largura da rua mais 0,7 m do centro, e só valem as que caem na calçada.
+
+1. Quem chega a 1,2 m de uma ponta decide uma vez se atravessa (metade atravessa).
+2. Espera no meio-fio até não haver carro andando a menos de 12 m da faixa. Depois de 8 s, desiste e segue pela calçada.
+3. Cruza em linha reta até a outra ponta, com um desvio lateral sorteado dentro da faixa, e segue pela calçada do outro lado.
+
+Os carros param para quem está atravessando, se ele estiver em qualquer ponto da rua à frente (até 9 m, 4,5 m para cada lado), porque o pedestre vai cruzar as duas faixas.
+
+**PREMISSAS:** metade atravessa; rua livre de carros a 12 m; espera de até 8 s; o carro para a 4,5 m para cada lado.
+
+**Testado** em 2026-11-28, no cruzamento de (-1397, 4857), com 3 faixas usáveis:
+- em 40 s, 9 pedestres atravessaram, 7 esperaram um carro no meio-fio e os carros pararam 30 vezes para eles;
+- nenhum carro andando passou a menos de 4 m de quem atravessava (160 amostras, depois do segundo commit). Antes, com a parada só na faixa do carro, um carro passou a 2,9 m de lado, a 8,6 m/s;
+- em outra rodada de 40 s: 5 atravessaram, 3 desistiram depois de esperar, 13 paradas dos carros.
 
 ## Trânsito nas ruas (fase 3)
 
@@ -245,7 +262,7 @@ O OSM da cidade só traz o polígono das ruas, sem a linha do meio. O carro se g
 - com o avatar parado na rua, 14 m à frente de um carro a 6 a 8 m/s: o carro parou a 4,5 m, 5 m e 7 m nas três tentativas;
 - no Node, em duas ruas de 10 m que se cruzam: seguindo reto, atravessou o cruzamento; entrando, virou à direita e ficou na faixa; numa rua sem saída, deu a volta. Nenhum passo fora da rua, e no máximo 0,3 m fora da faixa.
 
-**Limites desta versão:** não há semáforo nem preferência no cruzamento, o carro não vira à esquerda, e não para para o pedestre na faixa. O ônibus no ponto e os sons ficam para os próximos passos.
+**Limites desta versão:** não há semáforo nem preferência no cruzamento, e o carro não vira à esquerda. O carro já para para o pedestre que atravessa na faixa ([travessia](#travessia-na-faixa)). O ônibus no ponto e os sons ficam para os próximos passos.
 
 ## Avatar e animações: Universal Animation Library (Quaternius)
 

@@ -8,8 +8,12 @@
 //   param uns segundos, e às vezes conversam parados.
 // - O corpo é o manequim da UAL (Man ou Woman, sorteado) com a cor da roupa sorteada.
 // - A quantidade segue o FPS: abaixo de 45, tira 4 (até 4); acima de 55, põe 2 (até 24).
+// - Na ponta de uma faixa de pedestre (faixas.js), metade atravessa: espera no meio-fio até não haver
+//   carro andando a menos de 12 m da faixa (desiste depois de 8 s) e cruza em linha reta até a outra
+//   calçada. Enquanto atravessa, os carros param para ele (carros.js, `walkers`).
 //
-// PREMISSAS: até 24 pedestres, 1,1 a 1,5 m/s, raio de 12 a 35 m, somem a 45 m, FPS alvo de 45 a 55.
+// PREMISSAS: até 24 pedestres, 1,1 a 1,5 m/s, raio de 12 a 35 m, somem a 45 m, FPS alvo de 45 a 55;
+// metade atravessa na faixa, rua livre de carros a 12 m, espera de até 8 s.
 
 export const PEDS = {
   max: 24,
@@ -26,6 +30,11 @@ export const PEDS = {
   /** Chance por segundo de parar (e de conversar, entre os que param). */
   stop: 0.04,
   talk: 0.3,
+  /** Travessia: chance na ponta da faixa, alcance da ponta (m), carro perto (m) e espera máxima (s). */
+  cross: 0.5,
+  crossReach: 1.2,
+  carClear: 12,
+  crossWait: 8,
 };
 
 /** Cores de roupa (tons de tecido, sem o roxo do manequim). */
@@ -56,7 +65,23 @@ export function pickSidewalk(walk, ax, az, near, far, rand = Math.random, tries 
   return null;
 }
 
-export function createPedestrians({ THREE, scene, streetView, opt = PEDS, rand = Math.random }) {
+/**
+ * Pontas das faixas: as duas calçadas de cada lado (meia largura da rua + 0,7 m do centro), só as que caem
+ * na calçada. `key` identifica a faixa.
+ */
+export function crosswalkEnds(list, walk) {
+  const out = [];
+  for (const f of list) {
+    const half = f.width / 2 + 0.7;
+    const a = { x: f.x - f.dir[0] * half, z: f.z - f.dir[1] * half };
+    const b = { x: f.x + f.dir[0] * half, z: f.z + f.dir[1] * half };
+    if (walk.at(a.x, a.z) !== 2 || walk.at(b.x, b.z) !== 2) continue;
+    out.push({ key: `${f.x.toFixed(1)},${f.z.toFixed(1)}`, x: f.x, z: f.z, dir: f.dir, depth: f.depth, a, b });
+  }
+  return out;
+}
+
+export function createPedestrians({ THREE, scene, streetView, cars = () => [], opt = PEDS, rand = Math.random }) {
   const group = new THREE.Group();
   group.name = 'pedestres';
   scene.add(group);
@@ -64,7 +89,36 @@ export function createPedestrians({ THREE, scene, streetView, opt = PEDS, rand =
   let target = opt.start;
   let assets = null;
   const fps = { frames: 0, time: 0, value: 60 };
-  const stats = { spawned: 0, removed: 0, turns: 0, blocked: 0 };
+  const stats = { spawned: 0, removed: 0, turns: 0, blocked: 0, crossed: 0, waitedCar: 0, gaveUp: 0 };
+  // Pontas das faixas, refeitas a cada segundo (a grade muda quando o avatar anda).
+  let ends = [];
+  let endsAt = -1;
+  let clock = 0;
+  /** Algum carro andando perto do centro da faixa. */
+  const carNear = (x, z) => cars().some((c) => c.speed > 1 && Math.hypot(c.x - x, c.z - z) < opt.carClear);
+  /** A ponta de faixa ao alcance de (x, z): de onde sai e para onde vai, com um desvio lateral sorteado. */
+  function endNear(x, z) {
+    for (const e of ends) {
+      for (const [from, to] of [[e.a, e.b], [e.b, e.a]]) {
+        if (Math.hypot(from.x - x, from.z - z) > opt.crossReach) continue;
+        const side = (rand() - 0.5) * (e.depth - 1);
+        const px = -e.dir[1] * side, pz = e.dir[0] * side;
+        return { key: e.key, cx: e.x, cz: e.z, tx: to.x + px, tz: to.z + pz, waiting: true, waited: 0 };
+      }
+    }
+    return null;
+  }
+  /** Na ponta de uma faixa, decide uma vez se atravessa (metade). A faixa de onde acabou de chegar não conta. */
+  function crossingStart(ped, o) {
+    const near = endNear(o.x, o.z);
+    if (!near) ped.tried = null;
+    if (ped.lastCw && near?.key !== ped.lastCw) ped.lastCw = null;
+    if (!near || near.key === ped.tried || near.key === ped.lastCw) return false;
+    ped.tried = near.key;
+    if (rand() >= opt.cross) return false;
+    ped.cross = near;
+    return true;
+  }
 
   Promise.all(['man', 'woman'].map((t) => streetView.avatarAssets(t)))
     .then((list) => { assets = list; })
@@ -139,19 +193,58 @@ export function createPedestrians({ THREE, scene, streetView, opt = PEDS, rand =
     // Some quem ficou longe ou fora da grade; nasce quem falta (um por quadro, sem engasgo).
     for (let i = peds.length - 1; i >= 0; i--) {
       const p = peds[i].obj.position;
-      if (Math.hypot(p.x - a.x, p.z - a.z) > opt.despawn || walk.at(p.x, p.z) !== 2 || peds.length > target) remove(i);
+      const offWalk = !peds[i].cross && walk.at(p.x, p.z) !== 2;
+      if (Math.hypot(p.x - a.x, p.z - a.z) > opt.despawn || offWalk || peds.length > target) remove(i);
     }
     if (peds.length < target) spawn(walk, a);
+    clock += dt;
+    if (clock - endsAt > 1) {
+      endsAt = clock;
+      ends = crosswalkEnds(streetView.crosswalks?.()?.list ?? [], walk);
+    }
 
     for (const ped of peds) {
       const o = ped.obj.position;
-      if (ped.wait > 0) {
+      if (ped.cross) {
+        const c = ped.cross;
+        if (c.waiting) {
+          // No meio-fio: atravessa quando não há carro andando perto da faixa.
+          c.waited += dt;
+          if (!carNear(c.cx, c.cz)) {
+            c.waiting = false;
+            ped.inst.play('walk');
+          } else if (c.waited > opt.crossWait) {
+            ped.cross = null;
+            ped.lastCw = c.key;
+            ped.inst.play('walk');
+            stats.gaveUp++;
+          } else if (c.waited <= dt) stats.waitedCar++;
+        } else {
+          const dx = c.tx - o.x, dz = c.tz - o.z, d = Math.hypot(dx, dz);
+          if (d < 0.3) {
+            ped.cross = null;
+            ped.lastCw = c.key;
+            stats.crossed++;
+            // Na outra calçada: segue para um lado dela.
+            const h = steer(freeFor(walk, ped, a), o.x, o.z, ped.heading + (ped.side * Math.PI) / 2, opt.look, ped.side);
+            if (h !== null) ped.heading = h;
+          } else {
+            ped.heading = Math.atan2(dx, dz);
+            const step = Math.min(d, ped.speed * dt);
+            o.x += (dx / d) * step;
+            o.z += (dz / d) * step;
+          }
+        }
+      } else if (ped.wait > 0) {
         ped.wait -= dt;
         if (ped.wait <= 0) { ped.talking = false; ped.inst.play('walk'); }
       } else if (rand() < opt.stop * dt) {
         ped.wait = 2 + rand() * 4;
         ped.talking = rand() < opt.talk;
         ped.inst.play(ped.talking ? 'talk' : 'idle');
+      } else if (crossingStart(ped, o)) {
+        // Na ponta da faixa: para no meio-fio e olha o trânsito.
+        ped.inst.play('idle');
       } else {
         const free = freeFor(walk, ped, a);
         const ahead = (h) => free(o.x + Math.sin(h) * opt.look, o.z + Math.cos(h) * opt.look);
@@ -189,8 +282,11 @@ export function createPedestrians({ THREE, scene, streetView, opt = PEDS, rand =
       target,
       fps: Math.round(fps.value),
       stats: { ...stats },
-      peds: peds.map((p) => ({ x: p.obj.position.x, z: p.obj.position.z, heading: p.heading, waiting: p.wait > 0, talking: p.talking })),
+      peds: peds.map((p) => ({ x: p.obj.position.x, z: p.obj.position.z, heading: p.heading, waiting: p.wait > 0, talking: p.talking, crossing: p.cross ? (p.cross.waiting ? 'curb' : 'road') : null })),
+      crosswalks: ends.length,
     }),
+    /** Quem está atravessando a rua agora (os carros param para eles). */
+    onRoad: () => peds.filter((p) => p.cross && !p.cross.waiting).map((p) => ({ x: p.obj.position.x, z: p.obj.position.z })),
     /** Para testes: fixa o alvo (o FPS volta a mexer depois de 2 s). */
     setTarget: (n) => { target = Math.max(0, Math.min(opt.max, n)); },
   };
