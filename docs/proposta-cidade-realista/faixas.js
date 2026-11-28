@@ -42,7 +42,7 @@ export function findCrosswalks(grid, opt = CROSSWALK) {
   };
   const N8 = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
   const seen = new Set();
-  const found = new Map();
+  const found = [];
   for (let r = 1; r < n - 1; r++) {
     for (let c = 1; c < n - 1; c++) {
       if (kind[r * n + c] < 2) continue;
@@ -92,14 +92,13 @@ export function findCrosswalks(grid, opt = CROSSWALK) {
         if (!w || w.w > opt.maxRoad) continue;
         cx += ux * w.shift;
         cz += uz * w.shift;
-        // Uma por chegada: perto (6 m) e no mesmo rumo (30°, sem sentido) é a mesma.
-        const ang = Math.round(((Math.atan2(ux, uz) + Math.PI) % Math.PI) / (Math.PI / 6)) % 6;
-        const k2 = `${Math.round(cx / 6)},${Math.round(cz / 6)},${ang}`;
-        if (!found.has(k2)) found.set(k2, { x: cx, z: cz, dir: [ux, uz], width: w.w, depth: opt.depth });
+        // Uma por chegada: a menos de 6 m e no mesmo rumo (até 30°, sem sentido) é a mesma.
+        const same = found.some((f) => Math.hypot(f.x - cx, f.z - cz) < 6 && Math.abs(f.dir[0] * ux + f.dir[1] * uz) > Math.cos(Math.PI / 6));
+        if (!same) found.push({ x: cx, z: cz, dir: [ux, uz], width: w.w, depth: opt.depth });
       }
     }
   }
-  return [...found.values()];
+  return found;
 }
 
 /** Desenho: listras brancas instanciadas, rente ao asfalto. */
