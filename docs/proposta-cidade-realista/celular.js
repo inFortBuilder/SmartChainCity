@@ -49,7 +49,8 @@ export function createPhone({ streetView, servidor, minimap = null, places = () 
     .cel-app { border: 0; border-radius: 16px; padding: 12px 4px 8px; background: #1e293b; color: #e2e8f0; cursor: pointer; font: 600 11px system-ui; }
     .cel-app span { display: block; font-size: 24px; margin-bottom: 4px; }
     .cel h4 { margin: 4px 0 10px; font-size: 16px; }
-    .cel .linha-v { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #1e293b; }
+    .cel .linha-v { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px solid #1e293b; }
+    .cel .linha-v > :last-child { text-align: right; }
     .cel .barra { height: 8px; border-radius: 4px; background: #1e293b; overflow: hidden; margin: 2px 0 8px; }
     .cel .barra i { display: block; height: 100%; background: #22c55e; }
     .cel .barra i.baixo { background: #ef4444; }
