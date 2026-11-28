@@ -322,6 +322,15 @@ export function createTraffic({ THREE, scene, streetView, walkers = () => [], st
       cars: cars.map((c) => ({ x: c.x, z: c.z, heading: c.heading, speed: c.speed, bus: c.bus, dwelling: c.dwell > 0, onRoad: isRoad(c.x, c.z), right: reach(isRoad, c.x, c.z, rightOf(c.heading), opt.side) })),
     }),
     setTarget: (n) => { target = Math.max(0, Math.min(opt.max, n)); },
+    /** Para testes: põe o ônibus em (x, z) com o rumo dado (tira o que houver). */
+    placeBus: (x, z, heading) => {
+      for (let i = cars.length - 1; i >= 0; i--) if (cars[i].bus) remove(i);
+      const obj = busModel();
+      cars.push({ obj, bus: true, half: opt.bus.half, x, z, heading, speed: opt.bus.speed, cruise: opt.bus.speed, opening: false, straight: false, dwell: 0 });
+      obj.position.set(x, streetView.groundY(), z);
+      obj.rotation.y = heading;
+      group.add(obj);
+    },
     /** Onde estão os carros e a que velocidade (os pedestres esperam no meio-fio). */
     positions: () => cars.map((c) => ({ x: c.x, z: c.z, speed: c.speed })),
     /** Ônibus parados no ponto, com a porta (do lado da calçada, perto da frente). */
