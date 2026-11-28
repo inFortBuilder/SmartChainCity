@@ -367,6 +367,38 @@ O ouvinte fica na câmera. O navegador só deixa tocar depois de um gesto, entã
 - perto da faixa com semáforo, o bipe tocou;
 - o botão passou a "Som: desligado", salvou "0", e voltou a "Som: ligado" e "1".
 
+## Minimapa e GPS (fase 4)
+
+`minimapa.js` põe um minimapa redondo no canto de cima, à direita, com 160 m em volta do avatar. Ele gira com a câmera: a frente fica sempre para cima, e o N no anel mostra o norte.
+
+| No minimapa | Como |
+|---|---|
+| Ruas | Saem do próprio índice das ruas do street view (`isRoad`), amostradas a cada 1 m num quadro de 240 m. O quadro é refeito quando o avatar se afasta 50 m do centro dele |
+| Carros e ônibus | Laranja; o ônibus, verde e maior |
+| Pedestres | Pontos cinza |
+| Pontos de ônibus | Quadrados azuis |
+| Semáforos | Na cor de agora |
+| Lugares do jogo | Quadrados roxos (Loja do jogo, Farmácia, Mercado); o destino do GPS, amarelo |
+| Avatar | A seta branca no centro, no rumo do corpo |
+
+O minimapa redesenha a 15 quadros por segundo.
+
+**GPS:** no seletor embaixo do minimapa, escolhe-se um lugar.
+- A rota sai do mesmo A* do clique de andar (`caminho.js`), numa grade de 2 m só pelas ruas, e vai da rua mais perto até a porta.
+- Aparece como a linha amarela no minimapa e, embaixo, como a distância que falta ("Farmácia · 276 m").
+- É refeita a cada 3 s, ou quando o avatar sai 15 m do trecho atual.
+- A 12 m do lugar, mostra "Chegou" e desliga.
+
+`?minimapa=0` tira o minimapa. O mapa expõe `__pittsburg.minimap()` com `go(lugar)` e `debug()`.
+
+**PREMISSAS:** 160 m de minimapa (raio de 80 m) em 180 px (120 px no celular); ruas a cada 1 m num quadro de 240 m; GPS numa grade de 2 m, até 150 mil nós; refeito a cada 3 s ou 15 m fora; chegada a 12 m.
+
+**Testado** em 2026-11-28:
+- no Node, numa grade de ruas de 10 m a cada 100 m: 654 m de rota (o caminho em ângulo reto tem 700 m; a rota corta as esquinas dentro da largura da rua), 8 pontos, todos na rua, em 30 ms. Para o meio do quarteirão, não há rota;
+- no navegador, do ponto de ônibus de (-1452, 4578) até a Farmácia: a rota de 276 m, com 6 pontos, saiu em 3 a 5 ms. Andando por ela em saltos de 20 m, a distância caiu de 276 m para 37 m e o GPS mostrou "Chegou: Farmácia" a 11 m da porta;
+- a primeira versão refazia a rota a cada quadro (7 vezes em 0,4 s), porque media a distância até o próximo ponto, que fica longe numa rua reta. O segundo commit mede até o trecho atual: na mesma viagem, a rota só foi refeita pelo relógio de 3 s (4 vezes);
+- na captura, o minimapa está no canto, com a rota amarela e "Farmácia · 276 m".
+
 ## Avatar e animações: Universal Animation Library (Quaternius)
 
 Análise do pacote [Universal Animation Library](https://quaternius.com/packs/universalanimationlibrary.html), página lida em 2026-11-21:
