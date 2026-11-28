@@ -853,7 +853,7 @@ try {
     // Trânsito (fase 3): carros do cliente na mão direita. ?transito=0 desliga.
     // Sons (fase 3): sintetizados, começam no primeiro gesto. ?som=0 tira o botão e o áudio.
     if (PARAMS.get('som') !== '0') sounds = createSounds({ streetView, camera, cars: () => [...(traffic?.positions() ?? []), ...(playerCar?.driving() ? [playerCar.position()] : [])], signals: () => signals });
-    if (PARAMS.get('transito') !== '0') traffic = createTraffic({ THREE, scene, streetView, walkers: () => pedestrians?.onRoad() ?? [], signals: () => signals?.arms() ?? [], extra: () => (playerCar && !playerCar.driving() && playerCar.position() ? [playerCar.position()] : []) });
+    if (PARAMS.get('transito') !== '0') traffic = createTraffic({ THREE, scene, streetView, graph: () => roadGraph?.graph(), walkers: () => pedestrians?.onRoad() ?? [], signals: () => signals?.arms() ?? [], extra: () => (playerCar && !playerCar.driving() && playerCar.position() ? [playerCar.position()] : []) });
     // O próprio carro (fase 4): o combustível de cada saída sai pelo game-core (POST /v1/avatars/:id/drive).
     playerCar = createPlayerCar({ THREE, scene, streetView, servidor, cars: () => traffic?.positions() ?? [], walkers: () => pedestrians?.onRoad() ?? [] });
     // Embarcar no ônibus: a passagem sai pelo game-core (POST /v1/avatars/:id/bus-ride).
