@@ -19,7 +19,7 @@ import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 import { dedup, meshopt, prune, resample } from '@gltf-transform/functions';
 import { MeshoptDecoder, MeshoptEncoder } from 'meshoptimizer';
 
-/** Clipes do jogo: rua (parado, andar, trotar, correr, pular) e interior (sentar, interagir, conversar). */
+/** Clipes do jogo: rua (parado, andar, trotar, correr, pular) e interior (sentar, interagir, conversar, pegar). */
 export const CLIPS = [
   'Idle_Loop',
   'Walk_Loop',
@@ -34,6 +34,8 @@ export const CLIPS = [
   'Jump_Start',
   'Jump_Loop',
   'Jump_Land',
+  // Casa (fase 2): pegar da geladeira e mexer no fogão.
+  'PickUp_Table',
 ];
 
 const [manDir, womanDir, outDir] = process.argv.slice(2);

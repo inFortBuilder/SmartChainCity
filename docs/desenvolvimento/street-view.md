@@ -170,6 +170,26 @@ Na residência do próprio jogador (`escritorio.html?tipo=home&dono=1`; o mapa m
 
 O interior segue a 60 FPS com as peças novas.
 
+### Animações em casa
+
+| Peça | Animação |
+|---|---|
+| Geladeira | Abre (`Interact`) e pega o alimento (`PickUp_Table`) |
+| Fogão | Pega (`PickUp_Table`) e mexe duas vezes (`Interact`) |
+| Cama | Deita no colchão, com a cabeça no travesseiro, **só se o servidor aceitou o descanso**. E, ou mexer, levanta do lado de onde deitou |
+| Banheiro | `Interact` |
+
+A UAL não tem clipe de deitar: o corpo gira 90° no colchão (0,52 m) e o clipe parado toca a 45% da velocidade, como respiração. Os outros jogadores na casa veem o deitado: a pose `lie` vai pelo `realtime` (sala `interior`). O `PickUp_Table` entrou no `avatar-pack` (13 clipes no Man).
+
+**PREMISSAS:** colchão a 0,52 m; respiração a 45% da velocidade do parado.
+
+**Testado** em 2026-11-28:
+- geladeira: `Interact` → `PickUp_Table` → parado;
+- fogão: `PickUp_Table` → `Interact` → parado, com o aviso do servidor ("Sem moradia regular…");
+- cama, com o servidor recusando ("O avatar já está dormindo."): o avatar não deitou;
+- cama aceita (só na aba, sem gravar no banco): deitado, cabeça a 5,33 m (travesseiro em 5,4 m), parado a 45%, botão "E Levantar"; o E levantou ao lado da cama, de pé e na velocidade normal;
+- `realtime`: o teste da sala `interior` aceita a pose `lie`.
+
 **Limites desta versão:**
 - A borda segue a grade de 0,5 m (diagonais de 45°); uma curva fina, tirada do polígono da rua, fica para depois.
 - A camada de lotes de Pittsburg passa por cima das ruas: com "Lotes" ligado, o chão fica amarelo no street view.

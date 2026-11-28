@@ -270,6 +270,9 @@ describe('sala do interior', () => {
     conv.send('move', { x: -5.3, z: 1.0, rot: 1.57, pose: 'sit' });
     await waitFor(() => visitors(dono).get(conv.sessionId)?.pose === 'sit');
     expect(visitors(dono).get(conv.sessionId)?.x).toBeCloseTo(-5.3);
+    // Deitado na cama (casa do jogador).
+    conv.send('move', { x: 3.85, z: 2.85, rot: -1.57, pose: 'lie' });
+    await waitFor(() => visitors(dono).get(conv.sessionId)?.pose === 'lie');
     // Fora da sala ou pose desconhecida.
     conv.send('move', { x: 500, z: 0, pose: 'walk' });
     conv.send('move', { x: -5.3, z: 1.0, pose: 'voando' });

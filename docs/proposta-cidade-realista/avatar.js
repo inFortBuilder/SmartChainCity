@@ -42,7 +42,7 @@ export function setAvatarType(t) {
   }
 }
 
-/** Clipes por papel: rua (idle, walk, run) e interior (sit, interact, talk). Nomes da UAL e do robô. */
+/** Clipes por papel: rua (idle, walk, run) e interior (sit, interact, talk, pickUp). Nomes da UAL e do robô. */
 export function clipsByRole(clips) {
   const find = (...names) => clips.find((c) => names.some((n) => (n instanceof RegExp ? n.test(c.name) : c.name === n)));
   return {
@@ -54,6 +54,7 @@ export function clipsByRole(clips) {
     sit: find('Sitting_Idle_Loop', 'Sitting'),
     sitExit: find('Sitting_Exit'),
     interact: find('Interact'),
+    pickUp: find('PickUp_Table'),
     talk: find('Idle_Talking_Loop'),
     jumpStart: find('Jump_Start'),
     jump: find('Jump_Loop'),

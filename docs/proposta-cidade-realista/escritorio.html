@@ -106,8 +106,12 @@ const VOLTAR = /^pittsburg\.html(\?[\w=.,%&-]*)?$/.test(PARAMS.get('voltar') ?? 
 // Na própria casa (dono=1, o mapa manda), geladeira, fogão, cama e banheiro chamam o game-core (casa-jogo.js).
 const casa = TIPO === 'home' && PARAMS.get('dono') === '1' ? createCasaJogo() : null;
 casa?.load();
-/** Ação de jogo da casa; sem sessão ou sem avatar, o aviso de enfeite. */
-const naCasa = (acao, enfeite) => async () => aviso(casa?.ready() ? await acao() : enfeite);
+/** Ação de jogo da casa; sem sessão ou sem avatar, o aviso de enfeite. Devolve se a ação valeu. */
+const naCasa = (acao, enfeite) => async () => {
+  const r = casa?.ready() ? await acao() : { ok: true, msg: enfeite };
+  aviso(r.msg);
+  return r.ok;
+};
 
 const qs = (s) => document.querySelector(s);
 const canvas = qs('#cena');
@@ -425,11 +429,11 @@ function construirInterior() {
     luzesPos.push([-4.3, 1.0]);
     // Cozinha: bancadas na parede do fundo.
     balcao(-2.6, 0.525, -4.1); balcao(-0.6, 0.525, -4.1);
-    pontos.push({ x: -1.6, z: -3.45, rumo: Math.PI, rotulo: casa ? 'Cozinhar (fogão)' : 'Usar a cozinha', usar: naCasa(() => casa.cook(), 'Um café passado na hora.') });
+    pontos.push({ x: -1.6, z: -3.45, rumo: Math.PI, anim: ['pickUp', 'interact', 'interact'], rotulo: casa ? 'Cozinhar (fogão)' : 'Usar a cozinha', usar: naCasa(() => casa.cook(), 'Um café passado na hora.') });
     // Geladeira na ponta da bancada: come da despensa, sem cozinhar.
     geladeira(-4.05, 0.95, -4.1);
     caixa(-4.05, -4.1, 0.75, 0.7, true);
-    pontos.push({ x: -4.05, z: -3.4, rumo: Math.PI, rotulo: casa ? 'Comer da geladeira' : 'Abrir a geladeira', usar: naCasa(() => casa.eat(), 'A geladeira está cheia de ideias.') });
+    pontos.push({ x: -4.05, z: -3.4, rumo: Math.PI, anim: ['interact', 'pickUp'], rotulo: casa ? 'Comer da geladeira' : 'Abrir a geladeira', usar: naCasa(() => casa.eat(), 'A geladeira está cheia de ideias.') });
     caixa(-1.6, -4.1, 4.0, 0.6, true);
     // Jantar: mesa e quatro cadeiras.
     mesaJantar(-1.4, 0.74, -2.2); pe(-2.1, 0.36, -2.2); pe(-0.7, 0.36, -2.2);
@@ -440,9 +444,9 @@ function construirInterior() {
     cama(4.7, 0.25, 2.4); cabeceira(5.82, 0.55, 2.4); travesseiro(5.4, 0.55, 1.95); travesseiro(5.4, 0.55, 2.85);
     assentos.push({ x: 3.85, z: 2.4, rumo: -Math.PI / 2, rotulo: 'Sentar na cama' });
     if (casa) {
-      // Dormir: os dois lados da cama.
-      pontos.push({ x: 4.2, z: 3.75, rumo: 0, rotulo: 'Dormir 8 h', usar: naCasa(() => casa.sleep(8), 'Uma boa noite de sono.') });
-      pontos.push({ x: 4.2, z: 1.05, rumo: Math.PI, rotulo: 'Cochilar 4 h', usar: naCasa(() => casa.sleep(4), 'Um cochilo.') });
+      // Dormir: os dois lados da cama. Aceito o descanso, o avatar deita (pés em `deitar`, cabeça no travesseiro).
+      pontos.push({ x: 4.2, z: 3.75, rumo: 0, deitar: [3.85, 2.85], rotulo: 'Dormir 8 h', usar: naCasa(() => casa.sleep(8), 'Uma boa noite de sono.') });
+      pontos.push({ x: 4.2, z: 1.05, rumo: Math.PI, deitar: [3.85, 1.95], rotulo: 'Cochilar 4 h', usar: naCasa(() => casa.sleep(4), 'Um cochilo.') });
     }
     criado(5.6, 0.25, 0.95); criado(5.6, 0.25, 3.85);
     caixa(4.7, 2.4, 2.2, 1.7, true); caixa(5.6, 0.95, 0.5, 0.45, true); caixa(5.6, 3.85, 0.5, 0.45, true);
@@ -603,7 +607,7 @@ if (VOLTAR) {
   sair.addEventListener('click', () => location.assign(VOLTAR));
 }
 // Com outros jogadores no mesmo imóvel (dono e convidados): sala do interior no realtime.
-const POSE_DO_ESTADO = { sentado: 'sit', levantando: 'sit', usando: 'interact', conversando: 'talk' };
+const POSE_DO_ESTADO = { sentado: 'sit', levantando: 'sit', usando: 'interact', conversando: 'talk', deitado: 'lie' };
 const poseAtual = () => (estado ? POSE_DO_ESTADO[estado.tipo] ?? 'idle' : avatar.vel > 2.5 ? 'run' : avatar.vel > 0 ? 'walk' : 'idle');
 const visitantes = VOLTAR
   ? createInteriorMultiplayer({
@@ -630,7 +634,10 @@ function saiuPelaPorta() {
 const ALCANCE = 1.6;   // m: perto o bastante para agir
 const TOQUE = 0.8;     // m: o clique no chão vale para o item mais perto até aqui
 let pendente = null;   // item escolhido pelo clique, ainda longe
-let estado = null;     // null | { tipo: 'sentado' | 'usando' | 'conversando', item?, volta? }
+let estado = null;     // null | { tipo: 'sentado' | 'usando' | 'conversando' | 'deitado', item?, volta? }
+// Deitado: o corpo gira 90° e fica no colchão. A UAL não tem clipe de deitar: o parado, devagar, faz a respiração.
+const COLCHAO = 0.52;  // m: altura do colchão
+const RESPIRA = 0.45;  // velocidade do clipe parado na cama
 const itens = () => [...assentos.map((a) => ({ ...a, assento: a })), ...pontos.map((p) => ({ ...p, ponto: p }))];
 const distAte = (i) => Math.hypot(avatar.pos.x - i.x, avatar.pos.z - i.z);
 function maisPerto(x, z, max) {
@@ -658,14 +665,55 @@ function agir(item) {
     avatar.pos.set(item.assento.x, 0, item.assento.z);
     avatar.rumo = item.assento.rumo;
     avatar.inst?.playOnce('sitEnter', () => estado?.tipo === 'sentado' && avatar.inst.play('sit'));
+  } else if (item.ponto.deitar) {
+    // Cama: deita só se o servidor aceitou o descanso.
+    const ponto = item.ponto;
+    estado = { tipo: 'usando', item: ponto };
+    avatar.rumo = ponto.rumo;
+    Promise.resolve(ponto.usar?.(ponto)).then((ok) => {
+      if (estado?.item !== ponto) return;
+      if (ok) deitar(ponto); else estado = null;
+    });
   } else {
     estado = { tipo: 'usando', item: item.ponto };
     avatar.rumo = item.ponto.rumo;
     item.ponto.usar?.(item.ponto);
-    avatar.inst?.playOnce('interact', () => { if (estado?.tipo === 'usando') { estado = null; avatar.inst.play('idle'); } });
+    // A sequência do ponto (geladeira: abrir e pegar; fogão: pegar e mexer duas vezes), ou só interagir.
+    const fila = [...(item.ponto.anim ?? ['interact'])];
+    const proximo = () => {
+      if (estado?.tipo !== 'usando') return;
+      const papel = fila.shift();
+      if (papel) avatar.inst?.playOnce(papel, proximo);
+      else { estado = null; avatar.inst?.play('idle'); }
+    };
+    if (avatar.inst) proximo(); else estado = null;
+  }
+}
+/** Deita na cama do ponto: pés em ponto.deitar, cabeça para a cabeceira (+x). */
+function deitar(ponto) {
+  estado = { tipo: 'deitado', item: ponto, volta: new THREE.Vector3(ponto.x, 0, ponto.z) };
+  avatar.pos.set(ponto.deitar[0], COLCHAO, ponto.deitar[1]);
+  // Com o corpo girado -90° em x, a cabeça vai para -z local; o rumo -90° põe isso em +x, de barriga para cima.
+  avatar.rumo = -Math.PI / 2;
+  if (avatar.inst) {
+    avatar.inst.body.rotation.x = -Math.PI / 2;
+    avatar.inst.play('idle');
+    avatar.mixer.timeScale = RESPIRA;
+  }
+}
+/** Sai da cama para o lado de onde deitou. */
+function levantarDaCama() {
+  const volta = estado.volta;
+  estado = null;
+  avatar.pos.copy(volta);
+  if (avatar.inst) {
+    avatar.inst.body.rotation.x = 0;
+    avatar.mixer.timeScale = 1;
+    avatar.inst.play('idle');
   }
 }
 function levantar() {
+  if (estado?.tipo === 'deitado') return levantarDaCama();
   if (estado?.tipo !== 'sentado') { estado = null; return; }
   const volta = estado.volta;
   estado = { tipo: 'levantando' };
@@ -678,7 +726,7 @@ function levantar() {
 }
 function conversar() {
   if (estado?.tipo === 'conversando') { estado = null; avatar.inst?.play('idle'); return; }
-  if (estado?.tipo === 'sentado') return aviso('Levante-se para conversar.');
+  if (estado?.tipo === 'sentado' || estado?.tipo === 'deitado') return aviso('Levante-se para conversar.');
   estado = { tipo: 'conversando' };
   avatar.alvo = null;
   avatar.inst?.play('talk');
@@ -686,7 +734,7 @@ function conversar() {
 qs('[data-acao="conversar"]').addEventListener('click', conversar);
 const botaoUsar = qs('[data-acao="usar"]');
 function itemDaVez() {
-  if (estado?.tipo === 'sentado') return { rotulo: 'Levantar', levantar: true };
+  if (estado?.tipo === 'sentado' || estado?.tipo === 'deitado') return { rotulo: 'Levantar', levantar: true };
   if (estado) return null;
   const i = maisPerto(avatar.pos.x, avatar.pos.z, ALCANCE);
   return i;
@@ -731,7 +779,7 @@ addEventListener('pointerup', (e) => {
     const p = ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), new THREE.Vector3());
     // Clique num assento ou objeto: vai até ele e age ao chegar.
     const item = p && maisPerto(p.x, p.z, TOQUE);
-    if (estado?.tipo === 'sentado') levantar();
+    if (estado?.tipo === 'sentado' || estado?.tipo === 'deitado') levantar();
     else if (item) {
       estado = null;
       if (distAte(item) < ALCANCE) agir(item);
@@ -773,7 +821,7 @@ function andar(dt) {
   const mexendo = ['w', 's', 'a', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].some((k) => teclas.has(k));
   if (estado) {
     // Sentado, usando ou conversando: o avatar fica parado; mexer termina a ação.
-    if (mexendo && estado.tipo === 'sentado') levantar();
+    if (mexendo && (estado.tipo === 'sentado' || estado.tipo === 'deitado')) levantar();
     else if (mexendo && estado.tipo !== 'levantando') { estado = null; }
     if (estado) {
       avatar.obj.position.copy(avatar.pos);
