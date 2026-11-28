@@ -530,7 +530,7 @@ Cada nó diz o tipo: `cruz` (4 braços), `T` (3), `fim` (1), `borda` (1, na bord
   - o mapa visto de cima mostra o asfalto do kit nas ruas.
 
 **Limites desta versão:**
-- o grafo leva cerca de 140 ms na cidade de verdade e é refeito a cada 60 m: há um engasgo nessa hora (a ir para um worker);
+- (resolvido) o grafo levava cerca de 140 ms na cidade e era refeito a cada 60 m, com um engasgo. Quase tudo era o afinamento, que montava um vetor de vizinhos por célula. Reescrito sem alocar e só revisitando as células vivas, o esqueleto caiu de cerca de 60 ms para 1 ms, e o grafo inteiro, no jogo, para 10 a 26 ms em 4 lugares da cidade. O esqueleto e o grafo saem iguais aos de antes nas 4 formas de rua de teste. Um worker não foi preciso;
 - a linha amarela quebra nas dobras do trecho;
 - o cruzamento que não é em ângulo reto fica com o asfalto do OSM, sem faixa de pedestre do kit. As listras de hoje também saem, então ali não há faixa desenhada;
 - as curvas do kit ainda não entram.
