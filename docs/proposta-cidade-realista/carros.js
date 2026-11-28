@@ -170,6 +170,8 @@ export function createTraffic({ THREE, scene, streetView, walkers = () => [], st
   const fps = { frames: 0, time: 0, value: 60 };
   const stats = { spawned: 0, removed: 0, brakes: 0, straight: 0, turnsRight: 0, yields: 0, busStops: 0, redStops: 0, rightOfWay: 0, unlocks: 0 };
   let clock = 0;
+  /** O avatar está no ônibus (viagem.js): o ônibus não sai da cena e ninguém freia pelo avatar. */
+  let riding = false;
   /** Perto de um semáforo, quem manda é a luz. */
   const nearSignal = (c) => signals().some((s) => Math.hypot(s.x - c.x, s.z - c.z) < opt.yield.signal);
   const isRoad = (x, z) => streetView.isRoad(x, z);
@@ -262,7 +264,8 @@ export function createTraffic({ THREE, scene, streetView, walkers = () => [], st
       return along > 0 && along < opt.gap + extra && Math.abs(dx * fz - dz * fx) < r;
     };
     // O avatar na rua: faixa larga (o carro corrige a faixa e não pode escapar dele) e parada firme a menos de 5 m.
-    if (isRoad(a.x, a.z)) {
+    // No ônibus (viagem.js), o avatar vai dentro dele: não conta.
+    if (!riding && isRoad(a.x, a.z)) {
       const dx = a.x - car.x, dz = a.z - car.z;
       if (ahead(a.x, a.z, 2.6) || (dx * fx + dz * fz > 0 && Math.hypot(dx, dz) < 5)) return true;
     }
@@ -346,6 +349,7 @@ export function createTraffic({ THREE, scene, streetView, walkers = () => [], st
     const a = streetView.position();
     for (let i = cars.length - 1; i >= 0; i--) {
       const c = cars[i];
+      if (riding && c.bus) continue;
       if (Math.hypot(c.x - a.x, c.z - a.z) > opt.despawn || !isRoad(c.x, c.z) || cars.length > target) remove(i);
     }
     // Com 3 carros ou mais, um é ônibus.
@@ -409,6 +413,17 @@ export function createTraffic({ THREE, scene, streetView, walkers = () => [], st
     },
     /** Onde estão os carros e a que velocidade (os pedestres esperam no meio-fio). */
     positions: () => cars.map((c) => ({ x: c.x, z: c.z, speed: c.speed, bus: c.bus })),
+    /** O ônibus da cena (há no máximo um): posição, rumo, se está parado, em que ponto e a porta. */
+    busState: () => {
+      const c = cars.find((x) => x.bus);
+      if (!c) return null;
+      const r = rightOf(c.heading);
+      return {
+        x: c.x, z: c.z, heading: c.heading, dwelling: c.dwell > 0, stopKey: c.dwell > 0 ? c.stopKey : null,
+        door: { x: c.x + Math.sin(r) * 1.4 + Math.sin(c.heading) * 3.5, z: c.z + Math.cos(r) * 1.4 + Math.cos(c.heading) * 3.5 },
+      };
+    },
+    setRiding: (on) => { riding = !!on; },
     /** Ônibus parados no ponto, com a porta (do lado da calçada, perto da frente). */
     buses: () =>
       cars

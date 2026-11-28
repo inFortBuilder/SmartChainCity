@@ -81,6 +81,14 @@ export const CURE_CHANCE = 0.7;
 export const isMedicine = (m: Pick<Meal, 'foodCode'>) => m.foodCode === MEDICINE_CODE;
 
 /**
+ * Passagem de ônibus na rua (fase 3 do mundo aberto): o avatar embarca no ponto e desce no próximo. O preço
+ * é o do deslocamento de ônibus do turno (routine.ts, `COMMUTES.onibus`), passado por quem chama. Paga pelo
+ * ledger, para a queima ("transit"); não muda nada no avatar.
+ */
+export const BUS_FARE_CODE = 'onibus';
+export const isBusFare = (m: Pick<Meal, 'foodCode'>) => m.foodCode === BUS_FARE_CODE;
+
+/**
  * Pet Shop (E3.1): a adoção e os serviços passam pelo mesmo caminho da refeição
  * (cobrança em duas fases, idempotente). O código é `pet:<adocao|serviço>`.
  */
@@ -372,6 +380,31 @@ export function cookFromPantry(avatar: Avatar, input: { foodCode: string; housed
   if (left > 0) pantry[input.foodCode] = left;
   else delete pantry[input.foodCode];
   return { ...fed, pantry };
+}
+
+/** Confere e monta a passagem: não embarca internado, dormindo nem de cama. */
+export function planBusRide(
+  avatar: Avatar,
+  input: { id: string; clientKey: string | null; fareCents: bigint; resting: boolean },
+  now: Date,
+): Meal {
+  assertNotInHospital(avatar, now);
+  if (input.resting) throw new AppError('resting', 'O avatar está dormindo.', 409);
+  if (activeConditions(avatar.conditions, now).some((c) => CONDITIONS[c.code].blocksWork)) {
+    throw new AppError('sick', 'O avatar está de cama: sem passeio até melhorar.', 409);
+  }
+  return {
+    id: input.id,
+    avatarId: avatar.id,
+    accountId: avatar.accountId,
+    foodCode: BUS_FARE_CODE,
+    priceCents: input.fareCents,
+    effects: { food: 0, energy: 0, health: 0 },
+    status: 'pending',
+    clientKey: input.clientKey,
+    createdAt: now,
+    eatenAt: null,
+  };
 }
 
 /** Confere e monta a compra do remédio. `roll` de 0 a 1 decide a cura. */

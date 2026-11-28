@@ -2367,6 +2367,9 @@ export function createServidor(map) {
   }
   let shopCat = null;
   let medicineCents = null;
+  let routineCat = null;
+  /** O catálogo da rotina (descanso, higiene, deslocamento e a passagem do ônibus), uma vez. */
+  const routineCatalog = async () => (routineCat ??= await call(API.game, '/v1/catalog/routine'));
   /** O catálogo da loja do jogo (uma vez). */
   const shopCatalog = async () => (shopCat ??= await call(API.game, '/v1/catalog/shop'));
   call(API.game, '/v1/catalog/pharmacy')
@@ -2386,6 +2389,7 @@ export function createServidor(map) {
     foodCatalog,
     avatarPost,
     shopCatalog,
+    routineCatalog,
     medicinePrice: () => medicineCents,
     active: () => session !== null,
     getSession: () => session,
