@@ -262,7 +262,23 @@ O OSM da cidade só traz o polígono das ruas, sem a linha do meio. O carro se g
 - com o avatar parado na rua, 14 m à frente de um carro a 6 a 8 m/s: o carro parou a 4,5 m, 5 m e 7 m nas três tentativas;
 - no Node, em duas ruas de 10 m que se cruzam: seguindo reto, atravessou o cruzamento; entrando, virou à direita e ficou na faixa; numa rua sem saída, deu a volta. Nenhum passo fora da rua, e no máximo 0,3 m fora da faixa.
 
-**Limites desta versão:** o carro não vira à esquerda e não há preferência no cruzamento sem semáforo. O carro já para para o pedestre que atravessa na faixa ([travessia](#travessia-na-faixa)) e no semáforo ([semáforos](#semáforos-nos-cruzamentos-fase-3)).
+### Preferência pela direita
+
+No cruzamento sem semáforo, o carro dá a preferência para quem vem pela direita. Ele espera se outro carro:
+
+- cruza o caminho dele (rumos a mais de 60° um do outro);
+- está à direita, de 1 a 12 m de lado, e até 14 m à frente;
+- vai para o caminho dele.
+
+Quem já está esperando parado não segura os outros. Se quatro carros chegam juntos, cada um com outro à direita, ninguém sairia: depois de 4 s esperando, o carro vai e ignora a regra por 3 s. Perto de um semáforo (25 m), quem manda é a luz.
+
+**PREMISSAS:** até 14 m à frente, de 1 a 12 m à direita; destrave em 4 s, por 3 s.
+
+**Testado** em 2026-11-28:
+- no Node, num cruzamento em + com dois carros chegando juntos: o que tinha o outro à direita esperou 0,9 s, e a menor distância entre eles foi de 11,7 m (sem a regra, 4,3 m). Na mesma rua, em sentidos opostos, ninguém esperou;
+- no navegador, no T de (-1397, 4857) com `?semaforos=0` e 10 carros por 40 s: 7 preferências dadas, nenhum par de carros que se cruzam a menos de 3 m (a menor distância foi 3,5 m) e nenhum destrave.
+
+**Limites desta versão:** o carro não vira à esquerda. O carro já para para o pedestre que atravessa na faixa ([travessia](#travessia-na-faixa)) e no semáforo ([semáforos](#semáforos-nos-cruzamentos-fase-3)).
 
 ## Semáforos nos cruzamentos (fase 3)
 
