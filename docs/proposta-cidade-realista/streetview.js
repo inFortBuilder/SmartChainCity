@@ -37,8 +37,10 @@ const TURN = { start: 1.75, rate: 7, done: 0.35 };
  */
 export function buildSidewalkGrid(isRoad, cx, cz, blocked = () => false, opt = SIDEWALK) {
   const n = Math.ceil((opt.radius * 2) / opt.cell);
-  const x0 = cx - (n * opt.cell) / 2;
-  const z0 = cz - (n * opt.cell) / 2;
+  // Alinhada a múltiplos da célula no mundo: refazer a grade em outro centro dá as mesmas células (e o
+  // mesmo sorteio de postes, árvores e pontos de ônibus).
+  const x0 = Math.floor((cx - (n * opt.cell) / 2) / opt.cell) * opt.cell;
+  const z0 = Math.floor((cz - (n * opt.cell) / 2) / opt.cell) * opt.cell;
   const kind = new Uint8Array(n * n);
   const dist = new Float32Array(n * n).fill(Infinity);
   for (let r = 0; r < n; r++) {
