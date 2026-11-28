@@ -63,34 +63,41 @@ export function distanceToEdge({ n, m }) {
 // Vizinhos de Zhang-Suen, no sentido horário a partir de cima: P2..P9.
 const RING = [[-1, 0], [-1, 1], [0, 1], [1, 1], [1, 0], [1, -1], [0, -1], [-1, -1]];
 
-/** Esqueleto de uma célula de largura (Zhang-Suen). Devolve a máscara nova. */
+/**
+ * Esqueleto de uma célula de largura (Zhang-Suen). Devolve a máscara nova. Sem alocar nada por célula: os 8
+ * vizinhos saem de deslocamentos fixos, e cada passada só revisita as células que ainda são rua (a lista
+ * encolhe a cada passada). Na cidade, de cerca de 60 ms para poucos ms.
+ */
 export function thin({ n, m }) {
   const s = Uint8Array.from(m);
   // A borda da grade não entra (o afinamento olha os 8 vizinhos).
   for (let i = 0; i < n; i++) s[i] = s[(n - 1) * n + i] = s[i * n] = s[i * n + n - 1] = 0;
+  // P2..P9 no sentido horário a partir de cima, como deslocamentos no vetor.
+  const o = RING.map(([dr, dc]) => dr * n + dc);
+  let live = [];
+  for (let k = 0; k < n * n; k++) if (s[k]) live.push(k);
   const del = [];
   for (let changed = true; changed; ) {
     changed = false;
-    for (const step of [0, 1]) {
+    for (let step = 0; step < 2; step++) {
       del.length = 0;
-      for (let r = 1; r < n - 1; r++) {
-        for (let c = 1; c < n - 1; c++) {
-          const k = r * n + c;
-          if (!s[k]) continue;
-          const p = RING.map(([dr, dc]) => s[k + dr * n + dc]);
-          const b = p.reduce((a, v) => a + v, 0);
-          if (b < 2 || b > 6) continue;
-          let a = 0;
-          for (let i = 0; i < 8; i++) if (!p[i] && p[(i + 1) % 8]) a++;
-          if (a !== 1) continue;
-          // P2·P4·P6 e P4·P6·P8 (1º passo); P2·P4·P8 e P2·P6·P8 (2º).
-          if (step === 0 ? p[0] * p[2] * p[4] || p[2] * p[4] * p[6] : p[0] * p[2] * p[6] || p[0] * p[4] * p[6]) continue;
-          del.push(k);
-        }
+      for (let i = 0; i < live.length; i++) {
+        const k = live[i];
+        if (!s[k]) continue;
+        const p2 = s[k + o[0]], p3 = s[k + o[1]], p4 = s[k + o[2]], p5 = s[k + o[3]];
+        const p6 = s[k + o[4]], p7 = s[k + o[5]], p8 = s[k + o[6]], p9 = s[k + o[7]];
+        const b = p2 + p3 + p4 + p5 + p6 + p7 + p8 + p9;
+        if (b < 2 || b > 6) continue;
+        const a = (!p2 && p3) + (!p3 && p4) + (!p4 && p5) + (!p5 && p6) + (!p6 && p7) + (!p7 && p8) + (!p8 && p9) + (!p9 && p2);
+        if (a !== 1) continue;
+        // P2·P4·P6 e P4·P6·P8 (1º passo); P2·P4·P8 e P2·P6·P8 (2º).
+        if (step === 0 ? (p2 && p4 && p6) || (p4 && p6 && p8) : (p2 && p4 && p8) || (p2 && p6 && p8)) continue;
+        del.push(k);
       }
-      for (const k of del) s[k] = 0;
+      for (let i = 0; i < del.length; i++) s[del[i]] = 0;
       if (del.length) changed = true;
     }
+    if (changed) live = live.filter((k) => s[k]);
   }
   return s;
 }
