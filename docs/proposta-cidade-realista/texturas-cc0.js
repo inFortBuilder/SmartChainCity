@@ -5,10 +5,11 @@
 //   no piso da praça. Cor, normal (GL) e rugosidade, em 1K, repetidas pelo mundo (UV = x e z ÷ o tamanho).
 // - Poly Haven (CC0 1.0): o HDRI kloofendal_48d_partly_cloudy_puresky (1K) vira a luz de ambiente e o reflexo
 //   (scene.environment, pelo PMREM). O céu visível continua o do Sky (ceu.js), que acompanha a hora e o clima;
-//   a força do ambiente segue a luz do céu (de dia até 0,5, à noite quase nada). No mapa, sai.
+//   a força do ambiente segue a luz do céu (de dia até 0,3, à noite quase nada). No mapa, sai.
 // Sem os arquivos, nada muda (as texturas de antes ficam). ?cc0=0 desliga.
 //
-// PREMISSAS: asfalto a cada 4 m, concreto e pedra a cada 2,5 m; ambiente a 0,5 com o céu cheio.
+// PREMISSAS: asfalto a cada 4 m, concreto e pedra a cada 2,5 m; concreto escurecido (a8a49c), porque é claro e
+// estourava com o sol e o céu fortes; ambiente a 0,3 com o céu cheio.
 
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 
@@ -16,11 +17,11 @@ export const CC0 = {
   base: '../../.local/cc0',
   sets: {
     asfalto: { dir: 'ambientcg-Asphalt026C', id: 'Asphalt026C', tile: 4 },
-    concreto: { dir: 'ambientcg-Concrete034', id: 'Concrete034', tile: 2.5 },
+    concreto: { dir: 'ambientcg-Concrete034', id: 'Concrete034', tile: 2.5, tint: 0xa8a49c },
     pedra: { dir: 'ambientcg-PavingStones092', id: 'PavingStones092', tile: 2.5 },
   },
   hdri: 'polyhaven-hdri/kloofendal_48d_partly_cloudy_puresky_1k.hdr',
-  envMax: 0.5,
+  envMax: 0.3,
 };
 
 /** UV pelo mundo (x e z ÷ `tile`) para uma malha; nas paredes (normal de lado), x + z e a altura. */
@@ -58,7 +59,7 @@ export function createCC0({ THREE, renderer, scene, opt = CC0 }) {
     const p = `${opt.base}/${s.dir}/${s.id}_1K-JPG`;
     try {
       const [map, normalMap, roughnessMap] = await Promise.all([tex(`${p}_Color.jpg`, true), tex(`${p}_NormalGL.jpg`), tex(`${p}_Roughness.jpg`)]);
-      sets[key] = { map, normalMap, roughnessMap, tile: s.tile };
+      sets[key] = { map, normalMap, roughnessMap, tile: s.tile, tint: s.tint ?? 0xffffff };
       stats.sets.push(key);
     } catch {
       stats.missing.push(key);
@@ -86,7 +87,7 @@ export function createCC0({ THREE, renderer, scene, opt = CC0 }) {
     const s = sets[key];
     if (!s || !material) return null;
     Object.assign(material, { map: s.map, normalMap: s.normalMap, roughnessMap: s.roughnessMap, roughness: 1, vertexColors: false });
-    material.color.set(0xffffff);
+    material.color.set(s.tint);
     material.needsUpdate = true;
     return s.tile;
   }
