@@ -10,7 +10,11 @@
 // - quando a frente fecha (fim da rua, T), vira para o lado que tem mais rua;
 // - freia atrás de outro carro e para na frente do avatar, se ele estiver na rua, e do pedestre que
 //   atravessa na faixa (`walkers()`, de pedestres.js);
-// - no semáforo (semaforos.js), para antes da faixa no vermelho, e no amarelo se ainda dá (mais de 4 m).
+// - no semáforo (semaforos.js), para antes da faixa no vermelho, e no amarelo se ainda dá (mais de 4 m);
+// - no cruzamento sem semáforo, dá a preferência para quem vem pela direita (`mustYield`): um carro que
+//   cruza o caminho dele, à direita (1 a 12 m de lado), até 14 m à frente e indo para o caminho dele.
+//   Para não travar (quatro esperando o da direita), depois de 4 s esperando ele vai, e ignora a regra
+//   por 3 s.
 // Nascem numa rua de pelo menos 5 m de largura, entre 30 m e 70 m do avatar, e somem a 90 m.
 // O carro é uma peça procedural (carroceria, cabine, rodas, faróis), de cor sorteada, até haver o modelo
 // CC0 do SCC Kit. A quantidade segue o FPS, como os pedestres.
@@ -35,6 +39,8 @@ export const CARS = {
   /** m: alcance dos bigodes (direita e frente). */
   side: 8,
   front: 14,
+  /** Preferência pela direita: até `ahead` m à frente, de 1 a `side` m à direita; trava desfeita em `wait` s. */
+  yield: { ahead: 14, side: 12, wait: 4, go: 3, signal: 25 },
   /** m: distância de frenagem atrás de outro carro ou do avatar. */
   gap: 9,
   /** rad/s por metro de erro na faixa, amortecimento (rad/s por m/s de erro) e a virada máxima. */
@@ -93,6 +99,30 @@ export function drive(isRoad, car, dt, opt = CARS, choose = () => Math.random() 
   return { dR, dF, rate };
 }
 
+/**
+ * Preferência pela direita (cruzamento sem semáforo): `car` espera se outro carro cruza o caminho dele
+ * vindo pela direita, perto e indo para o caminho dele. Quem já está esperando (`giving`) e parado não
+ * segura os outros (senão ninguém sai).
+ */
+export function mustYield(car, others, opt = CARS) {
+  const fx = Math.sin(car.heading), fz = Math.cos(car.heading);
+  for (const o of others) {
+    if (o === car) continue;
+    const ofx = Math.sin(o.heading), ofz = Math.cos(o.heading);
+    if (Math.abs(fx * ofx + fz * ofz) > 0.5) continue; // mesma rua (ou contramão): não cruza
+    const dx = o.x - car.x, dz = o.z - car.z;
+    const along = dx * fx + dz * fz;
+    const lat = dx * fz - dz * fx; // negativo: à direita
+    if (along < -2 || along > opt.yield.ahead) continue;
+    if (lat > -1 || lat < -opt.yield.side) continue;
+    // Indo para a esquerda de `car`, isto é, para o caminho dele.
+    if (ofx * fz - ofz * fx < 0.5) continue;
+    if (o.giving && o.speed < 0.5) continue;
+    return true;
+  }
+  return false;
+}
+
 /** Rumo ao longo da rua em (x, z): o de maior alcance para a frente e para trás (16 direções). */
 export function roadHeading(isRoad, x, z, max = 30) {
   let best = 0, len = -1;
@@ -138,7 +168,10 @@ export function createTraffic({ THREE, scene, streetView, walkers = () => [], st
   const cars = [];
   let target = opt.start;
   const fps = { frames: 0, time: 0, value: 60 };
-  const stats = { spawned: 0, removed: 0, brakes: 0, straight: 0, turnsRight: 0, yields: 0, busStops: 0, redStops: 0 };
+  const stats = { spawned: 0, removed: 0, brakes: 0, straight: 0, turnsRight: 0, yields: 0, busStops: 0, redStops: 0, rightOfWay: 0, unlocks: 0 };
+  let clock = 0;
+  /** Perto de um semáforo, quem manda é a luz. */
+  const nearSignal = (c) => signals().some((s) => Math.hypot(s.x - c.x, s.z - c.z) < opt.yield.signal);
   const isRoad = (x, z) => streetView.isRoad(x, z);
 
   /** Ônibus: carroceria, faixa de janelas, 6 rodas e os faróis nas pontas. */
@@ -309,6 +342,7 @@ export function createTraffic({ THREE, scene, streetView, walkers = () => [], st
     group.visible = on;
     if (!on || !dt) return;
     adapt(dt);
+    clock += dt;
     const a = streetView.position();
     for (let i = cars.length - 1; i >= 0; i--) {
       const c = cars[i];
@@ -322,7 +356,20 @@ export function createTraffic({ THREE, scene, streetView, walkers = () => [], st
       if (c.opening && !wasOpen) stats[c.straight ? 'straight' : 'turnsRight']++;
       const wasYielding = c.yielding;
       c.yielding = false;
-      const stop = blockedAhead(c, a);
+      // Preferência pela direita, fora do semáforo, com o destrave depois de 4 s.
+      let give = !(c.goUntil > clock) && !nearSignal(c) && mustYield(c, cars, opt);
+      if (give) {
+        c.yieldT = (c.yieldT ?? 0) + dt;
+        if (c.yieldT > opt.yield.wait) {
+          c.goUntil = clock + opt.yield.go;
+          c.yieldT = 0;
+          give = false;
+          stats.unlocks++;
+        }
+      } else c.yieldT = 0;
+      if (give && !c.giving) stats.rightOfWay++;
+      c.giving = give;
+      const stop = blockedAhead(c, a) || give;
       if (c.yielding && !wasYielding) stats.yields++;
       if (stop && c.speed > 1) stats.brakes++;
       // Acelera devagar e freia forte.
