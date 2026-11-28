@@ -262,7 +262,7 @@ O OSM da cidade só traz o polígono das ruas, sem a linha do meio. O carro se g
 - com o avatar parado na rua, 14 m à frente de um carro a 6 a 8 m/s: o carro parou a 4,5 m, 5 m e 7 m nas três tentativas;
 - no Node, em duas ruas de 10 m que se cruzam: seguindo reto, atravessou o cruzamento; entrando, virou à direita e ficou na faixa; numa rua sem saída, deu a volta. Nenhum passo fora da rua, e no máximo 0,3 m fora da faixa.
 
-**Limites desta versão:** o carro não vira à esquerda e não há preferência no cruzamento sem semáforo. O carro já para para o pedestre que atravessa na faixa ([travessia](#travessia-na-faixa)) e no semáforo ([semáforos](#semáforos-nos-cruzamentos-fase-3)). Os sons ficam para os próximos passos.
+**Limites desta versão:** o carro não vira à esquerda e não há preferência no cruzamento sem semáforo. O carro já para para o pedestre que atravessa na faixa ([travessia](#travessia-na-faixa)) e no semáforo ([semáforos](#semáforos-nos-cruzamentos-fase-3)).
 
 ## Semáforos nos cruzamentos (fase 3)
 
@@ -310,6 +310,28 @@ Os pontos só existem na grade em volta do avatar (40 m): o ônibus só para nos
 - as 3 faixas do cruzamento seguem lá depois do alinhamento da grade.
 
 **Limites desta versão:** o avatar ainda não embarca (o deslocamento de ônibus do jogo, 6 min e 3 THALER, é só a regra do turno), e o ônibus não segue uma linha fixa.
+
+## Sons da cidade (fase 3)
+
+`sons.js` sintetiza os sons com a Web Audio. Não há arquivo de som: nada para baixar nem licenciar.
+
+| Som | Como |
+|---|---|
+| Fundo da cidade | Ruído filtrado em 350 Hz, a 3% do volume, constante |
+| Motores | 4 vozes (dente de serra filtrado com um pouco de ruído) presas aos 4 carros mais perto e posicionadas no espaço. O tom sobe com a velocidade (45 a 95 Hz; o ônibus, 30 a 60 Hz e mais alto). Parado, o motor fica em marcha lenta, a 40% |
+| Passos do avatar | Um estalo curto de ruído a cada passo: 0,5 s andando, 0,32 s correndo; nada no ar |
+| Bipe da travessia | No semáforo a menos de 15 m, um bipe de 880 Hz por segundo enquanto o pedestre pode atravessar |
+
+O ouvinte fica na câmera. O navegador só deixa tocar depois de um gesto, então o som começa no primeiro clique ou tecla do street view. O botão **Som** na barra liga e desliga, e a escolha fica salva neste navegador. `?som=0` tira o botão e o áudio.
+
+**PREMISSAS:** 4 vozes de motor; fundo a 3%; motor de 45 a 95 Hz (ônibus de 30 a 60 Hz); distância de referência de 6 m; bipe a menos de 15 m.
+
+**Testado** em 2026-11-28, no cruzamento de (-1397, 4857), sem ouvir (o painel não tem saída de som), pelo estado da Web Audio:
+- depois de uma tecla de verdade, o contexto ficou "running";
+- andando 4 s, 7 passos;
+- as 4 vozes presas aos carros mais perto (de 5,8 m a 38,6 m), o ônibus em 30 a 33 Hz, os carros parados em marcha lenta;
+- perto da faixa com semáforo, o bipe tocou;
+- o botão passou a "Som: desligado", salvou "0", e voltou a "Som: ligado" e "1".
 
 ## Avatar e animações: Universal Animation Library (Quaternius)
 

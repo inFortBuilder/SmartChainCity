@@ -43,6 +43,7 @@ export function createSounds({ streetView, camera, cars = () => [], signals = ()
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.dataset.som = '';
+  btn.style.whiteSpace = 'nowrap';
   const label = () => {
     btn.textContent = on ? 'Som: ligado' : 'Som: desligado';
     btn.setAttribute('aria-pressed', String(on));
