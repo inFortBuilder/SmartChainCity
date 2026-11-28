@@ -554,6 +554,16 @@ Ao abrir, o celular pede um refresh do servidor e se redesenha. Ele só mostra e
 - a tecla C (de verdade) fechou e abriu o celular, e o Esc fechou;
 - na primeira captura, a linha da moradia saiu colada ("CasaSem moradia…"). Ganhou espaço entre o rótulo e o valor.
 
+## Praça da Prefeitura
+
+`pracas.js` faz chão andável fora da rua e da calçada. A primeira praça é a da Prefeitura: os lotes do Centro Administrativo (que não estão à venda) viram a praça onde a cidade faz os eventos.
+
+- **Onde é chão**: os lotes mais o recuo até a rua (até 9 m), menos a rua, os lotes vizinhos de outros donos e o prédio (o retângulo dele, girado como ele, com 1,5 m de folga). Grade de 0,5 m, cerca de 10.600 m².
+- **Altura**: a do meio-fio, então sai-se da calçada para a praça sem degrau.
+- **Peças**: chafariz no ponto mais longe das bordas, uma árvore por quadrado de 10 m (sorteio fixo pela posição) e um banco ao lado de cerca de metade delas. Árvore, banco e chafariz ocupam o chão: o avatar contorna.
+- **Quando**: montada uma vez, quando o avatar chega a 450 m (cerca de 100 ms; cada lote é testado só nas células da caixa dele).
+- Ao pisar nela, o nome aparece. A praça é destino do GPS (minimapa e celular). `?pracas=0` desliga; `__pittsburg.plazas().debug()` mostra a área, as peças e se o avatar está dentro.
+
 ## Clima
 
 `clima.js` põe o tempo por cima da luz da hora (`ceu.js`), só no street view:

@@ -12,7 +12,7 @@ O GTA 6 é a referência de **gênero** (mundo aberto em terceira pessoa), não 
 |---|---|---|
 | Câmera atrás do ombro, que segue e desvia de paredes | Câmera do street view com colisão contra os prédios | 🟡 a câmera segue, ainda não colide ([street view](street-view.md)) |
 | Andar, correr, pular, virar com animação suave | WASD, Shift; faltam o pulo e as transições (virar, parar) | ✅ andar, correr, pular e virar no lugar ([street view](street-view.md#calçada-câmera-e-pulo-fase-1-do-mundo-aberto)) |
-| Andar só por onde dá: rua, calçada, faixa, praça | Navmesh das calçadas e travessias, no lugar da "só rua" de hoje | 🟡 rua, calçada e faixa (grade da calçada e caminho em volta dos obstáculos); praça não |
+| Andar só por onde dá: rua, calçada, faixa, praça | Navmesh das calçadas e travessias, no lugar da "só rua" de hoje | ✅ rua, calçada e faixa (grade da calçada e caminho em volta dos obstáculos); praça ([Praça da Prefeitura](street-view.md#praça-da-prefeitura)) |
 | Entrar na loja sem tela de carregamento | O interior carrega por streaming ao chegar perto da porta | ✅ o mercado, a loja do jogo, a farmácia e os locais de trabalho ficam na rua, sem carregamento |
 | Comprar pegando o produto e passando no caixa | O carrinho do jogo chama as rotas que já existem | ✅ no mercado da rua ([mercado](street-view.md#mercado-da-prefeitura-na-rua-fase-2)) |
 | Comer, cozinhar, dormir com animação | Na casa ou no hotel, com os móveis da loja | ✅ na casa do jogador ([animações](street-view.md#animações-em-casa)) |
