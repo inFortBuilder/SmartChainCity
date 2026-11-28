@@ -16,6 +16,7 @@ import { createMultiplayer } from './multiplayer.js';
 import { createStreetView } from './streetview.js';
 import { createStreetMarket } from './mercado-rua.js';
 import { createStreetStores } from './lojas-rua.js';
+import { createWorkplaces } from './trabalho.js';
 import { createPedestrians } from './pedestres.js';
 import { createTraffic } from './carros.js';
 import { createSignals } from './semaforos.js';
@@ -230,6 +231,8 @@ let streetView = null;
 let streetMarket = null;
 /** Loja do jogo e farmácia na rua (lojas-rua.js). */
 let streetStores = null;
+/** Locais de trabalho na rua, um por setor de profissão (trabalho.js, fase 4). */
+let workplaces = null;
 /** Pedestres nas calçadas do street view (pedestres.js, fase 3). */
 let pedestrians = null;
 /** Carros nas ruas do street view (carros.js, fase 3). */
@@ -837,15 +840,16 @@ try {
       loadGltf: (url) => new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).loadAsync(url),
       onPlaceClick: (p) => clickPlace(p),
       // A câmera e a calçada desviam dos prédios: os de LOD (Centro Administrativo, spike) e os da gestão.
-      blockers: () => [...progressive, gestao?.group, streetMarket?.group, ...(streetStores?.groups ?? [])],
+      blockers: () => [...progressive, gestao?.group, streetMarket?.group, ...(streetStores?.groups ?? []), ...(workplaces?.groups ?? [])],
       // O salão do Mercado da Prefeitura (mercado-rua.js): anda-se dentro dele, na altura do meio-fio.
-      extraWalkable: (x, z) => !!streetMarket?.walkable(x, z) || !!streetStores?.walkable(x, z),
-      extraFloor: (x, z) => streetMarket?.floorAt(x, z) ?? streetStores?.floorAt(x, z) ?? null,
+      extraWalkable: (x, z) => !!streetMarket?.walkable(x, z) || !!streetStores?.walkable(x, z) || !!workplaces?.walkable(x, z),
+      extraFloor: (x, z) => streetMarket?.floorAt(x, z) ?? streetStores?.floorAt(x, z) ?? workplaces?.floorAt(x, z) ?? null,
     });
     // Mercado na rua (fase 2): entra-se pela porta, pega-se o pacote na gôndola e paga-se no caixa.
     streetView.isRoad(0, 0); // monta o índice das ruas, para saber a altura do chão
     streetMarket = createStreetMarket({ THREE, scene, city: 'pittsburg', groundY: streetView.groundY(), servidor, streetView });
     streetStores = createStreetStores({ THREE, scene, city: 'pittsburg', groundY: streetView.groundY(), servidor, streetView });
+    workplaces = createWorkplaces({ THREE, scene, city: 'pittsburg', groundY: streetView.groundY(), servidor, streetView });
     // Cidade viva (fase 3): gente nas calçadas, só deste navegador. ?pedestres=0 desliga.
     // Semáforos (fase 3): nos cruzamentos com duas ou mais faixas. ?semaforos=0 desliga.
     if (PARAMS.get('semaforos') !== '0') signals = createSignals({ THREE, scene, streetView });
@@ -865,6 +869,8 @@ try {
       const places = () => [
         ...(streetStores?.debug().stores ?? []).map((s) => ({ id: s.id, label: s.id === 'loja' ? 'Loja do jogo' : 'Farmácia', x: s.door[0], z: s.door[1] })),
         ...(streetMarket ? [(([x, z]) => ({ id: 'mercado', label: 'Mercado da Prefeitura', x, z }))(streetMarket.debug().toWorld(0, -1.5))] : []),
+        // O trabalho: o prédio do setor da profissão do avatar (aparece quando o avatar carrega).
+        ...(workplaces?.myPlace() ? [workplaces.myPlace()] : []),
       ];
       minimap = createMinimap({ streetView, places, cars: () => traffic?.positions() ?? [], peds: () => pedestrians?.debug().peds ?? [], signals: () => signals });
     }
@@ -876,7 +882,7 @@ try {
       history.replaceState(null, '', location.pathname);
     }
   }
-  window.__pittsburg = { scene, camera, controls, renderer, buildings, light: () => streetLight, market: () => streetMarket, stores: () => streetStores, pedestrians: () => pedestrians, traffic: () => traffic, signals: () => signals, sounds: () => sounds, busRide: () => busRide, minimap: () => minimap, roadGraph: () => roadGraph, roadKit: () => roadKit, playerCar: () => playerCar, pick, showBuilding, pickLot, showLot, getLots: () => lots, gestao, civicBuilding, progressiveBuilding, loadLotsFor, servidor, multiplayer, streetView, lotAt, mercado };
+  window.__pittsburg = { scene, camera, controls, renderer, buildings, light: () => streetLight, market: () => streetMarket, stores: () => streetStores, workplaces: () => workplaces, pedestrians: () => pedestrians, traffic: () => traffic, signals: () => signals, sounds: () => sounds, busRide: () => busRide, minimap: () => minimap, roadGraph: () => roadGraph, roadKit: () => roadKit, playerCar: () => playerCar, pick, showBuilding, pickLot, showLot, getLots: () => lots, gestao, civicBuilding, progressiveBuilding, loadLotsFor, servidor, multiplayer, streetView, lotAt, mercado };
 
   // Spike E0.9: ?spike (ou ?spike=20) mede download, FPS e 20 prédios com LOD.
   const spikeParam = new URLSearchParams(location.search).get('spike');
@@ -964,6 +970,7 @@ renderer.setAnimationLoop((now) => {
   updateLight(performance.now());
   streetMarket?.update();
   streetStores?.update();
+  workplaces?.update();
   signals?.update(dt);
   pedestrians?.update(dt);
   traffic?.update(dt);
