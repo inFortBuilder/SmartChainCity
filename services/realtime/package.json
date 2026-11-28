@@ -9,17 +9,20 @@
     "lint": "tsc --noEmit -p .",
     "test": "vitest run",
     "load": "tsx --env-file-if-exists=.env scripts/load.ts",
-    "load:city": "tsx --env-file-if-exists=.env scripts/load-city.ts"
+    "load:city": "tsx --env-file-if-exists=.env scripts/load-city.ts",
+    "db:migrate": "tsx --env-file-if-exists=.env src/migrate.ts"
   },
   "dependencies": {
     "@colyseus/core": "0.18.27",
     "@colyseus/schema": "5.0.45",
     "@colyseus/ws-transport": "0.18.4",
     "@scc/shared": "workspace:*",
+    "pg": "^8.23.1",
     "zod": "^4.6.7"
   },
   "devDependencies": {
     "@colyseus/sdk": "0.18.9",
+    "@types/pg": "^8.23.1",
     "jose": "^6.2.14"
   }
 }

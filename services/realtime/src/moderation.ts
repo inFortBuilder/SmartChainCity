@@ -7,6 +7,8 @@
  * - Palavrões da lista são trocados por asteriscos; a mensagem passa.
  * - Quem tem 3 mensagens recusadas em 10 minutos fica silenciado por 10 minutos.
  * - 3 denúncias de jogadores diferentes silenciam por 15 minutos.
+ * - Com banco (`DATABASE_URL`), o silêncio fica guardado (mute-store.ts): vale depois de reiniciar e em todos
+ *   os processos do realtime.
  *
  * A lista é curta de propósito (MVP); a versão final vem do CMS, por idioma.
  */
@@ -64,11 +66,28 @@ export class MuteBook {
   private readonly violations = new Map<string, number[]>();
   private readonly reports = new Map<string, Set<string>>();
   private readonly mutedUntil = new Map<string, number>();
+  private readonly listeners: ((m: { account: string; until: number; reason: 'violations' | 'reports' }) => void)[] = [];
 
   constructor(
     private readonly now: () => number = () => Date.now(),
     readonly rules = { violations: 3, windowMs: 10 * 60_000, muteMs: 10 * 60_000, reports: 3, reportMuteMs: 15 * 60_000 },
   ) {}
+
+  /** Avisa cada silenciamento novo (o servidor grava no banco). */
+  onMute(fn: (m: { account: string; until: number; reason: 'violations' | 'reports' }) => void) {
+    this.listeners.push(fn);
+  }
+
+  /** Silêncio que veio de fora (banco, outro processo): vale o mais longo. Não avisa de novo. */
+  restore(account: string, until: number) {
+    if (until > (this.mutedUntil.get(account) ?? 0)) this.mutedUntil.set(account, until);
+  }
+
+  private mute(account: string, until: number, reason: 'violations' | 'reports') {
+    this.mutedUntil.set(account, until);
+    for (const fn of this.listeners) fn({ account, until, reason });
+    return until;
+  }
 
   isMuted(account: string): number {
     const until = this.mutedUntil.get(account) ?? 0;
@@ -83,8 +102,7 @@ export class MuteBook {
     this.violations.set(account, recent);
     if (recent.length >= this.rules.violations) {
       this.violations.delete(account);
-      this.mutedUntil.set(account, t + this.rules.muteMs);
-      return t + this.rules.muteMs;
+      return this.mute(account, t + this.rules.muteMs, 'violations');
     }
     return 0;
   }
@@ -97,9 +115,7 @@ export class MuteBook {
     this.reports.set(target, set);
     if (set.size >= this.rules.reports) {
       this.reports.delete(target);
-      const until = this.now() + this.rules.reportMuteMs;
-      this.mutedUntil.set(target, until);
-      return until;
+      return this.mute(target, this.now() + this.rules.reportMuteMs, 'reports');
     }
     return 0;
   }

@@ -35,6 +35,7 @@ O realtime manda sozinho os eventos da agenda (`src/schedule.ts`) para todas as 
 - **Links recusados:** links e convites (http, www, domínios, `t.me`, `discord.gg`) não passam. É o golpe mais comum num jogo com token.
 - **Palavrões mascarados:** viram asteriscos, inclusive com acento ou letra repetida ("puuuta"), e a mensagem passa.
 - **Silenciamento:** 3 mensagens recusadas em 10 minutos silenciam a conta por 10 minutos.
+- **Guardado no banco:** com `DATABASE_URL` (o mesmo Postgres dos outros serviços, esquema `realtime`), cada silenciamento vira uma linha em `realtime.mute`, com a conta, o fim e o motivo (`violations` ou `reports`). Ao subir, o processo carrega os que valem. A cada `MUTE_SYNC_SECONDS` (padrão 30), busca os gravados pelos outros processos (outros shards). Reiniciar não solta ninguém, e a tabela serve de registro para a moderação. Sem banco, fica na memória do processo, como antes. `pnpm db:migrate` cria a tabela, e o servidor também a cria ao subir.
 - **Respostas ao autor:** `chat_error` com `reason` = `link`, `too_long`, `empty`, `too_fast` ou `muted`.
 - **Log de auditoria:** `chat.blocked`, `chat.masked` e `chat.report`.
 
@@ -94,5 +95,4 @@ pnpm --filter @scc/realtime test
 ## Ainda não
 
 - Redis presence para mais de um processo (doc 05 §4); hoje o matchmaker é local.
-- Silenciamentos guardados em banco: hoje ficam na memória do processo.
 - Corridas ao vivo; anúncios pagos de jogadores no dirigível (Telecomunicação, fase 2); efeitos de jogo das datas marcadas.
