@@ -797,6 +797,8 @@ export function createStreetView({
     busStops: () => (busStopCount ? busStops.list() : []),
     /** Faixas de pedestre em volta do avatar agora (contagem e a lista, com centro, rumo e largura). */
     crosswalks: () => (crosswalkCounts ? { ...crosswalkCounts, list: crosswalks.list() } : null),
+    /** Desenha (ou não) as listras das faixas de pedestre; com o kit de ruas, as peças trazem as delas. */
+    drawCrosswalks: (on) => crosswalks.setDrawn(on),
     /** À noite, as luminárias dos postes acendem (ceu.js). */
     setNight: (on) => furniture.setNight(on),
     avatar,
