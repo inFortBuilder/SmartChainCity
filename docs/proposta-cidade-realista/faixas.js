@@ -117,7 +117,14 @@ export function createCrosswalks(THREE, scene, max = 1500, opt = CROSSWALK) {
   const pos = new THREE.Vector3();
   const one = new THREE.Vector3(1, 1, 1);
   let last = [];
+  // Com o kit de ruas (kit-ruas.js), as listras não aparecem: as peças trazem as delas. A lista continua.
+  let drawn = true;
   return {
+    /** Mostra ou esconde as listras (a lista das faixas continua para os pedestres). */
+    setDrawn(on) {
+      drawn = on;
+      stripes.visible = on && stripes.count > 0;
+    },
     rebuild(grid, roadY) {
       last = findCrosswalks(grid, opt);
       let k = 0;
@@ -135,7 +142,7 @@ export function createCrosswalks(THREE, scene, max = 1500, opt = CROSSWALK) {
       }
       stripes.count = k;
       stripes.instanceMatrix.needsUpdate = true;
-      stripes.visible = true;
+      stripes.visible = drawn;
       return { crosswalks: last.length, stripes: k };
     },
     hide() {
