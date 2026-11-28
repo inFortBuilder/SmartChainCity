@@ -25,6 +25,8 @@ const CAM = { dist: 4.5, minDist: 2, maxDist: 14, height: 1.6 };
  */
 export const SIDEWALK = { width: 3, curb: 0.15, cell: 0.5, radius: 40, rebuildAt: 20 };
 const JUMP = { speed: 4.2, gravity: 9.8 };
+/** Virada no lugar: começa acima de 100°, gira a 7 rad/s (~400°/s) e termina a 20° do rumo pedido. */
+const TURN = { start: 1.75, rate: 7, done: 0.35 };
 
 /**
  * Grade da calçada em volta de (cx, cz): 1 = rua, 2 = calçada, 0 = fora. A distância até a rua sai de
@@ -564,6 +566,7 @@ export function createStreetView({ THREE, scene, camera, controls, canvas, roads
   const tmp = new THREE.Vector3();
   const tmp2 = new THREE.Vector3();
   const jump = { vy: 0, air: false, landing: false };
+  const turn = { on: false };
   const camRay = new THREE.Ray();
   const localRay = new THREE.Ray();
   function tick(dt) {
@@ -588,11 +591,20 @@ export function createStreetView({ THREE, scene, camera, controls, canvas, roads
     let moving = false;
     if (len > 0) {
       const speed = run ? SPEED.run : SPEED.walk;
-      moving = step((dirX / len) * speed * dt, (dirZ / len) * speed * dt);
-      if (!moving) avatar.target = null;
       const want = Math.atan2(dirX, dirZ);
       const diff = Math.atan2(Math.sin(want - avatar.heading), Math.cos(want - avatar.heading));
-      avatar.heading += diff * Math.min(1, dt * 10);
+      // Virada no lugar: parado e mandado para trás ou para o lado (mais de 100°), o avatar gira antes de
+      // sair andando, em vez de deslizar de costas enquanto vira.
+      if (!turn.on && avatar.speed === 0 && !jump.air && Math.abs(diff) > TURN.start) turn.on = true;
+      if (turn.on) {
+        const a = Math.sign(diff) * Math.min(Math.abs(diff), TURN.rate * dt);
+        avatar.heading += a;
+        if (Math.abs(diff - a) < TURN.done) turn.on = false;
+      } else {
+        moving = step((dirX / len) * speed * dt, (dirZ / len) * speed * dt);
+        if (!moving) avatar.target = null;
+        avatar.heading += diff * Math.min(1, dt * 10);
+      }
       avatar.obj.rotation.y = avatar.heading;
       // A câmera acompanha devagar quando o avatar vai até um ponto clicado.
       if (!keys.size && avatar.target) view.yaw += Math.atan2(Math.sin(avatar.heading - view.yaw), Math.cos(avatar.heading - view.yaw)) * Math.min(1, dt * 1.5);
@@ -617,9 +629,13 @@ export function createStreetView({ THREE, scene, camera, controls, canvas, roads
       // Sobe e desce o meio-fio sem degrau seco.
       o.y += (floor - o.y) * Math.min(1, dt * 18);
     }
+    if (len === 0) turn.on = false;
     if (!jump.air && !(jump.landing && !moving)) {
       jump.landing = false;
-      play(moving ? (run ? 'run' : 'walk') : 'idle');
+      // Na virada, os pés acompanham: o clipe de andar, mais devagar.
+      play(turn.on ? 'walk' : moving ? (run ? 'run' : 'walk') : 'idle');
+      const w = inst?.actions?.walk;
+      if (w) w.timeScale = turn.on ? 0.7 : 1;
     }
     avatar.mixer?.update(dt);
 
@@ -691,6 +707,8 @@ export function createStreetView({ THREE, scene, camera, controls, canvas, roads
     /** Prédios que a câmera e a calçada levam em conta agora. */
     blockerCount: () => boxes.length,
     jumping: () => jump.air,
+    /** Girando no lugar agora (virada antes de sair andando). */
+    turning: () => turn.on,
     /** Postes e árvores em volta do avatar agora. */
     furniture: () => furnitureCounts,
     /** Faixas de pedestre em volta do avatar agora (contagem e a lista, com centro, rumo e largura). */
