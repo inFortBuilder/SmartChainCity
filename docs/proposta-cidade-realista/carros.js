@@ -15,6 +15,8 @@
 //   cruza o caminho dele, à direita (1 a 12 m de lado), até 14 m à frente e indo para o caminho dele.
 //   Para não travar (quatro esperando o da direita), depois de 4 s esperando ele vai, e ignora a regra
 //   por 3 s.
+// - travado só por outros carros (nó no cruzamento, carro na contramão) por mais de 8 s: sai da cena e
+//   nasce outro em outro lugar. O ônibus com o avatar dentro não sai: passa pelos carros por 3 s.
 // Nascem numa rua de pelo menos 5 m de largura, entre 30 m e 70 m do avatar, e somem a 90 m.
 // O carro é uma peça procedural (carroceria, cabine, rodas, faróis), de cor sorteada, até haver o modelo
 // CC0 do SCC Kit. A quantidade segue o FPS, como os pedestres.
@@ -41,6 +43,8 @@ export const CARS = {
   front: 14,
   /** Preferência pela direita: até `ahead` m à frente, de 1 a `side` m à direita; trava desfeita em `wait` s. */
   yield: { ahead: 14, side: 12, wait: 4, go: 3, signal: 25 },
+  /** Travado só por carros: depois de `after` s parado, sai (ou o ônibus com o avatar passa por `ghost` s). */
+  stuck: { after: 8, ghost: 3 },
   /** m: distância de frenagem atrás de outro carro ou do avatar. */
   gap: 9,
   /** rad/s por metro de erro na faixa, amortecimento (rad/s por m/s de erro) e a virada máxima. */
@@ -168,7 +172,7 @@ export function createTraffic({ THREE, scene, streetView, walkers = () => [], st
   const cars = [];
   let target = opt.start;
   const fps = { frames: 0, time: 0, value: 60 };
-  const stats = { spawned: 0, removed: 0, brakes: 0, straight: 0, turnsRight: 0, yields: 0, busStops: 0, redStops: 0, rightOfWay: 0, unlocks: 0 };
+  const stats = { spawned: 0, removed: 0, brakes: 0, straight: 0, turnsRight: 0, yields: 0, busStops: 0, redStops: 0, rightOfWay: 0, unlocks: 0, unstuck: 0 };
   let clock = 0;
   /** O avatar está no ônibus (viagem.js): o ônibus não sai da cena e ninguém freia pelo avatar. */
   let riding = false;
@@ -275,7 +279,10 @@ export function createTraffic({ THREE, scene, streetView, walkers = () => [], st
       car.yielding = true;
       return true;
     }
-    return cars.some((o) => o !== car && ahead(o.x, o.z, 1.4, car.half + o.half - 4.2));
+    if (car.ghostUntil > clock) return false;
+    const byCar = cars.some((o) => o !== car && ahead(o.x, o.z, 1.4, car.half + o.half - 4.2));
+    if (byCar) car.byCar = true;
+    return byCar;
   }
 
   /**
@@ -349,6 +356,16 @@ export function createTraffic({ THREE, scene, streetView, walkers = () => [], st
     const a = streetView.position();
     for (let i = cars.length - 1; i >= 0; i--) {
       const c = cars[i];
+      if (c.stuckT > opt.stuck.after) {
+        c.stuckT = 0;
+        stats.unstuck++;
+        if (riding && c.bus) {
+          c.ghostUntil = clock + opt.stuck.ghost;
+          continue;
+        }
+        remove(i);
+        continue;
+      }
       if (riding && c.bus) continue;
       if (Math.hypot(c.x - a.x, c.z - a.z) > opt.despawn || !isRoad(c.x, c.z) || cars.length > target) remove(i);
     }
@@ -373,7 +390,10 @@ export function createTraffic({ THREE, scene, streetView, walkers = () => [], st
       } else c.yieldT = 0;
       if (give && !c.giving) stats.rightOfWay++;
       c.giving = give;
+      c.byCar = false;
       const stop = blockedAhead(c, a) || give;
+      // Travado só por carros: conta o tempo parado.
+      c.stuckT = c.byCar && c.speed < 0.3 ? (c.stuckT ?? 0) + dt : 0;
       if (c.yielding && !wasYielding) stats.yields++;
       if (stop && c.speed > 1) stats.brakes++;
       // Acelera devagar e freia forte.
