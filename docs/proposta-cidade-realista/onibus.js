@@ -1,19 +1,21 @@
 // Pontos de ônibus do street view (fase 3 do mundo aberto, docs/desenvolvimento/mundo-aberto-terceira-pessoa.md).
 //
-// O OSM de Pittsburg não traz os pontos, então eles saem da grade da calçada, como os postes
-// (mobiliario.js): um ponto por quadrado do mundo de 120 m, no meio-fio de uma rua de 7 m ou mais,
-// escolhido por um sorteio fixo pela posição (refazer a grade não muda o ponto de lugar).
+// O OSM de Pittsburg não traz os pontos, então eles saem da grade da calçada: cada célula de meio-fio
+// tem um sorteio fixo pela posição no mundo, e cerca de 1 em 350 vira ponto, numa rua de 7 m ou mais, a
+// pelo menos 60 m do ponto vizinho. O sorteio é da célula, não da grade: refazer a grade não muda o ponto
+// de lugar (com um sorteio por quadrado, a melhor célula do quadrado mudava com o recorte da grade).
 //
 // O abrigo é procedural (cobertura, fundo de vidro, banco, colunas e a placa), virado para a rua, e
 // ocupa a faixa do fundo na calçada (células 3, não andáveis). Cada ponto dá:
 // - `wait`: onde o pedestre espera, na frente do banco;
 // - `bay`: onde o ônibus para, na rua, na frente do abrigo (o carro de carros.js com `bus: true`).
 //
-// PREMISSAS: um ponto a cada 120 m (no máximo), rua de 7 m, abrigo de 3 m × 1,4 m a 1,2 m do meio-fio.
+// PREMISSAS: 1 em 350 células de meio-fio (cerca de um ponto a cada 175 m de meio-fio), 60 m entre pontos,
+// rua de 7 m, abrigo de 3 m × 1,4 m a 1,2 m do meio-fio.
 
 import { cellHash } from './mobiliario.js';
 
-export const BUS_STOPS = { every: 120, minRoad: 7, inset: 1.2, length: 3, depth: 1.4, bay: 1.6 };
+export const BUS_STOPS = { chance: 1 / 350, spacing: 60, minRoad: 7, inset: 1.2, length: 3, depth: 1.4, bay: 1.6 };
 
 /**
  * Onde vão os pontos na grade da calçada (`kind`: 1 rua, 2 calçada). Devolve, de cada ponto, o centro do
@@ -21,7 +23,7 @@ export const BUS_STOPS = { every: 120, minRoad: 7, inset: 1.2, length: 3, depth:
  */
 export function placeBusStops(grid, opt = BUS_STOPS) {
   const { n, x0, z0, cell, kind } = grid;
-  const best = new Map();
+  const found = [];
   for (let r = 2; r < n - 2; r++) {
     for (let c = 2; c < n - 2; c++) {
       const k = r * n + c;
@@ -34,10 +36,8 @@ export function placeBusStops(grid, opt = BUS_STOPS) {
       ux /= len;
       uz /= len;
       const x = x0 + (c + 0.5) * cell, z = z0 + (r + 0.5) * cell;
-      const key = `${Math.floor(x / opt.every)},${Math.floor(z / opt.every)}`;
       const h = cellHash(Math.round(x / cell) + 31337, Math.round(z / cell) - 4241);
-      const cur = best.get(key);
-      if (cur && h >= cur.h) continue;
+      if (h >= opt.chance) continue;
       // Rua larga o bastante na frente (o ônibus para sem fechar a rua).
       let road = 0;
       for (let d = cell; d <= 20; d += cell / 2) {
@@ -52,7 +52,7 @@ export function placeBusStops(grid, opt = BUS_STOPS) {
       const half = opt.length / 2;
       const fits = [-half, 0, half].every((t) => grid.at(sx + px * t, sz + pz * t) === 2);
       if (!fits) continue;
-      best.set(key, {
+      found.push({
         h, x: sx, z: sz, yaw: Math.atan2(ux, uz), dir: [ux, uz],
         wait: { x: sx + ux * 0.6, z: sz + uz * 0.6 },
         bay: { x: x + ux * opt.bay, z: z + uz * opt.bay },
@@ -60,7 +60,11 @@ export function placeBusStops(grid, opt = BUS_STOPS) {
       });
     }
   }
-  return [...best.values()];
+  // Vizinhos perto demais: fica o de menor sorteio.
+  found.sort((a, b) => a.h - b.h);
+  const out = [];
+  for (const p of found) if (!out.some((q) => Math.hypot(q.x - p.x, q.z - p.z) < opt.spacing)) out.push(p);
+  return out;
 }
 
 export function createBusStops(THREE, scene, max = 40) {
