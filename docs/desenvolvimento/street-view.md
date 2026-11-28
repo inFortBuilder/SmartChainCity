@@ -110,6 +110,30 @@ O primeiro lugar da fase 2 do [mundo aberto](mundo-aberto-terceira-pessoa.md) (c
 
 O teste também pegou uma fresta entre a rua e a calçada, onde o avatar empacava. A célula de rua da grade passou a valer como chão.
 
+## Consumir em casa (fase 2)
+
+Na residência do próprio jogador (`escritorio.html?tipo=home&dono=1`; o mapa manda `dono=1` quando a visita não é de convidado), `casa-jogo.js` liga as peças às rotas do game-core:
+
+| Peça | Ação (E) | Rota |
+|---|---|---|
+| Geladeira (nova, na ponta da bancada) | Comer da despensa | `POST /v1/avatars/:id/consume` |
+| Fogão (a cozinha) | Cozinhar da despensa, com fogão ou micro-ondas | `POST /v1/avatars/:id/cook` |
+| Cama | Dormir 8 h ou cochilar 4 h | `POST /v1/avatars/:id/rest` |
+| Banheiro (novo, no canto do fundo) | Banho, escovar os dentes, lavar as mãos | `POST /v1/avatars/:id/chores` |
+
+- O alimento é o que há mais na despensa.
+- O aviso mostra o resultado ou o motivo do servidor (sem moradia, despensa vazia, satisfeito, dormindo, intervalo da higiene).
+- O convidado continua com a casa de enfeite: ele não come da despensa de ninguém.
+- A página usa a mesma sessão do mapa (`sessionStorage`).
+
+**Testado** em 2026-11-28 com a conta de teste, que não tem moradia:
+- "Milho da geladeira: alimentação 10/10.";
+- o fogão respondeu "Sem fogão nem micro-ondas" (esta conta não comprou);
+- o cochilo de 4 h deu "+2 de energia (sem moradia regular, metade)";
+- depois, o banho e os dentes responderam "O avatar já está dormindo.".
+
+O interior segue a 60 FPS com as peças novas.
+
 **Limites desta versão:**
 - A borda segue a grade de 0,5 m (diagonais de 45°); uma curva fina, tirada do polígono da rua, fica para depois.
 - A camada de lotes de Pittsburg passa por cima das ruas: com "Lotes" ligado, o chão fica amarelo no street view.
