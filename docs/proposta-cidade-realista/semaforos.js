@@ -8,7 +8,8 @@
 //
 // O ciclo de cada cruzamento começa num ponto sorteado pela posição dele (os cruzamentos não abrem juntos).
 // - Carro (carros.js): no vermelho, para antes da faixa; no amarelo, para se ainda dá (mais de 4 m).
-// - Pedestre (pedestres.js): atravessa a faixa quando os carros daquele braço estão no vermelho.
+// - Pedestre (pedestres.js): atravessa a faixa quando os carros daquele braço estão no vermelho e ainda
+//   falta vermelho para cruzar a rua inteira (largura ÷ 1,1 m/s + 1 s).
 // Cada ponta de faixa tem um poste com as três luzes viradas para quem chega.
 // Faixa sem cruzamento (sozinha) continua sem semáforo: vale a regra de olhar os carros.
 //
@@ -28,6 +29,13 @@ export function lightAt(group, t, o = SIGNALS) {
   if (local < o.green) return 'green';
   if (local < o.green + o.yellow) return 'yellow';
   return 'red';
+}
+
+/** Segundos até o grupo voltar ao verde (0 se já está verde). */
+export function redLeftAt(group, t, o = SIGNALS) {
+  const C = cycleOf(o), half = o.green + o.yellow + o.allRed;
+  const local = (((t - group * half) % C) + C) % C;
+  return local < o.green ? 0 : C - local;
 }
 
 /** Chave da faixa, a mesma de pedestres.js (posição com 1 casa). */
@@ -144,8 +152,12 @@ export function createSignals({ THREE, scene, streetView, opt = SIGNALS }) {
     arms: () => junctions.flatMap((j) => j.arms.map((a) => ({ key: a.key, x: a.x, z: a.z, dir: a.dir, width: a.width, depth: a.depth, state: a.state }))),
     /** A faixa tem semáforo? */
     has: (key) => byKey.has(key),
-    /** Pedestre pode atravessar a faixa: os carros daquele braço estão no vermelho. */
-    walkOk: (key) => byKey.get(key)?.arm.state === 'red',
+    /** Pedestre pode começar a atravessar: os carros do braço no vermelho, com tempo para cruzar a rua. */
+    walkOk: (key) => {
+      const b = byKey.get(key);
+      if (!b || b.arm.state !== 'red') return false;
+      return redLeftAt(b.arm.group, clock + b.junction.offset, opt) >= b.arm.width / 1.1 + 1;
+    },
     debug: () => ({ junctions: junctions.length, arms: junctions.reduce((s, j) => s + j.arms.length, 0), poles: group.children.length, list: junctions.map((j) => ({ key: j.key, arms: j.arms.map((a) => [a.group, a.state]) })) }),
   };
 }
