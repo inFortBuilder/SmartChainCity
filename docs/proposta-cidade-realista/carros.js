@@ -1,40 +1,40 @@
 // Trânsito nas ruas (fase 3 do mundo aberto, docs/desenvolvimento/mundo-aberto-terceira-pessoa.md).
 //
-// Carros do cliente, não jogadores: cada navegador sorteia os seus. O OSM da cidade só traz o polígono
-// das ruas (sem a linha do meio), então o carro se guia pelo próprio chão, como quem dirige olhando o
-// meio-fio:
-// - mão direita: um "bigode" para a direita mede a distância até o fim da rua, e o carro corrige o rumo
-//   para ficar a `lane` metros dele (o meio da faixa da direita);
-// - quando a direita abre (mais de `openAt` m além da faixa: cruzamento ou rua que sai), sorteia: segue reto até a direita fechar de novo,
-//   ou entra à direita;
-// - quando a frente fecha (fim da rua, T), vira para o lado que tem mais rua;
-// - freia atrás de outro carro e para na frente do avatar, se ele estiver na rua, e do pedestre que
-//   atravessa na faixa (`walkers()`, de pedestres.js);
-// - no semáforo (semaforos.js), para antes da faixa no vermelho, e no amarelo se ainda dá (mais de 4 m);
-// - no cruzamento sem semáforo, dá a preferência para quem vem pela direita (`mustYield`): um carro que
-//   cruza o caminho dele, à direita (1 a 12 m de lado), até 14 m à frente e indo para o caminho dele.
-//   Para não travar (quatro esperando o da direita), depois de 4 s esperando ele vai, e ignora a regra
-//   por 3 s.
-// - travado só por outros carros (nó no cruzamento, carro na contramão) por mais de 8 s: sai da cena e
-//   nasce outro em outro lugar. O ônibus com o avatar dentro não sai: passa pelos carros por 3 s.
-// Nascem numa rua de pelo menos 5 m de largura, entre 30 m e 70 m do avatar, e somem a 90 m.
-// O carro é uma peça procedural (carroceria, cabine, rodas, faróis), de cor sorteada, até haver o modelo
-// CC0 do SCC Kit. A quantidade segue o FPS, como os pedestres.
+// Carros do cliente, não jogadores: cada navegador sorteia os seus. Eles andam pelas faixas do grafo das ruas
+// (vias.js, sobre ruas-grafo.js), como no trânsito de verdade:
+// - mão direita: cada trecho tem uma faixa em cada sentido, à direita de quem anda, e o carro segue a
+//   geometria da faixa (não há como ir na contramão nem sair da faixa);
+// - no cruzamento, escolhe a saída com antecedência (reto é o mais provável) e passa numa curva até a faixa
+//   nova; volta pelo mesmo trecho só no fim de rua;
+// - um carro por vez no cruzamento: quem chega primeiro entra, e os outros esperam 1 m antes do fim da faixa
+//   (os que vêm atrás na mesma faixa podem seguir junto). Isso também evita a sobreposição de quem cruza;
+// - distância: o IDM (vias.js) guarda 2,5 m mais 1,2 s de viagem do carro da frente e freia suave; colado
+//   (menos de 0,5 m), o carro não anda;
+// - o sinal fechado (semaforos.js), o ponto de ônibus, quem atravessa na faixa (pedestres.js), o avatar na rua
+//   e o carro do jogador estacionado entram como obstáculos parados;
+// - quando o grafo é refeito (a cada 60 m do avatar), cada carro passa para a faixa nova em que está.
+// Nascem numa faixa de rua de 5 m ou mais, entre 30 e 85 m do avatar, longe dos outros, e somem a 110 m ou na
+// borda da grade. O carro é procedural, de cor sorteada. A quantidade segue o FPS, como os pedestres.
 //
-// Ônibus: com 3 carros ou mais, um deles é ônibus (11 m). Ele anda como os carros e, com um ponto de
-// ônibus (onibus.js) à frente na faixa dele, freia até a parada (`bay`) e fica 7 s com a porta aberta;
-// quem espera no ponto embarca (pedestres.js). Depois segue, e não para de novo no mesmo ponto.
+// Ônibus: com 3 carros ou mais, um é ônibus (11 m). Com um ponto de ônibus (onibus.js) à frente, freia até a
+// parada (`bay`) e fica 7 s com a porta aberta; quem espera no ponto embarca (pedestres.js). Com o avatar
+// dentro (viagem.js), ele não sai da cena (na borda, dá a volta).
 //
-// PREMISSAS: até 10 carros, 7 a 10 m/s (25 a 36 km/h), faixa a 1,8 m do meio-fio da direita; um ônibus
+// As funções `drive`, `mustYield`, `reach`, `roadHeading` e `rightOf` (o guia pelo meio-fio de antes) ficam
+// para o carro do jogador (carro-jogo.js) e para os testes.
+//
+// PREMISSAS: até 10 carros, 7 a 10 m/s (25 a 36 km/h), faixa e IDM como em vias.js; um ônibus
 // de 11 m a 8 m/s, 7 s parado no ponto, frenagem de 1,5 m/s² até ele.
+
+import { ROUTE, along, buildLanes, chooseNext, connector, idm } from './vias.js';
 
 export const CARS = {
   max: 10,
   min: 2,
   start: 6,
   near: 30,
-  spawn: 70,
-  despawn: 90,
+  spawn: 85,
+  despawn: 110,
   speed: [7, 10],
   lane: 1.8,
   minWidth: 5,
@@ -163,7 +163,7 @@ function parts(THREE) {
 
 const PAINT = [0xe8e8e8, 0x1d1d1f, 0x8a8f96, 0xb3202a, 0x234a8c, 0x2d6a4f, 0xd8b23a, 0x5a3a2a];
 
-export function createTraffic({ THREE, scene, streetView, walkers = () => [], stops = () => streetView.busStops?.() ?? [], signals = () => [], extra = () => [], opt = CARS, rand = Math.random }) {
+export function createTraffic({ THREE, scene, streetView, graph = () => null, walkers = () => [], stops = () => streetView.busStops?.() ?? [], signals = () => [], extra = () => [], opt = CARS, rand = Math.random }) {
   const group = new THREE.Group();
   group.name = 'transito';
   scene.add(group);
@@ -172,12 +172,10 @@ export function createTraffic({ THREE, scene, streetView, walkers = () => [], st
   const cars = [];
   let target = opt.start;
   const fps = { frames: 0, time: 0, value: 60 };
-  const stats = { spawned: 0, removed: 0, brakes: 0, straight: 0, turnsRight: 0, yields: 0, busStops: 0, redStops: 0, rightOfWay: 0, unlocks: 0, unstuck: 0 };
+  const stats = { spawned: 0, removed: 0, yields: 0, busStops: 0, redStops: 0, junctionWaits: 0, unstuck: 0, turns: {}, minCarGap: Infinity };
   let clock = 0;
   /** O avatar está no ônibus (viagem.js): o ônibus não sai da cena e ninguém freia pelo avatar. */
   let riding = false;
-  /** Perto de um semáforo, quem manda é a luz. */
-  const nearSignal = (c) => signals().some((s) => Math.hypot(s.x - c.x, s.z - c.z) < opt.yield.signal);
   const isRoad = (x, z) => streetView.isRoad(x, z);
 
   /** Ônibus: carroceria, faixa de janelas, 6 rodas e os faróis nas pontas. */
@@ -223,118 +221,263 @@ export function createTraffic({ THREE, scene, streetView, walkers = () => [], st
     return g;
   }
 
-  function spawn(a, bus = false) {
-    for (let t = 0; t < 30; t++) {
-      const ang = rand() * Math.PI * 2;
-      const d = opt.near + rand() * (opt.spawn - opt.near);
-      const x = a.x + Math.sin(ang) * d, z = a.z + Math.cos(ang) * d;
-      if (!isRoad(x, z)) continue;
-      let h = roadHeading(isRoad, x, z);
-      const width = reach(isRoad, x, z, h + Math.PI / 2, 20) + reach(isRoad, x, z, h - Math.PI / 2, 20);
-      if (width < opt.minWidth) continue;
-      if (rand() < 0.5) h += Math.PI;
-      // Para a faixa da direita: anda de lado até ficar a `lane` m do meio-fio.
-      const dR = reach(isRoad, x, z, rightOf(h), 20);
-      const shift = dR - opt.lane;
-      const px = x + Math.sin(rightOf(h)) * shift, pz = z + Math.cos(rightOf(h)) * shift;
-      if (!isRoad(px, pz)) continue;
-      if (cars.some((c) => Math.hypot(c.x - px, c.z - pz) < opt.gap * 1.5)) continue;
-      const obj = bus ? busModel() : model();
-      const cruise = bus ? opt.bus.speed : opt.speed[0] + rand() * (opt.speed[1] - opt.speed[0]);
-      const car = { obj, bus, half: bus ? opt.bus.half : 2.1, x: px, z: pz, heading: h, speed: 0, cruise, opening: false, straight: false, dwell: 0 };
-      obj.position.set(px, streetView.groundY(), pz);
-      obj.rotation.y = h;
-      group.add(obj);
-      cars.push(car);
-      stats.spawned++;
-      return true;
-    }
-    return false;
-  }
+  // ---------- Faixas (vias.js) ----------
+  let net = null;
+  let netGraph = null;
+  /** Cruzamento ocupado: chave do nó (posição) → os carros dentro, com a faixa de onde vieram. */
+  const junctions = new Map();
+  const nodeKey = (n) => `${Math.round(n.x)},${Math.round(n.z)}`;
+  let nextId = 1;
 
-  function remove(i) {
-    const [car] = cars.splice(i, 1);
-    group.remove(car.obj);
-    stats.removed++;
-  }
-
-  /** Alguém na frente (até `gap` m, numa faixa de 1,4 m para carros, 2,6 m para o avatar e 4,5 m para quem atravessa): o carro freia. */
-  function blockedAhead(car, a) {
-    const fx = Math.sin(car.heading), fz = Math.cos(car.heading);
-    // `extra`: o comprimento a mais (o ônibus é mais longo que o carro de 4,2 m).
-    const ahead = (x, z, r, extra = car.half - 2.1) => {
-      const dx = x - car.x, dz = z - car.z;
-      const along = dx * fx + dz * fz;
-      return along > 0 && along < opt.gap + extra && Math.abs(dx * fz - dz * fx) < r;
-    };
-    // O avatar na rua: faixa larga (o carro corrige a faixa e não pode escapar dele) e parada firme a menos de 5 m.
-    // No ônibus (viagem.js), o avatar vai dentro dele: não conta.
-    if (!riding && isRoad(a.x, a.z)) {
-      const dx = a.x - car.x, dz = a.z - car.z;
-      if (ahead(a.x, a.z, 2.6) || (dx * fx + dz * fz > 0 && Math.hypot(dx, dz) < 5)) return true;
-    }
-    // Pedestre atravessando: para se ele está em qualquer ponto da rua à frente (4,5 m para cada lado),
-    // não só na faixa do carro, porque ele vai cruzar as duas.
-    if (walkers().some((w) => ahead(w.x, w.z, 4.5))) {
-      car.yielding = true;
-      return true;
-    }
-    if (car.ghostUntil > clock) return false;
-    // Os outros carros e os de fora do trânsito (o carro do jogador estacionado, carro-jogo.js).
-    const byCar = cars.some((o) => o !== car && ahead(o.x, o.z, 1.4, car.half + o.half - 4.2)) || extra().some((o) => ahead(o.x, o.z, 1.4, car.half - 2.1));
-    if (byCar) car.byCar = true;
-    return byCar;
-  }
-
-  /**
-   * Semáforo à frente: a velocidade máxima para parar antes da faixa (vermelho, ou amarelo com mais de 4 m
-   * até a linha), ou Infinity. Só conta a faixa que o carro vai cruzar (a rua dele, até 25 m).
-   */
-  function signalSpeed(c) {
-    const fx = Math.sin(c.heading), fz = Math.cos(c.heading);
-    let best = Infinity;
-    c.redLight = false;
-    for (const s of signals()) {
-      if (s.state === 'green') continue;
-      // A faixa atravessa a rua do carro: o rumo dele é perpendicular à travessia.
-      if (Math.abs(fx * s.dir[0] + fz * s.dir[1]) > 0.5) continue;
-      const dx = s.x - c.x, dz = s.z - c.z;
-      const along = dx * fx + dz * fz;
-      if (along < 0 || along > 25) continue;
-      if (Math.abs(dx * fz - dz * fx) > s.width / 2 + 0.5) continue;
-      const line = along - s.depth / 2 - 1 - c.half;
-      if (line < -0.5) continue; // já passou da linha: segue
-      if (s.state === 'yellow' && line < 4) continue;
-      c.redLight = true;
-      best = Math.min(best, Math.sqrt(2 * 3 * Math.max(0, line)));
+  /** Ponto mais perto de (x, z) numa linha: {d, s} (distância e quanto andou até ele). */
+  function project(pts, x, z) {
+    let best = { d: Infinity, s: 0 }, run = 0;
+    for (let i = 1; i < pts.length; i++) {
+      const a = pts[i - 1], b = pts[i];
+      const dx = b.x - a.x, dz = b.z - a.z, l2 = dx * dx + dz * dz, l = Math.sqrt(l2);
+      const t = l2 ? Math.max(0, Math.min(1, ((x - a.x) * dx + (z - a.z) * dz) / l2)) : 0;
+      const d = Math.hypot(x - (a.x + dx * t), z - (a.z + dz * t));
+      if (d < best.d) best = { d, s: run + l * t };
+      run += l;
     }
     return best;
   }
 
-  /** Ônibus: velocidade máxima para parar no ponto à frente, ou parado no ponto. */
-  function busSpeed(c, dt) {
-    if (c.dwell > 0) {
-      c.dwell -= dt;
-      if (c.dwell <= 0) c.lastStop = c.stopKey;
-      return 0;
+  /** A faixa do grafo de agora em que o carro está (até 3 m, no mesmo sentido), ou null. */
+  function snap(x, z, heading) {
+    let best = null;
+    for (const l of net?.lanes ?? []) {
+      const p = project(l.pts, x, z);
+      if (p.d > 3) continue;
+      const h = along(l.pts, p.s).h;
+      if (Math.cos(h - heading) < 0.7) continue;
+      if (!best || p.d < best.d) best = { lane: l, s: p.s, d: p.d };
     }
+    return best;
+  }
+
+  /** Grafo novo: as faixas são refeitas, e cada carro numa faixa passa para a faixa nova dele. */
+  function refreshNet() {
+    const g = graph();
+    if (!g || g === netGraph) return;
+    netGraph = g;
+    net = buildLanes(g);
+    for (const c of cars) {
+      if (c.conn) continue; // no meio do cruzamento: termina a curva e procura a faixa na saída
+      const sn = snap(c.x, c.z, c.heading);
+      if (sn) {
+        c.lane = sn.lane;
+        c.seg = sn.lane;
+        c.s = sn.s;
+        c.next = null;
+      }
+    }
+  }
+
+  function addCar(lane, s, bus) {
+    const obj = bus ? busModel() : model();
+    const cruise = bus ? opt.bus.speed : opt.speed[0] + rand() * (opt.speed[1] - opt.speed[0]);
+    const p = along(lane.pts, s);
+    const car = { id: nextId++, obj, bus, half: bus ? opt.bus.half : 2.1, lane, seg: lane, s, conn: null, next: null, x: p.x, z: p.z, heading: p.h, speed: cruise * 0.6, cruise, dwell: 0 };
+    obj.position.set(p.x, streetView.groundY(), p.z);
+    obj.rotation.y = p.h;
+    group.add(obj);
+    cars.push(car);
+    stats.spawned++;
+    return car;
+  }
+
+  /** Nasce numa faixa, entre `near` e `spawn` m do avatar, longe dos outros carros. */
+  function spawn(a, bus = false) {
+    const lanes = (net?.lanes ?? []).filter((l) => l.length > 12 && l.width >= opt.minWidth);
+    for (let t = 0; t < 30 && lanes.length; t++) {
+      const lane = lanes[Math.floor(rand() * lanes.length)];
+      const s = 3 + rand() * (lane.length - 6);
+      const p = along(lane.pts, s);
+      const d = Math.hypot(p.x - a.x, p.z - a.z);
+      if (d < opt.near || d > opt.spawn) continue;
+      if (cars.some((c) => Math.hypot(c.x - p.x, c.z - p.z) < 15)) continue;
+      return addCar(lane, s, bus);
+    }
+    return null;
+  }
+
+  function remove(i) {
+    const [car] = cars.splice(i, 1);
+    if (car.junction) junctions.get(car.junction)?.delete(car);
+    group.remove(car.obj);
+    stats.removed++;
+  }
+
+  /** Pode entrar no cruzamento: vazio, ou só com carros que vieram da mesma faixa (a fila). */
+  function junctionFree(car) {
+    const node = net?.nodes.get(car.lane.to);
+    if (!node || node.edges.length < 3) return true;
+    const inside = junctions.get(nodeKey(node));
+    if (!inside || !inside.size) return true;
+    for (const o of inside) if (o.entry !== car.lane.id) return false;
+    return true;
+  }
+
+  /**
+   * Os obstáculos à frente, para o IDM: o carro da frente (mais perto, no caminho, até 60 m), o carro do
+   * jogador estacionado, o avatar na rua, quem atravessa, o sinal fechado, o ponto de ônibus e a entrada do
+   * cruzamento ocupado. Cada um dá {gap, v}; o mais exigente manda.
+   */
+  function accelOf(car, a) {
+    const fx = Math.sin(car.heading), fz = Math.cos(car.heading);
+    const rel = (x, z) => {
+      const dx = x - car.x, dz = z - car.z;
+      return { along: dx * fx + dz * fz, lat: Math.abs(dx * fz - dz * fx) };
+    };
+    let acc = idm(car.speed, car.cruise, Infinity, 0);
+    car.carGap = Infinity;
+    let minGap = Infinity;
+    const take = (gap, vLead) => {
+      acc = Math.min(acc, idm(car.speed, car.cruise, gap, car.speed - vLead));
+      minGap = Math.min(minGap, gap);
+    };
+    // Pelo caminho: o da frente na mesma faixa, o que está no começo da faixa de saída (somando o que falta da
+    // curva) e o da frente na mesma curva. Na curva, o da frente fica de lado do rumo e o cone abaixo não o vê.
+    const exit = car.next?.lane ?? null;
+    for (const o of cars) {
+      if (o === car) continue;
+      let d = null;
+      if (!car.conn && !o.conn && o.lane === car.lane && o.s > car.s) d = o.s - car.s;
+      else if (!car.conn && exit && !o.conn && o.lane === exit) d = car.lane.length - car.s + (car.nextLen ?? 8) + o.s;
+      else if (car.conn && exit && !o.conn && o.lane === exit) d = car.conn.length - car.s + o.s;
+      else if (car.conn && o.conn && o.connKey === car.connKey && o.s > car.s) d = o.s - car.s;
+      if (d === null || d > 60) continue;
+      const g = d - car.half - o.half;
+      car.carGap = Math.min(car.carGap ?? Infinity, g);
+      take(g, o.speed);
+    }
+    for (const o of cars) {
+      if (o === car) continue;
+      const r = rel(o.x, o.z);
+      if (r.along <= 0 || r.along > 60 || r.lat > 1.8) continue;
+      // Quem espera na linha de outra faixa não está no caminho (só a fila dele e a faixa de saída contam).
+      if (o.waiting && o.lane !== car.lane && o.lane !== exit) continue;
+      // Do da frente, conta só a velocidade no mesmo sentido (o que cruza conta como parado).
+      take(r.along - car.half - o.half, Math.max(0, o.speed * Math.cos(o.heading - car.heading)));
+    }
+    for (const o of extra()) {
+      const r = rel(o.x, o.z);
+      if (r.along > 0 && r.along < 40 && r.lat < 1.8) take(r.along - car.half - 2.1, 0);
+    }
+    if (!riding && isRoad(a.x, a.z)) {
+      const r = rel(a.x, a.z);
+      if (r.along > 0 && r.along < 40 && r.lat < 2.2) take(r.along - car.half - 0.5, 0);
+    }
+    car.yielding = false;
+    for (const w of walkers()) {
+      const r = rel(w.x, w.z);
+      if (r.along > 0 && r.along < 30 && r.lat < 4.5) {
+        take(r.along - car.half - 1.5, 0);
+        car.yielding = true;
+      }
+    }
+    const line = signalLine(car);
+    if (line !== null) take(line, 0);
+    if (car.bus) {
+      const stop = busGap(car);
+      if (stop !== null) take(stop, 0);
+    }
+    // Entrada do cruzamento: com ele ocupado por quem vem de outra faixa, para 1 m antes do fim da faixa.
+    car.waiting = false;
+    if (!car.conn && car.next) {
+      const left = car.lane.length - car.s;
+      if (left < 25 && !junctionFree(car)) {
+        take(left - car.half - 1, 0);
+        car.waiting = true;
+      }
+    }
+    car.gapAhead = minGap;
+    return { acc, minGap };
+  }
+
+  /** Sinal à frente: a distância até a linha de parada (vermelho, ou amarelo com mais de 4 m), ou null. */
+  function signalLine(c) {
     const fx = Math.sin(c.heading), fz = Math.cos(c.heading);
-    let best = Infinity;
+    let best = null;
+    c.redLight = false;
+    for (const s of signals()) {
+      if (s.state === 'green') continue;
+      if (Math.abs(fx * s.dir[0] + fz * s.dir[1]) > 0.5) continue;
+      const dx = s.x - c.x, dz = s.z - c.z;
+      const ahead = dx * fx + dz * fz;
+      if (ahead < 0 || ahead > 40) continue;
+      if (Math.abs(dx * fz - dz * fx) > s.width / 2 + 0.5) continue;
+      const line = ahead - s.depth / 2 - 1 - c.half;
+      if (line < -0.5) continue;
+      if (s.state === 'yellow' && line < 4) continue;
+      c.redLight = true;
+      best = best === null ? line : Math.min(best, line);
+    }
+    return best;
+  }
+
+  /** Ônibus: a distância até a parada do ponto à frente (ou 0, parado nele), ou null. */
+  function busGap(c) {
+    if (c.dwell > 0) return 0;
+    const fx = Math.sin(c.heading), fz = Math.cos(c.heading);
+    let best = null;
     for (const s of stops()) {
       if (s.key === c.lastStop) continue;
       const dx = s.bay.x - c.x, dz = s.bay.z - c.z;
-      const along = dx * fx + dz * fz;
-      const lat = Math.abs(dx * fz - dz * fx);
-      if (along < -0.5 || along > 35 || lat > 2.5) continue;
-      if (along < 0.6) {
+      const ahead = dx * fx + dz * fz;
+      if (ahead < -0.5 || ahead > 40 || Math.abs(dx * fz - dz * fx) > 2.5) continue;
+      if (ahead < 1.2 && c.speed < 1) {
         c.dwell = opt.bus.dwell;
         c.stopKey = s.key;
         stats.busStops++;
         return 0;
       }
-      best = Math.min(best, Math.sqrt(2 * opt.bus.brake * Math.max(0, along - 0.3)));
+      // O IDM para a s0 (2,5 m) do obstáculo: o obstáculo fica s0 além da parada, para o ônibus parar nela.
+      const g = Math.max(0, ahead - 0.3) + ROUTE.s0;
+      best = best === null ? g : Math.min(best, g);
     }
     return best;
+  }
+
+  /** Anda `ds` m pela faixa e pelo cruzamento; devolve false se o carro saiu da cena (fim da grade). */
+  function advance(car, ds) {
+    car.s += ds;
+    for (let guard = 0; guard < 4 && car.s > car.seg.length; guard++) {
+      car.s -= car.seg.length;
+      if (car.conn) {
+        // Saiu do cruzamento: libera e entra na faixa escolhida.
+        junctions.get(car.junction)?.delete(car);
+        car.junction = null;
+        car.lane = car.next.lane;
+        car.seg = car.lane;
+        car.conn = null;
+        car.next = null;
+        continue;
+      }
+      if (!car.next) {
+        // Fim da faixa sem continuação (borda da grade): sai da cena. O ônibus com o avatar volta.
+        if (riding && car.bus && car.lane.reverse) {
+          car.next = { lane: car.lane.reverse, turn: 'volta' };
+        } else return false;
+      }
+      const node = net?.nodes.get(car.lane.to);
+      car.conn = connector(car.lane, car.next.lane);
+      car.connKey = `${car.lane.id}>${car.next.lane.id}`;
+      car.seg = car.conn;
+      stats.turns[car.next.turn] = (stats.turns[car.next.turn] ?? 0) + 1;
+      if (node && node.edges.length >= 3) {
+        car.junction = nodeKey(node);
+        car.entry = car.lane.id;
+        if (!junctions.has(car.junction)) junctions.set(car.junction, new Set());
+        junctions.get(car.junction).add(car);
+      }
+    }
+    const p = along(car.seg.pts, car.s);
+    car.x = p.x;
+    car.z = p.z;
+    car.heading = p.h;
+    return true;
   }
 
   function adapt(dt) {
@@ -348,64 +491,65 @@ export function createTraffic({ THREE, scene, streetView, walkers = () => [], st
     else if (fps.value > opt.fpsHigh) target = Math.min(opt.max, target + 1);
   }
 
+  /**
+   * Um quadro: em passos de até 0,05 s (no máximo 10), para o IDM não passar do ponto quando o quadro é longo
+   * (página em segundo plano, celular lento).
+   */
   function update(dt) {
     const on = streetView.active();
     group.visible = on;
     if (!on || !dt) return;
     adapt(dt);
+    const n = Math.min(10, Math.ceil(dt / 0.05));
+    for (let i = 0; i < n; i++) step(Math.min(dt, 0.5) / n);
+  }
+
+  function step(dt) {
     clock += dt;
+    refreshNet();
+    if (!net) return;
     const a = streetView.position();
     for (let i = cars.length - 1; i >= 0; i--) {
       const c = cars[i];
-      if (c.stuckT > opt.stuck.after) {
-        c.stuckT = 0;
+      if (riding && c.bus) continue;
+      // Parado dentro do cruzamento por mais de 30 s (um nó que o cruzamento um por vez não deveria deixar
+      // acontecer): sai. Esperar na fila do sinal ou da entrada do cruzamento não conta.
+      if (c.stuckT > 30) {
         stats.unstuck++;
-        if (riding && c.bus) {
-          c.ghostUntil = clock + opt.stuck.ghost;
-          continue;
-        }
         remove(i);
         continue;
       }
-      if (riding && c.bus) continue;
-      if (Math.hypot(c.x - a.x, c.z - a.z) > opt.despawn || !isRoad(c.x, c.z) || cars.length > target) remove(i);
+      if (Math.hypot(c.x - a.x, c.z - a.z) > opt.despawn || cars.length > target) remove(i);
     }
     // Com 3 carros ou mais, um é ônibus.
     if (cars.length < target) spawn(a, target >= opt.bus.minCars && !cars.some((c) => c.bus));
-    for (const c of cars) {
-      const wasOpen = c.opening;
-      drive(isRoad, c, dt, opt, () => rand() < 0.5);
-      if (c.opening && !wasOpen) stats[c.straight ? 'straight' : 'turnsRight']++;
-      const wasYielding = c.yielding;
-      c.yielding = false;
-      // Preferência pela direita, fora do semáforo, com o destrave depois de 4 s.
-      let give = !(c.goUntil > clock) && !nearSignal(c) && mustYield(c, cars, opt);
-      if (give) {
-        c.yieldT = (c.yieldT ?? 0) + dt;
-        if (c.yieldT > opt.yield.wait) {
-          c.goUntil = clock + opt.yield.go;
-          c.yieldT = 0;
-          give = false;
-          stats.unlocks++;
-        }
-      } else c.yieldT = 0;
-      if (give && !c.giving) stats.rightOfWay++;
-      c.giving = give;
-      c.byCar = false;
-      const stop = blockedAhead(c, a) || give;
-      // Travado só por carros: conta o tempo parado.
-      c.stuckT = c.byCar && c.speed < 0.3 ? (c.stuckT ?? 0) + dt : 0;
-      if (c.yielding && !wasYielding) stats.yields++;
-      if (stop && c.speed > 1) stats.brakes++;
-      // Acelera devagar e freia forte.
-      let want = stop ? 0 : c.cruise;
-      if (c.bus) want = Math.min(want, busSpeed(c, dt));
-      const wasRed = c.redLight;
-      want = Math.min(want, signalSpeed(c));
+    for (let i = cars.length - 1; i >= 0; i--) {
+      const c = cars[i];
+      // Escolhe a saída do cruzamento com antecedência (a seta, e para saber se o cruzamento está livre).
+      if (!c.conn && !c.next && c.lane.length - c.s < 30 && net.nodes.has(c.lane.to)) {
+        const n = net.nodes.get(c.lane.to);
+        c.next = n.kind === 'borda' ? null : chooseNext(net, c.lane, rand);
+        c.nextLen = c.next ? connector(c.lane, c.next.lane).length : null;
+      }
+      if (c.dwell > 0) {
+        c.dwell -= dt;
+        if (c.dwell <= 0) c.lastStop = c.stopKey;
+      }
+      const wasRed = c.redLight, wasYielding = c.yielding, wasWaiting = c.waiting;
+      const { acc, minGap } = accelOf(c, a);
       if (c.redLight && !wasRed) stats.redStops++;
-      c.speed += (want - c.speed) * Math.min(1, dt * (want < c.speed ? 4 : 0.8));
-      c.x += Math.sin(c.heading) * c.speed * dt;
-      c.z += Math.cos(c.heading) * c.speed * dt;
+      if (c.yielding && !wasYielding) stats.yields++;
+      if (c.waiting && !wasWaiting) stats.junctionWaits++;
+      c.speed = Math.max(0, Math.min(c.cruise, c.speed + acc * dt));
+      // Perto demais do da frente (menos de 1,5 m): não anda. Nunca sobrepõe.
+      if (minGap < 1.5) c.speed = 0;
+      if (c.dwell > 0) c.speed = 0;
+      stats.minCarGap = Math.min(stats.minCarGap, c.carGap);
+      c.stuckT = c.conn && c.speed < 0.1 && !c.yielding ? (c.stuckT ?? 0) + dt : 0;
+      if (!advance(c, c.speed * dt)) {
+        remove(i);
+        continue;
+      }
       c.obj.position.set(c.x, streetView.groundY(), c.z);
       c.obj.rotation.y = c.heading;
     }
@@ -419,18 +563,20 @@ export function createTraffic({ THREE, scene, streetView, walkers = () => [], st
       count: cars.length,
       target,
       fps: Math.round(fps.value),
-      stats: { ...stats },
-      cars: cars.map((c) => ({ x: c.x, z: c.z, heading: c.heading, speed: c.speed, bus: c.bus, dwelling: c.dwell > 0, red: !!c.redLight, onRoad: isRoad(c.x, c.z), right: reach(isRoad, c.x, c.z, rightOf(c.heading), opt.side) })),
+      stats: { ...stats, turns: { ...stats.turns }, minCarGap: +stats.minCarGap.toFixed(2) },
+      lanes: net?.lanes.length ?? 0,
+      junctionsBusy: [...junctions.values()].filter((v) => v.size).length,
+      cars: cars.map((c) => ({ id: c.id, x: c.x, z: c.z, heading: c.heading, speed: c.speed, bus: c.bus, dwelling: c.dwell > 0, red: !!c.redLight, waiting: !!c.waiting, inJunction: !!c.conn, lane: c.lane.id, gap: Number.isFinite(c.carGap) ? +c.carGap.toFixed(2) : null, onRoad: isRoad(c.x, c.z), right: reach(isRoad, c.x, c.z, rightOf(c.heading), opt.side) })),
     }),
     setTarget: (n) => { target = Math.max(0, Math.min(opt.max, n)); },
     /** Para testes: põe o ônibus em (x, z) com o rumo dado (tira o que houver). */
     placeBus: (x, z, heading) => {
+      refreshNet();
+      const sn = snap(x, z, heading);
+      if (!sn) return false;
       for (let i = cars.length - 1; i >= 0; i--) if (cars[i].bus) remove(i);
-      const obj = busModel();
-      cars.push({ obj, bus: true, half: opt.bus.half, x, z, heading, speed: opt.bus.speed, cruise: opt.bus.speed, opening: false, straight: false, dwell: 0 });
-      obj.position.set(x, streetView.groundY(), z);
-      obj.rotation.y = heading;
-      group.add(obj);
+      addCar(sn.lane, sn.s, true).speed = opt.bus.speed;
+      return true;
     },
     /** Onde estão os carros e a que velocidade (os pedestres esperam no meio-fio). */
     positions: () => cars.map((c) => ({ x: c.x, z: c.z, speed: c.speed, bus: c.bus })),
