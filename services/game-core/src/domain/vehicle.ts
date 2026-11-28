@@ -171,6 +171,21 @@ export interface License {
 export const licensed = (a: Pick<Avatar, 'license'>, now: Date) => !!a.license && a.license.readyAt <= now;
 export const inDrivingSchool = (a: Pick<Avatar, 'license'>, now: Date) => !!a.license && a.license.readyAt > now;
 
+/**
+ * Dirigir o próprio carro na rua (fase 4 do mundo aberto): o avatar habilitado, acordado e fora do hospital,
+ * e o carro em dia (`ok`: IPVA pago, sem quebra, dentro da vida útil; o alugado, dentro do prazo). O
+ * combustível de cada saída é o do deslocamento de carro do turno (routine.ts), cobrado por quem chama.
+ */
+export function checkDrive(avatar: Avatar, car: Vehicle, now: Date, isResting: boolean) {
+  assertNotInHospital(avatar, now);
+  if (isResting) throw new AppError('resting', 'O avatar está dormindo.', 409);
+  if (!licensed(avatar, now)) {
+    throw new AppError(inDrivingSchool(avatar, now) ? 'in_driving_school' : 'no_license', 'Sem habilitação: faça a autoescola.', 409);
+  }
+  const state = stateOf(car, now);
+  if (state !== 'ok') throw new AppError('vehicle_unavailable', `O carro não pode rodar agora (${state}).`, 409);
+}
+
 export function checkLicense(avatar: Avatar, now: Date) {
   assertNotInHospital(avatar, now);
   if (avatar.license) {

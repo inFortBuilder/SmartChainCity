@@ -163,7 +163,7 @@ function parts(THREE) {
 
 const PAINT = [0xe8e8e8, 0x1d1d1f, 0x8a8f96, 0xb3202a, 0x234a8c, 0x2d6a4f, 0xd8b23a, 0x5a3a2a];
 
-export function createTraffic({ THREE, scene, streetView, walkers = () => [], stops = () => streetView.busStops?.() ?? [], signals = () => [], opt = CARS, rand = Math.random }) {
+export function createTraffic({ THREE, scene, streetView, walkers = () => [], stops = () => streetView.busStops?.() ?? [], signals = () => [], extra = () => [], opt = CARS, rand = Math.random }) {
   const group = new THREE.Group();
   group.name = 'transito';
   scene.add(group);
@@ -280,7 +280,8 @@ export function createTraffic({ THREE, scene, streetView, walkers = () => [], st
       return true;
     }
     if (car.ghostUntil > clock) return false;
-    const byCar = cars.some((o) => o !== car && ahead(o.x, o.z, 1.4, car.half + o.half - 4.2));
+    // Os outros carros e os de fora do trânsito (o carro do jogador estacionado, carro-jogo.js).
+    const byCar = cars.some((o) => o !== car && ahead(o.x, o.z, 1.4, car.half + o.half - 4.2)) || extra().some((o) => ahead(o.x, o.z, 1.4, car.half - 2.1));
     if (byCar) car.byCar = true;
     return byCar;
   }

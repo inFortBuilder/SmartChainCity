@@ -116,9 +116,9 @@ paths:
       responses: {"200":{"description":"OK","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
   /v1/avatars/{id}/bus-ride:
     post:
-      summary: "Embarca no ônibus na rua: paga a passagem (3 THALER) pelo ledger"
+      summary: "Paga a passagem do ônibus na rua"
       tags: ["avatars"]
-      description: "Paga a passagem do ônibus na rua, o mesmo preço do deslocamento de ônibus do turno, para a queima (transit). Não embarca internado, dormindo nem de cama. Aceita Idempotency-Key. Devolve a passagem (ride) e o avatar"
+      description: "Paga a passagem do ônibus na rua (3 THALER, para burn/transit). Aceita Idempotency-Key. Devolve a passagem (ride) e o avatar"
       security: [{"bearer":[]}]
       parameters: [{"name":"id","in":"path","required":true,"schema":{"type":"string"}}]
       responses: {"201":{"description":"Criado","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
@@ -355,6 +355,15 @@ paths:
       description: "Compra {model} ou aluga {model, rent: true} na agência"
       security: [{"bearer":[]}]
       requestBody: {"required":true,"content":{"application/json":{"schema":{"type":"object","properties":{"model":{"type":"string"},"rent":{"type":"boolean"}},"required":["model"]}}}}
+      responses: {"201":{"description":"Criado","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro (códigos: not_found)","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
+  /v1/avatars/{id}/drive:
+    post:
+      summary: "Dirige o próprio carro na rua {vehicle}"
+      tags: ["avatars"]
+      description: "Dirige o próprio carro na rua {vehicle}: confere a habilitação e o carro em dia e cobra o combustível da saída (2 THALER, para burn/fuel). Aceita Idempotency-Key. Devolve fuel_cents, o carro e o avatar"
+      security: [{"bearer":[]}]
+      parameters: [{"name":"id","in":"path","required":true,"schema":{"type":"string"}},{"name":"Idempotency-Key","in":"header","required":false,"schema":{"type":"string","maxLength":200}}]
+      requestBody: {"required":true,"content":{"application/json":{"schema":{"type":"object","properties":{"vehicle":{"type":"string","format":"uuid"}},"required":["vehicle"]}}}}
       responses: {"201":{"description":"Criado","content":{"application/json":{"schema":{"type":"object"}}}},"default":{"description":"Erro (códigos: not_found)","content":{"application/json":{"schema":{"$ref":"#/components/schemas/Error"}}}}}
   /v1/vehicles/{id}/ipva:
     post:

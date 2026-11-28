@@ -61,6 +61,7 @@ import {
   checkSale,
   isBroken,
   licensed,
+  checkDrive,
   stateOf,
   newVehicle,
   rentCents,
@@ -665,6 +666,8 @@ export async function buildApp(
     default_commute: 'a_pe',
     // Passagem do ônibus na rua (POST /v1/avatars/:id/bus-ride), o mesmo preço do deslocamento.
     bus_fare: COMMUTES.onibus.costCents.toString(),
+    // Combustível de uma saída de carro na rua (POST /v1/avatars/:id/drive), o mesmo do deslocamento.
+    drive_fuel: COMMUTES.carro.costCents.toString(),
   }));
 
   // Embarca no ônibus na rua (fase 3 do mundo aberto): paga a passagem pelo ledger; a viagem é da cena.
@@ -1209,6 +1212,26 @@ export async function buildApp(
     if (!car || car.accountId !== accountId || car.status === 'sold') throw new AppError('not_found', 'Carro não encontrado.', 404);
     return car;
   };
+
+  // Dirige o próprio carro na rua (fase 4 do mundo aberto): {vehicle}. Confere a habilitação e o carro e cobra o
+  // combustível da saída, o mesmo do deslocamento de carro do turno (2 THALER), para a queima "fuel". A mesma
+  // Idempotency-Key cobra uma vez; sem ela, cada pedido é uma saída.
+  app.post('/v1/avatars/:id/drive', async (request, reply) => {
+    const avatar = decayed(await ownAvatar(request), now());
+    const { vehicle } = z.object({ vehicle: z.uuid() }).parse(request.body);
+    const v = vehiclesOn();
+    const car = await v.store.get(vehicle);
+    if (!car || car.accountId !== avatar.accountId || car.status === 'sold') throw new AppError('not_found', 'Carro não encontrado.', 404);
+    checkDrive(avatar, car, now(), isResting(avatar, now()));
+    const clientKey = idempotencyKey.parse(request.headers['idempotency-key']) ?? randomUUID();
+    const cents = COMMUTES.carro.costCents;
+    await v.payer.chargeVehicle(
+      { key: `drive-fuel:${car.id}:${clientKey}`, kind: 'drive_fuel', accountId: car.accountId, cents, sink: 'fuel', refId: car.id },
+      request.id,
+    );
+    const at = now();
+    return reply.status(201).send({ fuel_cents: cents.toString(), vehicle: vehicleDto(car, at), avatar: avatarDto(avatar, at) });
+  });
 
   // IPVA do semestre: cobre os próximos 182 dias; atrasado, tira a suspensão.
   app.post('/v1/vehicles/:id/ipva', async (request) => {

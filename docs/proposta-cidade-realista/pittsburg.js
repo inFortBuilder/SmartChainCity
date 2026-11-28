@@ -22,6 +22,7 @@ import { createSignals } from './semaforos.js';
 import { createSounds } from './sons.js';
 import { createBusRide } from './viagem.js';
 import { createMinimap } from './minimapa.js';
+import { createPlayerCar } from './carro-jogo.js';
 import { createRoadGraph } from './ruas-grafo.js';
 import { createRoadKit } from './kit-ruas.js';
 import { applyLight, cityHour } from './ceu.js';
@@ -241,6 +242,8 @@ let sounds = null;
 let busRide = null;
 /** Minimapa e GPS do street view (minimapa.js, fase 4). */
 let minimap = null;
+/** O carro do jogador no street view (carro-jogo.js, fase 4). */
+let playerCar = null;
 /** Grafo das ruas em volta do avatar, para o kit de ruas (ruas-grafo.js). ?grafo=1 desenha. */
 let roadGraph = null;
 /** As ruas com as peças do kit, se ele estiver em .local/rouds (kit-ruas.js). ?kit=0 desliga. */
@@ -849,8 +852,10 @@ try {
     if (PARAMS.get('pedestres') !== '0') pedestrians = createPedestrians({ THREE, scene, streetView, cars: () => traffic?.positions() ?? [], buses: () => traffic?.buses() ?? [], signals });
     // Trânsito (fase 3): carros do cliente na mão direita. ?transito=0 desliga.
     // Sons (fase 3): sintetizados, começam no primeiro gesto. ?som=0 tira o botão e o áudio.
-    if (PARAMS.get('som') !== '0') sounds = createSounds({ streetView, camera, cars: () => traffic?.positions() ?? [], signals: () => signals });
-    if (PARAMS.get('transito') !== '0') traffic = createTraffic({ THREE, scene, streetView, walkers: () => pedestrians?.onRoad() ?? [], signals: () => signals?.arms() ?? [] });
+    if (PARAMS.get('som') !== '0') sounds = createSounds({ streetView, camera, cars: () => [...(traffic?.positions() ?? []), ...(playerCar?.driving() ? [playerCar.position()] : [])], signals: () => signals });
+    if (PARAMS.get('transito') !== '0') traffic = createTraffic({ THREE, scene, streetView, walkers: () => pedestrians?.onRoad() ?? [], signals: () => signals?.arms() ?? [], extra: () => (playerCar && !playerCar.driving() && playerCar.position() ? [playerCar.position()] : []) });
+    // O próprio carro (fase 4): o combustível de cada saída sai pelo game-core (POST /v1/avatars/:id/drive).
+    playerCar = createPlayerCar({ THREE, scene, streetView, servidor, cars: () => traffic?.positions() ?? [], walkers: () => pedestrians?.onRoad() ?? [] });
     // Embarcar no ônibus: a passagem sai pelo game-core (POST /v1/avatars/:id/bus-ride).
     if (traffic) busRide = createBusRide({ streetView, traffic, servidor });
     roadGraph = createRoadGraph({ THREE, scene, streetView, show: PARAMS.get('grafo') === '1' });
@@ -871,7 +876,7 @@ try {
       history.replaceState(null, '', location.pathname);
     }
   }
-  window.__pittsburg = { scene, camera, controls, renderer, buildings, light: () => streetLight, market: () => streetMarket, stores: () => streetStores, pedestrians: () => pedestrians, traffic: () => traffic, signals: () => signals, sounds: () => sounds, busRide: () => busRide, minimap: () => minimap, roadGraph: () => roadGraph, roadKit: () => roadKit, pick, showBuilding, pickLot, showLot, getLots: () => lots, gestao, civicBuilding, progressiveBuilding, loadLotsFor, servidor, multiplayer, streetView, lotAt, mercado };
+  window.__pittsburg = { scene, camera, controls, renderer, buildings, light: () => streetLight, market: () => streetMarket, stores: () => streetStores, pedestrians: () => pedestrians, traffic: () => traffic, signals: () => signals, sounds: () => sounds, busRide: () => busRide, minimap: () => minimap, roadGraph: () => roadGraph, roadKit: () => roadKit, playerCar: () => playerCar, pick, showBuilding, pickLot, showLot, getLots: () => lots, gestao, civicBuilding, progressiveBuilding, loadLotsFor, servidor, multiplayer, streetView, lotAt, mercado };
 
   // Spike E0.9: ?spike (ou ?spike=20) mede download, FPS e 20 prédios com LOD.
   const spikeParam = new URLSearchParams(location.search).get('spike');
@@ -965,6 +970,7 @@ renderer.setAnimationLoop((now) => {
   sounds?.update(dt);
   busRide?.update();
   minimap?.update();
+  playerCar?.update(dt);
   roadGraph?.update();
   roadKit?.update();
   if (!streetView?.tick(dt)) {
