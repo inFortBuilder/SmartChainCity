@@ -60,7 +60,7 @@ export function createMinimap({ streetView, places = () => [], cars = () => [], 
   const roads = document.createElement('canvas');
   roads.width = roads.height = Math.round(opt.frame / opt.sample);
   let frame = null; // { x0, z0 } do canto do quadro
-  let route = null; // { place, points, at }
+  let route = null; // { place, points, at, prev }: prev é o último ponto já passado (começo do trecho atual)
   const stats = { frames: 0, routes: 0, reroutes: 0, arrived: 0, failed: 0, ms: 0 };
 
   function fillPlaces() {
@@ -113,12 +113,12 @@ export function createMinimap({ streetView, places = () => [], cars = () => [], 
     if (!pts) {
       stats.failed++;
       info.textContent = `${place.label}: sem rota daqui`;
-      route = { place, points: [], at: performance.now() };
+      route = { place, points: [], at: performance.now(), prev: { x: a.x, z: a.z } };
       return;
     }
     // O último trecho vai da rua até a porta.
     pts.push({ x: place.x, z: place.z });
-    route = { place, points: pts, at: performance.now() };
+    route = { place, points: pts, at: performance.now(), prev: { x: a.x, z: a.z } };
     stats[fresh ? 'routes' : 'reroutes']++;
   }
 
@@ -210,7 +210,8 @@ export function createMinimap({ streetView, places = () => [], cars = () => [], 
       const a = streetView.position();
       const pts = route.points;
       if (pts.length) {
-        const off = Math.min(Math.hypot(pts[0].x - a.x, pts[0].z - a.z), ...pts.slice(1).map((p, i) => distToSegment(a.x, a.z, pts[i], p)));
+        // Fora da rota: longe do trecho atual (do último ponto passado ao próximo) e dos seguintes.
+        const off = Math.min(distToSegment(a.x, a.z, route.prev, pts[0]), ...pts.slice(1).map((p, i) => distToSegment(a.x, a.z, pts[i], p)));
         const goal = pts[pts.length - 1];
         const left = Math.hypot(goal.x - a.x, goal.z - a.z);
         if (left < gps.arrive) {
@@ -223,7 +224,7 @@ export function createMinimap({ streetView, places = () => [], cars = () => [], 
           // Tira da rota os pontos que já ficaram para trás (o mais perto vira o primeiro).
           let k = 0;
           for (let i = 1; i < pts.length; i++) if (Math.hypot(pts[i].x - a.x, pts[i].z - a.z) < Math.hypot(pts[k].x - a.x, pts[k].z - a.z)) k = i;
-          if (k > 0) pts.splice(0, k);
+          if (k > 0) route.prev = pts.splice(0, k)[k - 1];
           info.textContent = `${route.place.label} · ${Math.round(routeLength(a.x, a.z, pts))} m`;
           if (off > gps.offRoute || now - route.at > gps.every * 1000) plan();
         }
