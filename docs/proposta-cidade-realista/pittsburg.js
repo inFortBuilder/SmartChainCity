@@ -24,6 +24,7 @@ import { createSounds } from './sons.js';
 import { createBusRide } from './viagem.js';
 import { createMinimap } from './minimapa.js';
 import { createPlayerCar } from './carro-jogo.js';
+import { createPhone } from './celular.js';
 import { createRoadGraph } from './ruas-grafo.js';
 import { createRoadKit } from './kit-ruas.js';
 import { applyLight, cityHour } from './ceu.js';
@@ -247,6 +248,8 @@ let busRide = null;
 let minimap = null;
 /** O carro do jogador no street view (carro-jogo.js, fase 4). */
 let playerCar = null;
+/** O celular do personagem no street view (celular.js). */
+let phone = null;
 /** Grafo das ruas em volta do avatar, para o kit de ruas (ruas-grafo.js). ?grafo=1 desenha. */
 let roadGraph = null;
 /** As ruas com as peças do kit, se ele estiver em .local/rouds (kit-ruas.js). ?kit=0 desliga. */
@@ -867,6 +870,7 @@ try {
     roadGraph = createRoadGraph({ THREE, scene, streetView, show: PARAMS.get('grafo') === '1' });
     if (PARAMS.get('kit') !== '0') roadKit = createRoadKit({ THREE, scene, streetView, roadGraph, roads: roadsMesh, loadGltf: (url) => new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).loadAsync(url) });
     // Minimapa e GPS (fase 4): os lugares do jogo na rua são os destinos. ?minimapa=0 desliga.
+    let phonePlaces = () => [];
     if (PARAMS.get('minimapa') !== '0') {
       const places = () => [
         ...(streetStores?.debug().stores ?? []).map((s) => ({ id: s.id, label: s.id === 'loja' ? 'Loja do jogo' : 'Farmácia', x: s.door[0], z: s.door[1] })),
@@ -874,8 +878,11 @@ try {
         // O trabalho: o prédio do setor da profissão do avatar (aparece quando o avatar carrega).
         ...(workplaces?.myPlace() ? [workplaces.myPlace()] : []),
       ];
+      phonePlaces = places;
       minimap = createMinimap({ streetView, places, cars: () => traffic?.positions() ?? [], peds: () => pedestrians?.debug().peds ?? [], signals: () => signals });
     }
+    // Celular (C): carteira, status, GPS, carro, chat e mapa, sem sair da rua.
+    phone = createPhone({ streetView, servidor, minimap, places: () => phonePlaces(), playerCar });
     // Volta de uma visita: ?rua=x,z,rumo põe o avatar de novo na rua, onde estava.
     const rua = PARAMS.get('rua')?.split(',').map(Number);
     if (rua?.length === 3 && rua.every(Number.isFinite)) {
@@ -884,7 +891,7 @@ try {
       history.replaceState(null, '', location.pathname);
     }
   }
-  window.__pittsburg = { scene, camera, controls, renderer, buildings, light: () => streetLight, market: () => streetMarket, stores: () => streetStores, workplaces: () => workplaces, pedestrians: () => pedestrians, traffic: () => traffic, signals: () => signals, sounds: () => sounds, busRide: () => busRide, minimap: () => minimap, roadGraph: () => roadGraph, roadKit: () => roadKit, playerCar: () => playerCar, pick, showBuilding, pickLot, showLot, getLots: () => lots, gestao, civicBuilding, progressiveBuilding, loadLotsFor, servidor, multiplayer, streetView, lotAt, mercado };
+  window.__pittsburg = { scene, camera, controls, renderer, buildings, light: () => streetLight, market: () => streetMarket, stores: () => streetStores, workplaces: () => workplaces, pedestrians: () => pedestrians, traffic: () => traffic, signals: () => signals, sounds: () => sounds, busRide: () => busRide, minimap: () => minimap, phone: () => phone, roadGraph: () => roadGraph, roadKit: () => roadKit, playerCar: () => playerCar, pick, showBuilding, pickLot, showLot, getLots: () => lots, gestao, civicBuilding, progressiveBuilding, loadLotsFor, servidor, multiplayer, streetView, lotAt, mercado };
 
   // Spike E0.9: ?spike (ou ?spike=20) mede download, FPS e 20 prédios com LOD.
   const spikeParam = new URLSearchParams(location.search).get('spike');
@@ -979,6 +986,7 @@ renderer.setAnimationLoop((now) => {
   sounds?.update(dt);
   busRide?.update();
   minimap?.update();
+  phone?.update();
   playerCar?.update(dt);
   roadGraph?.update();
   roadKit?.update();
