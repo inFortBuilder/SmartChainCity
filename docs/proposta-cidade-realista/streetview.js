@@ -383,6 +383,14 @@ export function createStreetView({
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(m.position, 3));
     g.setAttribute('normal', new THREE.BufferAttribute(m.normal, 3));
+    // UV pelo mundo (a cada 2,5 m), para uma textura de concreto (texturas-cc0.js); na face do meio-fio, x + z e a altura.
+    const uv = new Float32Array((m.position.length / 3) * 2);
+    for (let i = 0, j = 0; i < m.position.length; i += 3, j += 2) {
+      const wall = Math.abs(m.normal[i + 1]) < 0.5;
+      uv[j] = (wall ? m.position[i] + m.position[i + 2] : m.position[i]) / 2.5;
+      uv[j + 1] = (wall ? m.position[i + 1] : m.position[i + 2]) / 2.5;
+    }
+    g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
     tiles.geometry = g;
     tiles.visible = true;
     walk.triangles = m.triangles;
@@ -745,6 +753,8 @@ export function createStreetView({
     speed: () => avatar.speed,
     /** Altura do chão das ruas. */
     groundY: () => index?.y ?? 0,
+    /** O material da calçada (para trocar a textura, texturas-cc0.js). */
+    sidewalkMaterial: () => tileMat,
     /** Modelo e clipes de um tipo de avatar (`man`, `woman`), para desenhar os outros jogadores. */
     avatarAssets: (type) => loadAvatarAssets(loadGltf, type),
     /** Um corpo a mais com os assets dados (pedestres.js). */

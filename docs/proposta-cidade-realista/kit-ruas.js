@@ -211,6 +211,7 @@ export function createRoadKit({ THREE, scene, streetView, roadGraph, loadGltf, r
    * pelo mundo (UV = x e z do mundo ÷ o tamanho da peça). As cores por vértice saem (a textura manda).
    */
   function dressRoads(asfalto) {
+    if (roads.userData.cc0) return;
     const uv = asfalto.geometry.attributes.uv;
     const img = asfalto.material.map?.image;
     if (!uv || !img) return;
