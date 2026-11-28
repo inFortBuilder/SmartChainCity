@@ -77,7 +77,8 @@ export function createBusRide({ streetView, traffic, servidor, opt = RIDE }) {
     const confirming = now - armed < opt.confirmMs;
     prompt.hidden = false;
     prompt.classList.toggle('confirma', confirming);
-    prompt.innerHTML = `<kbd>E</kbd><span>${confirming ? 'Confirmar: passagem' : 'Ônibus no ponto: passagem'} · ${thaler(fare)} THALER</span><button type="button">${confirming ? 'Confirmar' : 'Embarcar'}</button>`;
+    const line = traffic.busState()?.line?.name;
+    prompt.innerHTML = `<kbd>E</kbd><span>${confirming ? 'Confirmar: passagem' : `${line ?? 'Ônibus'} no ponto: passagem`} · ${thaler(fare)} THALER</span><button type="button">${confirming ? 'Confirmar' : 'Embarcar'}</button>`;
     prompt.querySelector('button').onclick = () => act();
   }
 
@@ -97,10 +98,11 @@ export function createBusRide({ streetView, traffic, servidor, opt = RIDE }) {
       if (!bus?.dwelling) throw Object.assign(new Error('O ônibus já saiu.'), { code: 'gone' });
       state = 'riding';
       board = { stopKey, at: performance.now() };
+      stats.lastLine = bus.line?.name ?? null;
       stats.rides++;
       streetView.startRide(() => traffic.busState());
       traffic.setRiding(true);
-      flash(`Passagem paga: −${thaler(r.ride.price)} THALER.`);
+      flash(`Passagem paga: −${thaler(r.ride.price)} THALER · ${bus.line?.name ?? 'ônibus'}.`);
       servidor.refresh?.();
     } catch (e) {
       state = 'idle';

@@ -109,6 +109,27 @@ export function chooseNext(net, lane, rand = Math.random, o = ROUTE) {
 }
 
 /**
+ * Sorteio fixo da linha de ônibus no fim de `lane`: depende só da linha, do lugar do cruzamento (em passos
+ * de 3 m) e do rumo de chegada (em 8 setores). Quem chega ao mesmo cruzamento pelo mesmo lado vira sempre
+ * igual; como o grafo é finito, o caminho fecha num circuito: a linha.
+ */
+export function lineDraw(net, lane, line) {
+  const n = net.nodes.get(lane.to);
+  const h = along(lane.pts, lane.length).h;
+  const sector = ((Math.round(h / (Math.PI / 4)) % 8) + 8) % 8;
+  const text = `${line}|${Math.round((n?.x ?? 0) / 3)}|${Math.round((n?.z ?? 0) / 3)}|${sector}`;
+  let x = 2166136261;
+  for (let i = 0; i < text.length; i++) x = Math.imul(x ^ text.charCodeAt(i), 16777619) >>> 0;
+  x ^= x >>> 15;
+  x = Math.imul(x, 2246822507) >>> 0;
+  x ^= x >>> 13;
+  return (x >>> 0) / 4294967296;
+}
+
+/** A próxima faixa da linha `line` (como chooseNext, com o sorteio fixo de lineDraw). */
+export const chooseLine = (net, lane, line, o = ROUTE) => chooseNext(net, lane, () => lineDraw(net, lane, line), o);
+
+/**
  * A curva pelo cruzamento, do fim de `a` ao começo de `b`: Bézier quadrática com o controle onde as duas
  * tangentes se cruzam (ou no meio, quando são quase paralelas). Na volta, o controle vai à frente do fim.
  * Devolve os pontos (12) e o comprimento.

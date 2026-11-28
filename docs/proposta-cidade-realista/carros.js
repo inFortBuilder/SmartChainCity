@@ -21,6 +21,9 @@
 // Ônibus: com 3 carros ou mais, um é ônibus (11 m). Com um ponto de ônibus (onibus.js) à frente, freia até a
 // parada (`bay`) e fica 7 s com a porta aberta; quem espera no ponto embarca (pedestres.js). Com o avatar
 // dentro (viagem.js), ele não sai da cena (na borda, dá a volta).
+// Linha fixa: o ônibus é de uma linha (BUS_LINES, com número na frente e cor própria) e, nos cruzamentos, vira
+// pelo sorteio fixo dela (vias.js, chooseLine): no mesmo cruzamento, vindo do mesmo lado, vai sempre para o
+// mesmo lado. O carro comum continua no sorteio livre.
 //
 // As funções `drive`, `mustYield`, `reach`, `roadHeading` e `rightOf` (o guia pelo meio-fio de antes) ficam
 // para o carro do jogador (carro-jogo.js) e para os testes.
@@ -28,7 +31,13 @@
 // PREMISSAS: até 10 carros, 7 a 10 m/s (25 a 36 km/h), faixa e IDM como em vias.js; um ônibus
 // de 11 m a 8 m/s, 7 s parado no ponto, frenagem de 1,5 m/s² até ele.
 
-import { ROUTE, along, buildLanes, chooseNext, connector, idm } from './vias.js';
+import { ROUTE, along, buildLanes, chooseLine, chooseNext, connector, idm } from './vias.js';
+
+/** As linhas de ônibus: número, nome e cor. Cada ônibus que nasce é da próxima linha. */
+export const BUS_LINES = [
+  { id: 1, name: 'Linha 1 · Centro', color: 0x2a7f62 },
+  { id: 2, name: 'Linha 2 · Bairros', color: 0x2459b8 },
+];
 
 export const CARS = {
   max: 10,
@@ -180,10 +189,41 @@ export function createTraffic({ THREE, scene, streetView, graph = () => null, ot
   let riding = false;
   const isRoad = (x, z) => streetView.isRoad(x, z);
 
-  /** Ônibus: carroceria, faixa de janelas, 6 rodas e os faróis nas pontas. */
-  function busModel() {
+  /** O letreiro da linha (número e nome), um por linha. */
+  const signs = new Map();
+  function lineSign(line) {
+    if (signs.has(line.id)) return signs.get(line.id);
+    const cv = document.createElement('canvas');
+    cv.width = 256;
+    cv.height = 48;
+    const g = cv.getContext('2d');
+    g.fillStyle = '#111';
+    g.fillRect(0, 0, 256, 48);
+    g.fillStyle = '#ffb020';
+    g.font = 'bold 30px system-ui, sans-serif';
+    g.textBaseline = 'middle';
+    g.fillText(line.name.replace('Linha ', '').replace(' · ', '  '), 10, 25);
+    const tex = new THREE.CanvasTexture(cv);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    const m = new THREE.MeshBasicMaterial({ map: tex });
+    const paint = new THREE.MeshStandardMaterial({ color: line.color, roughness: 0.4, metalness: 0.3 });
+    signs.set(line.id, { m, paint });
+    return signs.get(line.id);
+  }
+  let lineTurn = 0;
+
+  /** Ônibus: carroceria na cor da linha, faixa de janelas, letreiro, 6 rodas e os faróis nas pontas. */
+  function busModel(line) {
     const g = new THREE.Group();
-    g.add(new THREE.Mesh(P.busBody, P.busPaint), new THREE.Mesh(P.busGlass, P.glass));
+    const sign = lineSign(line);
+    g.add(new THREE.Mesh(P.busBody, sign.paint), new THREE.Mesh(P.busGlass, P.glass));
+    // Letreiro em cima do para-brisa e atrás.
+    const front = new THREE.Mesh(new THREE.PlaneGeometry(2.1, 0.4), sign.m);
+    front.position.set(0, 2.62, 5.52);
+    const back = new THREE.Mesh(new THREE.PlaneGeometry(2.1, 0.4), sign.m);
+    back.position.set(0, 2.62, -5.52);
+    back.rotation.y = Math.PI;
+    g.add(front, back);
     for (const wz of [3.8, -2.6, -3.8]) {
       for (const wx of [-1.2, 1.2]) {
         const w = new THREE.Mesh(P.wheel, P.tire);
@@ -276,11 +316,12 @@ export function createTraffic({ THREE, scene, streetView, graph = () => null, ot
     }
   }
 
-  function addCar(lane, s, bus) {
-    const obj = bus ? busModel() : model();
+  function addCar(lane, s, bus, line = null) {
+    if (bus) line ??= BUS_LINES[lineTurn++ % BUS_LINES.length];
+    const obj = bus ? busModel(line) : model();
     const cruise = bus ? opt.bus.speed : opt.speed[0] + rand() * (opt.speed[1] - opt.speed[0]);
     const p = along(lane.pts, s);
-    const car = { id: nextId++, obj, bus, half: bus ? opt.bus.half : 2.1, lane, seg: lane, s, conn: null, next: null, x: p.x, z: p.z, heading: p.h, speed: cruise * 0.6, cruise, dwell: 0 };
+    const car = { id: nextId++, obj, bus, half: bus ? opt.bus.half : 2.1, lane, seg: lane, s, conn: null, next: null, x: p.x, z: p.z, heading: p.h, speed: cruise * 0.6, cruise, dwell: 0, line: bus ? line : null };
     obj.position.set(p.x, streetView.groundY(), p.z);
     obj.rotation.y = p.h;
     group.add(obj);
@@ -537,7 +578,7 @@ export function createTraffic({ THREE, scene, streetView, graph = () => null, ot
       // Escolhe a saída do cruzamento com antecedência (a seta, e para saber se o cruzamento está livre).
       if (!c.conn && !c.next && c.lane.length - c.s < 30 && net.nodes.has(c.lane.to)) {
         const n = net.nodes.get(c.lane.to);
-        c.next = n.kind === 'borda' ? null : chooseNext(net, c.lane, rand);
+        c.next = n.kind === 'borda' ? null : c.bus ? chooseLine(net, c.lane, c.line.id) : chooseNext(net, c.lane, rand);
         c.nextLen = c.next ? connector(c.lane, c.next.lane).length : null;
       }
       if (c.dwell > 0) {
@@ -575,16 +616,16 @@ export function createTraffic({ THREE, scene, streetView, graph = () => null, ot
       stats: { ...stats, turns: { ...stats.turns }, minCarGap: +stats.minCarGap.toFixed(2) },
       lanes: net?.lanes.length ?? 0,
       junctionsBusy: [...junctions.values()].filter((v) => v.size).length,
-      cars: cars.map((c) => ({ id: c.id, x: c.x, z: c.z, heading: c.heading, speed: c.speed, bus: c.bus, dwelling: c.dwell > 0, red: !!c.redLight, waiting: !!c.waiting, inJunction: !!c.conn, lane: c.lane.id, gap: Number.isFinite(c.carGap) ? +c.carGap.toFixed(2) : null, onRoad: isRoad(c.x, c.z), right: reach(isRoad, c.x, c.z, rightOf(c.heading), opt.side) })),
+      cars: cars.map((c) => ({ id: c.id, x: c.x, z: c.z, heading: c.heading, speed: c.speed, bus: c.bus, line: c.line?.id ?? null, dwelling: c.dwell > 0, red: !!c.redLight, waiting: !!c.waiting, inJunction: !!c.conn, lane: c.lane.id, gap: Number.isFinite(c.carGap) ? +c.carGap.toFixed(2) : null, onRoad: isRoad(c.x, c.z), right: reach(isRoad, c.x, c.z, rightOf(c.heading), opt.side) })),
     }),
     setTarget: (n) => { target = Math.max(0, Math.min(opt.max, n)); },
     /** Para testes: põe o ônibus em (x, z) com o rumo dado (tira o que houver). */
-    placeBus: (x, z, heading) => {
+    placeBus: (x, z, heading, lineId = null) => {
       refreshNet();
       const sn = snap(x, z, heading);
       if (!sn) return false;
       for (let i = cars.length - 1; i >= 0; i--) if (cars[i].bus) remove(i);
-      addCar(sn.lane, sn.s, true).speed = opt.bus.speed;
+      addCar(sn.lane, sn.s, true, BUS_LINES.find((l) => l.id === lineId) ?? null).speed = opt.bus.speed;
       return true;
     },
     /** Onde estão os carros e a que velocidade (os pedestres esperam no meio-fio). */
@@ -595,7 +636,9 @@ export function createTraffic({ THREE, scene, streetView, graph = () => null, ot
       if (!c) return null;
       const r = rightOf(c.heading);
       return {
-        x: c.x, z: c.z, heading: c.heading, dwelling: c.dwell > 0, stopKey: c.dwell > 0 ? c.stopKey : null,
+        x: c.x, z: c.z, heading: c.heading, dwelling: c.dwell > 0, stopKey: c.dwell > 0 ? c.stopKey : null, line: { id: c.line.id, name: c.line.name },
+        // Para testes: a faixa e o cruzamento à frente (a linha vira sempre igual no mesmo lugar).
+        lane: c.lane.id, next: c.next ? { lane: c.next.lane.id, turn: c.next.turn } : null,
         door: { x: c.x + Math.sin(r) * 1.4 + Math.sin(c.heading) * 3.5, z: c.z + Math.cos(r) * 1.4 + Math.cos(c.heading) * 3.5 },
       };
     },
