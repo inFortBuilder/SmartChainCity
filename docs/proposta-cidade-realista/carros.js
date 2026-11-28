@@ -182,7 +182,7 @@ export function createTraffic({ THREE, scene, streetView, walkers = () => [], op
     stats.removed++;
   }
 
-  /** Alguém na frente (até `gap` m, numa faixa de 1,4 m para carros e 2,6 m para o avatar): o carro freia. */
+  /** Alguém na frente (até `gap` m, numa faixa de 1,4 m para carros, 2,6 m para o avatar e 4,5 m para quem atravessa): o carro freia. */
   function blockedAhead(car, a) {
     const fx = Math.sin(car.heading), fz = Math.cos(car.heading);
     const ahead = (x, z, r) => {
@@ -195,8 +195,9 @@ export function createTraffic({ THREE, scene, streetView, walkers = () => [], op
       const dx = a.x - car.x, dz = a.z - car.z;
       if (ahead(a.x, a.z, 2.6) || (dx * fx + dz * fz > 0 && Math.hypot(dx, dz) < 5)) return true;
     }
-    // Pedestre atravessando: a mesma faixa larga do avatar.
-    if (walkers().some((w) => ahead(w.x, w.z, 2.6))) {
+    // Pedestre atravessando: para se ele está em qualquer ponto da rua à frente (4,5 m para cada lado),
+    // não só na faixa do carro, porque ele vai cruzar as duas.
+    if (walkers().some((w) => ahead(w.x, w.z, 4.5))) {
       car.yielding = true;
       return true;
     }
