@@ -7,7 +7,7 @@ Na cidade real (`docs/proposta-cidade-realista/pittsburg.html`), o jogador arras
 | W A S D ou setas | Anda; para a frente é para onde a câmera olha. Parado e mandado para trás ou para o lado (mais de 100°), o avatar gira no lugar (~400°/s) antes de sair andando |
 | Shift | Corre |
 | Espaço | Pula (clipes `Jump_Start`, `Jump_Loop` e `Jump_Land` da UAL) |
-| Clique ou toque na rua | Caminha até o ponto em linha reta e para na borda da rua, se ela acabar no caminho |
+| Clique ou toque na rua | Caminha até o ponto contornando gôndolas, ilhas e paredes ([caminho](#caminho-em-volta-dos-obstáculos-fase-2)); sem caminho, vai em linha reta e para na borda |
 | Arrastar | Gira a câmera em volta do avatar |
 | Roda do mouse | Aproxima ou afasta a câmera (2 a 14 m) |
 | Esc ou "← Voltar ao mapa" | Volta à visão de mapa, no ponto onde estava |
@@ -129,7 +129,22 @@ Perto do mercado, no mesmo cruzamento, ficam mais duas lojas (`lojas-rua.js`), c
 - na farmácia, sem doença: "O avatar não está doente.";
 - o mercado seguiu com os 17 alimentos e as 24 vagas.
 
-**Limite:** o clique para andar vai em linha reta. Na loja, a ilha do meio para o avatar, e é preciso contornar (com o teclado ou com outro clique).
+## Caminho em volta dos obstáculos (fase 2)
+
+O clique para andar ia em linha reta e parava na primeira gôndola, na ilha da loja ou na parede. `caminho.js` acha o caminho:
+
+1. Se a linha reta está livre, vai direto.
+2. Senão, faz um A* numa grade de 0,4 m em volta da origem e do destino (12 m de margem), com 8 vizinhos, sobre o chão andável (rua, calçada, salão das lojas e do mercado). Cada nó precisa de 0,25 m de folga, e a diagonal não corta quina.
+3. O caminho é alisado por linha de visada: de cada ponto, pula para o mais longe que se vê em linha reta.
+
+O avatar segue os pontos. O teclado cancela o caminho. Sem caminho (destino cercado), cai na linha reta de antes. A API do street view ganha `walkTo(x, z)`, o mesmo do clique.
+
+**PREMISSAS:** grade de 0,4 m, folga de 0,25 m, margem de 12 m e no máximo 60 mil nós.
+
+**Testado** em 2026-11-28:
+- na loja, da rua até o micro-ondas, atrás da ilha, num comando só: 3 pontos, calculado em 3 ms, chegou a 0,28 m e armou o micro-ondas;
+- no mercado, da rua até a vaga de um corredor do canto, atravessando as gôndolas: 5 pontos, 6 ms, chegou a 0,27 m na prateleira do milho;
+- no Node: em volta de uma ilha (4 pontos, 9,25 m, 5 ms), linha reta (1 ponto), destino cercado (sem caminho) e entre gôndolas (6 pontos, todos andáveis).
 
 ## Consumir em casa (fase 2)
 
