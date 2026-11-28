@@ -117,33 +117,41 @@ export function createCrosswalks(THREE, scene, max = 1500, opt = CROSSWALK) {
   const pos = new THREE.Vector3();
   const one = new THREE.Vector3(1, 1, 1);
   let last = [];
-  // Com o kit de ruas (kit-ruas.js), as listras não aparecem: as peças trazem as delas. A lista continua.
-  let drawn = true;
+  let lastY = 0;
+  // Com o kit de ruas (kit-ruas.js), a faixa dentro de uma peça de cruzamento não é desenhada (a peça traz a
+  // dela); a lista continua inteira, para os pedestres e os semáforos.
+  let skip = () => false;
+  function draw() {
+    let k = 0;
+    for (const f of last) {
+      if (skip(f)) continue;
+      const [ux, uz] = f.dir;
+      // A listra comprida vai no sentido da rua (o eixo z da peça); elas se repetem atravessando.
+      q.setFromAxisAngle(up, Math.atan2(-uz, ux));
+      const count = Math.floor((f.width - 0.6) / (opt.stripe + opt.gap));
+      const start = -((count - 1) * (opt.stripe + opt.gap)) / 2;
+      for (let i = 0; i < count && k < max; i++) {
+        const o = start + i * (opt.stripe + opt.gap);
+        // 5 cm acima do asfalto: por cima da fita do kit de ruas (2,5 cm).
+        m4.compose(pos.set(f.x + ux * o, lastY + 0.05, f.z + uz * o), q, one);
+        stripes.setMatrixAt(k++, m4);
+      }
+    }
+    stripes.count = k;
+    stripes.instanceMatrix.needsUpdate = true;
+    stripes.visible = k > 0;
+    return k;
+  }
   return {
-    /** Mostra ou esconde as listras (a lista das faixas continua para os pedestres). */
-    setDrawn(on) {
-      drawn = on;
-      stripes.visible = on && stripes.count > 0;
+    /** Faixas que não são desenhadas: `fn(faixa)` verdadeiro pula (as do kit de ruas). */
+    setSkip(fn) {
+      skip = fn ?? (() => false);
+      return draw();
     },
     rebuild(grid, roadY) {
       last = findCrosswalks(grid, opt);
-      let k = 0;
-      for (const f of last) {
-        const [ux, uz] = f.dir;
-        // A listra comprida vai no sentido da rua (o eixo z da peça); elas se repetem atravessando.
-        q.setFromAxisAngle(up, Math.atan2(-uz, ux));
-        const count = Math.floor((f.width - 0.6) / (opt.stripe + opt.gap));
-        const start = -((count - 1) * (opt.stripe + opt.gap)) / 2;
-        for (let i = 0; i < count && k < max; i++) {
-          const o = start + i * (opt.stripe + opt.gap);
-          m4.compose(pos.set(f.x + ux * o, roadY + 0.02, f.z + uz * o), q, one);
-          stripes.setMatrixAt(k++, m4);
-        }
-      }
-      stripes.count = k;
-      stripes.instanceMatrix.needsUpdate = true;
-      stripes.visible = drawn;
-      return { crosswalks: last.length, stripes: k };
+      lastY = roadY;
+      return { crosswalks: last.length, stripes: draw() };
     },
     hide() {
       stripes.visible = false;

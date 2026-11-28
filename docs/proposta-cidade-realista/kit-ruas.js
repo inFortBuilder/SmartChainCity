@@ -14,8 +14,8 @@
 // - o que não é ângulo reto (X agudo, 5 braços) fica com o asfalto do OSM, que continua por baixo. Esse
 //   asfalto ganha a textura do asfalto liso do kit (recortada do atlas, repetida a cada 7,71 m pelo mundo),
 //   para não destoar das peças. Vale também para o mapa visto de cima.
-// As peças ficam 3 cm acima do asfalto do OSM. As listras das faixas de pedestre de hoje (faixas.js) saem: as
-// peças de cruzamento já trazem as delas.
+// As peças ficam 3 cm acima do asfalto do OSM. As listras das faixas de pedestre de hoje (faixas.js) saem só
+// dentro das peças de cruzamento, que já trazem as delas; no cruzamento torto (sem peça), elas continuam.
 //
 // PREMISSAS: ângulo reto até 20° fora; 4 faixas acima de 12 m de largura; escala da largura entre 0,6 e 1,6.
 
@@ -341,7 +341,9 @@ export function createRoadKit({ THREE, scene, streetView, roadGraph, loadGltf, r
     stats.placed = counts;
     stats.layouts++;
     stats.ms = Math.round(performance.now() - t0);
-    streetView.drawCrosswalks?.(false);
+    // Faixas de hoje dentro de uma peça de cruzamento (até a borda dela, mais 2 m) não são desenhadas.
+    const covered = list.filter((p) => p.code === 'cruz2' || p.code === 'cruz4').map((p) => ({ x: p.x, z: p.z, r: (pieces[p.code].size.w * p.sx) / 2 + 2 }));
+    stats.crosswalksDrawn = streetView.skipCrosswalks?.((f) => covered.some((c) => Math.hypot(f.x - c.x, f.z - c.z) < c.r));
   }
 
   return {
