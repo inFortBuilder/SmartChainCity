@@ -489,11 +489,20 @@ export function createTraffic({ THREE, scene, streetView, graph = () => null, wa
     else if (fps.value > opt.fpsHigh) target = Math.min(opt.max, target + 1);
   }
 
+  /**
+   * Um quadro: em passos de até 0,05 s (no máximo 10), para o IDM não passar do ponto quando o quadro é longo
+   * (página em segundo plano, celular lento).
+   */
   function update(dt) {
     const on = streetView.active();
     group.visible = on;
     if (!on || !dt) return;
     adapt(dt);
+    const n = Math.min(10, Math.ceil(dt / 0.05));
+    for (let i = 0; i < n; i++) step(Math.min(dt, 0.5) / n);
+  }
+
+  function step(dt) {
     clock += dt;
     refreshNet();
     if (!net) return;
@@ -501,8 +510,9 @@ export function createTraffic({ THREE, scene, streetView, graph = () => null, wa
     for (let i = cars.length - 1; i >= 0; i--) {
       const c = cars[i];
       if (riding && c.bus) continue;
-      // Parado só por outros carros há muito tempo (não deve acontecer com o cruzamento um por vez): sai.
-      if (c.stuckT > opt.stuck.after * 2) {
+      // Parado dentro do cruzamento por mais de 30 s (um nó que o cruzamento um por vez não deveria deixar
+      // acontecer): sai. Esperar na fila do sinal ou da entrada do cruzamento não conta.
+      if (c.stuckT > 30) {
         stats.unstuck++;
         remove(i);
         continue;
@@ -533,7 +543,7 @@ export function createTraffic({ THREE, scene, streetView, graph = () => null, wa
       if (minGap < 1.5) c.speed = 0;
       if (c.dwell > 0) c.speed = 0;
       stats.minCarGap = Math.min(stats.minCarGap, c.carGap);
-      c.stuckT = c.speed < 0.1 && !c.redLight && !c.yielding && !c.waiting && !(c.dwell > 0) ? (c.stuckT ?? 0) + dt : 0;
+      c.stuckT = c.conn && c.speed < 0.1 && !c.yielding ? (c.stuckT ?? 0) + dt : 0;
       if (!advance(c, c.speed * dt)) {
         remove(i);
         continue;
