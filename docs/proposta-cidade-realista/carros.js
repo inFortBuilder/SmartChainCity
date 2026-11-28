@@ -8,7 +8,8 @@
 // - quando a direita abre (mais de `openAt` m além da faixa: cruzamento ou rua que sai), sorteia: segue reto até a direita fechar de novo,
 //   ou entra à direita;
 // - quando a frente fecha (fim da rua, T), vira para o lado que tem mais rua;
-// - freia atrás de outro carro e na frente do avatar, se ele estiver na rua.
+// - freia atrás de outro carro e para na frente do avatar, se ele estiver na rua, e do pedestre que
+//   atravessa na faixa (`walkers()`, de pedestres.js).
 // Nascem numa rua de pelo menos 5 m de largura, entre 30 m e 70 m do avatar, e somem a 90 m.
 // O carro é uma peça procedural (carroceria, cabine, rodas, faróis), de cor sorteada, até haver o modelo
 // CC0 do SCC Kit. A quantidade segue o FPS, como os pedestres.
@@ -115,7 +116,7 @@ function parts(THREE) {
 
 const PAINT = [0xe8e8e8, 0x1d1d1f, 0x8a8f96, 0xb3202a, 0x234a8c, 0x2d6a4f, 0xd8b23a, 0x5a3a2a];
 
-export function createTraffic({ THREE, scene, streetView, opt = CARS, rand = Math.random }) {
+export function createTraffic({ THREE, scene, streetView, walkers = () => [], opt = CARS, rand = Math.random }) {
   const group = new THREE.Group();
   group.name = 'transito';
   scene.add(group);
@@ -124,7 +125,7 @@ export function createTraffic({ THREE, scene, streetView, opt = CARS, rand = Mat
   const cars = [];
   let target = opt.start;
   const fps = { frames: 0, time: 0, value: 60 };
-  const stats = { spawned: 0, removed: 0, brakes: 0, straight: 0, turnsRight: 0 };
+  const stats = { spawned: 0, removed: 0, brakes: 0, straight: 0, turnsRight: 0, yields: 0 };
   const isRoad = (x, z) => streetView.isRoad(x, z);
 
   function model() {
@@ -194,6 +195,11 @@ export function createTraffic({ THREE, scene, streetView, opt = CARS, rand = Mat
       const dx = a.x - car.x, dz = a.z - car.z;
       if (ahead(a.x, a.z, 2.6) || (dx * fx + dz * fz > 0 && Math.hypot(dx, dz) < 5)) return true;
     }
+    // Pedestre atravessando: a mesma faixa larga do avatar.
+    if (walkers().some((w) => ahead(w.x, w.z, 2.6))) {
+      car.yielding = true;
+      return true;
+    }
     return cars.some((o) => o !== car && ahead(o.x, o.z, 1.4));
   }
 
@@ -223,7 +229,10 @@ export function createTraffic({ THREE, scene, streetView, opt = CARS, rand = Mat
       const wasOpen = c.opening;
       drive(isRoad, c, dt, opt, () => rand() < 0.5);
       if (c.opening && !wasOpen) stats[c.straight ? 'straight' : 'turnsRight']++;
+      const wasYielding = c.yielding;
+      c.yielding = false;
       const stop = blockedAhead(c, a);
+      if (c.yielding && !wasYielding) stats.yields++;
       if (stop && c.speed > 1) stats.brakes++;
       // Acelera devagar e freia forte.
       const want = stop ? 0 : c.cruise;
@@ -247,5 +256,7 @@ export function createTraffic({ THREE, scene, streetView, opt = CARS, rand = Mat
       cars: cars.map((c) => ({ x: c.x, z: c.z, heading: c.heading, speed: c.speed, onRoad: isRoad(c.x, c.z), right: reach(isRoad, c.x, c.z, rightOf(c.heading), opt.side) })),
     }),
     setTarget: (n) => { target = Math.max(0, Math.min(opt.max, n)); },
+    /** Onde estão os carros e a que velocidade (os pedestres esperam no meio-fio). */
+    positions: () => cars.map((c) => ({ x: c.x, z: c.z, speed: c.speed })),
   };
 }
