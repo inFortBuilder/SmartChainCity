@@ -854,7 +854,7 @@ try {
     // Embarcar no ônibus: a passagem sai pelo game-core (POST /v1/avatars/:id/bus-ride).
     if (traffic) busRide = createBusRide({ streetView, traffic, servidor });
     roadGraph = createRoadGraph({ THREE, scene, streetView, show: PARAMS.get('grafo') === '1' });
-    if (PARAMS.get('kit') !== '0') roadKit = createRoadKit({ THREE, scene, streetView, roadGraph, loadGltf: (url) => new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).loadAsync(url) });
+    if (PARAMS.get('kit') !== '0') roadKit = createRoadKit({ THREE, scene, streetView, roadGraph, roads: roadsMesh, loadGltf: (url) => new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).loadAsync(url) });
     // Minimapa e GPS (fase 4): os lugares do jogo na rua são os destinos. ?minimapa=0 desliga.
     if (PARAMS.get('minimapa') !== '0') {
       const places = () => [

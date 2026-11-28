@@ -11,7 +11,9 @@
 //   dele e esticadas na largura da rua. Elas começam e acabam fora da peça de cruzamento. A última da
 //   fileira encolhe para caber;
 // - nas dobras do trecho, um quadrado de asfalto do kit cobre a junta;
-// - o que não é ângulo reto (X agudo, 5 braços) fica com o asfalto do OSM, que continua por baixo.
+// - o que não é ângulo reto (X agudo, 5 braços) fica com o asfalto do OSM, que continua por baixo. Esse
+//   asfalto ganha a textura do asfalto liso do kit (recortada do atlas, repetida a cada 7,71 m pelo mundo),
+//   para não destoar das peças. Vale também para o mapa visto de cima.
 // As peças ficam 3 cm acima do asfalto do OSM. As listras das faixas de pedestre de hoje (faixas.js) saem: as
 // peças de cruzamento já trazem as delas.
 //
@@ -103,7 +105,7 @@ export function layout(graph, size, opt = KIT) {
   return out;
 }
 
-export function createRoadKit({ THREE, scene, streetView, roadGraph, loadGltf, opt = KIT }) {
+export function createRoadKit({ THREE, scene, streetView, roadGraph, loadGltf, roads = null, opt = KIT }) {
   const group = new THREE.Group();
   group.name = 'kit-ruas';
   scene.add(group);
@@ -136,6 +138,7 @@ export function createRoadKit({ THREE, scene, streetView, roadGraph, loadGltf, o
         group.add(m);
         meshes[code] = m;
       }
+      if (roads && pieces.asfalto) dressRoads(pieces.asfalto);
       stats.loaded = true;
       lastGraph = null;
     })
@@ -143,6 +146,49 @@ export function createRoadKit({ THREE, scene, streetView, roadGraph, loadGltf, o
       // Sem o kit em .local/: ficam as ruas de hoje.
       stats.missing = true;
     });
+
+  /**
+   * O asfalto do OSM com a textura do asfalto liso do kit: recorta do atlas o pedaço que a peça usa e repete
+   * pelo mundo (UV = x e z do mundo ÷ o tamanho da peça). As cores por vértice saem (a textura manda).
+   */
+  function dressRoads(asfalto) {
+    const uv = asfalto.geometry.attributes.uv;
+    const img = asfalto.material.map?.image;
+    if (!uv || !img) return;
+    let u0 = 1, v0 = 1, u1 = 0, v1 = 0;
+    for (let i = 0; i < uv.count; i++) {
+      u0 = Math.min(u0, uv.getX(i)); u1 = Math.max(u1, uv.getX(i));
+      v0 = Math.min(v0, uv.getY(i)); v1 = Math.max(v1, uv.getY(i));
+    }
+    const W = img.width, H = img.height;
+    // Um pouco para dentro, para não pegar a borda das peças vizinhas no atlas.
+    const pad = 0.08;
+    const sx = (u0 + (u1 - u0) * pad) * W, sy = (v0 + (v1 - v0) * pad) * H;
+    const sw = (u1 - u0) * (1 - 2 * pad) * W, sh = (v1 - v0) * (1 - 2 * pad) * H;
+    const c = document.createElement('canvas');
+    c.width = c.height = 512;
+    c.getContext('2d').drawImage(img, sx, sy, sw, sh, 0, 0, 512, 512);
+    const tex = new THREE.CanvasTexture(c);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 8;
+    // UV pelo mundo: a malha das ruas vem quantizada (meshopt), então passa pela matriz dela.
+    roads.updateMatrixWorld(true);
+    const p = roads.geometry.attributes.position, v = new THREE.Vector3();
+    const out = new Float32Array(p.count * 2);
+    const tile = asfalto.size.w;
+    for (let i = 0; i < p.count; i++) {
+      v.fromBufferAttribute(p, i).applyMatrix4(roads.matrixWorld);
+      out[i * 2] = v.x / tile;
+      out[i * 2 + 1] = v.z / tile;
+    }
+    roads.geometry.setAttribute('uv', new THREE.BufferAttribute(out, 2));
+    roads.material.map = tex;
+    roads.material.vertexColors = false;
+    roads.material.color.set(0xffffff);
+    roads.material.needsUpdate = true;
+    stats.dressed = p.count;
+  }
 
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), pos = new THREE.Vector3(), scl = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
 
