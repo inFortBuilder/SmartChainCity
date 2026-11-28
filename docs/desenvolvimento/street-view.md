@@ -357,7 +357,17 @@ Os pontos só existem na grade em volta do avatar (40 m): o ônibus só para nos
 
 **Limites desta versão:** o ônibus não segue uma linha fixa.
 
-### O avatar anda de ônibus
+### Linhas de ônibus
+
+O ônibus não vira ao acaso: cada um é de uma linha (`BUS_LINES` em `carros.js`), com a cor dela e o letreiro na frente e atrás.
+
+- **Linha 1 · Centro** (verde) e **Linha 2 · Bairros** (azul). Cada ônibus que nasce é da próxima linha.
+- **Caminho fixo**: no fim da faixa, a saída vem de um sorteio fixo da linha, do lugar do cruzamento (passos de 3 m) e do lado de chegada (8 setores) (`chooseLine` em `vias.js`), com os mesmos pesos do carro (reto 3, virar 1). No mesmo cruzamento, vindo do mesmo lado, a linha vai sempre igual; como o grafo é finito, o caminho fecha num circuito (numa grade 4×4 de teste, um circuito de 8 trechos).
+- O carro comum continua no sorteio livre.
+- O embarque mostra a linha ("Linha 1 · Centro no ponto: passagem · 3,00 THALER"), e a passagem paga também.
+- `traffic().busState()` traz a linha, a faixa e a saída escolhida; `placeBus(x, z, rumo, linha)` põe o ônibus de uma linha, para testar.
+
+## O avatar anda de ônibus
 
 `viagem.js` deixa o avatar embarcar:
 
