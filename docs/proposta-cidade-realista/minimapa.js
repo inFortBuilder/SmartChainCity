@@ -243,7 +243,7 @@ export function createMinimap({ streetView, places = () => [], cars = () => [], 
     },
     debug: () => ({
       visible: !box.hidden,
-      route: route && { place: route.place.id, points: route.points.length, length: Math.round(routeLength(streetView.position().x, streetView.position().z, route.points)) },
+      route: route && { place: route.place.id, points: route.points.length, path: route.points.map((p) => [p.x, p.z]), length: Math.round(routeLength(streetView.position().x, streetView.position().z, route.points)) },
       info: info.textContent,
       options: [...select.options].map((o) => o.value).filter(Boolean),
       ...stats,
