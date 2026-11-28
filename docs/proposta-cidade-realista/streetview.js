@@ -13,6 +13,7 @@
 // câmera para não atravessar a parede. Espaço pula.
 
 import { AVATAR_TYPES, getAvatarType, loadAvatarAssets, makeAvatar, setAvatarType } from './avatar.js';
+import { createCrosswalks } from './faixas.js';
 import { createFurniture } from './mobiliario.js';
 
 const CELL = 32; // m por célula do índice
@@ -306,6 +307,9 @@ export function createStreetView({ THREE, scene, camera, controls, canvas, roads
   scene.add(tiles);
   // Postes e árvores ao longo da calçada (mobiliario.js); ocupam a célula, e o avatar contorna.
   const furniture = createFurniture(THREE, scene);
+  // Faixas de pedestre nos cruzamentos (faixas.js), tiradas da mesma grade.
+  const crosswalks = createCrosswalks(THREE, scene);
+  let crosswalkCounts = null;
   let furnitureCounts = null;
   const boxHit = new THREE.Vector3();
   /**
@@ -354,6 +358,7 @@ export function createStreetView({ THREE, scene, camera, controls, canvas, roads
     tiles.geometry = g;
     tiles.visible = true;
     walk.triangles = m.triangles;
+    crosswalkCounts = crosswalks.rebuild(walk, index.y);
     furnitureCounts = furniture.rebuild(walk, index.y + SIDEWALK.curb);
     walk.ms = Math.round(performance.now() - t0);
   };
@@ -490,6 +495,7 @@ export function createStreetView({ THREE, scene, camera, controls, canvas, roads
     avatar.obj.visible = false;
     tiles.visible = false;
     furniture.hide();
+    crosswalks.hide();
     camera.position.copy(saved.pos);
     controls.target.copy(saved.target);
     Object.assign(camera, { near: saved.near, far: saved.far, fov: saved.fov });
@@ -687,6 +693,8 @@ export function createStreetView({ THREE, scene, camera, controls, canvas, roads
     jumping: () => jump.air,
     /** Postes e árvores em volta do avatar agora. */
     furniture: () => furnitureCounts,
+    /** Faixas de pedestre em volta do avatar agora (contagem e a lista, com centro, rumo e largura). */
+    crosswalks: () => (crosswalkCounts ? { ...crosswalkCounts, list: crosswalks.list() } : null),
     /** À noite, as luminárias dos postes acendem (ceu.js). */
     setNight: (on) => furniture.setNight(on),
     avatar,
