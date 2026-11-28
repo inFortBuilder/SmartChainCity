@@ -11,6 +11,8 @@
 // - Na ponta de uma faixa de pedestre (faixas.js), metade atravessa: espera no meio-fio até não haver
 //   carro andando a menos de 12 m da faixa (desiste depois de 8 s) e cruza em linha reta até a outra
 //   calçada. Enquanto atravessa, os carros param para ele (carros.js, `walkers`).
+// - Passando por um ponto de ônibus (onibus.js), 40% vão esperar no ponto (até 45 s). Quando o ônibus
+//   para com a porta a menos de 10 m, embarcam: andam até a porta e saem da cena.
 //
 // PREMISSAS: até 24 pedestres, 1,1 a 1,5 m/s, raio de 12 a 35 m, somem a 45 m, FPS alvo de 45 a 55;
 // metade atravessa na faixa, rua livre de carros a 12 m, espera de até 8 s.
@@ -35,6 +37,11 @@ export const PEDS = {
   crossReach: 1.2,
   carClear: 12,
   crossWait: 8,
+  /** Ponto de ônibus: chance de esperar, alcance do ponto (m), espera máxima (s) e a porta a menos de (m). */
+  board: 0.4,
+  stopReach: 2.5,
+  stopWait: 45,
+  doorNear: 10,
 };
 
 /** Cores de roupa (tons de tecido, sem o roxo do manequim). */
@@ -81,7 +88,7 @@ export function crosswalkEnds(list, walk) {
   return out;
 }
 
-export function createPedestrians({ THREE, scene, streetView, cars = () => [], opt = PEDS, rand = Math.random }) {
+export function createPedestrians({ THREE, scene, streetView, cars = () => [], buses = () => [], opt = PEDS, rand = Math.random }) {
   const group = new THREE.Group();
   group.name = 'pedestres';
   scene.add(group);
@@ -89,7 +96,8 @@ export function createPedestrians({ THREE, scene, streetView, cars = () => [], o
   let target = opt.start;
   let assets = null;
   const fps = { frames: 0, time: 0, value: 60 };
-  const stats = { spawned: 0, removed: 0, turns: 0, blocked: 0, crossed: 0, waitedCar: 0, gaveUp: 0 };
+  const stats = { spawned: 0, removed: 0, turns: 0, blocked: 0, crossed: 0, waitedCar: 0, gaveUp: 0, atStop: 0, boarded: 0, leftStop: 0 };
+  let stops = [];
   // Pontas das faixas, refeitas a cada segundo (a grade muda quando o avatar anda).
   let ends = [];
   let endsAt = -1;
@@ -107,6 +115,31 @@ export function createPedestrians({ THREE, scene, streetView, cars = () => [], o
       }
     }
     return null;
+  }
+  /** Perto de um ponto de ônibus, decide uma vez se vai esperar nele. */
+  function stopStart(ped, o) {
+    const s = stops.find((p) => Math.hypot(p.wait.x - o.x, p.wait.z - o.z) < opt.stopReach);
+    if (!s) {
+      ped.triedStop = null;
+      return false;
+    }
+    if (s.key === ped.triedStop) return false;
+    ped.triedStop = s.key;
+    if (rand() >= opt.board) return false;
+    // Cada um num lugar da frente do banco.
+    const t = (rand() - 0.5) * 2.2;
+    ped.board = { key: s.key, yaw: s.yaw, x: s.wait.x - s.dir[1] * t, z: s.wait.z + s.dir[0] * t, phase: 'go', waited: 0 };
+    return true;
+  }
+  /** Andar reto até (x, z); devolve true ao chegar. */
+  function goTo(ped, o, x, z, dt) {
+    const dx = x - o.x, dz = z - o.z, d = Math.hypot(dx, dz);
+    if (d < 0.25) return true;
+    ped.heading = Math.atan2(dx, dz);
+    const step = Math.min(d, ped.speed * dt);
+    o.x += (dx / d) * step;
+    o.z += (dz / d) * step;
+    return false;
   }
   /** Na ponta de uma faixa, decide uma vez se atravessa (metade). A faixa de onde acabou de chegar não conta. */
   function crossingStart(ped, o) {
@@ -193,14 +226,15 @@ export function createPedestrians({ THREE, scene, streetView, cars = () => [], o
     // Some quem ficou longe ou fora da grade; nasce quem falta (um por quadro, sem engasgo).
     for (let i = peds.length - 1; i >= 0; i--) {
       const p = peds[i].obj.position;
-      const offWalk = !peds[i].cross && walk.at(p.x, p.z) !== 2;
-      if (Math.hypot(p.x - a.x, p.z - a.z) > opt.despawn || offWalk || peds.length > target) remove(i);
+      const offWalk = !peds[i].cross && !peds[i].board && walk.at(p.x, p.z) !== 2;
+      if (peds[i].gone || Math.hypot(p.x - a.x, p.z - a.z) > opt.despawn || offWalk || peds.length > target) remove(i);
     }
     if (peds.length < target) spawn(walk, a);
     clock += dt;
     if (clock - endsAt > 1) {
       endsAt = clock;
       ends = crosswalkEnds(streetView.crosswalks?.()?.list ?? [], walk);
+      stops = streetView.busStops?.() ?? [];
     }
 
     for (const ped of peds) {
@@ -235,6 +269,31 @@ export function createPedestrians({ THREE, scene, streetView, cars = () => [], o
             o.z += (dz / d) * step;
           }
         }
+      } else if (ped.board) {
+        const b = ped.board;
+        if (b.phase === 'go') {
+          if (goTo(ped, o, b.x, b.z, dt)) {
+            b.phase = 'wait';
+            ped.heading = b.yaw; // de frente para a rua
+            ped.inst.play('idle');
+            stats.atStop++;
+          }
+        } else if (b.phase === 'wait') {
+          b.waited += dt;
+          const bus = buses().find((v) => Math.hypot(v.door.x - o.x, v.door.z - o.z) < opt.doorNear);
+          if (bus) {
+            b.phase = 'board';
+            b.door = bus.door;
+            ped.inst.play('walk');
+          } else if (b.waited > opt.stopWait) {
+            ped.board = null;
+            ped.inst.play('walk');
+            stats.leftStop++;
+          }
+        } else if (goTo(ped, o, b.door.x, b.door.z, dt)) {
+          ped.gone = true;
+          stats.boarded++;
+        }
       } else if (ped.wait > 0) {
         ped.wait -= dt;
         if (ped.wait <= 0) { ped.talking = false; ped.inst.play('walk'); }
@@ -242,6 +301,8 @@ export function createPedestrians({ THREE, scene, streetView, cars = () => [], o
         ped.wait = 2 + rand() * 4;
         ped.talking = rand() < opt.talk;
         ped.inst.play(ped.talking ? 'talk' : 'idle');
+      } else if (stopStart(ped, o)) {
+        ped.inst.play('walk');
       } else if (crossingStart(ped, o)) {
         // Na ponta da faixa: para no meio-fio e olha o trânsito.
         ped.inst.play('idle');
@@ -284,6 +345,8 @@ export function createPedestrians({ THREE, scene, streetView, cars = () => [], o
       stats: { ...stats },
       peds: peds.map((p) => ({ x: p.obj.position.x, z: p.obj.position.z, heading: p.heading, waiting: p.wait > 0, talking: p.talking, crossing: p.cross ? (p.cross.waiting ? 'curb' : 'road') : null })),
       crosswalks: ends.length,
+      stops: stops.length,
+      atStop: peds.filter((p) => p.board?.phase === 'wait').length,
     }),
     /** Quem está atravessando a rua agora (os carros param para eles). */
     onRoad: () => peds.filter((p) => p.cross && !p.cross.waiting).map((p) => ({ x: p.obj.position.x, z: p.obj.position.z })),

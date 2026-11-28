@@ -16,6 +16,7 @@ import { AVATAR_TYPES, getAvatarType, loadAvatarAssets, makeAvatar, setAvatarTyp
 import { findPath } from './caminho.js';
 import { createCrosswalks } from './faixas.js';
 import { createFurniture } from './mobiliario.js';
+import { createBusStops } from './onibus.js';
 
 const CELL = 32; // m por célula do índice
 const SPEED = { walk: 1.5, run: 4.2 }; // m/s
@@ -325,6 +326,9 @@ export function createStreetView({
   scene.add(tiles);
   // Postes e árvores ao longo da calçada (mobiliario.js); ocupam a célula, e o avatar contorna.
   const furniture = createFurniture(THREE, scene);
+  // Pontos de ônibus no meio-fio (onibus.js, fase 3).
+  const busStops = createBusStops(THREE, scene);
+  let busStopCount = 0;
   // Faixas de pedestre nos cruzamentos (faixas.js), tiradas da mesma grade.
   const crosswalks = createCrosswalks(THREE, scene);
   let crosswalkCounts = null;
@@ -379,6 +383,7 @@ export function createStreetView({
     walk.triangles = m.triangles;
     crosswalkCounts = crosswalks.rebuild(walk, index.y);
     furnitureCounts = furniture.rebuild(walk, index.y + SIDEWALK.curb);
+    busStopCount = busStops.rebuild(walk, index.y + SIDEWALK.curb);
     walk.ms = Math.round(performance.now() - t0);
   };
   /**
@@ -522,6 +527,7 @@ export function createStreetView({
     avatar.obj.visible = false;
     tiles.visible = false;
     furniture.hide();
+    busStops.hide();
     crosswalks.hide();
     camera.position.copy(saved.pos);
     controls.target.copy(saved.target);
@@ -753,6 +759,8 @@ export function createStreetView({
     turning: () => turn.on,
     /** Postes e árvores em volta do avatar agora. */
     furniture: () => furnitureCounts,
+    /** Os pontos de ônibus em volta do avatar (onibus.js). */
+    busStops: () => (busStopCount ? busStops.list() : []),
     /** Faixas de pedestre em volta do avatar agora (contagem e a lista, com centro, rumo e largura). */
     crosswalks: () => (crosswalkCounts ? { ...crosswalkCounts, list: crosswalks.list() } : null),
     /** À noite, as luminárias dos postes acendem (ceu.js). */

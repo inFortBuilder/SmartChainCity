@@ -826,7 +826,7 @@ try {
     streetMarket = createStreetMarket({ THREE, scene, city: 'pittsburg', groundY: streetView.groundY(), servidor, streetView });
     streetStores = createStreetStores({ THREE, scene, city: 'pittsburg', groundY: streetView.groundY(), servidor, streetView });
     // Cidade viva (fase 3): gente nas calçadas, só deste navegador. ?pedestres=0 desliga.
-    if (PARAMS.get('pedestres') !== '0') pedestrians = createPedestrians({ THREE, scene, streetView, cars: () => traffic?.positions() ?? [] });
+    if (PARAMS.get('pedestres') !== '0') pedestrians = createPedestrians({ THREE, scene, streetView, cars: () => traffic?.positions() ?? [], buses: () => traffic?.buses() ?? [] });
     // Trânsito (fase 3): carros do cliente na mão direita. ?transito=0 desliga.
     if (PARAMS.get('transito') !== '0') traffic = createTraffic({ THREE, scene, streetView, walkers: () => pedestrians?.onRoad() ?? [] });
     // Volta de uma visita: ?rua=x,z,rumo põe o avatar de novo na rua, onde estava.

@@ -14,7 +14,12 @@
 // O carro é uma peça procedural (carroceria, cabine, rodas, faróis), de cor sorteada, até haver o modelo
 // CC0 do SCC Kit. A quantidade segue o FPS, como os pedestres.
 //
-// PREMISSAS: até 10 carros, 7 a 10 m/s (25 a 36 km/h), faixa a 1,8 m do meio-fio da direita.
+// Ônibus: com 3 carros ou mais, um deles é ônibus (11 m). Ele anda como os carros e, com um ponto de
+// ônibus (onibus.js) à frente na faixa dele, freia até a parada (`bay`) e fica 7 s com a porta aberta;
+// quem espera no ponto embarca (pedestres.js). Depois segue, e não para de novo no mesmo ponto.
+//
+// PREMISSAS: até 10 carros, 7 a 10 m/s (25 a 36 km/h), faixa a 1,8 m do meio-fio da direita; um ônibus
+// de 11 m a 8 m/s, 7 s parado no ponto, frenagem de 1,5 m/s² até ele.
 
 export const CARS = {
   max: 10,
@@ -39,6 +44,8 @@ export const CARS = {
   openAt: 2.5,
   fpsLow: 45,
   fpsHigh: 55,
+  /** Ônibus: meio comprimento (m), velocidade (m/s), tempo parado (s), frenagem até o ponto (m/s²). */
+  bus: { half: 5.5, speed: 8, dwell: 7, brake: 1.5, minCars: 3 },
 };
 
 /** Distância (m) de (x, z) até o fim da rua na direção h, amostrada a cada 0,25 m até `max`. */
@@ -105,8 +112,13 @@ function parts(THREE) {
   const wheel = new THREE.CylinderGeometry(0.34, 0.34, 0.25, 14);
   wheel.rotateZ(Math.PI / 2);
   const lamp = new THREE.BoxGeometry(0.35, 0.15, 0.05);
+  const busBody = new THREE.BoxGeometry(2.5, 2.5, 11);
+  busBody.translate(0, 1.6, 0);
+  const busGlass = new THREE.BoxGeometry(2.54, 0.8, 10.2);
+  busGlass.translate(0, 2.15, 0.1);
   return {
-    body, cabin, wheel, lamp,
+    body, cabin, wheel, lamp, busBody, busGlass,
+    busPaint: new THREE.MeshStandardMaterial({ color: 0x2a7f62, roughness: 0.4, metalness: 0.3 }),
     glass: new THREE.MeshStandardMaterial({ color: 0x1b2633, roughness: 0.15, metalness: 0.6 }),
     tire: new THREE.MeshStandardMaterial({ color: 0x151515, roughness: 0.9 }),
     front: new THREE.MeshStandardMaterial({ color: 0xfff6d8, emissive: 0xfff2c0, emissiveIntensity: 0.6 }),
@@ -116,7 +128,7 @@ function parts(THREE) {
 
 const PAINT = [0xe8e8e8, 0x1d1d1f, 0x8a8f96, 0xb3202a, 0x234a8c, 0x2d6a4f, 0xd8b23a, 0x5a3a2a];
 
-export function createTraffic({ THREE, scene, streetView, walkers = () => [], opt = CARS, rand = Math.random }) {
+export function createTraffic({ THREE, scene, streetView, walkers = () => [], stops = () => streetView.busStops?.() ?? [], opt = CARS, rand = Math.random }) {
   const group = new THREE.Group();
   group.name = 'transito';
   scene.add(group);
@@ -125,8 +137,31 @@ export function createTraffic({ THREE, scene, streetView, walkers = () => [], op
   const cars = [];
   let target = opt.start;
   const fps = { frames: 0, time: 0, value: 60 };
-  const stats = { spawned: 0, removed: 0, brakes: 0, straight: 0, turnsRight: 0, yields: 0 };
+  const stats = { spawned: 0, removed: 0, brakes: 0, straight: 0, turnsRight: 0, yields: 0, busStops: 0 };
   const isRoad = (x, z) => streetView.isRoad(x, z);
+
+  /** Ônibus: carroceria, faixa de janelas, 6 rodas e os faróis nas pontas. */
+  function busModel() {
+    const g = new THREE.Group();
+    g.add(new THREE.Mesh(P.busBody, P.busPaint), new THREE.Mesh(P.busGlass, P.glass));
+    for (const wz of [3.8, -2.6, -3.8]) {
+      for (const wx of [-1.2, 1.2]) {
+        const w = new THREE.Mesh(P.wheel, P.tire);
+        w.position.set(wx, 0.4, wz);
+        w.scale.setScalar(1.2);
+        g.add(w);
+      }
+    }
+    for (const s of [-0.8, 0.8]) {
+      const f = new THREE.Mesh(P.lamp, P.front);
+      f.position.set(s, 0.9, 5.51);
+      const b = new THREE.Mesh(P.lamp, P.back);
+      b.position.set(s, 1.0, -5.51);
+      g.add(f, b);
+    }
+    g.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+    return g;
+  }
 
   function model() {
     const g = new THREE.Group();
@@ -148,7 +183,7 @@ export function createTraffic({ THREE, scene, streetView, walkers = () => [], op
     return g;
   }
 
-  function spawn(a) {
+  function spawn(a, bus = false) {
     for (let t = 0; t < 30; t++) {
       const ang = rand() * Math.PI * 2;
       const d = opt.near + rand() * (opt.spawn - opt.near);
@@ -164,8 +199,9 @@ export function createTraffic({ THREE, scene, streetView, walkers = () => [], op
       const px = x + Math.sin(rightOf(h)) * shift, pz = z + Math.cos(rightOf(h)) * shift;
       if (!isRoad(px, pz)) continue;
       if (cars.some((c) => Math.hypot(c.x - px, c.z - pz) < opt.gap * 1.5)) continue;
-      const obj = model();
-      const car = { obj, x: px, z: pz, heading: h, speed: 0, cruise: opt.speed[0] + rand() * (opt.speed[1] - opt.speed[0]), opening: false, straight: false };
+      const obj = bus ? busModel() : model();
+      const cruise = bus ? opt.bus.speed : opt.speed[0] + rand() * (opt.speed[1] - opt.speed[0]);
+      const car = { obj, bus, half: bus ? opt.bus.half : 2.1, x: px, z: pz, heading: h, speed: 0, cruise, opening: false, straight: false, dwell: 0 };
       obj.position.set(px, streetView.groundY(), pz);
       obj.rotation.y = h;
       group.add(obj);
@@ -185,10 +221,11 @@ export function createTraffic({ THREE, scene, streetView, walkers = () => [], op
   /** Alguém na frente (até `gap` m, numa faixa de 1,4 m para carros, 2,6 m para o avatar e 4,5 m para quem atravessa): o carro freia. */
   function blockedAhead(car, a) {
     const fx = Math.sin(car.heading), fz = Math.cos(car.heading);
-    const ahead = (x, z, r) => {
+    // `extra`: o comprimento a mais (o ônibus é mais longo que o carro de 4,2 m).
+    const ahead = (x, z, r, extra = car.half - 2.1) => {
       const dx = x - car.x, dz = z - car.z;
       const along = dx * fx + dz * fz;
-      return along > 0 && along < opt.gap && Math.abs(dx * fz - dz * fx) < r;
+      return along > 0 && along < opt.gap + extra && Math.abs(dx * fz - dz * fx) < r;
     };
     // O avatar na rua: faixa larga (o carro corrige a faixa e não pode escapar dele) e parada firme a menos de 5 m.
     if (isRoad(a.x, a.z)) {
@@ -201,7 +238,33 @@ export function createTraffic({ THREE, scene, streetView, walkers = () => [], op
       car.yielding = true;
       return true;
     }
-    return cars.some((o) => o !== car && ahead(o.x, o.z, 1.4));
+    return cars.some((o) => o !== car && ahead(o.x, o.z, 1.4, car.half + o.half - 4.2));
+  }
+
+  /** Ônibus: velocidade máxima para parar no ponto à frente, ou parado no ponto. */
+  function busSpeed(c, dt) {
+    if (c.dwell > 0) {
+      c.dwell -= dt;
+      if (c.dwell <= 0) c.lastStop = c.stopKey;
+      return 0;
+    }
+    const fx = Math.sin(c.heading), fz = Math.cos(c.heading);
+    let best = Infinity;
+    for (const s of stops()) {
+      if (s.key === c.lastStop) continue;
+      const dx = s.bay.x - c.x, dz = s.bay.z - c.z;
+      const along = dx * fx + dz * fz;
+      const lat = Math.abs(dx * fz - dz * fx);
+      if (along < -0.5 || along > 35 || lat > 2.5) continue;
+      if (along < 0.6) {
+        c.dwell = opt.bus.dwell;
+        c.stopKey = s.key;
+        stats.busStops++;
+        return 0;
+      }
+      best = Math.min(best, Math.sqrt(2 * opt.bus.brake * Math.max(0, along - 0.3)));
+    }
+    return best;
   }
 
   function adapt(dt) {
@@ -225,7 +288,8 @@ export function createTraffic({ THREE, scene, streetView, walkers = () => [], op
       const c = cars[i];
       if (Math.hypot(c.x - a.x, c.z - a.z) > opt.despawn || !isRoad(c.x, c.z) || cars.length > target) remove(i);
     }
-    if (cars.length < target) spawn(a);
+    // Com 3 carros ou mais, um é ônibus.
+    if (cars.length < target) spawn(a, target >= opt.bus.minCars && !cars.some((c) => c.bus));
     for (const c of cars) {
       const wasOpen = c.opening;
       drive(isRoad, c, dt, opt, () => rand() < 0.5);
@@ -236,7 +300,8 @@ export function createTraffic({ THREE, scene, streetView, walkers = () => [], op
       if (c.yielding && !wasYielding) stats.yields++;
       if (stop && c.speed > 1) stats.brakes++;
       // Acelera devagar e freia forte.
-      const want = stop ? 0 : c.cruise;
+      let want = stop ? 0 : c.cruise;
+      if (c.bus) want = Math.min(want, busSpeed(c, dt));
       c.speed += (want - c.speed) * Math.min(1, dt * (want < c.speed ? 4 : 0.8));
       c.x += Math.sin(c.heading) * c.speed * dt;
       c.z += Math.cos(c.heading) * c.speed * dt;
@@ -254,10 +319,18 @@ export function createTraffic({ THREE, scene, streetView, walkers = () => [], op
       target,
       fps: Math.round(fps.value),
       stats: { ...stats },
-      cars: cars.map((c) => ({ x: c.x, z: c.z, heading: c.heading, speed: c.speed, onRoad: isRoad(c.x, c.z), right: reach(isRoad, c.x, c.z, rightOf(c.heading), opt.side) })),
+      cars: cars.map((c) => ({ x: c.x, z: c.z, heading: c.heading, speed: c.speed, bus: c.bus, dwelling: c.dwell > 0, onRoad: isRoad(c.x, c.z), right: reach(isRoad, c.x, c.z, rightOf(c.heading), opt.side) })),
     }),
     setTarget: (n) => { target = Math.max(0, Math.min(opt.max, n)); },
     /** Onde estão os carros e a que velocidade (os pedestres esperam no meio-fio). */
     positions: () => cars.map((c) => ({ x: c.x, z: c.z, speed: c.speed })),
+    /** Ônibus parados no ponto, com a porta (do lado da calçada, perto da frente). */
+    buses: () =>
+      cars
+        .filter((c) => c.bus && c.dwell > 0)
+        .map((c) => {
+          const r = rightOf(c.heading);
+          return { x: c.x, z: c.z, door: { x: c.x + Math.sin(r) * 1.4 + Math.sin(c.heading) * 3.5, z: c.z + Math.cos(r) * 1.4 + Math.cos(c.heading) * 3.5 } };
+        }),
   };
 }
