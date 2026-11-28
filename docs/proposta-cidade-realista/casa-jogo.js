@@ -9,6 +9,8 @@
 //
 // A regra é a do servidor (moradia regular, despensa, descanso obrigatório, intervalo da higiene); aqui só
 // sai o aviso. Usa a mesma sessão do mapa (sessionStorage), e o alimento é o que há mais na despensa.
+//
+// Cada ação devolve { ok, msg }: a cena só deita o avatar na cama se o servidor aceitou o descanso.
 
 const params = new URLSearchParams(location.search);
 const GAME = params.get('game') ?? 'http://127.0.0.1:8020';
@@ -48,7 +50,8 @@ export function createCasaJogo() {
   const label = (code) => foods.find((f) => f.code === code)?.label ?? code;
   /** O alimento com mais unidades na despensa. */
   const pick = () => [...(avatar?.pantry ?? [])].sort((a, b) => b.units - a.units)[0]?.food ?? null;
-  const fail = (e) => ERROS[e.code] ?? e.message;
+  const fail = (e) => ({ ok: false, msg: ERROS[e.code] ?? e.message });
+  const done = (msg) => ({ ok: true, msg });
   const hora = (iso) => new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
   return {
@@ -67,20 +70,20 @@ export function createCasaJogo() {
     ready: () => !!avatar,
     async eat() {
       const food = pick();
-      if (!food) return ERROS.not_in_pantry;
+      if (!food) return fail({ code: 'not_in_pantry' });
       try {
         avatar = (await call(`/v1/avatars/${avatar.id}/consume`, { method: 'POST', body: { food } })).avatar;
-        return `${label(food)} da geladeira: alimentação ${avatar.attributes.food}/10.`;
+        return done(`${label(food)} da geladeira: alimentação ${avatar.attributes.food}/10.`);
       } catch (e) {
         return fail(e);
       }
     },
     async cook() {
       const food = pick();
-      if (!food) return ERROS.not_in_pantry;
+      if (!food) return fail({ code: 'not_in_pantry' });
       try {
         avatar = (await call(`/v1/avatars/${avatar.id}/cook`, { method: 'POST', body: { food } })).avatar;
-        return `${label(food)} feito em casa: alimentação ${avatar.attributes.food}/10, saúde ${avatar.attributes.health}/10.`;
+        return done(`${label(food)} feito em casa: alimentação ${avatar.attributes.food}/10, saúde ${avatar.attributes.health}/10.`);
       } catch (e) {
         return fail(e);
       }
@@ -89,7 +92,7 @@ export function createCasaJogo() {
       try {
         const r = await call(`/v1/avatars/${avatar.id}/rest`, { method: 'POST', body: { hours } });
         avatar = r.avatar;
-        return `Dormindo ${hours} h: acorda às ${hora(r.avatar.rest.ends_at)} com +${r.avatar.rest.energy} de energia${r.housed ? '' : ' (sem moradia regular, metade)'}.`;
+        return done(`Dormindo ${hours} h: acorda às ${hora(r.avatar.rest.ends_at)} com +${r.avatar.rest.energy} de energia${r.housed ? '' : ' (sem moradia regular, metade)'}.`);
       } catch (e) {
         return fail(e);
       }
@@ -97,7 +100,7 @@ export function createCasaJogo() {
     async chore(code, nome) {
       try {
         avatar = (await call(`/v1/avatars/${avatar.id}/chores`, { method: 'POST', body: { code } })).avatar;
-        return `${nome}: higiene ${avatar.attributes.hygiene}/10.`;
+        return done(`${nome}: higiene ${avatar.attributes.hygiene}/10.`);
       } catch (e) {
         return fail(e);
       }

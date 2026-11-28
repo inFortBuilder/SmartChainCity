@@ -57,7 +57,7 @@ export interface InteriorDeps {
 
 /** O interior tem 12 × 9 m; com folga para a calçada da porta. */
 const MAX_COORD = 20;
-const POSES = new Set(['idle', 'walk', 'run', 'sit', 'interact', 'talk']);
+const POSES = new Set(['idle', 'walk', 'run', 'sit', 'interact', 'talk', 'lie']);
 const SKINS = new Set(['man', 'woman']);
 /** Nome antigo do manequim feminino, de clientes que ainda não atualizaram. */
 const skinOf = (v: unknown) => (v === 'human' ? 'woman' : v);

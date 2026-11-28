@@ -80,6 +80,8 @@ export function createInteriorMultiplayer(opts) {
   group.name = 'visitantes';
   scene.add(group);
   const others = new Map(); // sessionId → { x, z, rot, pose, skin, name, inst?, obj?, loading? }
+  /** m: altura do colchão para quem está deitado (pose `lie`). */
+  const LIE_HEIGHT = 0.52;
 
   function label(text) {
     const c = document.createElement('canvas');
@@ -129,6 +131,12 @@ export function createInteriorMultiplayer(opts) {
     if (!o.inst || o.shownPose === o.pose) return;
     const before = o.shownPose;
     o.shownPose = o.pose;
+    // Deitado: corpo girado no colchão, com o parado devagar (a UAL não tem clipe de deitar).
+    const lying = o.pose === 'lie';
+    o.inst.body.rotation.x = lying ? -Math.PI / 2 : 0;
+    o.inst.body.position.y = lying ? LIE_HEIGHT : 0;
+    o.inst.mixer.timeScale = lying ? 0.45 : 1;
+    if (lying) return o.inst.play('idle');
     if (o.pose === 'sit') {
       if (before === 'sit') return;
       o.inst.playOnce('sitEnter', () => o.pose === 'sit' && o.inst.play('sit'));
