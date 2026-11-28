@@ -6,6 +6,7 @@ Na cidade real (`docs/proposta-cidade-realista/pittsburg.html`), o jogador arras
 |---|---|
 | W A S D ou setas | Anda; para a frente é para onde a câmera olha |
 | Shift | Corre |
+| Espaço | Pula (clipes `Jump_Start`, `Jump_Loop` e `Jump_Land` da UAL) |
 | Clique ou toque na rua | Caminha até o ponto em linha reta e para na borda da rua, se ela acabar no caminho |
 | Arrastar | Gira a câmera em volta do avatar |
 | Roda do mouse | Aproxima ou afasta a câmera (2 a 14 m) |
@@ -26,9 +27,26 @@ A área de caminhada é a própria camada `roads` da cidade: os polígonos das r
 - correndo contra a borda, o avatar parou nela, sem sair da rua;
 - o boneco não encobre os painéis no celular (375 px).
 
+## Calçada, câmera e pulo (fase 1 do mundo aberto)
+
+Parte da fase 1 do [mundo aberto em terceira pessoa](mundo-aberto-terceira-pessoa.md):
+
+- **Calçada:** em volta do avatar, uma grade de 0,5 m num raio de 40 m marca a faixa de 3 m ao lado das ruas. A grade é refeita a cada 20 m andados, em cerca de 14 ms. A distância até a rua sai de uma transformada de distância em duas passadas (chamfer 1/√2), sem testar vizinho a vizinho. A faixa fica 15 cm acima do asfalto (o meio-fio), e o avatar sobe e desce dela sem degrau seco. Dá para andar e clicar nela. É desenhada em concreto claro, com instâncias de 0,5 m.
+- **Prédios:** os prédios com LOD (o Centro Administrativo) e os da gestão entram como caixas orientadas, no espaço do próprio prédio. A caixa alinhada aos eixos de um prédio girado cobria as ruas em volta: no Centro Administrativo, tirava cerca de 230 peças de calçada. O chão dentro do prédio fica fora da calçada.
+- **Câmera:** para 30 cm antes do primeiro prédio entre a cabeça do avatar e ela. Testado com uma parede de 12 m a 6 m atrás do avatar: a câmera parou a 5,2 m, em vez dos 14 m pedidos.
+- **Pulo:** sobe 0,94 m (4,2 m/s, gravidade de 9,8 m/s²) e pousa de volta no meio-fio ou na rua.
+- **Premissas:** calçada de 3 m em toda rua e meio-fio de 15 cm, porque o OSM quase nunca desenha a calçada.
+
+**Testado** em 2026-11-28 no navegador, perto do Centro Administrativo de Pittsburg:
+- a grade de calçada foi montada em 14 ms, com 1.419 peças;
+- o clique na calçada levou o avatar até ela, a 15 cm de altura;
+- o pulo chegou a 0,94 m e pousou no meio-fio;
+- a câmera parou antes da parede de teste.
+
 **Limites desta versão:**
-- A câmera em terceira pessoa ainda não colide com prédios. Em Pittsburg, que ainda não tem prédios, isso não aparece.
-- As calçadas e as faixas de pedestre só existem onde o OSM as desenha como `highway`.
+- A borda da calçada sai em degraus de 0,5 m (a grade). Fica para depois um contorno suave, tirado do polígono da rua.
+- A faixa de pedestre não é desenhada; a rua inteira continua caminhável, como antes.
+- A camada de lotes de Pittsburg passa por cima das ruas: com "Lotes" ligado, o chão fica amarelo no street view.
 - O avatar ainda não aparece para os outros jogadores (multiplayer, E2.7).
 
 ## Avatar e animações: Universal Animation Library (Quaternius)
@@ -177,4 +195,4 @@ O avatar dos outros segue a posição recebida na velocidade de caminhada, sem p
 2. Interiores próprios para cada tipo de imóvel e de negócio, e o modelo do prédio aprovado no lugar do escritório padrão.
 3. Digitar no computador sentado: a UAL vol. 1 não tem esse clipe; a vol. 2 tem ações de mão que podem servir.
 
-**Próximo passo:** a câmera com colisão, as calçadas caminháveis e a cidade viva estão em [mundo aberto em terceira pessoa](mundo-aberto-terceira-pessoa.md).
+**Próximo passo:** o mobiliário urbano, o céu por hora e a cidade viva estão em [mundo aberto em terceira pessoa](mundo-aberto-terceira-pessoa.md).

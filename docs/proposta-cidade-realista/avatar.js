@@ -55,6 +55,9 @@ export function clipsByRole(clips) {
     sitExit: find('Sitting_Exit'),
     interact: find('Interact'),
     talk: find('Idle_Talking_Loop'),
+    jumpStart: find('Jump_Start'),
+    jump: find('Jump_Loop'),
+    jumpLand: find('Jump_Land'),
   };
 }
 
