@@ -218,6 +218,8 @@ describe('API da moradia', () => {
     expect(rent.json().housing).toMatchObject({ factor: 1, stay: { kind: 'aluguel', level: 1, until: at(55).toISOString() } });
     expect(rent.json().avatar.housing).toMatchObject({ kind: 'aluguel' });
     expect(ledger.balances.get(a.accountId)).toBe(170_00n);
+    // A semente do turno é aleatória: uma doença sorteada no 1º turno (1% a 5%) barraria o 2º. O que conta aqui é a moradia.
+    await store.updateAvatar(a.id, a.accountId, clock, (x) => ({ ...x, conditions: [] }));
     expect(await work(a, h)).toBe(1);
 
     const other = await app.inject({ method: 'POST', url: `/v1/avatars/${a.id}/housing`, headers: h, payload: { kind: 'hotel', level: 1, days: 1 } });
