@@ -475,7 +475,16 @@ Dirigindo, o carro vai para quem está no mesmo bairro, pelo `realtime`:
   - a aba A andou de z 4626,5 para 4650,2, e a B recebeu o carro em z 4660,8 (onde ele parou depois de soltar o acelerador);
   - a aba A saiu do carro, e a B passou a ver o avatar a pé, sem o carro.
 
-**Limites desta versão:** o carro estacionado (fora de uso) não aparece para os outros, e os carros do trânsito de cada navegador não freiam pelo carro de outro jogador. O GPS já tem o trabalho como destino ([locais de trabalho](#locais-de-trabalho-fase-4)).
+**O trânsito freia pelos outros jogadores.** O multiplayer passa ao trânsito os outros jogadores na rua (`obstacles()`), onde aparecem na tela. O carro de quem dirige conta como o carro da frente, com a velocidade dele. Quem anda na rua conta como o avatar: o carro para.
+
+**Testado** em 2026-11-28:
+- no Node, com o `createTraffic` de verdade, 10 carros por 2 minutos, um carro de outro jogador parado no meio de uma faixa e uma pessoa na rua em outra faixa: 0 batidas no carro e 0 atropelamentos. Os carros pararam atrás do carro do outro (3.688 amostras de carro parado a menos de 12 m, no mesmo sentido) e ficaram a pelo menos 5,06 m da pessoa;
+- no navegador, com duas abas no bairro 8 e um `realtime` desta versão numa porta à parte:
+  - a aba A parou o Hatch no meio da rua, em (-2007,5; 4314);
+  - na aba B, com 10 carros por 1 minuto: 0 batidas no carro de A, 151 amostras de carro parado atrás dele, e a menor distância de 5,1 m entre os centros;
+  - na captura, a fila na faixa da direita atrás do carro de A.
+
+**Limites desta versão:** o carro estacionado (fora de uso) não aparece para os outros. Por isso, o trânsito dos outros não freia por ele. O GPS já tem o trabalho como destino ([locais de trabalho](#locais-de-trabalho-fase-4)).
 ## Locais de trabalho (fase 4)
 
 O turno do game-core não tem lugar: o avatar trabalha pelo painel (`POST /v1/avatars/:id/work`). Para o GPS ter o trabalho como destino, `trabalho.js` divide as 44 profissões do catálogo em 12 setores. Cada setor tem um prédio na rua, com a mesma casca da loja do jogo e da farmácia: paredes, porta, letreiro e um balcão no fundo.
